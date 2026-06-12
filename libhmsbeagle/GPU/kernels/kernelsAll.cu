@@ -88,7 +88,7 @@ KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*           
                                             const KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeights,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeightsSort,
                                                                 int               patternCount,
-                                                                int               paddedPatternCount) {
+                                                                int               paddedPatternCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU
     int state      = 0;
     int pattern    = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * KW_LOCAL_SIZE_0;
@@ -143,7 +143,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBMulti(KW_GLOBAL_VAR REAL* dMatrices,
                                               KW_GLOBAL_VAR REAL* distanceQueue,
                                               int length,
                                               int wB,
-                                              int totalMatrix) {
+                                              int totalMatrix KW_THREAD_ARGS) {
 
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
     int offIndex = wMatrix * 3;
@@ -248,7 +248,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR REAL* distanceQueue,
                                    int length,
                                    int wB,
-                                   int totalMatrix) {
+                                   int totalMatrix KW_THREAD_ARGS) {
 
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
 
@@ -268,7 +268,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
         C = dMatrices + listC[wMatrix]; // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
-#elif defined(FW_OPENCL)
+#else
     KW_GLOBAL_VAR REAL* C;
     REAL distance;
     C = dMatrices + listC[wMatrix];
@@ -362,7 +362,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices
                                            KW_GLOBAL_VAR REAL* distanceQueue,
                                            int length,
                                            int wB,
-                                           int totalMatrix) {
+                                           int totalMatrix KW_THREAD_ARGS) {
 
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
 
@@ -386,7 +386,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBFirstDeriv(KW_GLOBAL_VAR REAL* dMatrices
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
-#elif defined(FW_OPENCL)
+#else
     KW_GLOBAL_VAR REAL* C;
     KW_GLOBAL_VAR REAL* CFirstDeriv;
     REAL distanceLength;
@@ -500,7 +500,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
                                            KW_GLOBAL_VAR REAL* distanceQueue,
                                            int length,
                                            int wB,
-                                           int totalMatrix) {
+                                           int totalMatrix KW_THREAD_ARGS) {
 
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
 
@@ -526,7 +526,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
         distanceLength = distanceQueue[wMatrix]; // Non-coalescent read
         distanceRate = distanceQueue[wMatrix + totalMatrix]; // Non-coalescent read
     }
-#elif defined(FW_OPENCL)
+#else
     KW_GLOBAL_VAR REAL* C;
     KW_GLOBAL_VAR REAL* CFirstDeriv;
     KW_GLOBAL_VAR REAL* CSecondDeriv;
@@ -646,7 +646,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBSecondDeriv(KW_GLOBAL_VAR REAL* dMatrice
 KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
 								        KW_GLOBAL_VAR unsigned int* list,
 								        int totalMatrixCount
-								        ) {
+								         KW_THREAD_ARGS) {
 
 	    int wMatrix = KW_GROUP_ID_0 % totalMatrixCount;
 
@@ -669,7 +669,7 @@ KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
             B = dMatrices + list[wMatrix + totalMatrixCount]; // Non-coalescent read
             C = dMatrices + list[wMatrix + totalMatrixCount*2]; // Non-coalescent read
         }
-#elif defined(FW_OPENCL)
+#else
         KW_GLOBAL_VAR REAL* A;
         KW_GLOBAL_VAR REAL* B;
         KW_GLOBAL_VAR REAL* C;
@@ -760,7 +760,7 @@ KW_GLOBAL_KERNEL void kernelMatrixConvolution(KW_GLOBAL_VAR REAL* dMatrices,
 
 KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
                                             KW_GLOBAL_VAR unsigned int* list,
-                                            int totalMatrixCount) {
+                                            int totalMatrixCount KW_THREAD_ARGS) {
 
 	    int wMatrix = KW_GROUP_ID_0 % totalMatrixCount;
 
@@ -779,7 +779,7 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
             A = dMatrices + list[wMatrix]; // Non-coalescent read
             C = dMatrices + list[wMatrix + totalMatrixCount]; // Non-coalescent read
         }
-#elif defined(FW_OPENCL)
+#else
         KW_GLOBAL_VAR REAL* A;
         KW_GLOBAL_VAR REAL* C;
         A = dMatrices + list[wMatrix];
@@ -817,7 +817,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
                                    KW_GLOBAL_VAR REAL* distanceQueue,
                                    int length,
                                    int wB,
-                                   int totalMatrix) {
+                                   int totalMatrix KW_THREAD_ARGS) {
 #if !(defined(FW_OPENCL_APPLEAMDGPU) && defined(DOUBLE_PRECISION)) // TODO: fix this issue
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
     int offIndex = wMatrix * 3;
@@ -864,7 +864,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
     REAL* Bm1 = &Bs[0][0];
     REAL* Bp1 = &Bs[2][0];
     REAL* E0  = &Es[1];
-#elif defined(FW_OPENCL)
+#else
     KW_LOCAL_MEM REAL* B0  = &Bs[1][0];
     KW_LOCAL_MEM REAL* Bm1 = &Bs[0][0];
     KW_LOCAL_MEM REAL* Bp1 = &Bs[2][0];
@@ -1037,7 +1037,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR REAL* distanceQueue,
                                    int length,
                                    int wB,
-                                   int totalMatrix) {
+                                   int totalMatrix KW_THREAD_ARGS) {
 #if !(defined(FW_OPENCL_APPLEAMDGPU) && defined(DOUBLE_PRECISION)) // TODO: fix this issue
     int wMatrix = KW_GROUP_ID_0 % totalMatrix;
 
@@ -1057,7 +1057,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
         C = dMatrices + listC[wMatrix];
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
-#elif defined(FW_OPENCL)
+#else
     KW_GLOBAL_VAR REAL* C;
     REAL distance;
     C = dMatrices + listC[wMatrix];
@@ -1093,7 +1093,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
    	REAL* Bm1 = &Bs[0][0];
    	REAL* Bp1 = &Bs[2][0];
    	REAL* E0  = &Es[1];
-#elif defined(FW_OPENCL)
+#else
    	KW_LOCAL_MEM REAL* B0  = &Bs[1][0];
    	KW_LOCAL_MEM REAL* Bm1 = &Bs[0][0];
    	KW_LOCAL_MEM REAL* Bp1 = &Bs[2][0];
@@ -1260,7 +1260,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
 KW_GLOBAL_KERNEL void kernelSumSites1(KW_GLOBAL_VAR REAL* dArray,
                                       KW_GLOBAL_VAR REAL* dSum,
                                       KW_GLOBAL_VAR REAL* dPatternWeights,
-                                      int patternCount) {
+                                      int patternCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU
 
     REAL sum = 0;
@@ -1308,7 +1308,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
                                                KW_GLOBAL_VAR REAL* dSum,
                                                KW_GLOBAL_VAR REAL* dPatternWeights,
                                                int startPattern,
-                                               int endPattern) {
+                                               int endPattern KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU
 
     REAL sum = 0;
@@ -1355,7 +1355,7 @@ KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL* dArray,
 // KW_GLOBAL_KERNEL void kernelSumSites1Partition(KW_GLOBAL_VAR REAL*         dArray,
 //                                                KW_GLOBAL_VAR REAL*         dSum,
 //                                                KW_GLOBAL_VAR REAL*         dPatternWeights,
-//                                                KW_GLOBAL_VAR unsigned int* dPtrOffsets) {
+//                                                KW_GLOBAL_VAR unsigned int* dPtrOffsets KW_THREAD_ARGS) {
 
 //     int opIndexPtr = KW_GROUP_ID_0 * 2;
 //     int startPattern = dPtrOffsets[opIndexPtr    ];
@@ -1405,7 +1405,7 @@ KW_GLOBAL_KERNEL void kernelSumSites2(KW_GLOBAL_VAR REAL* dArray1,
                                       KW_GLOBAL_VAR REAL* dArray2,
                                       KW_GLOBAL_VAR REAL* dSum2,
                                       KW_GLOBAL_VAR REAL* dPatternWeights,
-                                      int patternCount) {
+                                      int patternCount KW_THREAD_ARGS) {
 
 #ifdef FW_OPENCL_CPU
 
@@ -1468,7 +1468,7 @@ KW_GLOBAL_KERNEL void kernelSumSites3(KW_GLOBAL_VAR REAL* dArray1,
                                       KW_GLOBAL_VAR REAL* dArray3,
                                       KW_GLOBAL_VAR REAL* dSum3,
                                       KW_GLOBAL_VAR REAL* dPatternWeights,
-                                      int patternCount) {
+                                      int patternCount KW_THREAD_ARGS) {
 
 #ifdef FW_OPENCL_CPU
 
@@ -1536,7 +1536,7 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactors(KW_GLOBAL_VAR REAL* dScalingFactor
                                               KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                               KW_GLOBAL_VAR REAL* rootScaling,
                                               int nodeCount,
-                                              int patternCount) {
+                                              int patternCount KW_THREAD_ARGS) {
 
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
@@ -1572,7 +1572,7 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsByPartition(KW_GLOBAL_VAR REAL* dSc
                                                          KW_GLOBAL_VAR REAL* rootScaling,
                                                          int nodeCount,
                                                          int startPattern,
-                                                         int endPattern) {
+                                                         int endPattern KW_THREAD_ARGS) {
 
     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
@@ -1598,7 +1598,7 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLog(KW_GLOBAL_VAR REAL* dSca
                                                  KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                                  KW_GLOBAL_VAR REAL* rootScaling,
                                                  int nodeCount,
-                                                 int patternCount) {
+                                                 int patternCount KW_THREAD_ARGS) {
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -1631,7 +1631,7 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsScalersLogByPartition(
                                                 KW_GLOBAL_VAR REAL* rootScaling,
                                                 int nodeCount,
                                                 int startPattern,
-                                                int endPattern) {
+                                                int endPattern KW_THREAD_ARGS) {
 
     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
@@ -1654,7 +1654,7 @@ KW_GLOBAL_KERNEL void kernelRemoveFactors(KW_GLOBAL_VAR REAL* dScalingFactors,
                                     KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                                    KW_GLOBAL_VAR REAL* rootScaling,
                                                    int nodeCount,
-                                                   int patternCount) {
+                                                   int patternCount KW_THREAD_ARGS) {
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -1689,7 +1689,7 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsByPartition(KW_GLOBAL_VAR REAL* dScalin
                                                      KW_GLOBAL_VAR REAL* rootScaling,
                                                      int nodeCount,
                                                      int startPattern,
-                                                     int endPattern) {
+                                                     int endPattern KW_THREAD_ARGS) {
     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -1714,7 +1714,7 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLog(KW_GLOBAL_VAR REAL* dScaling
                                              KW_GLOBAL_VAR unsigned int* dNodePtrQueue,
                                              KW_GLOBAL_VAR REAL* rootScaling,
                                              int nodeCount,
-                                             int patternCount) {
+                                             int patternCount KW_THREAD_ARGS) {
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -1747,7 +1747,7 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLogByPartition(KW_GLOBAL_VAR REA
                                                                KW_GLOBAL_VAR REAL* rootScaling,
                                                                int nodeCount,
                                                                int startPattern,
-                                                               int endPattern) {
+                                                               int endPattern KW_THREAD_ARGS) {
     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     REAL total = 0;
@@ -1767,7 +1767,7 @@ KW_GLOBAL_KERNEL void kernelRemoveFactorsScalersLogByPartition(KW_GLOBAL_VAR REA
 
 KW_GLOBAL_KERNEL void kernelResetFactorsByPartition(KW_GLOBAL_VAR REAL* dScalingFactors,
                                                     int startPattern,
-                                                    int endPattern) {
+                                                    int endPattern KW_THREAD_ARGS) {
     int pattern = startPattern + KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
 
     if (pattern < endPattern) {
@@ -1778,7 +1778,7 @@ KW_GLOBAL_KERNEL void kernelResetFactorsByPartition(KW_GLOBAL_VAR REAL* dScaling
 
 KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlow(KW_GLOBAL_VAR REAL* allPartials,
                                                  KW_GLOBAL_VAR REAL* scalingFactors,
-                                                 int matrixCount) {
+                                                 int matrixCount KW_THREAD_ARGS) {
     int state = KW_LOCAL_ID_0;
     int pattern = KW_GROUP_ID_0;
     int patternCount = KW_NUM_GROUPS_0;
@@ -1834,7 +1834,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlow(KW_GLOBAL_VAR REAL* allPa
 
 KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlowScalersLog(KW_GLOBAL_VAR REAL* allPartials,
                                                           KW_GLOBAL_VAR REAL* scalingFactors,
-                                                          int matrixCount) {
+                                                          int matrixCount KW_THREAD_ARGS) {
     int state = KW_LOCAL_ID_0;
     int pattern = KW_GROUP_ID_0;
     int patternCount = KW_NUM_GROUPS_0;
@@ -1895,7 +1895,7 @@ KW_GLOBAL_KERNEL void kernelMultipleNodeSiteReduction(KW_GLOBAL_VAR REAL* dOut,
                                                       KW_GLOBAL_VAR REAL* dIn,
                                                       KW_GLOBAL_VAR REAL* dPatternWeights,
                                                       int outOffset,
-                                                      int patternCount) {
+                                                      int patternCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU
     // TODO
 #else
@@ -1935,7 +1935,7 @@ KW_GLOBAL_KERNEL void kernelMultipleNodeSiteSquaredReduction(KW_GLOBAL_VAR REAL*
                                                              KW_GLOBAL_VAR REAL* dIn,
                                                              KW_GLOBAL_VAR REAL* dPatternWeights,
                                                              int outOffset,
-                                                             int patternCount) {
+                                                             int patternCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU
     // TODO
 #else
@@ -1980,7 +1980,7 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
                                                    KW_GLOBAL_VAR int* rootScaling,
                                                    int nodeCount,
                                                    int patternCount,
-                                                   int scaleBufferSize) {
+                                                   int scaleBufferSize KW_THREAD_ARGS) {
     int pattern = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
     int index = pattern + KW_GROUP_ID_1 * patternCount;
 
@@ -2011,7 +2011,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
 													int start,
                                                     int numOps,
-                                                    int totalPatterns) {
+                                                    int totalPatterns KW_THREAD_ARGS) {
 
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
@@ -2069,7 +2069,11 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         	}
         }
         KW_LOCAL_FENCE;
+#ifdef CUDA
         REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
+#else
+        KW_LOCAL_MEM REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
+#endif
         for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
             FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
             if (isCoalescent) {
@@ -2123,7 +2127,7 @@ KW_GLOBAL_KERNEL void kernelBastaPrecomputeDiagonals(
     KW_GLOBAL_VAR REAL* KW_RESTRICT eval,
     KW_GLOBAL_VAR REAL* KW_RESTRICT branchLengths,
     KW_GLOBAL_VAR REAL* KW_RESTRICT diagBuffer,
-    int intervalCount) {
+    int intervalCount KW_THREAD_ARGS) {
     
     int interval = KW_GROUP_ID_0;
     int state = KW_LOCAL_ID_0;
@@ -2146,7 +2150,7 @@ KW_GLOBAL_KERNEL void kernelBastaPartialsWithPrecomputedDiag(
     int start,
     int numOps,
     int totalPatterns,
-    int intervalIdx) {
+    int intervalIdx KW_THREAD_ARGS) {
 
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
@@ -2283,7 +2287,7 @@ KW_GLOBAL_KERNEL void kernelBastaPartialsWithPrecomputedDiag(
                                                     //KW_GLOBAL_VAR REAL* KW_RESTRICT endPartials2,
 													//int intervalNumber,
                                                     //int child2PartialIndex,
-                                                    //int renew) {
+                                                    //int renew KW_THREAD_ARGS) {
 
     //#define SUM_SITES_BLOCK_SIZE_B 64
 	//#define SUM_PARTIAL_BLOCK_SIZE_B 4
@@ -2346,7 +2350,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* K
                                                     int start,
                                                     int end,
                                                     int numBlocks,
-                                                    int kCoalescentBufferLength) {
+                                                    int kCoalescentBufferLength KW_THREAD_ARGS) {
 
 #define OPS_PER_THREAD 8
 
@@ -2573,7 +2577,7 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
 													int intervalStartsCount,
-													int kCoalescentBufferLength) {
+													int kCoalescentBufferLength KW_THREAD_ARGS) {
 
 
         int intervalCount = intervalStartsCount - 1;

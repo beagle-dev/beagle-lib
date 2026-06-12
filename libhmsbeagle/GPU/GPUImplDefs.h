@@ -53,6 +53,7 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU = 9,
     BEAGLE_OPENCL_DEVICE_NVIDA_GPU       = 10,
     BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 11,
+    BEAGLE_METAL_DEVICE_APPLE_GPU        = 12,
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
@@ -125,6 +126,39 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  get_num_groups(1)
     #define KW_NUM_GROUPS_2  get_num_groups(2)
     #define KW_RESTRICT      restrict
+#elif defined(FW_METAL)
+    #define BEAGLE_STREAM_COUNT    32
+    #define BEAGLE_MULTI_GRID_MAX  16384
+    #define KW_GLOBAL_KERNEL       kernel
+    #define KW_DEVICE_FUNC
+    #define KW_GLOBAL_VAR          device
+    #define KW_LOCAL_MEM           threadgroup
+    #define KW_LOCAL_FENCE         threadgroup_barrier(mem_flags::mem_threadgroup)
+    #define KW_LOCAL_ID_0          _lid.x
+    #define KW_LOCAL_ID_1          _lid.y
+    #define KW_LOCAL_ID_2          _lid.z
+    #define KW_LOCAL_SIZE_0        _lsz.x
+    #define KW_LOCAL_SIZE_1        _lsz.y
+    #define KW_LOCAL_SIZE_2        _lsz.z
+    #define KW_GROUP_ID_0          _gid.x
+    #define KW_GROUP_ID_1          _gid.y
+    #define KW_GROUP_ID_2          _gid.z
+    #define KW_NUM_GROUPS_0        _ngr.x
+    #define KW_NUM_GROUPS_1        _ngr.y
+    #define KW_NUM_GROUPS_2        _ngr.z
+    #define KW_RESTRICT
+    // Thread-index parameters injected as trailing kernel arguments for Metal.
+    // Expands to empty for CUDA and OpenCL (defined below).
+    #define KW_THREAD_ARGS \
+        , uint3 _lid [[thread_position_in_threadgroup]] \
+        , uint3 _gid [[threadgroup_position_in_grid]]   \
+        , uint3 _lsz [[threads_per_threadgroup]]        \
+        , uint3 _ngr [[threadgroups_per_grid]]
+#endif
+
+// KW_THREAD_ARGS expands to nothing for CUDA and OpenCL.
+#ifndef KW_THREAD_ARGS
+    #define KW_THREAD_ARGS
 #endif
 
 /* Compiler definitions

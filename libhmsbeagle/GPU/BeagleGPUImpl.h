@@ -35,6 +35,8 @@
 
 #ifdef CUDA
     using namespace cuda_device;
+#elif defined(FW_METAL)
+    using namespace metal_device;
 #else
     using namespace opencl_device;
 #endif
@@ -44,6 +46,8 @@ namespace gpu {
 
 #ifdef CUDA
         namespace cuda {
+#elif defined(FW_METAL)
+        namespace metal {
 #else
         namespace opencl {
 #endif

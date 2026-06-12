@@ -3,7 +3,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    int totalPatterns) {
+                                                    int totalPatterns KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
@@ -84,7 +84,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                  int totalPatterns) {
+                                                  int totalPatterns KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
@@ -151,7 +151,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
                                                                  KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
                                                                  int skip,
-                                                                 int totalPatterns, int categoryCount) {
+                                                                 int totalPatterns, int categoryCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
@@ -287,7 +287,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
                                                                KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
                                                                int skip,
-                                                               int totalPatterns, int categoryCount) {
+                                                               int totalPatterns, int categoryCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation

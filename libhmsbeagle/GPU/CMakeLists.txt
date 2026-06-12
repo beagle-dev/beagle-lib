@@ -21,3 +21,13 @@ if(CUDA_FOUND AND BUILD_CUDA AND BEAGLE_TENSOR_CORES)
     add_subdirectory("CMake_TensorCores")
 endif()
 
+if(APPLE)
+    find_library(METAL_FRAMEWORK Metal)
+    if(METAL_FRAMEWORK)
+        message(STATUS "Metal framework found: ${METAL_FRAMEWORK}")
+        add_subdirectory("CMake_Metal")
+    else()
+        message(STATUS "Metal framework not found; skipping Metal backend")
+    endif()
+endif()
+

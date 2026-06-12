@@ -210,6 +210,18 @@ void beagleLoadPlugins(void) {
         beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
         plugins->push_back(avxplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-metal" << std::endl;
+#endif
+        beagle::plugin::Plugin* metalplug = pm.findPlugin("hmsbeagle-metal");
+        plugins->push_back(metalplug);
+    }catch(beagle::plugin::SharedLibraryException sle){
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-metal: " << sle.getError() << std::endl;
+#endif
+    }
 }
 
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {

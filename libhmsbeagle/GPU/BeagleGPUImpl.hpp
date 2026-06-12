@@ -40,6 +40,8 @@ namespace gpu {
 
 #ifdef CUDA
     namespace cuda {
+#elif defined(FW_METAL)
+    namespace metal {
 #else
     namespace opencl {
 #endif
@@ -877,6 +879,11 @@ template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
     return (char*) "OpenCL-Single";
 }
+#elif defined(FW_METAL)
+template<>
+char* BeagleGPUImpl<float>::getInstanceName() {
+    return (char*) "Metal-Single";
+}
 #endif
 
 BEAGLE_GPU_TEMPLATE
@@ -896,6 +903,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
 #endif
 #elif defined(FW_OPENCL)
         kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
+#elif defined(FW_METAL)
+        kFlags |= BEAGLE_FLAG_FRAMEWORK_METAL;
+        kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
         returnInfo->flags |= kFlags;
@@ -5028,6 +5038,11 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "SP-OpenCL";
 }
+#elif defined(FW_METAL)
+template<>
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "SP-Metal";
+}
 #endif
 
 template<>
@@ -5061,6 +5076,9 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 #elif defined(FW_OPENCL)
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
+#elif defined(FW_METAL)
+    flags |= BEAGLE_FLAG_FRAMEWORK_METAL |
+             BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
     Real r = 0;

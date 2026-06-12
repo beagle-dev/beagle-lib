@@ -168,6 +168,7 @@ enum BeagleFlags {
 
     BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
     BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,   /**< Use OpenCL implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_METAL     = 1 << 24,   /**< Use Metal implementation with GPU resources (macOS/Apple Silicon) */
     BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27,   /**< Use CPU implementation */
 
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */

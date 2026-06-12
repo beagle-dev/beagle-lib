@@ -43,8 +43,7 @@
     typedef CUfunction GPUFunction;
 
     namespace cuda_device {
-#else
-#ifdef FW_OPENCL
+#elif defined(FW_OPENCL)
     #define CL_USE_DEPRECATED_OPENCL_1_1_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_1_2_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_2_0_APIS // to disable deprecation warnings
@@ -62,7 +61,14 @@
     typedef cl_kernel GPUFunction;
 
     namespace opencl_device {
-#endif
+#elif defined(FW_METAL)
+    // Metal types are Objective-C objects; use void* to stay compatible with C++ headers.
+    // The .mm implementation casts these to/from id<MTLBuffer> / id<MTLComputePipelineState>.
+    #include "libhmsbeagle/GPU/kernels/BeagleMetal_kernels.h"
+    typedef void* GPUPtr;
+    typedef void* GPUFunction;
+
+    namespace metal_device {
 #endif
 
 class GPUInterface {
@@ -83,6 +89,14 @@ private:
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
+#elif defined(FW_METAL)
+    // All Metal objects stored as void* to avoid Objective-C types in C++ headers.
+    void*  metalDeviceId;                    // id<MTLDevice> active device
+    void** metalCommandQueues;               // id<MTLCommandQueue>[]
+    void*  metalLibrary;                     // id<MTLLibrary>
+    std::map<int, void*> metalDeviceMap;     // device index -> id<MTLDevice>
+    // Sub-buffer tracking: Metal has no sub-buffers; store (parent, offset) per sub-ptr.
+    std::map<void*, std::pair<void*, size_t>> metalSubBufferMap;
 #endif
 
 public:
@@ -135,7 +149,7 @@ public:
                                    bool writeCombined,
                                    bool mapped);
 
-#ifdef FW_OPENCL
+#if defined(FW_OPENCL) || defined(FW_METAL)
     void* MapMemory(GPUPtr dPtr,
                     size_t memSize);
 

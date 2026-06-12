@@ -87,6 +87,14 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+if(APPLE)
+    find_library(METAL_FRAMEWORK Metal)
+    if(METAL_FRAMEWORK)
+        add_executable(metaltest metaltest/metaltest.cpp)
+        target_link_libraries(metaltest hmsbeagle hmsbeagle-metal ${CMAKE_DL_LIBS})
+    endif()
+endif()
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)

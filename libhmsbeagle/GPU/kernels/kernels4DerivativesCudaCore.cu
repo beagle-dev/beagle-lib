@@ -4,7 +4,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                    int endPattern) {
+                                                    int endPattern KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation

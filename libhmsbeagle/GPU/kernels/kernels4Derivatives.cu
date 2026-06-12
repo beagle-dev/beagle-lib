@@ -1,10 +1,14 @@
+#ifdef CUDA
 }
+#endif
 
 #ifdef CUDA_TENSOR_CORES
 #include <mma.h>
 #endif
 
+#ifdef CUDA
 extern "C" {
+#endif
 #define multBy4(x)  ((x) << 2)
 #define multBy16(x) ((x) << 4)
 
@@ -44,7 +48,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingMulti(KW_GLOBAL_VAR REAL* KW_
                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
                                                          const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
                                                          int gridStartOp,
-                                                         int totalPatterns) {
+                                                         int totalPatterns KW_THREAD_ARGS) {
 
 #ifdef FW_OPENCL_CPU // CPU/MIC implementationt
     todo(); // TODOg
@@ -69,7 +73,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices1,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT matrices2,
-                                                  int endPattern) {
+                                                  int endPattern KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // TODO
 #else // GPU implementation
@@ -133,7 +137,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
                                                                  KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
                                                                  int skip,
-                                                                 int totalPatterns, int categoryCount) {
+                                                                 int totalPatterns, int categoryCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
@@ -262,7 +266,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
                                                                KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
                                                                KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
                                                                int skip,
-                                                               int totalPatterns, int categoryCount) {
+                                                               int totalPatterns, int categoryCount KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation
@@ -396,7 +400,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
                                                         const int categoryCount,
                                                         const int rateOffset,
                                                         const int accumulate,
-                                                        const int missingState) {
+                                                        const int missingState KW_THREAD_ARGS) {
   #ifdef FW_OPENCL_CPU // CPU/MIC implementation
       todo(); // Not implemented
   #else // GPU implementation
@@ -555,7 +559,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
                                                          const int totalNodes,
                                                          const int categoryCount,
                                                          const int rateOffset,
-                                                         const int accumulate) {
+                                                         const int accumulate KW_THREAD_ARGS) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     todo(); // Not implemented
 #else // GPU implementation

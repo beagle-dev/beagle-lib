@@ -26,6 +26,8 @@
 
 #ifdef CUDA
     namespace cuda_device {
+#elif defined(FW_METAL)
+    namespace metal_device {
 #else
     namespace opencl_device {
 #endif
