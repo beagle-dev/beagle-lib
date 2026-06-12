@@ -1288,6 +1288,13 @@ BEAGLE_DLLEXPORT int beagleCalculateCrossProductDerivative(int instance,
                                                   double *outSumDerivatives,
                                                   double *outSumSquaredDerivatives);
 
+typedef struct {
+    int postOrderPartials;
+    int preOrderPartials;
+    int branchTransitionMatrix;
+    int resultSegment;
+} BeagleBranchOperation;
+
 BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                   const int *postBufferIndices,
                                                   const int *preBufferIndices,
@@ -1299,6 +1306,17 @@ BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                   int count,
                                                   double *outSumDerivatives,
                                                   double *outSumSquaredDerivatives);
+
+BEAGLE_DLLEXPORT int beagleCalculateAdjointDerivative(
+        const int instance,
+        const BeagleBranchOperation *operations,
+        const int categoryRateIndex,
+        const int categoryWeightsIndex,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
+        const int operationCount,
+        double *outSumDerivatives,
+        double *outSumSquaredDerivatives);
 
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
