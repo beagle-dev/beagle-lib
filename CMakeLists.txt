@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build type" FORCE)
+endif()
+
 project(BEAGLE)
 
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
@@ -109,8 +113,8 @@ if(BUILD_JNI)
     		    $ENV{JAVA_HOME}/include
 	    	    ${JNI_INCLUDE_DIRS}
 		)
-	else(JNI_FOUND)	
-		message (FATAL_ERROR "No JNI includes and libraries found")	
+	else(JNI_FOUND)
+		message (FATAL_ERROR "No JNI includes and libraries found")
 	endif(JNI_FOUND)
 endif(BUILD_JNI)
 
@@ -215,48 +219,48 @@ if(WIN32)
     set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/banner.jpg")
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
     set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml") # MAS commented out for testing
-    
+
 # 	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
-# 	
+#
 # 	include(CPackComponent)
-# 
+#
 # 	cpack_add_component(main
 # 			DISPLAY_NAME "Main library"
 # 			DESCRIPTION "BEAGLE main library"
 # 			REQUIRED)
-# 
+#
 # 	cpack_add_component(cpu
 #   			DISPLAY_NAME "CPU plugin"
 # 		  	DESCRIPTION "CPU plugin"
 #   			REQUIRED)
-# 
+#
 #   	cpack_add_component(cpu_sse
 #   			DISPLAY_NAME "CPU-SSE plugin"
 #   			DESCRIPTION "CPU-SSE plugin")
-# 
+#
 #   	cpack_add_component(cpu_omp
 #   			DISPLAY_NAME "CPU-OMP plugin"
 #   			DESCRIPTION "CPU-OMP plugin")
-# 
+#
 #   	cpack_add_component(jni
 #   			DISPLAY_NAME "JNI plugin"
 #   			DESCRIPTION "JNI plugin")
-# 
+#
 #   	cpack_add_component(jni_basta
 #   			DISPLAY_NAME "JNI-${BASTA_EXTENSION} plugin"
 #   			DESCRIPTION "JNI-${BASTA_EXTENSION} plugin")
-# 
+#
 #   	cpack_add_component(cuda
 #   			DISPLAY_NAME "CUDA plugin"
 #   			DESCRIPTION "CUDA plugin")
-# 
+#
 #   	cpack_add_component(opencl
 #   			DISPLAY_NAME "OpenCL plugin"
 #   			DESCRIPTION "OpenCL plugin")
-#   			
+#
 # # Install files directly to the root
 # install(FILES my_file.txt DESTINATION "/")
-  			
+
 endif(WIN32)
 
 if(APPLE)
@@ -268,7 +272,7 @@ if(APPLE)
 	set(CPACK_PRODUCTBUILD_BACKGROUND_UTI "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
 
 	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
-	
+
 	include(CPackComponent)
 
 	cpack_add_component(main
@@ -306,7 +310,7 @@ if(APPLE)
   			DESCRIPTION "OpenCL plugin")
 
 	set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
-	
+
 	set(CPACK_BUNDLE_APPLE_CERT_APP "Developer ID Applicaton: Marc Suchard (LC992Z5R7E)")
 endif(APPLE)
 
@@ -319,5 +323,5 @@ if(APPLE)
 #             <arg value="-v"/>
 #             <arg value="${release_dir}/${BEAST_package_name} v${version}.dmg"/>
 #         </exec>
-# codesign -s "Marc Suchard (LC992Z5R7E)" -v release/BEAST\ X\ v10.5.0.dmg 
+# codesign -s "Marc Suchard (LC992Z5R7E)" -v release/BEAST\ X\ v10.5.0.dmg
 endif(APPLE)
