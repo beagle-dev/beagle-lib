@@ -68,14 +68,15 @@
 
     return as_double(old);
 }
-
-//void atomicAdd(volatile global float* addr, const float val) {
-//    private float old, sum;
-//    do {
-//        old = *addr;
-//        sum = old+val;
-//    } while(atomic_cmpxchg((volatile global int*)addr, as_int(old), as_int(sum))!=as_int(old));
-//}
+#elif defined(FW_OPENCL)
+inline void atomicAdd(__global float* addr, float val) {
+    __global int* iaddr = (__global int*)addr;
+    int old = *iaddr, assumed;
+    do {
+        assumed = old;
+        old = atom_cmpxchg(iaddr, assumed, as_int(as_float(assumed) + val));
+    } while (assumed != old);
+}
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 

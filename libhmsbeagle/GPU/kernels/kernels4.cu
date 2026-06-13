@@ -2562,8 +2562,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
         dResult[pattern] = (log(sum[pat][state]) + (M_LN2 * maxScaleFactor));
 }
 
-#ifdef CUDA
-#ifdef CUDA_TENSOR_CORES
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
     #include "kernels4TensorCore.cu"
 #else
     #include "kernels4CudaCore.cu"
@@ -2571,12 +2570,11 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 
     #include "kernels4Derivatives.cu"
 
-#ifdef CUDA_TENSOR_CORES
+#if defined(CUDA) && defined(CUDA_TENSOR_CORES)
     #include "kernels4DerivativesTensorCore.cu"
 #else
     #include "kernels4DerivativesCudaCore.cu"
 #endif
-#endif // CUDA
 
 #ifdef CUDA
 } // extern "C"

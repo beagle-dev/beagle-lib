@@ -19,7 +19,9 @@ echo "#define STATE_COUNT 4" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
+cat $srcdir/kernels4CudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernels4Derivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
+cat $srcdir/kernels4DerivativesCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -33,7 +35,9 @@ do
    cat $srcdir/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+   cat $srcdir/kernelsXCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsXDerivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+   cat $srcdir/kernelsXDerivativesCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    echo "\"" >> BeagleOpenCL_kernels.h; \
 done
 
@@ -47,7 +51,9 @@ echo "#define DOUBLE_PRECISION" | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernels4.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
+cat $srcdir/kernels4CudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 cat $srcdir/kernels4Derivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
+cat $srcdir/kernels4DerivativesCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h
 echo "\"" >> BeagleOpenCL_kernels.h
 
 #
@@ -62,6 +68,8 @@ do
    cat $srcdir/../GPUImplDefs.h | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsAll.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsX.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+   cat $srcdir/kernelsXCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    cat $srcdir/kernelsXDerivatives.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
+   cat $srcdir/kernelsXDerivativesCudaCore.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCL_kernels.h; \
    echo "\"" >> BeagleOpenCL_kernels.h; \
 done
