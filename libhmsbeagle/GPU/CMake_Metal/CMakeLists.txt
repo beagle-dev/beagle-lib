@@ -60,7 +60,7 @@ add_dependencies(hmsbeagle-metal MetalKernels)
 
 # Enable Objective-C++ for .mm sources.
 set_source_files_properties(../GPUInterfaceMetal.mm PROPERTIES
-    COMPILE_FLAGS "-x objective-c++"
+    COMPILE_FLAGS "-x objective-c++ -fobjc-arc"
 )
 
 target_link_libraries(hmsbeagle-metal

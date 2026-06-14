@@ -207,7 +207,7 @@ examples/oddstatetest/.libs/
 examples/oddstatetest/oddstatetest.o
 examples/tinytest/.libs/
 examples/tinytest/tinytest.o
-libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h
+libhmsbeagle/GPU/kernels/Beagle*_kernels.h
 libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h
 libhmsbeagle/GPU/libhmsbeagle-opencl.la
 libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUImplHelper.lo

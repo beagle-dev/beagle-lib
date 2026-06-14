@@ -61,6 +61,14 @@
     typedef cl_kernel GPUFunction;
 
     namespace opencl_device {
+#elif defined(FW_ROCM)
+    #include <hip/hip_runtime_api.h>
+    #include <hiprtc.h>
+    #include "libhmsbeagle/GPU/kernels/BeagleROCm_kernels.h"
+    typedef hipDeviceptr_t GPUPtr;
+    typedef hipFunction_t  GPUFunction;
+
+    namespace rocm_device {
 #elif defined(FW_METAL)
     // Metal types are Objective-C objects; use void* to stay compatible with C++ headers.
     // The .mm implementation casts these to/from id<MTLBuffer> / id<MTLComputePipelineState>.
@@ -89,6 +97,13 @@ private:
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
+#elif defined(FW_ROCM)
+    hipDevice_t hipDevice;
+    hipCtx_t    hipContext;
+    hipModule_t hipModule;
+    hipStream_t* hipStreams;
+    hipEvent_t  hipEvent;
+    const char* GetHIPErrorDescription(int errorCode);
 #elif defined(FW_METAL)
     // All Metal objects stored as void* to avoid Objective-C types in C++ headers.
     void*  metalDeviceId;                    // id<MTLDevice> active device
