@@ -1303,28 +1303,37 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
         REALTYPE* __restrict__ expatsinbt = &gExpAtSinBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
         const REALTYPE* __restrict__ eval = gEigenDecomposition->getEigenValuesPtr(eigenIndex);
 
+        const bool isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
+
         for (int j = 0; j < kCategoryCount; ++j) {
             const REALTYPE time = info.branchLength * gCategoryRates[info.categoryRatesIndex][j];
             times[j] = time;
 
             const int offset = j * kPartialsPaddedStateCount;
 
-            for (int i = 0; i < kStateCount; ++i) {
-                const REALTYPE e = std::exp(time * eval[i]);
-                expat[offset + i] = e;
+            for (int k = 0; k < kStateCount; ++k) {
+                const REALTYPE e = std::exp(time * eval[k]);
+                expat[offset + k] = e;
 
-                const REALTYPE imag = eval[kStateCount + i];
+                const REALTYPE imag = isComplex ? eval[kStateCount + k] : REALTYPE(0);
                 if (std::abs(imag) != REALTYPE(0)){
                     const REALTYPE c = std::cos(time * imag);
                     const REALTYPE s = std::sin(time * imag);
-                    cosbt[offset + i]      = c;
-                    sinbt[offset + i]      = s;
-                    expatcosbt[offset + i] = e * c;
-                    expatsinbt[offset + i] = e * s;
-                    ++i;
+                    cosbt[offset + k]      = c;
+                    sinbt[offset + k]      = s;
+                    expatcosbt[offset + k] = e * c;
+                    expatsinbt[offset + k] = e * s;
+                    ++k;
+                    expat[offset + k]      = e;
+                    cosbt[offset + k]      = c;
+                    sinbt[offset + k]      = -s;
+                    expatcosbt[offset + k] = e * c;
+                    expatsinbt[offset + k] = e * -s;
                 } else {
-                    cosbt[offset + i] = REALTYPE(1);
-                    sinbt[offset + i] = REALTYPE(0);
+                    cosbt[offset + k]      = REALTYPE(1);
+                    sinbt[offset + k]      = REALTYPE(0);
+                    expatcosbt[offset + k] = e;
+                    expatsinbt[offset + k] = REALTYPE(0);
                 }
             }
         }
