@@ -801,9 +801,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
         int endPattern,
         int currentPartition) {
 
-            fprintf(stderr, "calcStatesPartials\n");
-            exit(-1);
-
     INIT(info,
          eigenValuesReal, eigenValuesImag,
          eigenVectors, inverseEigenVectors,
