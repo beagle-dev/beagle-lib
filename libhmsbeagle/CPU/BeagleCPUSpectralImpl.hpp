@@ -754,7 +754,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                     matrixIncr,
                     [&](int i, REALTYPE sum1, REALTYPE sum2) {
                         destPtr[i] = sum1 * sum2 * oneOverScaleFactor;
-                        // *(destPtr++) = sum1 * sum2 * oneOverScaleFactor;
                     });
             } else {
                 this->template matVecDual<Partials, Partials>(
@@ -763,21 +762,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                     matrixIncr,
                     [&](int i, REALTYPE sum1, REALTYPE sum2) {
                         destPtr[i] = sum1 * sum2;
-                        // *(destPtr++) = sum1 * sum2;
                     });
             }
-
-            // destPtr += P_PAD;
-
-            //     *(destPtr++) = (sum1A + sum1B) * (sum2A + sum2B);
-            // }
-            // destPtr += P_PAD;
 
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
-
-            // fprintf(stderr, "pat %d\n", k);
         }
     }
 }
