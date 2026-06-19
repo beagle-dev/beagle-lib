@@ -374,6 +374,15 @@ public:
                                       double *outSumDerivatives,
                                       double *outSumSquaredDerivatives);
 
+    int calculateAdjointDerivative(const BeagleBranchOperation *operations,
+                                   const int categoryRatesIndex,
+                                   const int categoryWeightsIndex,
+                                   const int rootPostOrderIndex,
+                                   const int stateFrequenciesIndex,
+                                   const int operationCount,
+                                   double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives);
+
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 

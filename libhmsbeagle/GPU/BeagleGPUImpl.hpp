@@ -2300,6 +2300,29 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(const int *
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateAdjointDerivative(
+        const BeagleBranchOperation *operations,
+        const int categoryRatesIndex,
+        const int categoryWeightsIndex,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
+        const int operationCount,
+        double *outSumDerivatives,
+        double *outSumSquaredDerivatives) {
+    std::vector<int> post(operationCount), pre(operationCount), eigen(operationCount);
+    for (int i = 0; i < operationCount; ++i) {
+        post[i]  = operations[i].postOrderPartials;
+        pre[i]   = operations[i].preOrderPartials;
+        eigen[i] = operations[i].branchTransitionMatrix;
+    }
+    return calculateAdjointCrossProducts(
+            post.data(), pre.data(), eigen.data(),
+            &categoryRatesIndex, &categoryWeightsIndex,
+            rootPostOrderIndex, stateFrequenciesIndex,
+            operationCount, outSumDerivatives, outSumSquaredDerivatives);
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* operations,
                                                                  int operationCount) {
 #ifdef BEAGLE_DEBUG_FLOW
