@@ -447,6 +447,9 @@ static const uint8_t* elf_section(const uint8_t* elf, size_t elf_sz,
     return nullptr;
 }
 
+struct NVGSPState; // defined in §NV section below; forward-declared for use in ~GPUInterface()
+static void nvGspStateDestroy(void* p); // defined after NVGSPState
+
 // ── GPUInterface ctor/dtor ───────────────────────────────────────────────────
 
 GPUInterface::GPUInterface()
@@ -475,11 +478,45 @@ GPUInterface::~GPUInterface() {
         munmap(amdCompletionHost, amdCompletionMapped);
         if (amdCompletionFd >= 0) close(amdCompletionFd);
     }
-    if (nvGspState) { delete (NVGSPState*)nvGspState; nvGspState = nullptr; }
+    if (nvGspState) { nvGspStateDestroy(nvGspState); nvGspState = nullptr; }
     for (auto& kv : tgpuKernels) delete kv.second;
     if (kernelResource) delete kernelResource;
     if (resourceMap) delete resourceMap;
     if (tgpuSock >= 0) close(tgpuSock);
+}
+
+// ── Chip name helpers ────────────────────────────────────────────────────────
+
+// NVIDIA: read NV_PMC_BOOT_42 (BAR0 byte 0xA00).
+// Matches tinygrad nvdev.py lines 112-114:
+//   chip_details = reg("NV_PMC_BOOT_42").read_bitfields()
+//   chip_name = {0x17:"GA1",0x19:"AD1",0x1b:"GB2"}[architecture] + f"{implementation:02d}"
+//   fw_name   = {"GB2":"gb202","AD1":"ad102","GA1":"ga102"}[chip_name[:3]]
+// We use lowercase fw_name convention (ga102, ad102, gb202).
+static void nv_read_chip_name(int sock, uint32_t dev_id, char out[16]) {
+    uint32_t boot42 = 0;
+    tgpu_mmio_read(sock, dev_id, 0, 0xA00, &boot42, 4);
+    uint32_t arch = (boot42 >> 24) & 0x3F; // bits [24:29]
+    uint32_t impl = (boot42 >> 20) & 0xF;  // bits [20:23]
+    const char* prefix = (arch == 0x17) ? "ga1" :
+                         (arch == 0x19) ? "ad1" :
+                         (arch == 0x1b) ? "gb2" : nullptr;
+    if (prefix)
+        snprintf(out, 16, "%s%02u", prefix, impl);
+    else
+        snprintf(out, 16, "nv%02x%x", arch, impl);
+}
+
+// AMD: derive GFX arch string from PCI device ID.
+// Device list from tinygrad ops_amd.py PCIIface (line 848).
+static const char* amd_chip_name_from_pci(uint16_t pci_device) {
+    switch (pci_device) {
+        case 0x74a1: case 0x744c:              return "gfx1100"; // Navi31 RDNA3
+        case 0x7590: case 0x7550: case 0x7551: return "gfx1101"; // Navi32 RDNA3
+        case 0x7480:                            return "gfx1102"; // Navi33 RDNA3
+        case 0x75a0:                            return "gfx1030"; // Navi21 RDNA2
+        default:                                return nullptr;
+    }
 }
 
 // ── Initialize ───────────────────────────────────────────────────────────────
@@ -563,18 +600,28 @@ int GPUInterface::Initialize() {
         }
     }
 
-    DeviceInfo info = {0, vendor, device, true};
+    DeviceInfo info = {};
+    info.dev_id     = 0;
+    info.pci_vendor = vendor;
+    info.pci_device = device;
+    info.supports_dp = true;
+    if (isNVIDIA) {
+        nv_read_chip_name(tgpuSock, 0, info.chip_name);
+    } else {
+        const char* n = amd_chip_name_from_pci(device);
+        snprintf(info.chip_name, sizeof(info.chip_name), "%s", n ? n : "amdgpu");
+    }
     tgpuDevices.push_back(info);
     resourceMap->insert({0, 0});
 
     if (isNVIDIA) {
-        fprintf(stderr, "TinyGPU: NVIDIA GPU %04x:%04x  BAR0(MMIO)=%llu MB  BAR1(VRAM)=%llu MB\n",
-                vendor, device,
+        fprintf(stderr, "TinyGPU: NVIDIA %s (%04x:%04x)  BAR0(MMIO)=%llu MB  BAR1(VRAM)=%llu MB\n",
+                tgpuDevices.back().chip_name, vendor, device,
                 (unsigned long long)(tgpuBars[0].size >> 20),
                 (unsigned long long)(tgpuBars[1].size >> 20));
     } else {
-        fprintf(stderr, "TinyGPU: AMD GPU %04x:%04x  BAR0(VRAM)=%llu MB  BAR2(doorbell)=%llu MB  BAR5(MMIO)=%llu MB\n",
-                vendor, device,
+        fprintf(stderr, "TinyGPU: AMD %s (%04x:%04x)  BAR0(VRAM)=%llu MB  BAR2(doorbell)=%llu MB  BAR5(MMIO)=%llu MB\n",
+                tgpuDevices.back().chip_name, vendor, device,
                 (unsigned long long)(tgpuBars[0].size >> 20),
                 (unsigned long long)(tgpuBars[2].size >> 20),
                 (unsigned long long)(tgpuBars[5].size >> 20));
@@ -589,8 +636,9 @@ int GPUInterface::GetDeviceCount() { return (int)resourceMap->size(); }
 void GPUInterface::GetDeviceName(int dev, char* name, int len) {
     if (dev >= (int)tgpuDevices.size()) { strncpy(name, "TinyGPU", len); return; }
     const DeviceInfo& d = tgpuDevices[dev];
-    snprintf(name, len, "%s GPU %04x:%04x (TinyGPU USB4)",
+    snprintf(name, len, "%s %s %04x:%04x (TinyGPU)",
              d.pci_vendor == PCI_VENDOR_NVIDIA ? "NVIDIA" : "AMD",
+             d.chip_name[0] ? d.chip_name : "unknown",
              d.pci_vendor, d.pci_device);
 }
 
@@ -939,6 +987,10 @@ struct NVGSPState {
             { if (a.host) ::munmap(a.host, a.mapped); if (a.fd>=0) ::close(a.fd); }
     }
 };
+
+// Defined here (after NVGSPState is complete) so ~GPUInterface() can call it
+// via a forward-declared function pointer without deleting an incomplete type.
+static void nvGspStateDestroy(void* p) { delete (NVGSPState*)p; }
 
 // ── NV helpers (member functions use tgpuSock/tgpuDevId from GPUInterface) ───
 
@@ -1379,7 +1431,7 @@ static bool nv_parse_vbios_fwsec(int sock, uint32_t dev_id, NVGSPState* g,
         uint32_t tok_off = bit_addr + bithdr->HdrSz + i * bithdr->TokSz;
         if (tok_off + sizeof(NvBitTok) > VBIOS_SZ) break;
         auto* tok = (const NvBitTok*)(vbios.data() + tok_off);
-        if (tok->Id == BIT_TOK_FALCON && tok->DataVersion == 2 && tok->DataSize >= 4) {
+        if (tok->Id == BIT_TOK_FALCON && tok->DataVer == 2 && tok->DataSize >= 4) {
             uint16_t data_ptr16 = (uint16_t)tok->DataPtr;
             if (data_ptr16 + 4 <= VBIOS_SZ) {
                 memcpy(&falcon_table_ptr, vbios.data() + data_ptr16, 4);

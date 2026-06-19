@@ -100,7 +100,7 @@ private:
     struct BarInfo { uint64_t addr; uint64_t size; } tgpuBars[6];
 
     // Device descriptors.
-    struct DeviceInfo { uint32_t dev_id; uint16_t pci_vendor; uint16_t pci_device; bool supports_dp; };
+    struct DeviceInfo { uint32_t dev_id; uint16_t pci_vendor; uint16_t pci_device; bool supports_dp; char chip_name[16]; };
     std::vector<DeviceInfo> tgpuDevices;
 
     // ── VRAM allocators (AMD path) ───────────────────────────────────────────

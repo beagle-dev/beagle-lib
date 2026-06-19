@@ -148,8 +148,8 @@ void beagleLoadPlugins(void) {
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Unable to load hmsbeagle-cpu-spectral: " << sle.getError() << std::endl;
 #endif
-    }    
-    
+    }
+
     try{
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cuda" << std::endl;
@@ -171,6 +171,18 @@ void beagleLoadPlugins(void) {
     }catch(beagle::plugin::SharedLibraryException sle) {
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Unable to load hmsbeagle-opencl: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-tinygpu" << std::endl;
+#endif
+        beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-tinygpu");
+        plugins->push_back(openclplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-tinygpu: " << sle.getError() << std::endl;
 #endif
     }
 
