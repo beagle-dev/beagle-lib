@@ -242,6 +242,15 @@ public:
 			                                  double *outSumDerivatives,
 			                                  double *outSumSquaredDerivatives) = 0;
 
+    virtual int calculateAdjointDerivative(const BeagleBranchOperation *operations,
+                                           const int categoryRatesIndex,
+                                           const int categoryWeightsIndex,
+                                           const int rootPostOrderIndex,
+                                           const int stateFrequenciesIndex,
+                                           const int operationCount,
+                                           double *outSumDerivatives,
+                                           double *outSumSquaredDerivatives) = 0;
+
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,

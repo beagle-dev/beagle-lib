@@ -1648,6 +1648,29 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
             outSumSquaredDerivatives);
 }
 
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointDerivative(
+        const BeagleBranchOperation *operations,
+        const int categoryRatesIndex,
+        const int categoryWeightsIndex,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
+        const int operationCount,
+        double *outSumDerivatives,
+        double *outSumSquaredDerivatives) {
+    std::vector<int> post(operationCount), pre(operationCount), eigen(operationCount);
+    for (int i = 0; i < operationCount; ++i) {
+        post[i]  = operations[i].postOrderPartials;
+        pre[i]   = operations[i].preOrderPartials;
+        eigen[i] = operations[i].branchTransitionMatrix;
+    }
+    return calcAdjointCrossProducts(
+            post.data(), pre.data(), eigen.data(),
+            &categoryRatesIndex, &categoryWeightsIndex,
+            rootPostOrderIndex, stateFrequenciesIndex,
+            operationCount, outSumDerivatives, outSumSquaredDerivatives);
+}
+
 inline double proportionRepeated(const int* branchEigenIndices, const int start, const int end) {
     double sum = 0.0;
     int last = branchEigenIndices[start];

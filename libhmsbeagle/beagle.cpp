@@ -2032,6 +2032,38 @@ int beagleCalculateAdjointCrossProductDerivative(int instance,
     return returnValue;
 }
 
+int beagleCalculateAdjointDerivative(
+        const int instance,
+        const BeagleBranchOperation *operations,
+        const int categoryRatesIndex,
+        const int categoryWeightsIndex,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
+        const int operationCount,
+        double *outSumDerivatives,
+        double *outSumSquaredDerivatives) {
+    DEBUG_START_TIME();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->calculateAdjointDerivative(
+            operations,
+            categoryRatesIndex,
+            categoryWeightsIndex,
+            rootPostOrderIndex,
+            stateFrequenciesIndex,
+            operationCount,
+            outSumDerivatives,
+            outSumSquaredDerivatives);
+
+    DEBUG_END_TIME();
+
+    return returnValue;
+}
+
 int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, const int *preBufferIndices,
                                   const int rootBufferIndex,
                                   const int *firstDerivativeIndices, const int *secondDerivativeIndices,
