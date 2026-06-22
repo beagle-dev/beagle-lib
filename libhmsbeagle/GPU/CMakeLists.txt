@@ -20,3 +20,8 @@ if(BUILD_TINYGPU)
 	message(STATUS "TinyGPU backend enabled (USB4/Thunderbolt eGPU via TinyGPU.app)")
 	add_subdirectory("CMake_TinyGPU")
 endif(BUILD_TINYGPU)
+
+if(BUILD_TINYGPU_HYBRID)
+	message(STATUS "TinyGPUHybrid backend enabled (tinygrad init + C++ dispatch)")
+	add_subdirectory("CMake_TinyGPUHybrid")
+endif(BUILD_TINYGPU_HYBRID)

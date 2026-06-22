@@ -12,8 +12,10 @@
  * socket) to drive AMD or NVIDIA eGPUs connected via USB4/Thunderbolt on
  * macOS without requiring CUDA or ROCm kernel drivers.
  *
- * NVIDIA path: loads libcuda.so/dylib at runtime for channel management;
- *   delegates all kernel ops to CUDA driver.  TinyGPU provides device probe.
+ * NVIDIA path: open-source GSP driver (NV_FLCN + NV_GSP), no CUDA or NVRM.
+ *   Boots the GPU's GSP RISC-V processor via Falcon firmware, then drives
+ *   compute channels using GSP RPCs over a sysmem message queue.
+ *   Kernel dispatch uses GPFIFO + QMD (NVC6C0_QMDV03_00).
  *
  * AMD path: full bare-metal PM4 compute dispatch via direct BAR0/BAR2 MMIO
  *   writes.  Kernel compiled from OpenCL C to HSACO ELF via offline clang.
@@ -464,8 +466,6 @@ GPUInterface::GPUInterface()
       supportDoublePrecision(true)
 {
     memset(tgpuBars, 0, sizeof(tgpuBars));
-    memset(&nvCuda, 0, sizeof(nvCuda));
-    nvCtx = nullptr; nvModule = nullptr; nvGspState = nullptr;
     amdCompletionHost = nullptr; amdCompletionFd = -1;
 }
 
@@ -803,6 +803,26 @@ static const uint32_t NVC_DMA_AMP     = 0x0000c7b5;
 static const uint32_t CTRL_SCHED      = 0xa06c0101;
 static const uint32_t CTRL_GET_TOKEN  = 0xc36f0108;
 
+// FSP registers — Blackwell/Hopper COT boot path (dev_fsp_pri.py)
+static const uint32_t NV_PFSP_EMEMC_0      = 0x8F2ac0;
+static const uint32_t NV_PFSP_EMEMD_0      = 0x8F2ac4;
+static const uint32_t NV_PFSP_QUEUE_HEAD_0 = 0x8F2c00;
+static const uint32_t NV_PFSP_QUEUE_TAIL_0 = 0x8F2c04;
+static const uint32_t NV_PFSP_MSGQ_HEAD_0  = 0x8F2c80;
+static const uint32_t NV_PFSP_MSGQ_TAIL_0  = 0x8F2c84;
+// VF BAR1 block register — written 0 on fmc_boot after GSP init (dev_vm.py)
+static const uint32_t NV_VF_BAR1_BLOCK_LOW = 0xB80F60;
+// BSI boot handoff — bit 26 set by SEC2 when it hands off to GSP
+static const uint32_t NV_PGC6_BSI_SCRATCH14     = 0x1180f8;
+static const uint32_t BSI_BOOT_STAGE3_BIT        = (1u << 26);
+// FALCON_HWCFG2 bit 13: riscv_br_priv_lockdown (clears after COT boot)
+static const uint32_t FLCN_HWCFG2_RISCV_LOCKDOWN = (1u << 13);
+// NVDM message type for COT payload
+static const uint32_t NVDM_TYPE_COT = 0x14;
+// Blackwell class IDs (nv_570.py)
+static const uint32_t NVC_CHAN_GPFIFO_BW = 0x0000c96f;
+static const uint32_t NVC_CMPUTE_BW     = 0x0000cec0;
+
 // Compute channel methods
 static const uint32_t MET_NON_STALL = 0x0020;
 static const uint32_t MET_SEM_ADDRLO= 0x005C, MET_SEM_ADDRHI= 0x0060;
@@ -814,6 +834,34 @@ static const uint32_t MET_SIGNAL_B  = 0x02C0;
 static const uint32_t SEM_OP_RELEASE = 0x1;
 static const uint32_t SEM_WFI_EN     = (1u<<20);
 static const uint32_t SEM_PAY64     = (1u<<24);
+
+// GPU VA memory manager (NV MMU ver 2, 48-bit VA, va_shifts=[12,21,29,38,47])
+static const uint64_t NV_MM_VA_BASE     = 0x1000000000ULL; // VRAM identity map base (64GB)
+static const uint64_t NV_MM_RES_VA      = 0x0020000000ULL; // server-reserved PDEs VA (512MB)
+static const uint64_t NV_MM_RES_SZ      = 0x0020000000ULL; // 512MB reservation size
+// PDE: is_pte=0, aperture=2(syscoh), no_ats=1 → ((pa>>12)<<8)|0x24
+static const uint64_t NV_MM_PDE_FLAGS   = 0x24ULL;
+// PTE huge (512MB): valid=1, aperture=2, kind=6 → ((pa>>12)<<8)|0x0600000000000005
+static const uint64_t NV_MM_PTE_HUGE    = 0x0600000000000005ULL;
+// SET_PAGE_DIRECTORY flags: bit3=ALL_CHANNELS (tinygrad uses 0x8, not 0x9)
+static const uint32_t NV_MM_PD_FLAGS    = 0x8;
+// COPY_SERVER_RESERVED_PDES aperture for sysmem page tables: 1=SYSTEM_COHERENT
+static const uint32_t NV_MM_PT_APERTURE = 1;
+
+// Compute channel memory window addresses (SET_SHADER_*_MEMORY_WINDOW_A)
+static const uint32_t MET_SET_OBJECT    = 0x0000;
+static const uint32_t MET_SHR_MEM_WIN_A = 0x02a0; // NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A
+static const uint32_t MET_LOC_MEM_WIN_A = 0x07b0; // NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A
+static const uint64_t NV_SHARED_MEM_WIN = 0x729400000000ULL;
+static const uint64_t NV_LOCAL_MEM_WIN  = 0x729300000000ULL;
+
+// Additional RM classes
+static const uint32_t NVC_DMA_BW        = 0x0000cab5; // BLACKWELL_DMA_COPY_B
+
+// CTRL command codes
+static const uint32_t CTRL_COPY_PDES    = 0x90f10106; // NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES
+static const uint32_t CTRL_KGR_CTX_INFO = 0x20800a32; // NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO
+static const uint32_t CTRL_PROMOTE_CTX  = 0x2080012b; // NV2080_CTRL_CMD_GPU_PROMOTE_CTX
 
 // ── Packed structs ────────────────────────────────────────────────────────────
 struct __attribute__((packed)) NvMsgqHdr {
@@ -894,6 +942,46 @@ struct __attribute__((packed)) NvWprMeta {
     uint32_t pmuReservedSize; uint64_t verified;
 };
 static_assert(sizeof(NvWprMeta)==256);
+
+// ── NV_FLCN_COT structs (Blackwell/Hopper fmc_boot path) ─────────────────────
+// GSP_FMC_BOOT_PARAMS (76 bytes) — layout from tinygrad nv.py autogen
+struct __attribute__((packed)) NvGspFmcBootParams {
+    uint32_t initRegkeys;             // GSP_FMC_INIT_PARAMS.regkeys @ 0
+    uint32_t _pad0;                   // align bootGspRmParams to offset 8
+    // GSP_ACR_BOOT_GSP_RM_PARAMS @ 8:
+    uint32_t acr_target;              // 8
+    uint32_t acr_gspRmDescSize;       // 12
+    uint64_t acr_gspRmDescOffset;     // 16
+    uint64_t acr_wprCarveoutOffset;   // 24
+    uint32_t acr_wprCarveoutSize;     // 32
+    uint8_t  acr_bIsGspRmBoot;        // 36
+    uint8_t  _pad1[3];                // 37
+    // GSP_RM_PARAMS @ 40:
+    uint32_t rm_target;               // 40
+    uint32_t _pad2;                   // 44
+    uint64_t rm_bootArgsOffset;       // 48
+    // GSP_SPDM_PARAMS @ 56:
+    uint32_t spdm_target;             // 56
+    uint32_t _pad3;                   // 60
+    uint64_t spdm_payloadBufferOff;   // 64
+    uint32_t spdm_payloadBufferSz;    // 72
+};
+static_assert(sizeof(NvGspFmcBootParams)==76);
+
+// NVDM_PAYLOAD_COT (860 bytes) — layout from tinygrad nv.py autogen
+struct __attribute__((packed)) NvDmPayloadCOT {
+    uint16_t version, cot_size;
+    uint64_t gspFmcSysmemOffset;
+    uint64_t frtsSysmemOffset;
+    uint32_t frtsSysmemSize;
+    uint64_t frtsVidmemOffset;
+    uint32_t frtsVidmemSize;
+    uint32_t hash384[12];
+    uint32_t publicKey[96];
+    uint32_t signature[96];
+    uint64_t gspBootArgsSysmemOffset;
+};
+static_assert(sizeof(NvDmPayloadCOT)==860);
 static const uint64_t WPR_META_MAGIC    = 0x0000000074647270ULL;
 static const uint64_t WPR_META_REVISION = 2;
 
@@ -909,6 +997,47 @@ struct __attribute__((packed)) NvChanAllocP {
     NvMemDescP errorNotifierMem;
     uint8_t rest[364-272];
 };
+
+// NV_VASPACE_ALLOCATION_PARAMETERS (48 bytes)
+struct __attribute__((packed)) NvVaspaceAllocP {
+    uint32_t index, flags; uint64_t vaSize, vaStartInternal, vaLimitInternal;
+    uint32_t bigPageSize, _pad; uint64_t vaBase;
+};
+static_assert(sizeof(NvVaspaceAllocP) == 48);
+
+// NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS level (24 bytes)
+struct __attribute__((packed)) NvCopyPdesLevel {
+    uint64_t physAddress, size; uint32_t aperture; uint8_t pageShift, _pad[3];
+};
+static_assert(sizeof(NvCopyPdesLevel) == 24);
+
+// NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS (184 bytes)
+struct __attribute__((packed)) NvCopyPdesP {
+    uint32_t hSubDevice, subDeviceId; uint64_t pageSize, virtAddrLo, virtAddrHi;
+    uint32_t numLevelsToCopy, _pad; NvCopyPdesLevel levels[6];
+};
+static_assert(sizeof(NvCopyPdesP) == 184);
+
+// NV2080_CTRL_GPU_PROMOTE_CTX_BUFFER_ENTRY (32 bytes)
+struct __attribute__((packed)) NvPromoteCtxEntry {
+    uint64_t gpuPhysAddr, gpuVirtAddr, size; uint32_t physAttr;
+    uint16_t bufferId; uint8_t bInitialize, bNonmapped;
+};
+static_assert(sizeof(NvPromoteCtxEntry) == 32);
+
+// NV2080_CTRL_GPU_PROMOTE_CTX_PARAMS (560 bytes)
+struct __attribute__((packed)) NvPromoteCtxP {
+    uint32_t engineType, hClient, ChID, hChanClient, hObject, hVirtMemory;
+    uint64_t virtAddress, size; uint32_t entryCount, _pad;
+    NvPromoteCtxEntry promoteEntry[16];
+};
+static_assert(sizeof(NvPromoteCtxP) == 560);
+
+// NV2080_CTRL_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO_PARAMS (1664 bytes)
+struct __attribute__((packed)) NvCtxBufInfo { uint32_t size, alignment; };
+struct __attribute__((packed)) NvStaticGrCtxBufsInfo { NvCtxBufInfo engine[26]; };
+struct __attribute__((packed)) NvStaticKgrCtxBufsP { NvStaticGrCtxBufsInfo info[8]; };
+static_assert(sizeof(NvStaticKgrCtxBufsP) == 1664);
 
 // ── NVGSPState ────────────────────────────────────────────────────────────────
 struct NVGSPState {
@@ -972,15 +1101,38 @@ struct NVGSPState {
 
     uint32_t work_token;
     uint32_t compute_class;
-    char     fw_name[16]; // "ga102" / "ad102" / "gb202"
+    uint32_t gpfifo_class; // AMPERE=0xc56f, BLACKWELL=0xc96f
+    bool     fmc_boot;     // true for arch >= 0x1a (Blackwell/Hopper)
+    char     fw_name[16];  // "ga102" / "ad102" / "gb202"
+    // fmc_boot sysmem allocations (NV_FLCN_COT path)
+    uint64_t fmc_boot_args_paddr;
+    void*    fmc_boot_args_host;
 
     // Compiled kernel state
     uint64_t cubin_vram;
     size_t   cubin_sz;
 
-    // EOP semaphore
+    // EOP semaphore (VRAM-based; GPU writes via GPU VA, CPU reads via BAR1)
+    uint64_t eop_vram;        // VRAM byte offset of EOP semaphore page
     uint64_t eop_signal_val;
-    void*    eop_host;
+    void*    eop_host;        // unused after VRAM-based EOP; kept for ABI compat
+
+    // Memory manager (NV MMU ver 2): sysmem page tables for user VA space
+    uint64_t mm_vram_pa_base; // BAR1 physical base = tgpuBars[1].addr
+    uint64_t mm_pt_root_pa, mm_pt_l1_pa, mm_pt_l2_pa;
+    uint64_t* mm_pt_root;    // 4-entry root (host ptr, 4KB page)
+    uint64_t* mm_pt_l1;      // 512-entry L1 (host ptr, 4KB page)
+    uint64_t* mm_pt_l2;      // 512-entry L2 (host ptr, 4KB page)
+
+    // Golden image GR context buffers (allocated in VRAM)
+    struct GRCtxBuf { uint64_t va, paddr; uint32_t sz; };
+    GRCtxBuf grctx_bufs[12] = {};
+    uint32_t golden_subdev_h;
+    uint32_t dma_class;      // AMPERE_DMA_COPY_B or BLACKWELL_DMA_COPY_B
+    uint8_t  sass_version;   // ((sm>>8)&0xf0) | (sm&0xf)
+
+    // GPFIFO submission state (host-side tracking only)
+    uint64_t gpfifo_userd_off; // VRAM offset of USERD region within gpfifo_vram
 
     ~NVGSPState() {
         for (auto& a : allocs)
@@ -1088,6 +1240,132 @@ static std::vector<uint8_t> nv_load_fw(const char* fw_name, const char* filename
             "  Set BEAGLE_TINYGPU_FW=<dir> or ensure tinygrad has cached it in\n"
             "  ~/.cache/tinygrad/downloads/\n", fw_name, filename);
     return {};
+}
+
+// ── FSP mailbox (NV_FLCN_COT.kfsp_send_msg) ──────────────────────────────────
+
+static void nv_fsp_send_msg(int sock, uint32_t dev_id, uint8_t nvdm_type,
+                             const void* payload, size_t payload_sz) {
+    // 8-byte header: word0=(is_end|is_start), word1=(seid|vendor|nvdm_type)
+    uint32_t hdr0 = (1u<<31)|(1u<<30);
+    uint32_t hdr1 = 0x7eu | (0x10deu<<8) | ((uint32_t)nvdm_type<<24);
+    size_t total  = 8 + payload_sz;
+    size_t padded = (total + 3) & ~(size_t)3;
+    std::vector<uint8_t> buf(padded, 0);
+    memcpy(buf.data(),   &hdr0, 4);
+    memcpy(buf.data()+4, &hdr1, 4);
+    if (payload_sz) memcpy(buf.data()+8, payload, payload_sz);
+
+    nv_wr32(sock, dev_id, NV_PFSP_EMEMC_0, 1u<<24); // aincw=1, offs=0, blk=0
+    for (size_t i = 0; i < padded; i += 4) {
+        uint32_t w; memcpy(&w, buf.data()+i, 4);
+        nv_wr32(sock, dev_id, NV_PFSP_EMEMD_0, w);
+    }
+    nv_wr32(sock, dev_id, NV_PFSP_QUEUE_TAIL_0, (uint32_t)(padded - 4));
+    nv_wr32(sock, dev_id, NV_PFSP_QUEUE_HEAD_0, 0);
+
+    // Wait for response (MSGQ_HEAD != MSGQ_TAIL)
+    uint32_t head = 0;
+    for (int t = 0; t < 1000000; ++t) {
+        head = nv_rd32(sock, dev_id, NV_PFSP_MSGQ_HEAD_0);
+        uint32_t tail = nv_rd32(sock, dev_id, NV_PFSP_MSGQ_TAIL_0);
+        if (head != tail) break;
+        usleep(10);
+    }
+    // Drain: read with aincr=1, then acknowledge
+    nv_wr32(sock, dev_id, NV_PFSP_EMEMC_0, 1u<<25); // aincr=1
+    nv_wr32(sock, dev_id, NV_PFSP_MSGQ_TAIL_0, head);
+}
+
+// NV_FLCN_COT: loads fmc-570.144.bin, parses ELF sections, sends COT via FSP
+// Used for Blackwell/Hopper (arch >= 0x1a, fmc_boot=true).
+// Must be called after nv_setup_wpr_meta() so wpr_meta_paddr and libos_args_paddr are set.
+static bool nv_flcn_cot_init(int sock, uint32_t dev_id, NVGSPState* g) {
+    const char* fmc_sha = "cb59a35c1d4bd1274d7267fd10243c29f843ff41c851b9cbd59f5af2ddd7fece";
+    auto fmc_data = nv_load_fw(g->fw_name, "fmc-570.144.bin", fmc_sha);
+    if (fmc_data.empty()) return false;
+
+    // Parse ELF64 for "image", "hash", "signature", "publickey" sections
+    const uint8_t* elf = fmc_data.data();
+    size_t elf_sz = fmc_data.size();
+    struct ElfSec { const uint8_t* data; size_t size; };
+    ElfSec image_s={}, hash_s={}, sig_s={}, pkey_s={};
+
+    if (elf_sz >= 64) {
+        uint64_t shoff; memcpy(&shoff, elf+40, 8);
+        uint16_t shnum, shstrndx; memcpy(&shnum,&elf[60],2); memcpy(&shstrndx,&elf[62],2);
+        if (shoff + (uint64_t)shnum*64 <= elf_sz) {
+            const uint8_t* shdrs = elf + shoff;
+            uint64_t st_off; memcpy(&st_off, shdrs+shstrndx*64+24, 8);
+            const char* strtab = (const char*)(elf + st_off);
+            for (uint16_t i = 0; i < shnum; ++i) {
+                const uint8_t* sh = shdrs + i*64;
+                uint32_t sn_off; memcpy(&sn_off, sh, 4);
+                uint64_t sh_off, sh_sz; memcpy(&sh_off, sh+24, 8); memcpy(&sh_sz, sh+32, 8);
+                const char* sn = strtab + sn_off;
+                if (!strcmp(sn,"image"))        image_s = {elf+sh_off,(size_t)sh_sz};
+                else if (!strcmp(sn,"hash"))    hash_s  = {elf+sh_off,(size_t)sh_sz};
+                else if (!strcmp(sn,"signature"))sig_s  = {elf+sh_off,(size_t)sh_sz};
+                else if (!strcmp(sn,"publickey"))pkey_s = {elf+sh_off,(size_t)sh_sz};
+            }
+        }
+    }
+    if (!image_s.data || !hash_s.data || !sig_s.data || !pkey_s.data) {
+        fprintf(stderr,"TinyGPU/NV: fmc-570.144.bin: missing ELF sections\n"); return false;
+    }
+
+    // Allocate FMC image in sysmem → fmc_booter_bar1
+    void* img_host; uint64_t img_pa;
+    if (!nv_sysmem_alloc(sock, dev_id, g, image_s.size, false, &img_host, &img_pa)) return false;
+    memcpy(img_host, image_s.data, image_s.size);
+
+    // Allocate GSP_FMC_BOOT_PARAMS in sysmem
+    void* bp_host; uint64_t bp_pa;
+    if (!nv_sysmem_alloc(sock, dev_id, g, sizeof(NvGspFmcBootParams), true, &bp_host, &bp_pa)) return false;
+    g->fmc_boot_args_paddr = bp_pa;
+    g->fmc_boot_args_host  = bp_host;
+
+    // Fill GSP_FMC_BOOT_PARAMS (wpr_meta_paddr and libos_args_paddr must already be set)
+    auto* bp = (NvGspFmcBootParams*)bp_host;
+    memset(bp, 0, sizeof(*bp));
+    bp->acr_target         = 1; // GSP_DMA_TARGET_COHERENT_SYSTEM
+    bp->acr_gspRmDescSize  = (uint32_t)sizeof(NvWprMeta);
+    bp->acr_gspRmDescOffset= g->wpr_meta_paddr;
+    bp->acr_bIsGspRmBoot   = 1;
+    bp->rm_target          = 1;
+    bp->rm_bootArgsOffset  = g->libos_args_paddr;
+
+    // Build NVDM_PAYLOAD_COT
+    NvDmPayloadCOT cot = {};
+    cot.version              = 2;
+    cot.cot_size             = (uint16_t)sizeof(NvDmPayloadCOT);
+    cot.frtsVidmemOffset     = 0x1c00000; // 28 MB into VRAM
+    cot.frtsVidmemSize       = 0x100000;
+    cot.gspBootArgsSysmemOffset = bp_pa;
+    cot.gspFmcSysmemOffset   = img_pa;
+
+    uint32_t n;
+    n = (uint32_t)(hash_s.size / 4); if (n > 12) n = 12;
+    memcpy(cot.hash384, hash_s.data, n * 4);
+
+    n = (uint32_t)(sig_s.size / 4); if (n > 96) n = 96;
+    memcpy(cot.signature, sig_s.data, n * 4);
+
+    // publickey: pad with 3 zero bytes before casting to uint32 array (matches tinygrad)
+    std::vector<uint8_t> pkey_buf(pkey_s.data, pkey_s.data + pkey_s.size);
+    pkey_buf.push_back(0); pkey_buf.push_back(0); pkey_buf.push_back(0);
+    n = (uint32_t)(pkey_buf.size() / 4); if (n > 96) n = 96;
+    memcpy(cot.publicKey, pkey_buf.data(), n * 4);
+
+    // Send via FSP mailbox protocol
+    nv_fsp_send_msg(sock, dev_id, (uint8_t)NVDM_TYPE_COT, &cot, sizeof(cot));
+
+    // Wait for riscv_br_priv_lockdown to clear (bit 13 of NV_GSP_BASE+FLCN_HWCFG2)
+    nv_poll(sock, dev_id, NV_GSP_BASE + FLCN_HWCFG2, FLCN_HWCFG2_RISCV_LOCKDOWN, 0,
+            "fmc_boot: riscv_br_priv_lockdown");
+
+    fprintf(stderr, "TinyGPU/NV: fmc_boot COT boot complete\n");
+    return true;
 }
 
 // ── Falcon operations ─────────────────────────────────────────────────────────
@@ -1303,17 +1581,24 @@ static bool gsp_rpc_wait(int sock, uint32_t dev_id, NVGSPState* g,
                         nv_poll(sock,dev_id,addr,mask,val,"cpu_seq poll");
                     } else if (op == 3 && i+1 <= cmd_idx) { // delay us
                         usleep(cmds[i++]);
+                    } else if (op == 4 && i+2 <= cmd_idx) { // save reg (hdr.regSaveArea)
+                        // Read register and discard — regSaveArea write-back to stat queue
+                        // requires pointer into shared memory; best-effort read only.
+                        (void)nv_rd32(sock, dev_id, cmds[i]*4); i+=2;
                     } else if (op == 5) { // Falcon reset
                         falcon_reset(sock, dev_id, NV_GSP_BASE, false);
                     } else if (op == 6) { // Falcon start cpu
                         nv_wr32(sock, dev_id, NV_GSP_BASE+FLCN_CPUCTL, 2);
                     } else if (op == 7) { // wait halted
                         nv_poll(sock,dev_id,NV_GSP_BASE+FLCN_CPUCTL,(1u<<4),(1u<<4),"cpu halted");
-                    } else if (op == 8) { // core resume (RISCV + set mailbox)
+                    } else if (op == 8) { // core resume: reset GSP to RISCV, set mailbox, start SEC2
                         falcon_reset(sock, dev_id, NV_GSP_BASE, true);
                         nv_wr32(sock, dev_id, NV_PGSP_MAILBOX0, (uint32_t)(g->libos_args_paddr&0xFFFFFFFF));
                         nv_wr32(sock, dev_id, NV_PGSP_MAILBOX1, (uint32_t)(g->libos_args_paddr>>32));
                         nv_wr32(sock, dev_id, NV_SEC2_BASE+FLCN_CPUCTL, 2);
+                        // Wait for SEC2 → GSP handoff (NV_PGC6_BSI_SECURE_SCRATCH_14 bit 26)
+                        nv_poll(sock, dev_id, NV_PGC6_BSI_SCRATCH14, BSI_BOOT_STAGE3_BIT,
+                                BSI_BOOT_STAGE3_BIT, "SEC2 boot_stage_3_handoff");
                     } else break;
                 }
             }
@@ -1381,7 +1666,250 @@ static bool gsp_rm_ctrl(int sock, uint32_t dev_id, NVGSPState* g,
     size_t resp_off = sizeof(NvRpcCtrlHdr);
     if (params && params_sz && resp.size() >= resp_off + params_sz)
         memcpy(params, resp.data() + resp_off, params_sz);
+    // GB20x requires enable bit in workSubmitToken (NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN)
+    if (cmd == CTRL_GET_TOKEN && params && params_sz >= 4 &&
+        (g->fw_name[0]=='g' && g->fw_name[1]=='b' && g->fw_name[2]=='2')) {
+        uint32_t* tok = (uint32_t*)params;
+        *tok |= (1u << 30);
+    }
     return true;
+}
+
+// ── NV MMU page table init (NVMemoryManager equivalent) ─────────────────────
+// Allocates 3 sysmem pages (root/L1/L2) and identity-maps all VRAM at GPU VA
+// NV_MM_VA_BASE + vram_off using 512MB huge pages at the L2 level.
+static bool nv_mm_init(int sock, uint32_t dev_id, NVGSPState* g, uint64_t bar1_pa) {
+    g->mm_vram_pa_base = bar1_pa;
+
+    void* root_h, *l1_h, *l2_h;
+    if (!nv_sysmem_alloc(sock, dev_id, g, 0x1000, false, &root_h, &g->mm_pt_root_pa)) return false;
+    if (!nv_sysmem_alloc(sock, dev_id, g, 0x1000, false, &l1_h,   &g->mm_pt_l1_pa))   return false;
+    if (!nv_sysmem_alloc(sock, dev_id, g, 0x1000, false, &l2_h,   &g->mm_pt_l2_pa))   return false;
+
+    memset(root_h, 0, 0x1000);
+    memset(l1_h,   0, 0x1000);
+    memset(l2_h,   0, 0x1000);
+
+    g->mm_pt_root = (uint64_t*)root_h;
+    g->mm_pt_l1   = (uint64_t*)l1_h;
+    g->mm_pt_l2   = (uint64_t*)l2_h;
+
+    // root[0] → L1, L1[0] → L2
+    g->mm_pt_root[0] = ((g->mm_pt_l1_pa >> 12) << 8) | NV_MM_PDE_FLAGS;
+    g->mm_pt_l1[0]   = ((g->mm_pt_l2_pa >> 12) << 8) | NV_MM_PDE_FLAGS;
+
+    // Map entire VRAM as 512MB huge pages at L2[128 + i]
+    // GPU VA 0x1000000000 + i*0x20000000 → PA bar1_pa + i*0x20000000
+    uint64_t n_chunks = (g->vram_size + 0x1FFFFFFFULL) / 0x20000000ULL;
+    for (uint64_t i = 0; i < n_chunks && (128 + i) < 512; ++i) {
+        uint64_t pa = bar1_pa + i * 0x20000000ULL;
+        g->mm_pt_l2[128 + i] = ((pa >> 12) << 8) | NV_MM_PTE_HUGE;
+    }
+    __sync_synchronize();
+    return true;
+}
+
+static inline uint64_t nv_mm_gpu_va(NVGSPState* g, uint64_t vram_off) {
+    (void)g;
+    return NV_MM_VA_BASE + vram_off;
+}
+
+// Allocate sz bytes from VRAM with optional alignment, zero-initialize, return VRAM offset.
+static uint64_t nv_vram_alloc_aligned(NVGSPState* g, uint64_t sz, uint64_t align) {
+    g->vram_top = (g->vram_top + align - 1) & ~(align - 1);
+    uint64_t off = g->vram_top;
+    g->vram_top += (sz + 0xfffULL) & ~0xfffULL;
+    return off;
+}
+
+// ── SET_PAGE_DIRECTORY RPC (registers user vaspace root page table) ──────────
+static void nv_set_page_dir(int sock, uint32_t dev_id, NVGSPState* g,
+                              uint32_t hVASpace, uint32_t hDevice) {
+    // rpc_set_page_directory_v payload (48 bytes, nv.py struct_rpc_set_page_directory_v1E_05)
+    struct __attribute__((packed)) {
+        uint32_t hClient, hDevice, pasid, _pad;
+        uint64_t physAddress;
+        uint32_t numEntries, flags, hVASpace, chId, subDeviceId, pasid2;
+    } spd = {};
+    spd.hClient    = g->user_root;
+    spd.hDevice    = hDevice;
+    spd.pasid      = 0xffffffff;
+    spd.physAddress = g->mm_pt_root_pa;
+    spd.numEntries  = 4; // pte_cnt[0] = 4 (root has 4 entries for 48-bit VA)
+    spd.flags       = NV_MM_PD_FLAGS;
+    spd.hVASpace    = hVASpace;
+    spd.subDeviceId = 1;
+    gsp_rpc(sock, dev_id, g, RPC_SET_PAGEDIR, &spd, sizeof(spd));
+}
+
+// ── Golden image init (NV_GSP.init_golden_image) ─────────────────────────────
+// Creates a priv_root RM hierarchy with a compute + DMA class to prime the GR
+// context. Stores grctx_bufs[] for later use by user channel promote_ctx.
+static bool nv_golden_image_init(int sock, uint32_t dev_id, NVGSPState* g) {
+    // 1. Alloc root under priv_root client
+    gsp_rm_alloc(sock, dev_id, g, 0x0, NVC_ROOT, nullptr, 0, g->priv_root);
+
+    // 2. Alloc device under priv_root
+    struct { uint32_t deviceId, hClientShare, hTargetClient, hTargetDevice;
+             uint32_t flags, vaSpaceSzLo, vaSpaceSzHi;
+             uint32_t vaStartLo, vaStartHi, vaLimLo, vaLimHi, vaMode; } dp = {};
+    dp.deviceId = 0; dp.hClientShare = g->priv_root;
+    uint32_t gdev = gsp_rm_alloc(sock, dev_id, g, g->priv_root, NVC_DEV0, &dp, sizeof(dp), g->priv_root);
+    if (!gdev) return false;
+
+    // 3. Alloc subdevice
+    uint32_t sd_p = 0;
+    uint32_t gsd = gsp_rm_alloc(sock, dev_id, g, gdev, NVC_SUBDEV0, &sd_p, 4, g->priv_root);
+    g->golden_subdev_h = gsd;
+
+    // 4. Alloc vaspace (no rpc_set_page_directory — priv uses server-managed PDEs)
+    NvVaspaceAllocP vp = {};
+    uint32_t gvas = gsp_rm_alloc(sock, dev_id, g, gdev, NVC_VASPACE_A, &vp, sizeof(vp), g->priv_root);
+
+    // 5. Copy server-reserved PDEs into golden vaspace page tables
+    NvCopyPdesP pdes = {};
+    pdes.pageSize       = NV_MM_RES_SZ;
+    pdes.virtAddrLo     = NV_MM_RES_VA;
+    pdes.virtAddrHi     = NV_MM_RES_VA + NV_MM_RES_SZ - 1;
+    pdes.numLevelsToCopy = 3;
+    pdes.levels[0] = {g->mm_pt_root_pa, 32, NV_MM_PT_APERTURE, 47, {0,0,0}};
+    pdes.levels[1] = {g->mm_pt_l1_pa, 0x1000, NV_MM_PT_APERTURE, 38, {0,0,0}};
+    pdes.levels[2] = {g->mm_pt_l2_pa, 0x1000, NV_MM_PT_APERTURE, 29, {0,0,0}};
+    gsp_rm_ctrl(sock, dev_id, g, gvas, CTRL_COPY_PDES, &pdes, sizeof(pdes), g->priv_root);
+
+    // 6. Alloc a minimal GPFIFO area + channel for the golden image
+    uint64_t gpf_vram = nv_vram_alloc(g, 0x1000);
+    { std::vector<uint8_t> z(0x1000, 0); nv_vram_wr(sock, dev_id, gpf_vram, z.data(), 0x1000); }
+    uint64_t inst_vram = nv_vram_alloc(g, 0x1000);
+    uint64_t mthd_vram = nv_vram_alloc(g, 0x5000);
+
+    NvChanAllocP gg = {};
+    gg.gpFifoOffset  = nv_mm_gpu_va(g, gpf_vram);
+    gg.gpFifoEntries = 32;
+    gg.flags         = 0x200320;
+    gg.hVASpace      = gvas;
+    gg.engineType    = 1; // NV2080_ENGINE_TYPE_GRAPHICS
+    gg.cid           = 3;
+    gg.internalFlags = 0x1a;
+    for (int i=0; i<8; ++i) gg.userdOffset[i] = 0x100;
+    gg.instanceMem = {g->mm_vram_pa_base + inst_vram, 0x1000, 2, 0};
+    gg.ramfcMem    = {g->mm_vram_pa_base + inst_vram, 0x200,  2, 0};
+    gg.mthdbufMem  = {g->mm_vram_pa_base + mthd_vram, 0x5000, 2, 0};
+    gg.userdMem    = {g->mm_vram_pa_base + gpf_vram + 0x100, 0x20, 2, 0};
+    uint32_t gch = gsp_rm_alloc(sock, dev_id, g, gdev, g->gpfifo_class, &gg, sizeof(gg), g->priv_root);
+    if (!gch) return false;
+
+    // 7. Query GR context buffer sizes
+    NvStaticKgrCtxBufsP ctx_p = {};
+    gsp_rm_ctrl(sock, dev_id, g, gsd, CTRL_KGR_CTX_INFO, &ctx_p, sizeof(ctx_p), g->priv_root);
+    auto& e = ctx_p.info[0].engine;
+
+    auto align_sz = [](uint32_t sz, uint32_t al) -> uint32_t {
+        return al ? ((sz + al - 1) & ~(al - 1)) : sz;
+    };
+    uint32_t gr_sz    = align_sz(e[0].size + 0x40000, e[0].alignment ? e[0].alignment : 0x1000);
+    uint32_t patch_sz = align_sz(e[16].size, e[16].alignment ? e[16].alignment : 0x1000);
+    uint32_t cfg_sz[8];
+    for (int x = 3; x <= 10; ++x) {
+        uint32_t al = (x == 5) ? (uint32_t)(2 << 20) : (e[x+14].alignment ? e[x+14].alignment : 0x1000);
+        cfg_sz[x - 3] = align_sz(e[x + 14].size, al);
+    }
+
+    // 8. Allocate GR ctx buffers in VRAM; assign GPU VAs = MM_VA_BASE + vram_off
+    auto alloc_grctx = [&](int key, uint32_t sz, uint64_t align = 0x1000) {
+        if (!sz) return;
+        uint64_t off = nv_vram_alloc_aligned(g, (uint64_t)sz, align);
+        std::vector<uint8_t> zb(sz, 0);
+        nv_vram_wr(sock, dev_id, off, zb.data(), sz);
+        g->grctx_bufs[key].sz    = sz;
+        g->grctx_bufs[key].paddr = g->mm_vram_pa_base + off;
+        g->grctx_bufs[key].va    = nv_mm_gpu_va(g, off);
+    };
+    alloc_grctx(0, gr_sz);
+    alloc_grctx(1, patch_sz);  // local — excluded from golden promote_ctx below
+    alloc_grctx(2, patch_sz);
+    alloc_grctx(3, cfg_sz[0]); // virt-only in tinygrad, but allocate paddr anyway
+    alloc_grctx(4, cfg_sz[1]);
+    alloc_grctx(5, cfg_sz[2], (uint64_t)(2 << 20));
+    alloc_grctx(6, cfg_sz[3]);
+    alloc_grctx(9,  cfg_sz[6]);
+    alloc_grctx(10, cfg_sz[7]);
+    alloc_grctx(11, cfg_sz[7]);
+
+    // 9. Promote context for golden channel (exclude local key 1)
+    // Keys 3-6: phys=False in tinygrad (virt-only) — pass va only, paddr=0
+    // Keys 10: virt=False — pass paddr only, bNonmapped=1
+    NvPromoteCtxP prom = {};
+    prom.engineType  = 1;
+    prom.hChanClient = g->priv_root;
+    prom.hObject     = gch;
+    int idx = 0;
+    // Keys with phys: 0,2,9,10,11
+    static const int phys_keys[] = {0, 2, 9, 10, 11};
+    for (int key : phys_keys) {
+        auto& b = g->grctx_bufs[key];
+        if (!b.sz) continue;
+        auto& pe        = prom.promoteEntry[idx++];
+        pe.bufferId     = (uint16_t)key;
+        pe.gpuPhysAddr  = b.paddr;
+        pe.size         = b.sz;
+        pe.physAttr     = 0x4;
+        pe.bInitialize  = 1;
+        pe.gpuVirtAddr  = (key != 10) ? b.va : 0;
+        pe.bNonmapped   = (key == 10) ? 1 : 0;
+    }
+    // Keys with virt-only: 3,4,5,6
+    for (int key = 3; key <= 6; ++key) {
+        auto& b = g->grctx_bufs[key];
+        if (!b.sz) continue;
+        auto& pe        = prom.promoteEntry[idx++];
+        pe.bufferId     = (uint16_t)key;
+        pe.gpuVirtAddr  = b.va;
+        pe.bInitialize  = 0;
+        pe.gpuPhysAddr  = 0;
+        pe.size         = 0;
+        pe.physAttr     = 0;
+        pe.bNonmapped   = 0;
+    }
+    prom.entryCount = (uint32_t)idx;
+    gsp_rm_ctrl(sock, dev_id, g, gsd, CTRL_PROMOTE_CTX, &prom, sizeof(prom), g->priv_root);
+
+    // 10. Alloc compute + DMA class on golden channel
+    gsp_rm_alloc(sock, dev_id, g, gch, g->compute_class, nullptr, 0, g->priv_root);
+    gsp_rm_alloc(sock, dev_id, g, gch, g->dma_class,     nullptr, 0, g->priv_root);
+
+    fprintf(stderr, "TinyGPU/NV: golden image init done\n");
+    return true;
+}
+
+// ── Submit setup methods to compute channel (SET_OBJECT + memory windows) ────
+static void nv_setup_compute_queue(int sock, uint32_t dev_id, NVGSPState* g) {
+    // Mirrors tinygrad NVComputeQueue.setup() / _setup_gpfifos()
+    auto nvm = [](uint32_t sc, uint32_t mthd, std::vector<uint32_t>& q,
+                  std::initializer_list<uint32_t> args) {
+        q.push_back((2u<<28) | ((uint32_t)args.size()<<16) | (sc<<13) | (mthd>>2));
+        for (auto a : args) q.push_back(a);
+    };
+    std::vector<uint32_t> cmdbuf;
+    // SET_OBJECT first on both subchannels, then memory window methods (matches tinygrad order)
+    nvm(1, MET_SET_OBJECT, cmdbuf, {g->compute_class});
+    nvm(4, MET_SET_OBJECT, cmdbuf, {g->dma_class});
+    nvm(1, MET_LOC_MEM_WIN_A, cmdbuf,
+        {(uint32_t)(NV_LOCAL_MEM_WIN & 0xFFFFFFFF), (uint32_t)(NV_LOCAL_MEM_WIN >> 32)});
+    nvm(1, MET_SHR_MEM_WIN_A, cmdbuf,
+        {(uint32_t)(NV_SHARED_MEM_WIN & 0xFFFFFFFF), (uint32_t)(NV_SHARED_MEM_WIN >> 32)});
+
+    uint32_t cmd_dws = (uint32_t)cmdbuf.size();
+    nv_vram_wr(sock, dev_id, g->cmdq_vram, cmdbuf.data(), cmd_dws * 4);
+
+    uint64_t cmdq_gpu_va = nv_mm_gpu_va(g, g->cmdq_vram);
+    uint64_t gpfifo_entry = ((cmdq_gpu_va / 4) << 2)
+                           | ((uint64_t)cmd_dws << 42) | (1ULL << 41);
+    uint32_t put = g->gpfifo_put % g->gpfifo_entries;
+    nv_vram_wr(sock, dev_id, g->gpfifo_vram + (uint64_t)put * 8, &gpfifo_entry, 8);
+    __sync_synchronize();
+    g->gpfifo_put++;
+    nv_wr32(sock, dev_id, 0xbb0090, g->work_token);
 }
 
 // ── VBIOS parsing (NV_FLCN.prep_ucode) ───────────────────────────────────────
@@ -1627,23 +2155,22 @@ static bool nv_setup_libos_args(int sock, uint32_t dev_id, NVGSPState* g) {
 }
 
 static bool nv_setup_wpr_meta(int sock, uint32_t dev_id, NVGSPState* g) {
-    // Load GSP firmware (nv_570 driver, "gsp-570.144.bin")
-    const char* gsp_sha = (strcmp(g->fw_name,"ga102")==0)
-        ? "a8c3ebeed280323aedb51c061f321e73379cce7a9ae643a33dd03915df027f7f"
-        : (strcmp(g->fw_name,"ad102")==0)
-        ? "n/a_ad102" : "n/a";
+    // Load GSP firmware (gsp-570.144.bin)
+    // SHA for ga102 known; ad102/gb202 rely on /lib/firmware path (no tinygrad cache SHA)
+    const char* gsp_sha = (!strcmp(g->fw_name,"ga102"))
+        ? "a8c3ebeed280323aedb51c061f321e73379cce7a9ae643a33dd03915df027f7f" : "";
     auto gsp_elf = nv_load_fw(g->fw_name, "gsp-570.144.bin", gsp_sha);
     if (gsp_elf.empty()) return false;
 
-    // Parse ELF for .fwimage and .fwsignature_ga1x sections
+    // Parse ELF for .fwimage and .fwsignature_<chip4>x sections
     const uint8_t* elf_d = gsp_elf.data();
     size_t elf_sz = gsp_elf.size();
     const uint8_t* fwimage = nullptr; size_t fwimage_sz = 0;
     const uint8_t* fwsig   = nullptr; size_t fwsig_sz   = 0;
+    // Signature section name: e.g. ".fwsignature_ga10x", ".fwsignature_ad10x", ".fwsignature_gb20x"
     char sig_sec_name[64];
     snprintf(sig_sec_name, sizeof(sig_sec_name), ".fwsignature_%.*sx", 4, g->fw_name);
 
-    // Minimal ELF64 parse
     if (elf_sz >= 64) {
         uint64_t shoff; memcpy(&shoff, elf_d+40, 8);
         uint16_t shnum, shstrndx; memcpy(&shnum,&elf_d[60],2); memcpy(&shstrndx,&elf_d[62],2);
@@ -1656,8 +2183,10 @@ static bool nv_setup_wpr_meta(int sock, uint32_t dev_id, NVGSPState* g) {
                 uint32_t sh_name; memcpy(&sh_name,sh,4);
                 uint64_t sh_off, sh_size; memcpy(&sh_off,sh+24,8); memcpy(&sh_size,sh+32,8);
                 const char* sname = strtab + sh_name;
-                if (!strcmp(sname,".fwimage"))    { fwimage=elf_d+sh_off; fwimage_sz=sh_size; }
-                else if (!strncmp(sname,".fwsignature_",13)) { fwsig=elf_d+sh_off; fwsig_sz=sh_size; }
+                if (!strcmp(sname,".fwimage"))
+                    { fwimage=elf_d+sh_off; fwimage_sz=sh_size; }
+                else if (!strcmp(sname, sig_sec_name))
+                    { fwsig=elf_d+sh_off; fwsig_sz=sh_size; }
             }
         }
     }
@@ -1702,10 +2231,14 @@ static bool nv_setup_wpr_meta(int sock, uint32_t dev_id, NVGSPState* g) {
         }
     }
 
-    // Load bootloader (gsp_bl_desc)
-    const char* bl_sha = (strcmp(g->fw_name,"ga102")==0)
+    // Load bootloader (gsp_bl_desc) — SHAs from tinygrad NV_GSP.init_boot_binary_image
+    const char* bl_sha = (!strcmp(g->fw_name,"ga102"))
         ? "82428f532240727e95bb3083fbaaba9b2cc7b937314323f2d546ce7245f27fad"
-        : "n/a";
+        : (!strcmp(g->fw_name,"ad102"))
+        ? "65ab2e6b6e0fca95365c4deac79a34582abcfeb15b6ae234138f22e7183118a8"
+        : (!strcmp(g->fw_name,"gb202"))
+        ? "d40b48e431d1707dc77af3605db358ed7a32ebfc2830eb74de2eddb4d3025071"
+        : "";
     auto bl_data = nv_load_fw(g->fw_name, "bootloader-570.144.bin", bl_sha);
     if (bl_data.empty()) return false;
 
@@ -1725,49 +2258,61 @@ static bool nv_setup_wpr_meta(int sock, uint32_t dev_id, NVGSPState* g) {
     memcpy(bl_host, g->gsp_bootloader.data(), g->gsp_bootloader.size());
     g->gsp_bl_paddr = bl_pa;
 
-    // Build WPR metadata
-    uint64_t vram_sz = g->vram_size;
-    uint64_t vga_sz  = 0x100000;
-    uint64_t vga_off = vram_sz - vga_sz;
-    uint64_t frts_sz = 0x100000;
-    uint64_t frts_off= vga_off - frts_sz;
-    uint64_t boot_sz = (uint64_t)g->gsp_bootloader.size();
-    uint64_t boot_off= frts_off - boot_sz;
-    uint64_t gsp_sz  = (uint64_t)fwimage_sz;
-    uint64_t gsp_off = (boot_off - gsp_sz) & ~0xffffULL;
-    uint64_t heap_sz = 0x8100000;
-    uint64_t heap_off= (gsp_off - heap_sz) & ~0xfffffULL;
-    uint64_t wpr_start=(heap_off - 0x1000) & ~0xfffffULL;
-    uint64_t nonwpr_sz= 0x100000;
-    uint64_t nonwpr_off=(wpr_start - nonwpr_sz) & ~0xfffffULL;
-
+    // Build WPR metadata — two branches matching tinygrad NV_GSP.init_wpr_meta()
     NvWprMeta wpr = {};
-    wpr.magic            = WPR_META_MAGIC;
-    wpr.revision         = WPR_META_REVISION;
-    wpr.sysmemAddrRadix3 = radix_pa;
-    wpr.sizeRadix3       = (uint64_t)fwimage_sz;
+    wpr.magic                = WPR_META_MAGIC;
+    wpr.revision             = WPR_META_REVISION;
+    wpr.sysmemAddrRadix3     = radix_pa;
+    wpr.sizeRadix3           = (uint64_t)fwimage_sz;
     wpr.sysmemAddrBootloader = g->gsp_bl_paddr;
-    wpr.sizeBootloader   = (uint64_t)g->gsp_bootloader.size();
-    wpr.bootloaderCodeOff= g->gsp_bl_desc.monitorCodeOffset;
-    wpr.bootloaderDataOff= g->gsp_bl_desc.monitorDataOffset;
-    wpr.bootloaderManifestOff = g->gsp_bl_desc.manifestOffset;
-    wpr.sysmemAddrSig    = g->gsp_sig_paddr;
-    wpr.sizeSig          = 0x1000;
-    wpr.gspFwRsvdStart   = nonwpr_off;
-    wpr.nonWprHeapOff    = nonwpr_off;
-    wpr.nonWprHeapSize   = nonwpr_sz;
-    wpr.gspFwWprStart    = wpr_start;
-    wpr.gspFwHeapOff     = heap_off;
-    wpr.gspFwHeapSize    = heap_sz;
-    wpr.gspFwOff         = gsp_off;
-    wpr.bootBinOff       = boot_off;
-    wpr.frtsOff          = frts_off;
-    wpr.frtsSize         = frts_sz;
-    wpr.gspFwWprEnd      = vga_off;
-    wpr.fbSize           = vram_sz;
-    wpr.vgaWorkspaceOff  = vga_off;
-    wpr.vgaWorkspaceSize = vga_sz;
-    g->frts_offset       = frts_off;
+    wpr.sizeBootloader       = (uint64_t)g->gsp_bootloader.size();
+    wpr.bootloaderCodeOff    = g->gsp_bl_desc.monitorCodeOffset;
+    wpr.bootloaderDataOff    = g->gsp_bl_desc.monitorDataOffset;
+    wpr.bootloaderManifestOff= g->gsp_bl_desc.manifestOffset;
+    wpr.sysmemAddrSig        = g->gsp_sig_paddr;
+    wpr.sizeSig              = 0x1000;
+
+    if (g->fmc_boot) {
+        // Blackwell/Hopper: firmware computes offsets internally from size hints only
+        wpr.vgaWorkspaceSize = 0x20000;
+        wpr.pmuReservedSize  = 0x1820000;
+        wpr.nonWprHeapSize   = 0x220000;
+        wpr.gspFwHeapSize    = 0x8700000;
+        wpr.frtsSize         = 0x100000;
+        g->frts_offset       = 0; // not pre-computed for fmc_boot
+    } else {
+        // Ampere/Ada: host pre-computes all VRAM region offsets
+        uint64_t vram_sz  = g->vram_size;
+        uint64_t vga_sz   = 0x100000;
+        uint64_t vga_off  = vram_sz - vga_sz;
+        uint64_t frts_sz  = 0x100000;
+        uint64_t frts_off = vga_off - frts_sz;
+        uint64_t boot_sz  = (uint64_t)g->gsp_bootloader.size();
+        uint64_t boot_off = frts_off - boot_sz;
+        uint64_t gsp_sz   = (uint64_t)fwimage_sz;
+        uint64_t gsp_off  = (boot_off - gsp_sz) & ~0xffffULL;
+        uint64_t heap_sz  = 0x8100000;
+        uint64_t heap_off = (gsp_off - heap_sz) & ~0xfffffULL;
+        uint64_t wpr_st   = (heap_off - 0x1000) & ~0xfffffULL;
+        uint64_t nonwpr_sz= 0x100000;
+        uint64_t nonwpr_off=(wpr_st - nonwpr_sz) & ~0xfffffULL;
+
+        wpr.gspFwRsvdStart   = nonwpr_off;
+        wpr.nonWprHeapOff    = nonwpr_off;
+        wpr.nonWprHeapSize   = nonwpr_sz;
+        wpr.gspFwWprStart    = wpr_st;
+        wpr.gspFwHeapOff     = heap_off;
+        wpr.gspFwHeapSize    = heap_sz;
+        wpr.gspFwOff         = gsp_off;
+        wpr.bootBinOff       = boot_off;
+        wpr.frtsOff          = frts_off;
+        wpr.frtsSize         = frts_sz;
+        wpr.gspFwWprEnd      = vga_off;
+        wpr.fbSize           = vram_sz;
+        wpr.vgaWorkspaceOff  = vga_off;
+        wpr.vgaWorkspaceSize = vga_sz;
+        g->frts_offset       = frts_off;
+    }
 
     void* wpr_host; uint64_t wpr_pa;
     if (!nv_sysmem_alloc(sock, dev_id, g, sizeof(NvWprMeta), true, &wpr_host, &wpr_pa))
@@ -1824,6 +2369,9 @@ static bool nv_channel_setup(int sock, uint32_t dev_id, NVGSPState* g) {
     vp.vaBase= 0x1000;
     g->vaspace_h = gsp_rm_alloc(sock, dev_id, g, g->dev_h, NVC_VASPACE_A, &vp, sizeof(vp));
 
+    // Register user vaspace root page table with RM
+    nv_set_page_dir(sock, dev_id, g, g->vaspace_h, g->dev_h);
+
     // Alloc KEPLER_CHANNEL_GROUP_A
     struct { uint32_t engineType, hObjectError, hVASpace; } cg = {};
     cg.engineType = 0; // NV2080_ENGINE_TYPE_GRAPHICS = 0
@@ -1857,7 +2405,7 @@ static bool nv_channel_setup(int sock, uint32_t dev_id, NVGSPState* g) {
     NvChanAllocP cp = {};
     cp.hObjectError = g->notifier_h;
     cp.hObjectBuffer = g->gpfifo_area_h;
-    cp.gpFifoOffset = g->gpfifo_vram;    // GPU VA = VRAM offset (identity-mapped)
+    cp.gpFifoOffset = nv_mm_gpu_va(g, g->gpfifo_vram); // correct GPU VA
     cp.gpFifoEntries = GPFIFO_ENTRIES;
     cp.flags = 0x200320;                 // standard GPFIFO flags
     cp.hContextShare = g->ctxshare_h;
@@ -1873,17 +2421,66 @@ static bool nv_channel_setup(int sock, uint32_t dev_id, NVGSPState* g) {
     uint64_t instance_vram = nv_vram_alloc(g, 0x1000);
     uint64_t mthdbuf_vram  = nv_vram_alloc(g, 0x5000);
 
-    cp.instanceMem = {instance_vram, 0x1000, 2, 0};
-    cp.userdMem    = {g->gpfifo_vram + userd_off, 0x400, 2, 0};
-    cp.ramfcMem    = {instance_vram, 0x200, 2, 0};
-    cp.mthdbufMem  = {mthdbuf_vram,  0x5000, 2, 0};
+    // Physical addresses for RM (addressSpace=2=ADDR_FBMEM, uses physical VRAM addr)
+    cp.instanceMem = {g->mm_vram_pa_base + instance_vram, 0x1000, 2, 0};
+    cp.userdMem    = {g->mm_vram_pa_base + g->gpfifo_vram + userd_off, 0x400, 2, 0};
+    cp.ramfcMem    = {g->mm_vram_pa_base + instance_vram, 0x200, 2, 0};
+    cp.mthdbufMem  = {g->mm_vram_pa_base + mthdbuf_vram,  0x5000, 2, 0};
     cp.errorNotifierMem = {0, 0xecc, 0, 0};
 
-    g->compute_chan_h = gsp_rm_alloc(sock, dev_id, g, g->chan_grp_h, NVC_CHAN_GPFIFO, &cp, sizeof(cp));
+    g->compute_chan_h = gsp_rm_alloc(sock, dev_id, g, g->chan_grp_h, g->gpfifo_class, &cp, sizeof(cp));
     if (!g->compute_chan_h) return false;
 
     // Alloc compute class on channel
     gsp_rm_alloc(sock, dev_id, g, g->compute_chan_h, g->compute_class, nullptr, 0);
+
+    // User channel promote_ctx: install GR ctx buffers for keys {0,1,2}
+    if (g->grctx_bufs[0].sz) {
+        // Track per-user channel paddr/va locally (separate from golden slots)
+        uint64_t user_paddr[3] = {}, user_va[3] = {};
+
+        // First call: phys-only (register physical addresses, bNonmapped=1)
+        NvPromoteCtxP prom1 = {};
+        prom1.engineType  = 1;
+        prom1.hChanClient = g->user_root;
+        prom1.hObject     = g->chan_grp_h;
+        prom1.entryCount  = 3;
+        for (int i = 0; i < 3; ++i) {
+            uint64_t off = nv_vram_alloc(g, (uint64_t)g->grctx_bufs[i].sz);
+            std::vector<uint8_t> zb(g->grctx_bufs[i].sz, 0);
+            nv_vram_wr(sock, dev_id, off, zb.data(), g->grctx_bufs[i].sz);
+            user_paddr[i] = g->mm_vram_pa_base + off;
+            user_va[i]    = nv_mm_gpu_va(g, off);
+            prom1.promoteEntry[i].bufferId    = (uint16_t)i;
+            prom1.promoteEntry[i].gpuPhysAddr = user_paddr[i];
+            prom1.promoteEntry[i].gpuVirtAddr = 0;
+            prom1.promoteEntry[i].size        = g->grctx_bufs[i].sz;
+            prom1.promoteEntry[i].physAttr    = 0x4;
+            prom1.promoteEntry[i].bInitialize = 1;
+            prom1.promoteEntry[i].bNonmapped  = 1;
+        }
+        gsp_rm_ctrl(sock, dev_id, g, g->subdev_h, CTRL_PROMOTE_CTX, &prom1, sizeof(prom1));
+
+        // Second call: virt-only (map GPU VAs, bNonmapped=0)
+        NvPromoteCtxP prom2 = {};
+        prom2.engineType  = 1;
+        prom2.hChanClient = g->user_root;
+        prom2.hObject     = g->chan_grp_h;
+        prom2.entryCount  = 3;
+        for (int i = 0; i < 3; ++i) {
+            prom2.promoteEntry[i].bufferId    = (uint16_t)i;
+            prom2.promoteEntry[i].gpuPhysAddr = 0;
+            prom2.promoteEntry[i].gpuVirtAddr = user_va[i];
+            prom2.promoteEntry[i].size        = 0;
+            prom2.promoteEntry[i].physAttr    = 0;
+            prom2.promoteEntry[i].bInitialize = 0;
+            prom2.promoteEntry[i].bNonmapped  = 0;
+        }
+        gsp_rm_ctrl(sock, dev_id, g, g->subdev_h, CTRL_PROMOTE_CTX, &prom2, sizeof(prom2));
+    }
+
+    // Alloc DMA class on channel
+    gsp_rm_alloc(sock, dev_id, g, g->compute_chan_h, g->dma_class, nullptr, 0);
 
     // Schedule channel group
     uint32_t sched_en = 1;
@@ -1896,28 +2493,23 @@ static bool nv_channel_setup(int sock, uint32_t dev_id, NVGSPState* g) {
     g->work_token = wt.workSubmitToken;
     fprintf(stderr, "TinyGPU/NV: workSubmitToken=0x%08x\n", g->work_token);
 
-    // Map host view into GPFIFO area for ring + USERD
-    {
-        void* h2; uint64_t pa2;
-        if (!nv_sysmem_alloc(sock, dev_id, g, GPFIFO_MEM_SZ, false, &h2, &pa2)) return false;
-        g->gpfifo_ring  = (volatile uint64_t*)h2;
-        g->userd_gpput  = (volatile uint32_t*)((uint8_t*)h2 + userd_off + 0x8C);
-        g->gpfifo_entries = GPFIFO_ENTRIES;
-        g->gpfifo_put     = 0;
-    }
+    // Set up GPFIFO tracking (CPU writes entries via BAR1 VRAM writes)
+    g->gpfifo_entries   = GPFIFO_ENTRIES;
+    g->gpfifo_put       = 0;
+    g->gpfifo_userd_off = userd_off;
+    g->gpfifo_ring      = nullptr; // unused: CPU writes via nv_vram_wr
+    g->userd_gpput      = nullptr; // unused: doorbell suffices
     g->cmdq_vram    = g->gpfifo_vram + cmdq_off;
     g->cmdq_ptr     = 0;
 
-    // Allocate EOP semaphore page (host-visible, GPU-accessible)
-    {
-        void* eop_h; uint64_t eop_pa;
-        if (nv_sysmem_alloc(sock, dev_id, g, 0x1000, true, &eop_h, &eop_pa)) {
-            memset(eop_h, 0, 0x1000);
-            g->eop_paddr      = eop_pa;
-            g->eop_host       = eop_h;
-            g->eop_signal_val = 0;
-        }
-    }
+    // Submit SET_OBJECT + memory window methods to prime the compute channel
+    nv_setup_compute_queue(sock, dev_id, g);
+
+    // EOP semaphore in VRAM (GPU writes via GPU VA, CPU reads via BAR1)
+    g->eop_vram = nv_vram_alloc(g, 0x1000);
+    { std::vector<uint8_t> z(0x1000, 0); nv_vram_wr(sock, dev_id, g->eop_vram, z.data(), 0x1000); }
+    g->eop_signal_val = 0;
+    g->eop_host  = nullptr;
 
     fprintf(stderr, "TinyGPU/NV: channels ready (compute=0x%x)\n", g->compute_chan_h);
     return true;
@@ -1956,16 +2548,27 @@ void GPUInterface::nvSetup() {
     // ── 1. Detect chip ────────────────────────────────────────────────────────
     uint32_t chip_id = nv_rd32(tgpuSock, tgpuDevId, NV_PMC_BOOT_0);
     uint32_t boot42  = nv_rd32(tgpuSock, tgpuDevId, NV_PMC_BOOT_42);
-    uint32_t arch = ((boot42 >> 24) & 0x1F) | (((boot42 >> 8) & 1) << 5); // arch bits
+    uint32_t arch = ((boot42 >> 24) & 0x1F) | (((boot42 >> 8) & 1) << 5);
     uint32_t impl = (boot42 >> 20) & 0xF;
 
-    // Determine firmware family name and compute class
-    const char* fw_name   = "ga102"; // fallback
-    uint32_t compute_cls  = NVC_CMPUTE_AMP;
-    if (arch == 0x19) { fw_name = "ad102"; compute_cls = NVC_CMPUTE_ADA; }
+    // fmc_boot: Blackwell/Hopper use FSP COT boot (no FWSEC/booter)
+    bool fmc_boot = (arch >= 0x1a);
 
-    fprintf(stderr, "TinyGPU/NV: chip_id=0x%08x arch=0x%x impl=0x%x fw=%s\n",
-            chip_id, arch, impl, fw_name);
+    // Firmware family, compute class, GPFIFO class — matches tinygrad NV_GSP.init_sw()
+    const char* fw_name     = "ga102";
+    uint32_t compute_cls    = NVC_CMPUTE_AMP;
+    uint32_t gpfifo_cls     = NVC_CHAN_GPFIFO;
+    uint32_t dma_cls        = NVC_DMA_AMP;   // AMPERE_DMA_COPY_B for GA/AD
+    uint8_t  sass_ver       = 0x80;           // GA102/AD102: sm=0x860/0x890 → 0x80
+    if (arch == 0x19) { fw_name = "ad102"; compute_cls = NVC_CMPUTE_ADA; }
+    else if (arch >= 0x1a) {
+        fw_name = "gb202"; compute_cls = NVC_CMPUTE_BW; gpfifo_cls = NVC_CHAN_GPFIFO_BW;
+        dma_cls  = NVC_DMA_BW; // BLACKWELL_DMA_COPY_B
+        sass_ver = 0xa4;       // GB202: sm=0xa04 → ((0xa00>>4)|(0x4)) = 0xa4
+    }
+
+    fprintf(stderr, "TinyGPU/NV: chip_id=0x%08x arch=0x%x impl=0x%x fw=%s fmc_boot=%d\n",
+            chip_id, arch, impl, fw_name, (int)fmc_boot);
 
     // ── 2. Check WPR2 (if set, GPU needs reset) ───────────────────────────────
     uint32_t wpr2_hi = nv_rd32(tgpuSock, tgpuDevId, NV_PFB_MMU_WPR2_HI);
@@ -1981,21 +2584,26 @@ void GPUInterface::nvSetup() {
     auto* g = new NVGSPState();
     nvGspState = g;
     g->vram_size     = vram_size;
-    g->vram_top      = 0; // grow upward from 0 (VRAM VA)
+    g->vram_top      = 0;
     g->handle_gen    = 0xcf000001;
     g->priv_root     = 0xc1e00004;
     g->user_root     = 0xc1000000;
     g->rpc_seq       = 0;
     g->compute_class = compute_cls;
+    g->gpfifo_class  = gpfifo_cls;
+    g->dma_class     = dma_cls;
+    g->sass_version  = sass_ver;
+    g->fmc_boot      = fmc_boot;
     g->work_token    = 0;
     strncpy(g->fw_name, fw_name, sizeof(g->fw_name)-1);
 
-    // ── 5. Load booter (NV_FLCN.prep_booter) ─────────────────────────────────
+    // ── 5. Load booter (NV_FLCN.prep_booter) — skipped for fmc_boot path ────
+    if (!fmc_boot) {
     const char* booter_sha = (!strcmp(fw_name,"ga102"))
         ? "4497e3eff7e95c774b8a569d17b27c08c9650158d10b229d2be81cdcad9a085b"
         : (!strcmp(fw_name,"ad102"))
         ? "8b293e19b637c5e22c87a2428d1c71bb13e0904e8a88ac6b3c6c1f2679c6e37a"
-        : "n/a";
+        : "";
     auto booter_data = nv_load_fw(fw_name, "booter_load-570.144.bin", booter_sha);
     if (booter_data.empty()) goto fail;
 
@@ -2050,6 +2658,7 @@ void GPUInterface::nvSetup() {
         memcpy(fh, g->fwsec_patched.data(), g->fwsec_patched.size());
         g->fwsec_paddr = fp;
     }
+    } // end if (!fmc_boot) for steps 5/6
 
     // ── 7. Set up GSP memory (queues + libos args + WPR meta) ────────────────
     if (!nv_setup_gsp_memory(tgpuSock, tgpuDevId, g)) goto fail;
@@ -2057,7 +2666,7 @@ void GPUInterface::nvSetup() {
     if (!nv_setup_wpr_meta(tgpuSock, tgpuDevId, g))   goto fail;
 
     // ── 8. Pre-fill GSP system info + registry RPCs (NV_GSP.init_sw) ─────────
-    // These are queued into cmd before GSP boots; GSP processes them on startup.
+    // Queued into cmd before GSP boots; GSP processes them on startup.
     {
         // GspSystemInfo (928 bytes) — fill key fields, rest zero
         std::vector<uint8_t> sysinfo(928, 0);
@@ -2065,9 +2674,10 @@ void GPUInterface::nvSetup() {
         auto set32 = [&](int off, uint32_t v) { memcpy(sysinfo.data()+off,&v,4); };
         set64(0,  tgpuBars[0].addr);  // gpuPhysAddr (BAR0)
         set64(8,  tgpuBars[1].addr);  // gpuPhysFbAddr (BAR1/VRAM)
-        set64(16, 0);                  // gpuPhysInstAddr (BAR3, unknown)
+        set64(16, 0);                  // gpuPhysInstAddr (BAR3 — not mapped)
         set64(72, 0x7ffffffff000ULL); // maxUserVa
-        set32(80, 0x88000);           // pciConfigMirrorBase
+        // pciConfigMirrorBase: 0x92000 for fmc_boot (Blackwell), 0x88000 otherwise
+        set32(80, fmc_boot ? 0x92000u : 0x88000u); // pciConfigMirrorBase
         set32(84, 0x1000);            // pciConfigMirrorSize
         uint32_t pci_vid_dev = (tgpuDevices[0].pci_device << 16) | tgpuDevices[0].pci_vendor;
         set32(88, pci_vid_dev);       // PCIDeviceID
@@ -2076,9 +2686,6 @@ void GPUInterface::nvSetup() {
         gsp_rpc_send(tgpuSock, tgpuDevId, g, RPC_GSP_SYSINFO, sysinfo.data(), sysinfo.size());
 
         // Registry table: RMForcePcieConfigSave=1, RMSecBusResetEnable=1
-        // Minimal packed registry (nv.py PACKED_REGISTRY_TABLE)
-        struct { uint32_t size, numEntries; } reg_hdr = {0,0};
-        // 2 entries * 16 bytes header + 2 * (nameOffset+type+data+length) + strings
         std::string k1 = "RMForcePcieConfigSave", k2 = "RMSecBusResetEnable";
         uint32_t hdr_sz = 8, entry_sz = 16, n_entries = 2;
         uint32_t entries_off = hdr_sz;
@@ -2086,12 +2693,11 @@ void GPUInterface::nvSetup() {
         uint32_t str1_off = strings_off;
         uint32_t str2_off = str1_off + (uint32_t)k1.size() + 1;
         uint32_t total_reg = str2_off + (uint32_t)k2.size() + 1;
-        reg_hdr.size = total_reg; reg_hdr.numEntries = n_entries;
+        struct { uint32_t size, numEntries; } reg_hdr = {total_reg, n_entries};
         std::vector<uint8_t> reg_buf(total_reg, 0);
         memcpy(reg_buf.data(), &reg_hdr, 8);
-        // Entry: nameOffset(4), type(4)=1(DWORD), data(4)=1, length(4)=4
-        auto we = [&](int i, uint32_t nameOff) {
-            uint32_t off = entries_off + i * entry_sz;
+        auto we = [&](int idx, uint32_t nameOff) {
+            uint32_t off = entries_off + idx * entry_sz;
             memcpy(reg_buf.data()+off,   &nameOff, 4);
             uint32_t type=1,data=1,len=4;
             memcpy(reg_buf.data()+off+4, &type,4);
@@ -2104,38 +2710,44 @@ void GPUInterface::nvSetup() {
         gsp_rpc_send(tgpuSock, tgpuDevId, g, RPC_SET_REGISTRY, reg_buf.data(), reg_buf.size());
     }
 
-    // ── 9. Boot Falcon: execute FWSEC → WPR2 (NV_FLCN.init_hw step 1) ────────
-    falcon_reset(tgpuSock, tgpuDevId, NV_GSP_BASE, false);
-    falcon_execute_hs(tgpuSock, tgpuDevId, NV_GSP_BASE, g->fwsec_paddr, 0,
-        g->fwsec_desc.IMEMLoadSize,
-        g->fwsec_desc.IMEMPhysBase, g->fwsec_desc.IMEMVirtBase, g->fwsec_desc.IMEMLoadSize,
-        g->fwsec_desc.DMEMPhysBase, 0, g->fwsec_desc.DMEMLoadSize,
-        g->fwsec_desc.PKCDataOff, g->fwsec_desc.EngineIdMask, g->fwsec_desc.UcodeId);
-    {
-        uint32_t wpr2 = nv_rd32(tgpuSock, tgpuDevId, NV_PFB_MMU_WPR2_HI);
-        if (wpr2 == 0) { fprintf(stderr,"TinyGPU/NV: WPR2 not set after FWSEC\n"); goto fail; }
-        fprintf(stderr, "TinyGPU/NV: WPR2 set (hi=0x%x)\n", wpr2);
+    // ── 9/10. Boot GPU ────────────────────────────────────────────────────────
+    if (!fmc_boot) {
+        // Ampere/Ada: FWSEC → WPR2, then SEC2 booter (NV_FLCN.init_hw)
+        falcon_reset(tgpuSock, tgpuDevId, NV_GSP_BASE, false);
+        falcon_execute_hs(tgpuSock, tgpuDevId, NV_GSP_BASE, g->fwsec_paddr, 0,
+            g->fwsec_desc.IMEMLoadSize,
+            g->fwsec_desc.IMEMPhysBase, g->fwsec_desc.IMEMVirtBase, g->fwsec_desc.IMEMLoadSize,
+            g->fwsec_desc.DMEMPhysBase, 0, g->fwsec_desc.DMEMLoadSize,
+            g->fwsec_desc.PKCDataOff, g->fwsec_desc.EngineIdMask, g->fwsec_desc.UcodeId);
+        {
+            uint32_t wpr2 = nv_rd32(tgpuSock, tgpuDevId, NV_PFB_MMU_WPR2_HI);
+            if (wpr2 == 0) { fprintf(stderr,"TinyGPU/NV: WPR2 not set after FWSEC\n"); goto fail; }
+            fprintf(stderr, "TinyGPU/NV: WPR2 set (hi=0x%x)\n", wpr2);
+        }
+        // Reset GSP to RISCV mode and write libos args mailbox
+        falcon_reset(tgpuSock, tgpuDevId, NV_GSP_BASE, true);
+        nv_wr32(tgpuSock, tgpuDevId, NV_PGSP_MAILBOX0, (uint32_t)(g->libos_args_paddr & 0xFFFFFFFF));
+        nv_wr32(tgpuSock, tgpuDevId, NV_PGSP_MAILBOX1, (uint32_t)(g->libos_args_paddr >> 32));
+        // Clear FALCON_OS before booter (matches tinygrad NV_FLCN.init_hw)
+        nv_wr32(tgpuSock, tgpuDevId, NV_GSP_BASE + FLCN_OS, 0);
+        // Run SEC2 booter → sets up WPR2 VRAM layout
+        falcon_reset(tgpuSock, tgpuDevId, NV_SEC2_BASE, false);
+        falcon_execute_hs(tgpuSock, tgpuDevId, NV_SEC2_BASE, g->booter_paddr,
+            g->booter_code_off, g->booter_data_off,
+            0, g->booter_code_off, g->booter_code_sz,
+            0, 0, g->booter_data_sz,
+            0x10, 1, 3, g->wpr_meta_paddr);
+        {
+            uint32_t mbx0 = nv_rd32(tgpuSock, tgpuDevId, NV_SEC2_BASE + FLCN_MBX0);
+            if (mbx0 != 0) { fprintf(stderr,"TinyGPU/NV: booter failed mbx=0x%x\n",mbx0); goto fail; }
+        }
+        // Wait for GSP RISC-V to be active
+        nv_poll(tgpuSock, tgpuDevId, NV_GSP_BASE+FLCN_RISCV_BCR,
+                (1u<<0), (1u<<0), "GSP RISCV active");
+    } else {
+        // Blackwell/Hopper: COT boot via FSP mailbox (NV_FLCN_COT.init_hw)
+        if (!nv_flcn_cot_init(tgpuSock, tgpuDevId, g)) goto fail;
     }
-
-    // ── 10. Set GSP mailbox + boot via SEC2 (NV_FLCN.init_hw step 2) ──────────
-    falcon_reset(tgpuSock, tgpuDevId, NV_GSP_BASE, true); // reset to RISCV mode
-    nv_wr32(tgpuSock, tgpuDevId, NV_PGSP_MAILBOX0, (uint32_t)(g->libos_args_paddr & 0xFFFFFFFF));
-    nv_wr32(tgpuSock, tgpuDevId, NV_PGSP_MAILBOX1, (uint32_t)(g->libos_args_paddr >> 32));
-
-    falcon_reset(tgpuSock, tgpuDevId, NV_SEC2_BASE, false);
-    falcon_execute_hs(tgpuSock, tgpuDevId, NV_SEC2_BASE, g->booter_paddr,
-        g->booter_code_off, g->booter_data_off,
-        0, g->booter_code_off, g->booter_code_sz,
-        0, 0, g->booter_data_sz,
-        0x10, 1, 3, g->wpr_meta_paddr);
-    {
-        uint32_t mbx0 = nv_rd32(tgpuSock, tgpuDevId, NV_SEC2_BASE + FLCN_MBX0);
-        if (mbx0 != 0) { fprintf(stderr,"TinyGPU/NV: booter failed mbx=0x%x\n",mbx0); goto fail; }
-    }
-
-    // Wait for GSP RISC-V to be active
-    nv_poll(tgpuSock, tgpuDevId, NV_GSP_BASE+FLCN_RISCV_BCR,
-            (1u<<0), (1u<<0), "GSP RISCV active"); // valid=1 indicates core active
 
     // ── 11. Wait for GSP init done (NV_GSP.init_hw) ───────────────────────────
     // GSP processes queued sysinfo/registry RPCs then fires GSP_INIT_DONE event.
@@ -2155,8 +2767,16 @@ void GPUInterface::nvSetup() {
         fprintf(stderr, "TinyGPU/NV: GSP init done\n");
     }
 
-    // Disable BAR1 block (needed for GSP to work with VRAM)
+    // Disable BAR1 block (NV_GSP.init_hw — after GSP init done)
     nv_wr32(tgpuSock, tgpuDevId, NV_PBUS_BAR1_BLOCK, 0);
+    if (fmc_boot)
+        nv_wr32(tgpuSock, tgpuDevId, NV_VF_BAR1_BLOCK_LOW, 0); // fmc_boot only
+
+    // ── 11b. Initialize GPU VA page tables (identity-map all VRAM) ───────────
+    if (!nv_mm_init(tgpuSock, tgpuDevId, g, tgpuBars[1].addr)) goto fail;
+
+    // ── 11c. Create golden image (primes GR context for compute dispatch) ────
+    if (!nv_golden_image_init(tgpuSock, tgpuDevId, g)) goto fail;
 
     // ── 12. Allocate RM hierarchy via GSP RPCs ────────────────────────────────
     if (!nv_channel_setup(tgpuSock, tgpuDevId, g)) goto fail;
@@ -2171,50 +2791,122 @@ void GPUInterface::nvSetup() {
         g->cubin_sz   = csz;
         nv_vram_wr(tgpuSock, tgpuDevId, g->cubin_vram, cubin, csz);
         free(cubin);
-        // Parse cubin ELF for kernel entries
+        // Parse cubin ELF for kernel entries: code addresses, register counts, shmem sizes.
+        // Mirrors tinygrad ops_nv.py NVProgram.__init__ ELF walk + _parse_elf_info.
+        //
+        // EIATTR format (tinygrad _parse_elf_info):
+        //   [typ:u8, param:u8, sz:u16]  then  data[sz] if typ==0x4
+        // EIATTR_REGCOUNT (param=0x2f, typ=0x4, sz=8): data = [fn_idx:u32, regcount:u32]
+        // fn_idx is the ELF .symtab symbol index of the function (STT_FUNC).
         {
             std::vector<uint8_t> elf_buf(csz);
             nv_vram_rd(tgpuSock, tgpuDevId, g->cubin_vram, elf_buf.data(), csz);
-            // Walk ELF sections for .text.kernelName
-            if (csz >= 64) {
-                uint64_t shoff; memcpy(&shoff, elf_buf.data()+40, 8);
+            const uint8_t* elf = elf_buf.data();
+            if (csz < 64) goto elf_done;
+            {
+                uint64_t shoff; memcpy(&shoff, elf+40, 8);
                 uint16_t shnum, shstrndx;
-                memcpy(&shnum,    elf_buf.data()+60, 2);
-                memcpy(&shstrndx, elf_buf.data()+62, 2);
-                if (shoff + (uint64_t)shnum*64 <= csz) {
-                    const uint8_t* shdrs = elf_buf.data() + shoff;
-                    uint64_t strtab_off; memcpy(&strtab_off, shdrs+shstrndx*64+24, 8);
-                    const char* strtab = (const char*)(elf_buf.data() + strtab_off);
-                    for (uint16_t i=0; i<shnum; ++i) {
-                        const uint8_t* sh = shdrs + i*64;
-                        uint32_t sh_name; uint64_t sh_off;
-                        memcpy(&sh_name, sh,    4);
-                        memcpy(&sh_off,  sh+24, 8);
-                        const char* sname = strtab + sh_name;
-                        if (!strncmp(sname, ".text.", 6)) {
-                            const char* kname = sname + 6;
-                            auto* entry = new KernelEntry();
-                            entry->name = kname;
-                            entry->code_vaddr = g->cubin_vram + sh_off;
-                            entry->cu_func    = nullptr;
-                            entry->rsrc1 = entry->rsrc2 = entry->rsrc3 = 0;
-                            entry->wave32 = false;
-                            tgpuKernels[kname] = entry;
-                        }
+                memcpy(&shnum,    elf+60, 2);
+                memcpy(&shstrndx, elf+62, 2);
+                if (shoff + (uint64_t)shnum*64 > csz) goto elf_done;
+
+                const uint8_t* shdrs = elf + shoff;
+                uint64_t shstrtab_off; memcpy(&shstrtab_off, shdrs+shstrndx*64+24, 8);
+                const char* shstrtab = (const char*)(elf + shstrtab_off);
+
+                // Pass 1: build symtab_idx → kernel name for STT_FUNC symbols.
+                // Needed to correlate EIATTR_REGCOUNT fn_idx with kernel names.
+                std::map<uint32_t, std::string> sym_name;
+                for (uint16_t i = 0; i < shnum; ++i) {
+                    const uint8_t* sh = shdrs + i*64;
+                    uint32_t sh_type; memcpy(&sh_type, sh+4, 4);
+                    if (sh_type != 2 /*SHT_SYMTAB*/) continue;
+                    uint64_t sym_off, sym_sz; memcpy(&sym_off, sh+24, 8); memcpy(&sym_sz, sh+32, 8);
+                    uint32_t strtab_idx; memcpy(&strtab_idx, sh+40, 4); // sh_link = .strtab
+                    uint64_t str_off; memcpy(&str_off, shdrs+strtab_idx*64+24, 8);
+                    const char* strtab = (const char*)(elf + str_off);
+                    uint64_t n_syms = sym_sz / 24; // Elf64_Sym is 24 bytes
+                    for (uint64_t si = 0; si < n_syms; ++si) {
+                        const uint8_t* sym = elf + sym_off + si*24;
+                        uint32_t st_name; uint8_t st_info;
+                        memcpy(&st_name, sym, 4); memcpy(&st_info, sym+4, 1);
+                        if ((st_info & 0xf) == 2 /*STT_FUNC*/)
+                            sym_name[(uint32_t)si] = strtab + st_name;
                     }
+                    break;
+                }
+
+                // Pass 2: parse global .nv.info section for EIATTR_REGCOUNT (0x2f).
+                // tinygrad: "elif sh.name == '.nv.info' and param == 0x2f: regs_usage = II[1]"
+                std::map<std::string, uint32_t> kernel_regs;
+                for (uint16_t i = 0; i < shnum; ++i) {
+                    const uint8_t* sh = shdrs + i*64;
+                    uint32_t sh_name_off; memcpy(&sh_name_off, sh, 4);
+                    if (strcmp(shstrtab + sh_name_off, ".nv.info") != 0) continue;
+                    uint64_t sec_off, sec_sz; memcpy(&sec_off, sh+24, 8); memcpy(&sec_sz, sh+32, 8);
+                    const uint8_t* p = elf + sec_off, *end = p + sec_sz;
+                    while (p + 4 <= end) {
+                        uint8_t typ = p[0], param = p[1]; uint16_t sz; memcpy(&sz, p+2, 2);
+                        p += 4;
+                        if (typ == 0x4 && param == 0x2f && sz >= 8) { // EIATTR_REGCOUNT
+                            uint32_t fn_idx, regcount;
+                            memcpy(&fn_idx,   p,   4);
+                            memcpy(&regcount, p+4, 4);
+                            auto it = sym_name.find(fn_idx);
+                            if (it != sym_name.end()) kernel_regs[it->second] = regcount;
+                        }
+                        if (typ == 0x4) p += sz;
+                    }
+                    break;
+                }
+
+                // Pass 3a: collect .nv.shared.<name> sizes (tinygrad: shmem_usage = round_up(0x400+sz,128))
+                std::map<std::string, uint32_t> kernel_shmem;
+                for (uint16_t i = 0; i < shnum; ++i) {
+                    const uint8_t* sh = shdrs + i*64;
+                    uint32_t sh_name_off; memcpy(&sh_name_off, sh, 4);
+                    const char* sname = shstrtab + sh_name_off;
+                    if (strncmp(sname, ".nv.shared.", 11) != 0) continue;
+                    uint64_t sh_sz; memcpy(&sh_sz, sh+32, 8);
+                    uint64_t aligned = (0x400 + sh_sz + 127) & ~(uint64_t)127;
+                    kernel_shmem[sname + 11] = (uint32_t)aligned;
+                }
+
+                // Pass 3b: create KernelEntry for each .text.<name> section.
+                for (uint16_t i = 0; i < shnum; ++i) {
+                    const uint8_t* sh = shdrs + i*64;
+                    uint32_t sh_name_off; memcpy(&sh_name_off, sh, 4);
+                    const char* sname = shstrtab + sh_name_off;
+                    if (strncmp(sname, ".text.", 6) != 0) continue;
+                    const char* kname = sname + 6;
+                    uint64_t sh_off; memcpy(&sh_off, sh+24, 8);
+
+                    auto* entry    = new KernelEntry();
+                    entry->name       = kname;
+                    entry->code_vaddr = g->cubin_vram + sh_off;
+                    entry->cu_func    = nullptr;
+                    entry->wave32     = false;
+                    // rsrc1 = register count; rsrc2 = shared memory bytes; rsrc3 unused for NV
+                    auto rit = kernel_regs.find(kname);
+                    entry->rsrc1 = (rit != kernel_regs.end()) ? rit->second : 32;
+                    auto sit = kernel_shmem.find(kname);
+                    entry->rsrc2 = (sit != kernel_shmem.end()) ? sit->second : 0x400;
+                    entry->rsrc3 = 0;
+                    tgpuKernels[kname] = entry;
                 }
             }
+            elf_done:;
         }
         fprintf(stderr,"TinyGPU/NV: cubin %zu bytes in VRAM, %zu kernels\n",
                 csz, tgpuKernels.size());
     }
 
-    // Store state for LaunchKernelImpl
+    // Store state for LaunchKernelImpl (ring/userd are now VRAM-based — null here)
     nvWorkToken     = g->work_token;
     nvGpfifoEntries = g->gpfifo_entries;
     nvGpfifoPut     = g->gpfifo_put;
-    nvGpfifoHost    = (uint64_t*)g->gpfifo_ring;
-    nvUserdGpPut    = g->userd_gpput;
+    nvGpfifoHost    = nullptr;   // GPFIFO written via nv_vram_wr, not sysmem
+    nvUserdGpPut    = nullptr;   // doorbell-only; USERD not mapped to sysmem
     nvCubinVramBase = g->cubin_vram;
     nvCubinSize     = g->cubin_sz;
     return;
@@ -2690,9 +3382,14 @@ void GPUInterface::ResizeStreamCount(int) {}
 void GPUInterface::SynchronizeHost() {
     if (isNVIDIA) {
         auto* g = (NVGSPState*)nvGspState;
-        if (!g || !g->eop_paddr || !g->eop_host) return;
-        volatile uint64_t* sig = (volatile uint64_t*)g->eop_host;
-        for (int t = 0; t < 10000000 && *sig < g->eop_signal_val; ++t) usleep(10);
+        if (!g || !g->eop_vram) return;
+        // GPU writes EOP signal to VRAM; CPU reads via BAR1 MMIO
+        uint64_t sig = 0;
+        for (int t = 0; t < 10000000; ++t) {
+            nv_vram_rd(tgpuSock, tgpuDevId, g->eop_vram, &sig, 8);
+            if (sig >= g->eop_signal_val) break;
+            usleep(10);
+        }
         return;
     }
     // AMD: spin-wait on EOP semaphore written by PACKET3_RELEASE_MEM
@@ -2741,80 +3438,157 @@ void GPUInterface::LaunchKernelImpl(GPUFunction deviceFunction,
         auto* g = (NVGSPState*)nvGspState;
         if (!g || entry->code_vaddr == 0) return;
 
-        // Build QMD at command buffer slot
-        std::vector<uint32_t> qmd(64, 0);
+        // smem config: min(32KB, 64KB, 100KB) >= shmem_usage, then /4096+1
+        auto smem_cfg_for = [](uint32_t su) -> uint32_t {
+            for (uint32_t s : {32768u, 65536u, 102400u})
+                if (s >= su) return s / 4096 + 1;
+            return 26; // 100KB
+        };
+        uint32_t smem_cfg = smem_cfg_for(entry->rsrc2);
+
+        const bool is_blackwell = (g->compute_class == NVC_CMPUTE_BW);
+        const uint32_t qmd_dws  = is_blackwell ? 96 : 64; // v5=0x60, v3=0x40 DWORDs
+
+        std::vector<uint32_t> qmd(qmd_dws, 0);
         auto set_bits = [&](int hi, int lo, uint32_t val) {
-            int dw_lo = lo/32, dw_hi = hi/32;
-            if (dw_lo == dw_hi) {
-                uint32_t mask = ((1u<<(hi-lo+1))-1) << (lo%32);
-                qmd[dw_lo] = (qmd[dw_lo] & ~mask) | ((val << (lo%32)) & mask);
+            if (lo/32 == hi/32) {
+                uint32_t mask = ((hi-lo < 31) ? ((1u<<(hi-lo+1))-1) : 0xFFFFFFFFu) << (lo%32);
+                qmd[lo/32] = (qmd[lo/32] & ~mask) | ((val << (lo%32)) & mask);
             }
         };
 
-        uint64_t prog_addr = entry->code_vaddr;
+        uint64_t prog_addr = nv_mm_gpu_va(g, entry->code_vaddr);
 
-        // qmd_major_version = 3: bits[583:580] = DW18 bits[7:4]
-        set_bits(583,580, 3);
-        // sm_global_caching_enable: tinygrad sets this; use bit 586 if needed
-        // program_address_lower: bits[1567:1536] = DW48
-        qmd[48] = (uint32_t)(prog_addr & 0xFFFFFFFF);
-        // program_address_upper: bits[1584:1568] = DW49 bits[16:0]
-        set_bits(1584,1568, (uint32_t)(prog_addr >> 32));
-        // shared_memory_size: bits[561:544] = DW17 bits[17:0]
-        set_bits(561, 544, 0x0400); // 1KB default shared mem
-        // register_count_v: bits[656:648] = DW20 bits[16:8]
-        set_bits(656, 648, 32); // 32 registers default
-        // cta_raster_width (global_x): bits[415:384] = DW12
-        qmd[12] = (uint32_t)grid.x;
-        // cta_raster_height (global_y): bits[447:416] = DW13
-        qmd[13] = (uint32_t)grid.y;
-        // cta_raster_depth (global_z): bits[479:448] = DW14
-        qmd[14] = (uint32_t)grid.z;
-        // cta_thread_dimension0 (local_x): bits[607:592] = DW18 bits[31:16]
-        set_bits(607, 592, (uint32_t)block.x);
-        // cta_thread_dimension1 (local_y): bits[623:608] = DW19 bits[15:0]
-        set_bits(623, 608, (uint32_t)block.y);
-        // cta_thread_dimension2 (local_z): bits[639:624] = DW19 bits[31:16]
-        set_bits(639, 624, (uint32_t)block.z);
+        if (is_blackwell) {
+            // ── QMD v5 (NVCEC0_QMDV05_00, Blackwell GB) ─────────────────────
+            set_bits(471, 468, 5);                              // QMD_MAJOR_VERSION = 5
+            set_bits(153, 151, 2);                              // QMD_TYPE = GRID_CTA
+            set_bits(149, 144, 0x3f);                          // QMD_GROUP_ID
+            set_bits(456, 456, 1);                              // API_VISIBLE_CALL_LIMIT
+            set_bits(457, 457, 1);                              // SAMPLER_INDEX
+            set_bits(472, 472, 1);                              // INVALIDATE_TEXTURE_HEADER_CACHE
+            set_bits(473, 473, 1);                              // INVALIDATE_TEXTURE_SAMPLER_CACHE
+            set_bits(474, 474, 1);                              // INVALIDATE_TEXTURE_DATA_CACHE
+            set_bits(475, 475, 1);                              // INVALIDATE_SHADER_DATA_CACHE
+            set_bits(625, 624, 1);                              // CWD_MEMBAR_TYPE = L1_SYSMEMBAR
+            set_bits(455, 448, (uint32_t)g->sass_version);     // SASS_VERSION
+            // Program address: shifted right by 4 (64-byte aligned requirement)
+            qmd[32] = (uint32_t)((prog_addr >> 4) & 0xFFFFFFFF); // PROGRAM_ADDRESS_LOWER_SHIFTED4 [1055:1024]
+            set_bits(1076, 1056, (uint32_t)((prog_addr >> 4) >> 32)); // PROGRAM_ADDRESS_UPPER_SHIFTED4
+            // Grid dims
+            qmd[39] = (uint32_t)grid.x;                        // GRID_WIDTH [1279:1248]
+            set_bits(1295, 1280, (uint32_t)grid.y);            // GRID_HEIGHT
+            set_bits(1327, 1312, (uint32_t)grid.z);            // GRID_DEPTH
+            // Block dims
+            set_bits(1103, 1088, (uint32_t)block.x);           // CTA_THREAD_DIMENSION0
+            set_bits(1119, 1104, (uint32_t)block.y);           // CTA_THREAD_DIMENSION1
+            set_bits(1127, 1120, (uint32_t)block.z);           // CTA_THREAD_DIMENSION2
+            // Registers + shared mem
+            set_bits(1136, 1128, entry->rsrc1);                // REGISTER_COUNT
+            set_bits(1162, 1152, entry->rsrc2 >> 7);           // SHARED_MEMORY_SIZE_SHIFTED7
+            set_bits(1141, 1137, 1);                           // BARRIER_COUNT
+            // Prefetch
+            set_bits(1085, 1077, (uint32_t)std::min(g->cubin_sz >> 8, (size_t)0x1ff)); // PROGRAM_PREFETCH_SIZE
+            // smem config
+            set_bits(1168, 1163, smem_cfg);                    // MIN_SM_CONFIG_SHARED_MEM_SIZE
+            set_bits(1174, 1169, 0x1a);                        // MAX_SM_CONFIG_SHARED_MEM_SIZE (100KB)
+            set_bits(1180, 1175, smem_cfg);                    // TARGET_SM_CONFIG_SHARED_MEM_SIZE
+            // Cbuf 0 will be filled after ka_vram is known (below)
+        } else {
+            // ── QMD v3 (NVC6C0_QMDV03_00, Ampere GA102 / Ada AD102) ─────────
+            set_bits(583, 580, 3);                              // QMD_MAJOR_VERSION = 3
+            set_bits(134, 134, 1);                              // SM_GLOBAL_CACHING_ENABLE
+            set_bits(133, 128, 0x3f);                          // QMD_GROUP_ID
+            set_bits(186, 186, 1);                              // INVALIDATE_TEXTURE_HEADER_CACHE
+            set_bits(187, 187, 1);                              // INVALIDATE_TEXTURE_SAMPLER_CACHE
+            set_bits(188, 188, 1);                              // INVALIDATE_TEXTURE_DATA_CACHE
+            set_bits(189, 189, 1);                              // INVALIDATE_SHADER_DATA_CACHE
+            set_bits(369, 368, 1);                              // CWD_MEMBAR_TYPE = L1_SYSMEMBAR
+            set_bits(378, 378, 1);                              // API_VISIBLE_CALL_LIMIT
+            set_bits(382, 382, 1);                              // SAMPLER_INDEX
+            // Program address
+            qmd[48] = (uint32_t)(prog_addr & 0xFFFFFFFF);      // PROGRAM_ADDRESS_LOWER [1567:1536]
+            set_bits(1584, 1568, (uint32_t)(prog_addr >> 32)); // PROGRAM_ADDRESS_UPPER
+            // Shared mem + registers
+            set_bits(561, 544, entry->rsrc2);                  // SHARED_MEMORY_SIZE
+            set_bits(656, 648, entry->rsrc1);                  // REGISTER_COUNT_V
+            // Grid dims
+            qmd[12] = (uint32_t)grid.x;                        // CTA_RASTER_WIDTH  [415:384]
+            qmd[13] = (uint32_t)grid.y;                        // CTA_RASTER_HEIGHT [447:416]
+            qmd[14] = (uint32_t)grid.z;                        // CTA_RASTER_DEPTH  [479:448]
+            // Block dims
+            set_bits(607, 592, (uint32_t)block.x);             // CTA_THREAD_DIMENSION0
+            set_bits(623, 608, (uint32_t)block.y);             // CTA_THREAD_DIMENSION1
+            set_bits(639, 624, (uint32_t)block.z);             // CTA_THREAD_DIMENSION2
+            set_bits(767, 763, 1);                              // BARRIER_COUNT
+            // smem config
+            set_bits(567, 562, smem_cfg);                      // MIN_SM_CONFIG_SHARED_MEM_SIZE
+            set_bits(574, 569, 0x1a);                          // MAX_SM_CONFIG_SHARED_MEM_SIZE (100KB)
+            set_bits(662, 657, smem_cfg);                      // TARGET_SM_CONFIG_SHARED_MEM_SIZE
+            // Prefetch
+            qmd[8] = (uint32_t)(prog_addr >> 8);               // PROGRAM_PREFETCH_ADDR_LOWER_SHIFTED [287:256]
+            set_bits(1640, 1632, (uint32_t)(prog_addr >> 40)); // PROGRAM_PREFETCH_ADDR_UPPER_SHIFTED
+            set_bits(1649, 1641, (uint32_t)std::min(g->cubin_sz >> 8, (size_t)0x1ff)); // PROGRAM_PREFETCH_SIZE
+            // Sass version
+            set_bits(1663, 1656, (uint32_t)g->sass_version);   // SASS_VERSION
+            // Cbuf 0 will be filled after ka_vram is known (below)
+        }
 
-        // Build kernarg constbuffer 0:
-        // cbuf_0 driver params (0x160 bytes), then user args
-        // For BEAGLE's CUDA kernels, args start at offset 0 in cbuf_0.
-        // CONSTANT_BUFFER_ADDR_LOWER[0]: bits[1055:1024] = DW32
-        // CONSTANT_BUFFER_ADDR_UPPER[0]: bits[1072:1056] = DW33 bits[16:0]
-        // CONSTANT_BUFFER_VALID[0]:      bit[640]         = DW20 bit 0
-        // CONSTANT_BUFFER_SIZE_SHIFTED4[0]: bits[1023:1008] = DW31 bits[15:0]
-
-        // Write kernargs to command buffer area in VRAM
-        size_t ka_sz = (size_t)nPtr * 8 + (size_t)(nTotal - nPtr) * 4;
-        size_t cbuf_sz = 0x160 + ka_sz; // driver header + user args
+        // ── Kernarg constbuffer (cbuf_0): driver params + user args ──────────
+        // For non-Blackwell: cbuf_0[6:12] = [shared_win lo/hi, local_win lo/hi, 0xfffdc0 lo/hi]
+        // For Blackwell:     cbuf_0[188:192] = same, cbuf_0[223] = 0xfffdc0
+        size_t ka_sz   = (size_t)nPtr * 8 + (size_t)(nTotal - nPtr) * 4;
+        size_t cbuf_sz = 0x160 + ka_sz; // 0x160-byte driver header + user args
         uint64_t ka_vram = g->cmdq_vram + (uint64_t)g->cmdq_ptr;
         g->cmdq_ptr = (g->cmdq_ptr + (uint32_t)((cbuf_sz + 0x7f) & ~0x7fULL)) & 0x1FFFFC;
+
         std::vector<uint8_t> ka_buf(cbuf_sz, 0);
-        // Fill driver params cbuf_0[6:12]: shared_mem_window, local_mem_window, 0xfffdc0
-        // These are GPU virtual addresses for LDS/scratch windows
-        // Set to known good values: LDS window = 0x10000000_00000000 etc.
-        uint64_t shared_win = 0x10000000'00000000ULL;
-        uint64_t local_win  = 0x20000000'00000000ULL;
-        uint64_t unk        = 0xfffdc0;
-        memcpy(ka_buf.data() + 6*4,  &shared_win, 8);
-        memcpy(ka_buf.data() + 8*4,  &local_win,  8);
-        memcpy(ka_buf.data() + 10*4, &unk,         8);
+        uint32_t* kbuf32 = reinterpret_cast<uint32_t*>(ka_buf.data());
+        if (is_blackwell) {
+            // cbuf_0[188:192] = [shared_lo, shared_hi, local_lo, local_hi], [223] = 0xfffdc0
+            kbuf32[188] = (uint32_t)(NV_SHARED_MEM_WIN & 0xFFFFFFFF);
+            kbuf32[189] = (uint32_t)(NV_SHARED_MEM_WIN >> 32);
+            kbuf32[190] = (uint32_t)(NV_LOCAL_MEM_WIN & 0xFFFFFFFF);
+            kbuf32[191] = (uint32_t)(NV_LOCAL_MEM_WIN >> 32);
+            kbuf32[223] = 0xfffdc0;
+        } else {
+            // cbuf_0[6:12] = [shared_lo, shared_hi, local_lo, local_hi, unk_lo, unk_hi]
+            uint64_t shared_win = NV_SHARED_MEM_WIN, local_win = NV_LOCAL_MEM_WIN, unk = 0xfffdc0;
+            memcpy(kbuf32 + 6,  &shared_win, 8);
+            memcpy(kbuf32 + 8,  &local_win,  8);
+            memcpy(kbuf32 + 10, &unk,         8);
+        }
         // User args after 0x160
         uint8_t* up = ka_buf.data() + 0x160;
-        for (int i=0; i<nPtr; ++i)       { memcpy(up, &ptrs[i],     8); up+=8; }
-        for (int i=0; i<nTotal-nPtr; ++i){ memcpy(up, &ints[i],     4); up+=4; }
+        for (int i = 0; i < nPtr;         ++i) { memcpy(up, &ptrs[i], 8); up += 8; }
+        for (int i = 0; i < nTotal - nPtr; ++i) { memcpy(up, &ints[i], 4); up += 4; }
         nv_vram_wr(tgpuSock, tgpuDevId, ka_vram, ka_buf.data(), ka_buf.size());
 
-        qmd[32] = (uint32_t)(ka_vram & 0xFFFFFFFF);
-        set_bits(1072,1056, (uint32_t)(ka_vram >> 32));
-        set_bits(640, 640, 1); // constant_buffer_valid[0]
-        // constant_buffer_size_shifted4[0]: bits[1023:1008] = DW31 bits[15:0]
-        set_bits(1023,1008, (uint32_t)(cbuf_sz >> 4));
+        // Fill cbuf address fields in QMD (now that ka_vram is known)
+        uint64_t ka_gpu_va = nv_mm_gpu_va(g, ka_vram);
+        if (is_blackwell) {
+            // CONSTANT_BUFFER_ADDR_LOWER_SHIFTED6[0]: bits[1375:1344]=DW42 (addr>>6 lo32)
+            qmd[42] = (uint32_t)((ka_gpu_va >> 6) & 0xFFFFFFFF);
+            // CONSTANT_BUFFER_ADDR_UPPER_SHIFTED6[0]: bits[1394:1376]=DW43 bits[18:0]
+            set_bits(1394, 1376, (uint32_t)((ka_gpu_va >> 6) >> 32));
+            // CONSTANT_BUFFER_SIZE_SHIFTED4[0]: bits[1407:1395]
+            set_bits(1407, 1395, (uint32_t)(cbuf_sz >> 4));
+            // CONSTANT_BUFFER_VALID[0]: bit 1856 = DW58 bit 0
+            set_bits(1856, 1856, 1);
+        } else {
+            // CONSTANT_BUFFER_ADDR_LOWER[0]: bits[1055:1024] = DW32
+            qmd[32] = (uint32_t)(ka_gpu_va & 0xFFFFFFFF);
+            // CONSTANT_BUFFER_ADDR_UPPER[0]: bits[1072:1056] = DW33 bits[16:0]
+            set_bits(1072, 1056, (uint32_t)(ka_gpu_va >> 32));
+            set_bits(640, 640, 1);                              // CONSTANT_BUFFER_VALID[0]
+            set_bits(1074, 1074, 1);                            // CONSTANT_BUFFER_INVALIDATE[0]
+            // CONSTANT_BUFFER_SIZE_SHIFTED4[0]: bits[1023:1008] = DW31 bits[15:0]
+            set_bits(1023, 1008, (uint32_t)(cbuf_sz >> 4));
+        }
 
         // Write QMD to VRAM (after kernargs)
         uint64_t qmd_vram = ka_vram + cbuf_sz;
-        nv_vram_wr(tgpuSock, tgpuDevId, qmd_vram, qmd.data(), 64*4);
+        nv_vram_wr(tgpuSock, tgpuDevId, qmd_vram, qmd.data(), qmd_dws * 4);
 
         // Build command buffer (tinygrad NVComputeQueue.exec):
         //   1. INVALIDATE_SHADER_CACHES_NO_WFI (subchannel 1)
@@ -2826,40 +3600,40 @@ void GPUInterface::LaunchKernelImpl(GPUFunction deviceFunction,
         };
         std::vector<uint32_t> cmdbuf;
         nvm(1, MET_INV_SHDR,  cmdbuf, {(1u<<0)|(1u<<4)|(1u<<12)}); // instruction+global+constant
-        nvm(1, MET_PCAS_A,    cmdbuf, {(uint32_t)(qmd_vram >> 8)});
+        // SEND_PCAS_A: QMD GPU VA >> 8 (must be GPU VA, not VRAM offset)
+        nvm(1, MET_PCAS_A,    cmdbuf, {(uint32_t)(nv_mm_gpu_va(g, qmd_vram) >> 8)});
         nvm(1, MET_SIGNAL_B,  cmdbuf, {9}); // PCAS_ACTION=9 (tinygrad value)
 
-        // Completion semaphore via SEM_EXECUTE on subchannel 0
-        // Use eop_paddr if available, else skip
-        if (g->eop_paddr) {
+        // Completion semaphore via SEM_EXECUTE on subchannel 0 (VRAM-based EOP)
+        if (g->eop_vram) {
+            uint64_t eop_gpu_va = nv_mm_gpu_va(g, g->eop_vram);
             ++g->eop_signal_val;
-            nvm(0, MET_SEM_ADDRLO, cmdbuf, {(uint32_t)(g->eop_paddr & 0xFFFFFFFF)});
-            nvm(0, MET_SEM_ADDRHI, cmdbuf, {(uint32_t)(g->eop_paddr >> 32)});
+            nvm(0, MET_SEM_ADDRLO, cmdbuf, {(uint32_t)(eop_gpu_va & 0xFFFFFFFF)});
+            nvm(0, MET_SEM_ADDRHI, cmdbuf, {(uint32_t)(eop_gpu_va >> 32)});
             nvm(0, MET_SEM_PAYLO,  cmdbuf, {(uint32_t)(g->eop_signal_val & 0xFFFFFFFF)});
             nvm(0, MET_SEM_PAYHI,  cmdbuf, {(uint32_t)(g->eop_signal_val >> 32)});
             nvm(0, MET_SEM_EXEC,   cmdbuf, {SEM_OP_RELEASE | SEM_WFI_EN | SEM_PAY64});
             nvm(0, MET_NON_STALL,  cmdbuf, {0});
         }
 
-        // Write command buffer to VRAM (after QMD)
-        uint64_t cmdq_va  = qmd_vram + 256;
+        // Write command buffer to VRAM (channel's cmdq area), compute GPU VA
+        uint64_t cmdq_vram_off = g->cmdq_vram;
         uint32_t cmd_dws  = (uint32_t)cmdbuf.size();
-        nv_vram_wr(tgpuSock, tgpuDevId, cmdq_va, cmdbuf.data(), cmd_dws * 4);
+        nv_vram_wr(tgpuSock, tgpuDevId, cmdq_vram_off, cmdbuf.data(), cmd_dws * 4);
 
-        // Submit to GPFIFO
-        // GPFIFO entry format: (cmdq_addr/4 << 2) | (num_dw << 42) | (1 << 41)
-        uint64_t gpfifo_entry = ((cmdq_va / 4) << 2)
+        // GPFIFO entry: GPU VA of command buffer (not raw VRAM offset)
+        uint64_t cmdq_gpu_va  = nv_mm_gpu_va(g, cmdq_vram_off);
+        uint64_t gpfifo_entry = ((cmdq_gpu_va / 4) << 2)
                               | ((uint64_t)cmd_dws << 42)
                               | (1ULL << 41);
         uint32_t put = g->gpfifo_put % g->gpfifo_entries;
-        g->gpfifo_ring[put] = gpfifo_entry;
+        // Write GPFIFO entry via BAR1 (VRAM-backed ring, not sysmem)
+        nv_vram_wr(tgpuSock, tgpuDevId, g->gpfifo_vram + (uint64_t)put * 8,
+                   &gpfifo_entry, 8);
         __sync_synchronize();
-        *g->userd_gpput = (uint32_t)((put + 1) % g->gpfifo_entries);
         g->gpfifo_put++;
-        __sync_synchronize();
 
         // Ring doorbell: write work_token to GPU MMIO @ BAR0+0xbb0090
-        // gpu_mmio = BAR0 offset 0xbb0000, register 0x90/4
         nv_wr32(tgpuSock, tgpuDevId, 0xbb0090, g->work_token);
         return;
     }

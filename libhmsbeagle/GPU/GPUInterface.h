@@ -119,24 +119,17 @@ private:
     int      amdCompletionFd;
 
     // ── NVIDIA GSP state (open-source path, macOS + Linux) ──────────────────
-    // nvGspState is the primary owner. The fields below are mirrors set in
-    // nvSetup() and read by LaunchKernelImpl / SynchronizeHost.
-    int      nvRmFd = -1;         // unused (was NVRM /dev/nvidiactl)
-    int      nvDevFd = -1;        // unused (was NVRM /dev/nvidia0)
-    uint32_t nvRmClient = 0;      // unused
-    uint32_t nvWorkToken = 0;     // per-channel workSubmitToken
-    uint64_t* nvGpfifoHost = nullptr;         // CPU VA of GPFIFO ring
-    volatile uint32_t* nvUserdGpPut = nullptr;// USERD GPPut register
+    // nvGspState is the primary owner of all GSP boot/channel/RPC state.
+    // The mirror fields below are set by nvSetup() for use by LaunchKernelImpl
+    // and SynchronizeHost without needing to cast nvGspState on every call.
+    void*    nvGspState = nullptr; // opaque NVGSPState* (defined in .cpp)
+    uint32_t nvWorkToken = 0;      // per-channel workSubmitToken
+    uint64_t* nvGpfifoHost = nullptr;          // CPU VA of GPFIFO ring
+    volatile uint32_t* nvUserdGpPut = nullptr; // USERD GPPut register
     uint32_t nvGpfifoEntries = 0;
     uint32_t nvGpfifoPut = 0;
-    uint64_t nvCubinVramBase = 0; // VRAM byte offset of compiled cubin
+    uint64_t nvCubinVramBase = 0;  // VRAM byte offset of compiled cubin
     size_t   nvCubinSize = 0;
-    // Opaque pointer to NVGSPState (defined in GPUInterfaceTinyGPU.cpp).
-    // Holds all GSP boot/channel/RPC state for the open-source NVIDIA path.
-    void*  nvGspState = nullptr;
-    struct NVCuda { void* lib; } nvCuda;  // kept for layout compatibility; always null
-    void*  nvCtx    = nullptr;
-    void*  nvModule = nullptr;
 
     // ── Pinned host memory bookkeeping ───────────────────────────────────────
     struct PinnedBuf { void* host_ptr; size_t mapped_size; int fd; };

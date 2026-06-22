@@ -82,6 +82,18 @@ if(BUILD_SSE)
     target_link_libraries(tinygputest hmsbeagle-cpu-sse)
 endif()
 
+if(BUILD_TINYGPU_HYBRID)
+    add_executable(tinygpuhybridtest
+            tinygpuhybridtest/tinygpuhybridtest.cpp)
+    target_link_libraries(tinygpuhybridtest
+            hmsbeagle
+            hmsbeagle-cpu
+            ${CMAKE_DL_LIBS})
+    if(BUILD_SSE)
+        target_link_libraries(tinygpuhybridtest hmsbeagle-cpu-sse)
+    endif()
+endif()
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)

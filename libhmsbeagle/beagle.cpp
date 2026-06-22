@@ -187,6 +187,18 @@ void beagleLoadPlugins(void) {
     }
 
     try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-tinygpu-hybrid" << std::endl;
+#endif
+        beagle::plugin::Plugin* tinygpuhybridplug = pm.findPlugin("hmsbeagle-tinygpu-hybrid");
+        plugins->push_back(tinygpuhybridplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-tinygpu-hybrid: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
         beagle::plugin::Plugin* openclalteraplug = pm.findPlugin("hmsbeagle-opencl-altera");
         plugins->push_back(openclalteraplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
