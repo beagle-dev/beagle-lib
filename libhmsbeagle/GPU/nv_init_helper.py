@@ -146,9 +146,11 @@ class InheritedFDPCIDevice(APLRemotePCIDevice):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _sass_version(chip_name: str) -> int:
-    """Compute SASS version byte from chip name prefix (GA1/AD1/GB2)."""
-    sm = {'GA1': 0x860, 'AD1': 0x890, 'GB2': 0xa04}.get(chip_name[:3], 0x860)
-    return ((sm & 0xf00) >> 4) | (sm & 0xf)
+    """QMD SASS_VERSION byte = (SM_major << 4) | SM_minor.
+    GA102 = SM 8.6 → 0x86, AD102 = SM 8.9 → 0x89, GB2xx = SM 10.0 → 0xa0.
+    """
+    major, minor = {'GA1': (8, 6), 'AD1': (8, 9), 'GB2': (10, 0)}.get(chip_name[:3], (8, 6))
+    return (major << 4) | minor
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -234,10 +236,6 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
     gsp          = nvdev.gsp
     bar1_paddr, _bar1_sz = pci_dev.bar_info(1)
 
-    def to_vram_off(system_paddr: int) -> int:
-        """BAR1 system physical address → VRAM byte offset."""
-        return system_paddr - bar1_paddr
-
     # ── 2. Allocate VRAM for channel + dispatch resources ────────────────────
     GPFIFO_ENTRIES = 0x10000          # 64K entries × 8 B = 512 KB
     RING_SZ        = GPFIFO_ENTRIES * 8
@@ -262,25 +260,29 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
     gpfifo_area   = nvdev.mm.valloc(AREA_SZ,        contiguous=True)
     _step("valloc notifier_area (4 KB)")
     notifier_area = nvdev.mm.valloc(0x1000,          contiguous=True)
-    _step("valloc cmdq_area (2 MB)")
-    cmdq_area     = nvdev.mm.valloc(CMDQ_SZ,         contiguous=False)
+    _step("valloc cmdq_area (2 MB contiguous)")
+    cmdq_area     = nvdev.mm.valloc(CMDQ_SZ,         contiguous=True)
     _step("valloc eop_area (4 KB)")
     eop_area      = nvdev.mm.valloc(EOP_SZ,          contiguous=True)
-    _step(f"valloc code_area ({CODE_BUF_SZ >> 20} MB)")
-    code_area     = nvdev.mm.valloc(CODE_BUF_SZ,     contiguous=False)
-    _step(f"valloc data_area ({DATA_POOL_SZ >> 20} MB)")
-    data_area     = nvdev.mm.valloc(DATA_POOL_SZ,    contiguous=False)
+    _step(f"valloc code_area ({CODE_BUF_SZ >> 20} MB contiguous)")
+    code_area     = nvdev.mm.valloc(CODE_BUF_SZ,     contiguous=True)
+    _step(f"valloc data_area ({DATA_POOL_SZ >> 20} MB contiguous)")
+    data_area     = nvdev.mm.valloc(DATA_POOL_SZ,    contiguous=True)
     _step("valloc complete")
 
     gpfifo_paddr   = gpfifo_area.paddrs[0][0]
     notifier_paddr = notifier_area.paddrs[0][0]
 
-    gpfifo_vram    = to_vram_off(gpfifo_paddr)
-    userd_vram     = gpfifo_vram + RING_SZ      # USERD page in BAR1 space
-    cmdq_vram      = to_vram_off(cmdq_area.paddrs[0][0])
-    eop_vram       = to_vram_off(eop_area.paddrs[0][0])
-    code_vram      = to_vram_off(code_area.paddrs[0][0])
-    data_vram      = to_vram_off(data_area.paddrs[0][0])
+    # valloc.paddrs[0][0] is already a VRAM-relative byte offset from palloc's
+    # TLSFAllocator.  That is the same byte offset C++ passes to TinyGPU as the
+    # BAR1 offset in tg_bulk_write/tg_bulk_read.  bar_info(1)[0] is the HOST
+    # physical address of BAR1 and must NOT be subtracted here.
+    gpfifo_vram    = gpfifo_paddr
+    userd_vram     = gpfifo_vram + RING_SZ
+    cmdq_vram      = cmdq_area.paddrs[0][0]
+    eop_vram       = eop_area.paddrs[0][0]
+    code_vram      = code_area.paddrs[0][0]
+    data_vram      = data_area.paddrs[0][0]
 
     # ── 3. Non-priv RM hierarchy (mirrors PCIIface / NVDevice in ops_nv.py) ──
     #
@@ -403,6 +405,11 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
         "dma_class":        gsp.dma_class,
         "sass_version":     _sass_version(nvdev.chip_name),
         "chip_name":        nvdev.chip_name,
+        # GSP RPC queue — needed by C++ gsp_unloading_guest_driver() at shutdown.
+        # On macOS/TinyGPU, alloc_sysmem uses MAP_SYSMEM_FD (mmap path), so
+        # cmd_q_view is a plain MMIOInterface without 'residx'.  In that case we
+        # store 0 and the C++ RPC path is skipped (keeper fallback is used instead).
+        "gsp_sysmem_handle": getattr(gsp.cmd_q_view, 'residx', 0),
     }
 
     with open(out_path, "w") as f:

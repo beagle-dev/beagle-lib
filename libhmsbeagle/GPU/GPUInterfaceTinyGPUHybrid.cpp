@@ -66,14 +66,19 @@ struct NVHybridState {
     uint8_t  sass_version;
     bool     is_blackwell;
     uint64_t bar1_pa;
+    uint32_t gsp_sysmem_handle;  // TinyGPU sysmem handle for GSP cmd_q/stat_q allocation
 };
+
+// cbuf0_param_off can be up to ~2KB on Blackwell (large driver prefix).
+// cbuf0_pfx and dispatch cbuf0 must be at least that large.
+static constexpr uint32_t CBUF0_MAX = 8192;
 
 struct NVKernelEntry {
     std::string name;
     uint64_t kernargs_vram;    // VRAM offset of [cbuf0 (512B) | QMD (256B)]
     uint64_t kernargs_gpu_va;
     uint8_t  qmd_tmpl[256];   // QMD v3 template (static fields set at GetFunction)
-    uint8_t  cbuf0_pfx[256];  // driver prefix (indices 0–11 of cbuf0)
+    uint8_t  cbuf0_pfx[CBUF0_MAX]; // driver prefix — sized for Blackwell's large cbuf0
     uint32_t cbuf0_param_off; // byte offset where kernel args start in cbuf0
     uint32_t cbuf0_total;     // total cbuf0 bytes written to VRAM at dispatch
     Dim3Int  block;           // fixed block dims (set at GetFunction)
@@ -132,6 +137,217 @@ static void nv_vram_wr(int s, uint32_t d, uint64_t off, const void* buf, size_t 
 }
 static void nv_vram_rd(int s, uint32_t d, uint64_t off, void* buf, size_t sz) {
     tg_bulk_read(s, d, 1, off, buf, sz);
+}
+
+// ── File-scope globals (used by both helper functions and GPUInterface methods) ─
+static std::map<std::string, NVKernelEntry*> g_kernels;
+static NVHybridState* g_state = nullptr;
+static int            g_tgSock = -1;
+static uint32_t       g_tgDevId = 0;
+static char           g_handoff[256] = {};
+
+// System memory (host RAM, managed by TinyGPU MAP_SYSMEM) write / read.
+static void nv_sysmem_wr(int s, uint32_t d, uint32_t handle, uint64_t off, const void* buf, size_t sz) {
+    uint8_t h[33]; pack_hdr(h, TGC_SYSMEM_WRITE, d, handle, off, sz, 0);
+    send_all(s, h, 33);
+    send_all(s, buf, sz);
+}
+static void nv_sysmem_rd(int s, uint32_t d, uint32_t handle, uint64_t off, void* buf, size_t sz) {
+    uint8_t h[33]; pack_hdr(h, TGC_SYSMEM_READ, d, handle, off, sz, 0);
+    send_all(s, h, 33);
+    uint8_t resp[17]; recv_all(s, resp, 17);
+    recv_all(s, buf, sz);
+}
+
+// ── GSP RPC: rpc_unloading_guest_driver ──────────────────────────────────────
+// Sends NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER (fn=47) to the GSP firmware
+// via the shared cmd_q, then waits for a response on stat_q.  This tells GSP to
+// cleanly shut down the GPU, preventing TinyGPU.app from needing to issue a PCIe
+// FLR on socket disconnect (which causes a macOS kernel panic).
+//
+// Queue layout constants match tinygrad ip.py init_rm_args(queue_size=0x40000):
+//   pt_size = round_up(129*8, 0x1000) = 0x1000
+//   cmd_q at sysmem[pt_size]          = sysmem[0x1000]
+//   stat_q at sysmem[pt_size+queue_size] = sysmem[0x41000]
+static constexpr uint64_t GSP_CMDQ_OFF   = 0x1000;
+static constexpr uint64_t GSP_STATQ_OFF  = 0x41000;
+static constexpr uint32_t GSP_MSG_SIZE   = 0x1000;
+static constexpr uint32_t GSP_MSG_COUNT  = 63;    // (0x40000 - 0x1000) / 0x1000
+static constexpr uint32_t GSP_ENTRY_OFF  = 0x1000;
+// msgqTxHeader.writePtr byte offset within the queue header
+static constexpr uint32_t GSP_HDR_WPTR_OFF = 16;
+// BAR0 address of NV_PGSP_QUEUE_HEAD[0] doorbell register
+static constexpr uint32_t NV_PGSP_QUEUE_HEAD_0 = 0x110c00;
+// RPC framing constants
+static constexpr uint32_t GSP_MSG_SIGNATURE   = 0x43505256u;  // NV_VGPU_MSG_SIGNATURE_VALID
+static constexpr uint32_t GSP_RESULT_PENDING  = 0xFFFFFFFFu;  // NV_VGPU_MSG_RESULT_RPC_PENDING
+static constexpr uint32_t GSP_FN_UNLOAD       = 47u;          // NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER
+
+// XOR checksum over 8-byte chunks, then hi32 ^ lo32.
+static uint32_t gsp_checksum(const uint8_t* data, size_t len) {
+    uint64_t acc = 0;
+    for (size_t i = 0; i < len; i += 8) {
+        uint64_t chunk = 0;
+        size_t n = (i + 8 <= len) ? 8 : len - i;
+        memcpy(&chunk, data + i, n);
+        acc ^= chunk;
+    }
+    return (uint32_t)(acc >> 32) ^ (uint32_t)(acc & 0xFFFFFFFFu);
+}
+
+// Returns true if GSP responded to the unload RPC before timeout.
+static bool gsp_unloading_guest_driver(NVHybridState* g) {
+    fprintf(stderr, "TinyGPU: sending rpc_unloading_guest_driver (fn=%u) ...\n",
+            GSP_FN_UNLOAD);
+    fflush(stderr);
+
+    int      s      = g->sock;
+    uint32_t d      = g->dev_id;
+    uint32_t handle = g->gsp_sysmem_handle;
+
+    // Set 3-second receive timeout so we don't hang if TinyGPU is unresponsive.
+    {
+        struct timeval tv = {3, 0};
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
+
+    // Read current stat_q writePtr BEFORE sending RPC (baseline for polling).
+    uint32_t stat_wptr_base = 0;
+    nv_sysmem_rd(s, d, handle, GSP_STATQ_OFF + GSP_HDR_WPTR_OFF, &stat_wptr_base, 4);
+
+    // Read current cmd_q writePtr (where we must write our message).
+    uint32_t cmd_wptr = 0;
+    nv_sysmem_rd(s, d, handle, GSP_CMDQ_OFF + GSP_HDR_WPTR_OFF, &cmd_wptr, 4);
+
+    // ── Build rpc_unloading_guest_driver_v payload (8 bytes) ─────────────────
+    //   bInPMTransition=0 (u8), bGc6Entering=0 (u8), pad[2], newLevel=0x40 (u32)
+    uint8_t payload[8] = {};
+    uint32_t newLevel = 0x40;  // __GPU_STATE_FLAGS_FAST_UNLOAD = 1<<6
+    memcpy(payload + 4, &newLevel, 4);
+
+    // ── Build rpc_message_header_v (32 bytes) ────────────────────────────────
+    uint8_t rpc_hdr[32] = {};
+    uint32_t hv  = 0x03000000u;                   // header_version
+    uint32_t sig = GSP_MSG_SIGNATURE;
+    uint32_t len = 32u + 8u;                       // sizeof(header) + sizeof(payload)
+    uint32_t fn  = GSP_FN_UNLOAD;
+    uint32_t res = GSP_RESULT_PENDING;
+    uint32_t seq = 1u;
+    memcpy(rpc_hdr +  0, &hv,  4);
+    memcpy(rpc_hdr +  4, &sig, 4);
+    memcpy(rpc_hdr +  8, &len, 4);
+    memcpy(rpc_hdr + 12, &fn,  4);
+    memcpy(rpc_hdr + 16, &res, 4);
+    memcpy(rpc_hdr + 20, &res, 4);  // rpc_result_private
+    memcpy(rpc_hdr + 24, &seq, 4);
+    // bytes 28-31 (u field) = 0
+
+    // ── Build GSP_MSG_QUEUE_ELEMENT (48 bytes) ────────────────────────────────
+    //   elemCount = ceil((48 + 32 + 8) / 4096) = 1
+    uint8_t qele[48] = {};
+    uint32_t elem_count = 1u;
+    memcpy(qele + 36, &seq,        4);  // seqNum
+    memcpy(qele + 40, &elem_count, 4);  // elemCount
+    // checkSum (at offset 32) starts at 0; compute over full 96-byte buffer
+
+    // ── Compute checksum over qele(48) + rpc_hdr(32) + payload(8) = 88 bytes ─
+    // Padded to 96 bytes (next multiple of 8) with zeros already in place.
+    uint8_t chk_buf[96] = {};
+    memcpy(chk_buf,      qele,    48);
+    memcpy(chk_buf + 48, rpc_hdr, 32);
+    memcpy(chk_buf + 80, payload,  8);
+    uint32_t csum = gsp_checksum(chk_buf, 96);
+    memcpy(qele + 32, &csum, 4);
+
+    // ── Assemble full GSP_MSG_SIZE message (zero-padded to 4096 bytes) ────────
+    uint8_t msg[GSP_MSG_SIZE] = {};
+    memcpy(msg,      qele,    48);
+    memcpy(msg + 48, rpc_hdr, 32);
+    memcpy(msg + 80, payload,  8);
+
+    // Write message to cmd_q at entryOff + cmd_wptr * msgSize
+    uint64_t msg_off = GSP_CMDQ_OFF + GSP_ENTRY_OFF + (uint64_t)cmd_wptr * GSP_MSG_SIZE;
+    nv_sysmem_wr(s, d, handle, msg_off, msg, sizeof(msg));
+
+    // Advance cmd_q writePtr
+    uint32_t new_cmd_wptr = (cmd_wptr + elem_count) % GSP_MSG_COUNT;
+    nv_sysmem_wr(s, d, handle, GSP_CMDQ_OFF + GSP_HDR_WPTR_OFF, &new_cmd_wptr, 4);
+
+    // Ring GSP doorbell: BAR0 write 0x0 to NV_PGSP_QUEUE_HEAD[0]
+    nv_wr32(s, d, NV_PGSP_QUEUE_HEAD_0, 0);
+
+    // Poll stat_q writePtr until GSP advances it past our baseline (up to 5 s)
+    uint32_t stat_wptr = stat_wptr_base;
+    for (int i = 0; i < 5000; ++i) {
+        nv_sysmem_rd(s, d, handle, GSP_STATQ_OFF + GSP_HDR_WPTR_OFF, &stat_wptr, 4);
+        if (stat_wptr != stat_wptr_base) break;
+        usleep(1000);
+    }
+
+    // Restore blocking socket
+    {
+        struct timeval tv = {0, 0};
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    }
+
+    if (stat_wptr == stat_wptr_base) {
+        fprintf(stderr, "TinyGPU: gsp_unloading_guest_driver: stat_q timeout — GSP did not respond\n");
+        fflush(stderr);
+        return false;
+    }
+
+    // Read response header to verify function ID
+    uint64_t resp_off = GSP_STATQ_OFF + GSP_ENTRY_OFF + (uint64_t)stat_wptr_base * GSP_MSG_SIZE;
+    uint8_t resp_hdr[32] = {};
+    nv_sysmem_rd(s, d, handle, resp_off + 48, resp_hdr, 32);  // skip 48-byte qele
+    uint32_t resp_fn = 0, resp_result = 0;
+    memcpy(&resp_fn,     resp_hdr + 12, 4);
+    memcpy(&resp_result, resp_hdr + 16, 4);
+    fprintf(stderr, "TinyGPU: gsp_unloading_guest_driver OK — fn=%u result=0x%x\n",
+            resp_fn, resp_result);
+    fflush(stderr);
+    return true;
+}
+
+// ── Safe exit: send GSP unload RPC, then exit (or fall back to keeper) ────────
+// Primary path: gsp_unloading_guest_driver() tells GSP firmware to clean up, so
+// TinyGPU.app accepts socket close without issuing a PCIe FLR (kernel panic).
+// Fallback: if RPC fails (null state, timeout, socket error), fork a keeper child
+// to hold the socket FD open so the parent can exit without triggering FLR.
+[[noreturn]] static void safe_exit(int code) {
+    fflush(stderr);
+    // gsp_sysmem_handle==0 means macOS MAP_SYSMEM_FD path (plain MMIOInterface,
+    // no TGC_SYSMEM_READ/WRITE handle) — RPC cannot reach queues from C++.
+    if (g_state && g_state->gsp_sysmem_handle != 0 && g_tgSock >= 0) {
+        bool ok = gsp_unloading_guest_driver(g_state);
+        if (ok) {
+            // GSP cleanly unloaded; TinyGPU.app will not FLR on disconnect.
+            fprintf(stderr, "TinyGPU: GSP unloaded cleanly — exiting without keeper\n");
+            fflush(stderr);
+            _exit(code);
+        }
+    }
+    // Fallback: fork a keeper child to hold the socket open.
+    if (g_tgSock >= 0) {
+        pid_t keeper = fork();
+        if (keeper == 0) {
+            setsid();
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            fprintf(stderr,
+                    "TinyGPU: keeper pid=%d holding GPU socket open (GSP unload RPC failed).\n"
+                    "         To reset safely: unplug Thunderbolt FIRST, then kill %d\n",
+                    (int)getpid(), (int)getpid());
+            fflush(stderr);
+            pause();
+            _exit(0);
+        }
+        if (keeper > 0) {
+            fprintf(stderr, "TinyGPU: keeper pid=%d spawned\n", (int)keeper);
+            fflush(stderr);
+        }
+    }
+    _exit(code);
 }
 
 // Open TinyGPU Unix socket.
@@ -536,8 +752,9 @@ static NVHybridState* nvHybridSetup(int sock, uint32_t dev_id) {
     g->compute_class   = (uint32_t)json_u64(js, "compute_class");
     g->dma_class       = (uint32_t)json_u64(js, "dma_class");
     g->sass_version    = (uint8_t)json_u64(js, "sass_version");
-    g->bar1_pa         = json_u64(js, "mm_vram_pa_base");
-    g->is_blackwell    = (g->compute_class >= 0x0000cec0u);
+    g->bar1_pa            = json_u64(js, "mm_vram_pa_base");
+    g->is_blackwell       = (g->compute_class >= 0x0000cec0u);
+    g->gsp_sysmem_handle  = (uint32_t)json_u64(js, "gsp_sysmem_handle");
 
     // Send channel setup packet and wait for EOP.
     send_channel_setup(g);
@@ -563,9 +780,14 @@ static NVHybridState* nvHybridSetup(int sock, uint32_t dev_id) {
 //                            *data64_le(0xfffdc0)]  (v3 kernels, non-NAK)
 
 static void make_cbuf0_prefix(uint8_t* buf, uint32_t n_u32s) {
-    memset(buf, 0, n_u32s * 4);
+    uint32_t byte_sz = n_u32s * 4;
+    if (byte_sz > CBUF0_MAX) {
+        fprintf(stderr, "TinyGPU: cbuf0 prefix too large (%u bytes, max %u) — exiting\n",
+                byte_sz, CBUF0_MAX);
+        safe_exit(1);
+    }
+    memset(buf, 0, byte_sz);
     uint32_t* b = (uint32_t*)buf;
-    // data64_le(x) = (lo32(x), hi32(x))
     b[6]  = (uint32_t)(NV_SHARED_MEM_WIN & 0xFFFFFFFFu);
     b[7]  = (uint32_t)(NV_SHARED_MEM_WIN >> 32);
     b[8]  = (uint32_t)(NV_LOCAL_MEM_WIN  & 0xFFFFFFFFu);
@@ -593,6 +815,128 @@ static bool run_compile_helper(const char* ptx_path, const char* kname,
     return system(cmd) == 0;
 }
 
+// ── Precompile all kernels in one ptxas invocation ────────────────────────────
+// Calls nv_compile_helper.py with kernel_name="_all", which compiles the PTX
+// once and emits JSONL: line 0 = shared code image, lines 1..N = per-kernel
+// metadata.  Uploads the code image once, then builds NVKernelEntry for every
+// kernel and populates g_kernels.  After this, GetFunction() is a pure lookup.
+static void precompile_all_kernels(const char* kernel_code) {
+    if (!g_state || !kernel_code || !kernel_code[0]) return;
+
+    char ptx_path[256], result_path[256];
+    snprintf(ptx_path,    sizeof(ptx_path),    "/tmp/beagle_nv_all_%d.ptx",  getpid());
+    snprintf(result_path, sizeof(result_path), "/tmp/beagle_nv_all_%d.jsonl", getpid());
+
+    write_file(ptx_path, kernel_code, strlen(kernel_code));
+
+    fprintf(stderr, "TinyGPU: precompile_all_kernels — compiling all kernels (ptxas × 1)…\n");
+    fflush(stderr);
+
+    if (!run_compile_helper(ptx_path, "_all", g_handoff, result_path)) {
+        fprintf(stderr, "TinyGPU: precompile_all_kernels failed — exiting\n");
+        unlink(ptx_path);
+        safe_exit(1);
+    }
+    unlink(ptx_path);
+
+    std::string res = read_file(result_path);
+    unlink(result_path);
+    if (res.empty()) {
+        fprintf(stderr, "TinyGPU: precompile_all_kernels: empty JSONL output — exiting\n");
+        safe_exit(1);
+    }
+
+    // Split into lines; line 0 = header with code_b64.
+    std::vector<std::string> lines;
+    {
+        size_t pos = 0;
+        while (pos <= res.size()) {
+            auto nl = res.find('\n', pos);
+            size_t end = (nl == std::string::npos) ? res.size() : nl;
+            if (end > pos) lines.push_back(res.substr(pos, end - pos));
+            if (nl == std::string::npos) break;
+            pos = nl + 1;
+        }
+    }
+    if (lines.empty()) {
+        fprintf(stderr, "TinyGPU: precompile_all_kernels: no output lines — exiting\n");
+        safe_exit(1);
+    }
+
+    // Decode and upload the shared code image once.
+    std::vector<uint8_t> code = b64decode(json_str(lines[0], "code_b64"));
+    if (code.empty()) {
+        fprintf(stderr, "TinyGPU: precompile_all_kernels: empty code image — exiting\n");
+        safe_exit(1);
+    }
+
+    uint32_t img_ptr = (g_state->code_ptr + 255) & ~255u;
+    if (img_ptr + (uint32_t)code.size() > g_state->code_sz) {
+        fprintf(stderr, "TinyGPU: code buffer too small for full kernel image (%zu bytes) — exiting\n",
+                code.size());
+        safe_exit(1);
+    }
+    nv_vram_wr(g_state->sock, g_state->dev_id,
+               g_state->code_vram + img_ptr, code.data(), code.size());
+    g_state->code_ptr = img_ptr + (uint32_t)((code.size() + 4095) & ~4095u);
+    fprintf(stderr, "TinyGPU: precompile_all_kernels — uploaded %zu-byte image to vram+0x%x\n",
+            code.size(), img_ptr);
+    fflush(stderr);
+
+    // Build a NVKernelEntry for each kernel line.
+    int loaded = 0;
+    for (size_t i = 1; i < lines.size(); ++i) {
+        const std::string& ln = lines[i];
+        std::string kname = json_str(ln, "name");
+        if (kname.empty()) continue;
+
+        uint32_t code_off  = (uint32_t)json_u64(ln, "code_offset");
+        uint32_t code_sz   = (uint32_t)json_u64(ln, "code_size");
+        uint32_t reg_count = (uint32_t)json_u64(ln, "reg_count");
+        uint32_t shmem     = (uint32_t)json_u64(ln, "shmem_size");
+        uint32_t param_off = (uint32_t)json_u64(ln, "cbuf0_param_off");
+        uint32_t slm       = (uint32_t)json_u64(ln, "slm_size");
+        std::vector<uint8_t> pfx = b64decode(json_str(ln, "cbuf0_prefix_b64"));
+
+        uint64_t prog_va = g_state->code_gpu_va + img_ptr + code_off;
+
+        // Allocate kernargs (cbuf0 + args headroom + QMD) from data pool.
+        uint32_t ka_sz   = param_off + 512 + 256;
+        uint32_t ka_ptr  = (g_state->data_ptr + 255) & ~255u;
+        if (ka_ptr + ka_sz > g_state->data_sz) {
+            fprintf(stderr, "TinyGPU: data pool full at kernel %s — exiting\n", kname.c_str());
+            safe_exit(1);
+        }
+        g_state->data_ptr = ka_ptr + ka_sz;
+
+        NVKernelEntry* ke = new NVKernelEntry{};
+        ke->name            = kname;
+        ke->kernargs_vram   = g_state->data_vram  + ka_ptr;
+        ke->kernargs_gpu_va = g_state->data_gpu_va + ka_ptr;
+        ke->cbuf0_param_off = param_off;
+        ke->cbuf0_total     = ka_sz;
+        ke->block           = {1, 1, 1};
+        ke->is_v5           = g_state->is_blackwell;
+
+        // Copy cbuf0 prefix from JSON.
+        uint32_t pfx_sz = (uint32_t)pfx.size();
+        if (pfx_sz > CBUF0_MAX) pfx_sz = CBUF0_MAX;
+        memcpy(ke->cbuf0_pfx, pfx.data(), pfx_sz);
+
+        if (!ke->is_v5) {
+            build_qmd_v3(ke->qmd_tmpl, g_state, prog_va, code_sz, reg_count, shmem, slm);
+        } else {
+            memset(ke->qmd_tmpl, 0, 256);
+        }
+
+        g_kernels[kname] = ke;
+        ++loaded;
+    }
+
+    fprintf(stderr, "TinyGPU: precompile_all_kernels — loaded %d kernels\n", loaded);
+    fflush(stderr);
+}
+
 // ── KernelResource loader (mirrors GPUInterfaceTinyGPU.cpp §LOAD_KERNEL_INTO_RESOURCE) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
@@ -611,13 +955,6 @@ static bool run_compile_helper(const char* ptx_path, const char* kname,
 
 namespace tinygpu_device {
 
-static std::map<std::string, NVKernelEntry*> g_kernels;
-static NVHybridState* g_state = nullptr;
-static int           g_tgSock = -1;
-static uint32_t      g_tgDevId = 0;
-// Saved handoff path (for compile helper)
-static char          g_handoff[256] = {};
-
 GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
     isNVIDIA(true), vramKernelTop(0), vramDataTop(0),
     amdRingVram(0), amdRingWptr(0), amdRptrAddr(0), amdWptrAddr(0),
@@ -630,10 +967,33 @@ GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
 {}
 
 GPUInterface::~GPUInterface() {
+    bool was_initialized = (g_state != nullptr);
     if (g_state) { delete g_state; g_state = nullptr; }
     for (auto& kv : g_kernels) delete kv.second;
     g_kernels.clear();
-    if (g_tgSock >= 0) { close(g_tgSock); g_tgSock = -1; }
+    if (g_tgSock >= 0) {
+        // Only fork a keeper when the GPU was fully initialized (g_state was set).
+        // During BEAGLE's probe/enumerate phase g_state is null — close normally.
+        if (was_initialized) {
+            pid_t keeper = fork();
+            if (keeper == 0) {
+                setsid();
+                close(STDIN_FILENO); close(STDOUT_FILENO);
+                fprintf(stderr,
+                        "TinyGPU: keeper pid=%d holding GPU socket open (normal exit).\n"
+                        "         To reset safely: unplug Thunderbolt FIRST, then kill %d\n",
+                        (int)getpid(), (int)getpid());
+                fflush(stderr);
+                pause();
+                _exit(0);
+            }
+            if (keeper > 0) {
+                fprintf(stderr, "TinyGPU: destructor spawned keeper pid=%d\n", (int)keeper);
+                fflush(stderr);
+            }
+        }
+        close(g_tgSock); g_tgSock = -1;
+    }
 }
 
 int GPUInterface::Initialize() {
@@ -654,7 +1014,7 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
                               int categoryCount, int patternCount,
                               int unpaddedPatternCount, int tipCount, long flags) {
     g_state = nvHybridSetup(g_tgSock, g_tgDevId);
-    if (!g_state) { fprintf(stderr, "TinyGPU: nvHybridSetup failed\n"); return; }
+    if (!g_state) { fprintf(stderr, "TinyGPU: nvHybridSetup failed\n"); safe_exit(1); }
 
     // Save handoff path for compile helper (re-create it from g_state).
     // We write a minimal handoff JSON for the compile helper.
@@ -670,6 +1030,9 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
     InitializeKernelResource(paddedStateCount,
                              (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
     supportDoublePrecision = ((flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
+
+    // Compile all kernels once now so GetFunction() is a pure cache lookup.
+    precompile_all_kernels(kernelResource ? kernelResource->kernelCode : nullptr);
 }
 
 void GPUInterface::ResizeStreamCount(int n) { numStreams = n; }
@@ -718,40 +1081,53 @@ void GPUInterface::SynchronizeDevice() { SynchronizeHost(); }
 void GPUInterface::SynchronizeDeviceWithIndex(int, int) { SynchronizeHost(); }
 
 // ── GetFunction ───────────────────────────────────────────────────────────────
-// Compile PTX → SASS via nv_compile_helper.py, upload cubin, build QMD template.
+// All kernels are precompiled by precompile_all_kernels() in SetDevice().
+// This function is now a pure cache lookup.
 
 GPUFunction GPUInterface::GetFunction(const char* name) {
     if (!g_state) return nullptr;
     auto it = g_kernels.find(name);
     if (it != g_kernels.end()) return it->second;
+    fprintf(stderr, "TinyGPU: GetFunction(%s): kernel not found in precompiled cache — exiting\n", name);
+    safe_exit(1);
 
-    // Write PTX source to a temp file.
-    // kernelResource->kernelSource is the full PTX string.
+    // Legacy per-kernel compile path (unreachable after precompile_all_kernels,
+    // kept for reference).
     char ptx_path[256], result_path[256];
     snprintf(ptx_path,    sizeof(ptx_path),    "/tmp/beagle_nv_%s_%d.ptx",   name, getpid());
     snprintf(result_path, sizeof(result_path), "/tmp/beagle_nv_%s_%d.json", name, getpid());
 
     // Write PTX to file.
     if (!kernelResource || !kernelResource->kernelCode) {
-        fprintf(stderr, "TinyGPU: no kernel source for %s\n", name); return nullptr;
+        fprintf(stderr, "TinyGPU: no kernel source for %s — exiting\n", name);
+        safe_exit(1);
     }
     write_file(ptx_path, kernelResource->kernelCode,
                strlen(kernelResource->kernelCode));
 
+    fprintf(stderr, "TinyGPU: GetFunction(%s) compiling…\n", name); fflush(stderr);
     if (!run_compile_helper(ptx_path, name, g_handoff, result_path)) {
-        fprintf(stderr, "TinyGPU: compile failed for kernel %s\n", name);
-        unlink(ptx_path); return nullptr;
+        fprintf(stderr, "TinyGPU: compile failed for kernel %s — exiting\n", name);
+        unlink(ptx_path);
+        safe_exit(1);
     }
     unlink(ptx_path);
+    fprintf(stderr, "TinyGPU: GetFunction(%s) compile done, reading result\n", name); fflush(stderr);
 
     std::string res = read_file(result_path);
     unlink(result_path);
-    if (res.empty()) return nullptr;
+    if (res.empty()) {
+        fprintf(stderr, "TinyGPU: empty result JSON for kernel %s — exiting\n", name);
+        safe_exit(1);
+    }
 
     // Decode code bytes and upload to code buffer.
     std::string code_b64 = json_str(res, "code_b64");
     std::vector<uint8_t> code = b64decode(code_b64);
-    if (code.empty()) return nullptr;
+    if (code.empty()) {
+        fprintf(stderr, "TinyGPU: empty code bytes for kernel %s — exiting\n", name);
+        safe_exit(1);
+    }
 
     uint32_t code_off   = (uint32_t)json_u64(res, "code_offset");
     uint32_t code_sz    = (uint32_t)json_u64(res, "code_size");
@@ -760,50 +1136,69 @@ GPUFunction GPUInterface::GetFunction(const char* name) {
     uint32_t param_off  = (uint32_t)json_u64(res, "cbuf0_param_off");
     uint32_t slm        = (uint32_t)json_u64(res, "slm_size");
 
+    fprintf(stderr, "TinyGPU: GetFunction(%s) code_bytes=%zu code_off=%u code_sz=%u "
+            "reg=%u shmem=%u cbuf0_param_off=%u slm=%u\n",
+            name, code.size(), code_off, code_sz, reg_count, shmem, param_off, slm);
+    fflush(stderr);
+
     // Align code_ptr to 256 bytes before upload.
     uint32_t aligned_ptr = (g_state->code_ptr + 255) & ~255u;
     if (aligned_ptr + (uint32_t)code.size() > g_state->code_sz) {
-        fprintf(stderr, "TinyGPU: code buffer full\n"); return nullptr;
+        fprintf(stderr, "TinyGPU: code buffer full for kernel %s (need %zu, have %u) — exiting\n",
+                name, code.size(), g_state->code_sz - aligned_ptr);
+        safe_exit(1);
     }
 
+    fprintf(stderr, "TinyGPU: GetFunction(%s) nv_vram_wr code @ vram+%u (%zu bytes)…\n",
+            name, (unsigned)(g_state->code_vram + aligned_ptr), code.size()); fflush(stderr);
     nv_vram_wr(g_state->sock, g_state->dev_id,
                g_state->code_vram + aligned_ptr, code.data(), code.size());
+    fprintf(stderr, "TinyGPU: GetFunction(%s) nv_vram_wr done\n", name); fflush(stderr);
 
     uint64_t prog_va = g_state->code_gpu_va + aligned_ptr + code_off;
     g_state->code_ptr = aligned_ptr + (uint32_t)((code.size() + 4095) & ~4095u);
 
-    // Allocate kernargs buffer (1KB) from data pool.
+    // Allocate kernargs buffer from data pool.
+    // Size = cbuf0_param_off + max_args + QMD(256) with margin.
+    uint32_t ka_sz = param_off + 512 + 256;  // prefix + args headroom + QMD
     uint32_t kern_ptr = (g_state->data_ptr + 255) & ~255u;
-    if (kern_ptr + 1024 > g_state->data_sz) {
-        fprintf(stderr, "TinyGPU: data pool full for kernargs\n"); return nullptr;
+    if (kern_ptr + ka_sz > g_state->data_sz) {
+        fprintf(stderr, "TinyGPU: data pool full for kernargs (%s) — exiting\n", name);
+        safe_exit(1);
     }
     uint64_t ka_vram = g_state->data_vram + kern_ptr;
     uint64_t ka_va   = g_state->data_gpu_va + kern_ptr;
-    g_state->data_ptr = kern_ptr + 1024;
+    g_state->data_ptr = kern_ptr + ka_sz;
+
+    fprintf(stderr, "TinyGPU: GetFunction(%s) building KernelEntry (param_off=%u, is_v5=%d)\n",
+            name, param_off, (int)g_state->is_blackwell); fflush(stderr);
 
     // Build KernelEntry.
     NVKernelEntry* ke = new NVKernelEntry{};
     ke->name            = name;
     ke->kernargs_vram   = ka_vram;
     ke->kernargs_gpu_va = ka_va;
-    // QMD starts at byte 512 within the kernargs buffer.
     ke->cbuf0_param_off = param_off;
-    ke->cbuf0_total     = param_off + 512; // reserve room for cbuf0 + some args
-    ke->block           = {1, 1, 1};       // overridden at launch
+    ke->cbuf0_total     = ka_sz;
+    ke->block           = {1, 1, 1};
     ke->is_v5           = g_state->is_blackwell;
 
-    // Build cbuf0 prefix.
+    // Build cbuf0 prefix. n_u32 = param_off/4 so indices 6-11 are in-range.
     uint32_t n_u32 = std::max(param_off / 4u, 12u);
+    fprintf(stderr, "TinyGPU: GetFunction(%s) make_cbuf0_prefix n_u32=%u (%u bytes)\n",
+            name, n_u32, n_u32 * 4); fflush(stderr);
     make_cbuf0_prefix(ke->cbuf0_pfx, n_u32);
+    fprintf(stderr, "TinyGPU: GetFunction(%s) cbuf0 prefix built\n", name); fflush(stderr);
 
     // Build QMD template (static fields; grid/cbuf0/eop patched at dispatch).
     if (!ke->is_v5) {
         build_qmd_v3(ke->qmd_tmpl, g_state, prog_va, code_sz, reg_count, shmem, slm);
     } else {
         memset(ke->qmd_tmpl, 0, 256);
-        fprintf(stderr, "TinyGPU: Blackwell QMD v5 not yet implemented\n");
+        fprintf(stderr, "TinyGPU: Blackwell QMD v5 not yet implemented for %s\n", name);
     }
 
+    fprintf(stderr, "TinyGPU: GetFunction(%s) done → ke=%p\n", name, (void*)ke); fflush(stderr);
     g_kernels[name] = ke;
     return ke;
 }
@@ -816,10 +1211,21 @@ void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
     if (!g_state || !fn) return;
     NVKernelEntry* ke = (NVKernelEntry*)fn;
 
+    if (ke->is_v5) {
+        fprintf(stderr, "TinyGPU: Blackwell QMD v5 not implemented — cannot dispatch %s, exiting\n",
+                ke->name.c_str());
+        safe_exit(1);
+    }
+
     // Build cbuf0 in host memory.
     // Layout: [0, param_off) = driver prefix; [param_off, ...) = kernel args.
-    uint8_t cbuf0[512] = {};
-    memcpy(cbuf0, ke->cbuf0_pfx, std::min(ke->cbuf0_param_off, 512u));
+    uint8_t cbuf0[CBUF0_MAX] = {};
+    if (ke->cbuf0_param_off > CBUF0_MAX) {
+        fprintf(stderr, "TinyGPU: cbuf0_param_off=%u exceeds CBUF0_MAX=%u for %s — exiting\n",
+                ke->cbuf0_param_off, CBUF0_MAX, ke->name.c_str());
+        safe_exit(1);
+    }
+    memcpy(cbuf0, ke->cbuf0_pfx, ke->cbuf0_param_off);
 
     uint8_t* arg_area = cbuf0 + ke->cbuf0_param_off;
     // Pointer args first (uint64, little-endian).
