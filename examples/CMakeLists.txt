@@ -72,6 +72,17 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+if(BUILD_SPECTRAL)
+    add_executable(openclspectraltest
+            openclspectraltest/openclspectraltest.cpp)
+    target_link_libraries(openclspectraltest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(openclspectraltest openclspectraltest)
+endif(BUILD_SPECTRAL)
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)

@@ -268,19 +268,33 @@ void KernelLauncher::LoadKernels() {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
 	}
 
+    fprintf(stderr, "test: %ld\n", (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION));
+
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsNoScaleSpectral" :
             "kernelPartialsPartialsNoScale");
 
+    fprintf(stderr, "loaded\n");
+
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsFixedScaleSpectral" :
             "kernelPartialsPartialsFixedScale");
 
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
-                "kernelPartialsPartialsAutoScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsAutoScaleSpectral" :
+            "kernelPartialsPartialsAutoScale");
 
     fPartialsPartialsGrowing = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsGrowingSpectral" :
             "kernelPartialsPartialsGrowing");
 
     fPartialsStatesGrowing = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsStatesGrowingSpectral" :
             "kernelPartialsStatesGrowing");
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
@@ -311,17 +325,25 @@ void KernelLauncher::LoadKernels() {
     }
 
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesPartialsNoScaleSpectral" :
             "kernelStatesPartialsNoScale");
 
     fStatesStatesByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesStatesNoScaleSpectral" :
             "kernelStatesStatesNoScale");
 
 //    if (kPaddedStateCount != 4) {
         fStatesPartialsByPatternBlockFixedScaling = gpu->GetFunction(
-                "kernelStatesPartialsFixedScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesPartialsFixedScaleSpectral" :
+            "kernelStatesPartialsFixedScale");
 
         fStatesStatesByPatternBlockFixedScaling = gpu->GetFunction(
-                "kernelStatesStatesFixedScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesStatesFixedScaleSpectral" :
+            "kernelStatesStatesFixedScale");
 //    }
 
     fPartialsPartialsEdgeLikelihoods = gpu->GetFunction(
@@ -823,9 +845,9 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
     gpu->LaunchKernel(fPartialsStatesCrossProducts,
                       bgCrossProductBlock, grid,
                       7, 14,
-                      out, states0, partials, lengths, instructions, 
+                      out, states0, partials, lengths, instructions,
                       categoryWeights, patternWeights,
-                      instructionOffset, 
+                      instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate, missingState);
 
     gpu->SynchronizeDevice();
