@@ -1227,6 +1227,9 @@ static std::vector<uint8_t> nv_load_fw(const char* fw_name, const char* filename
     paths.push_back(lpath);
 
     for (auto& p : paths) {
+
+        fprintf(stderr, "Trying: %s\n", p.c_str());
+
         FILE* f = fopen(p.c_str(), "rb");
         if (!f) continue;
         fseek(f, 0, SEEK_END); long sz = ftell(f); rewind(f);

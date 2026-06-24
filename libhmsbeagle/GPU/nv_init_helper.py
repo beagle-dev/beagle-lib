@@ -12,7 +12,8 @@ This script:
   2. Boots the GPU using tinygrad's NVDev (GSP + golden image).
   3. Allocates GPFIFO ring, EOP, command queue, code buffer, and data
      pool in VRAM — and maps them in the GPU page tables.
-  4. Creates a user RM client hierarchy and compute channel.
+  4. Creates a user RM client hierarchy and compute channel (non-priv
+     path, exactly as tinygrad's PCIIface/NVDevice does in production).
   5. Writes a handoff JSON that C++ reads for hot-path dispatch.
 
 The socket FD remains open in the C++ parent after this process exits,
@@ -23,7 +24,7 @@ AllocateMemory() and GetFunction().  GPU VAs for these regions are fixed
 at init time so C++ can compute gpu_va = region_gpu_va + offset directly.
 """
 
-import sys, os, json, ctypes, socket, struct
+import sys, os, json, ctypes, socket, struct, time
 
 # Locate tinygrad — prefer env var, fall back to sibling checkout.
 _TINYGRAD_PATH = os.environ.get(
@@ -38,7 +39,7 @@ sys.path.insert(0, os.path.abspath(_TINYGRAD_PATH))
 
 from tinygrad.runtime.support.system import APLRemotePCIDevice, RemotePCIDevice
 from tinygrad.runtime.support.nv.nvdev import NVDev, NVMemoryManager
-from tinygrad.runtime.support.nv.ip import NV_FLCN, NV_FLCN_COT
+from tinygrad.runtime.support.nv.ip import NV_FLCN, NV_FLCN_COT, NV_GSP
 from tinygrad.runtime.support.memory import MemoryManager
 from tinygrad.runtime.autogen import nv_570 as nv_gpu
 
@@ -66,6 +67,39 @@ def _palloc_nozero_large(self, size, align=0x1000, zero=True, boot=False, ptable
     return _orig_palloc(self, size, align, zero=zero, boot=boot, ptable=ptable)
 MemoryManager.palloc = _palloc_nozero_large
 
+# 3. Sleep after SEC2 start (only during gsp.init_hw) to let the GC6 BSI
+# power domain stabilize before we poll NV_PGC6_BSI_SECURE_SCRATCH_14.
+#
+# Root cause of the silent hang: run_cpu_seq op 0x8 calls start_cpu(sec2)
+# then immediately polls NV_PGC6_BSI_SECURE_SCRATCH_14 via BAR0 over the
+# TinyGPU socket.  While SEC2 is booting, the GC6 BSI register domain is
+# briefly power-gated; TinyGPU.app's PCIe read hangs, so sock.recv() never
+# returns, and the wait_cond loop can never advance its timeout check.
+#
+# Fix: after start_cpu(sec2) (base == 0x00840000) inside gsp.init_hw(),
+# sleep 20 s to allow SEC2 to complete and the register to become accessible.
+# SEC2 typically boots in 2–5 s; 20 s is conservative but safe.
+_SEC2_BASE = 0x00840000
+_in_gsp_init = [False]
+
+_orig_gsp_init_hw = NV_GSP.init_hw
+def _patched_gsp_init_hw(self):
+    _in_gsp_init[0] = True
+    try:
+        return _orig_gsp_init_hw(self)
+    finally:
+        _in_gsp_init[0] = False
+NV_GSP.init_hw = _patched_gsp_init_hw
+
+_orig_start_cpu = NV_FLCN.start_cpu
+def _patched_start_cpu(self, base):
+    _orig_start_cpu(self, base)
+    if base == _SEC2_BASE and _in_gsp_init[0]:
+        print("nv_init_helper: SEC2 started inside gsp.init_hw — sleeping 20 s "
+              "for GC6 BSI domain to stabilise …", file=sys.stderr, flush=True)
+        time.sleep(20)
+NV_FLCN.start_cpu = _patched_start_cpu
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Inherited-FD device: APLRemotePCIDevice without its own socket/lock setup.
@@ -91,8 +125,6 @@ class InheritedFDPCIDevice(APLRemotePCIDevice):
         self.dev_id     = dev_id
         self.peer_group = "local"
         self.lock_fd    = None
-        for buf_type in (socket.SO_SNDBUF, socket.SO_RCVBUF):
-            self.sock.setsockopt(socket.SOL_SOCKET, buf_type, 64 << 20)
 
     def reset(self) -> None:
         # PCIe FLR is fatal on macOS eGPU (USB4): the kernel panics when the
@@ -168,63 +200,38 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
     print("nv_init_helper: connecting via inherited socket FD …", file=sys.stderr)
     pci_dev = InheritedFDPCIDevice(sock_fd, dev_id)
 
-    # ── 1. Boot GPU via tinygrad (stepped for crash diagnosis) ───────────────
-    # Each step is flushed so the last visible line tells us where a panic hit.
-    import types as _types
-
     def _step(msg: str) -> None:
         print(f"nv_init_helper: {msg}", file=sys.stderr, flush=True)
 
-    _step("step 1/6 — NVDev.__new__ + map_bar(0)")
-    nvdev = NVDev.__new__(NVDev)
-    nvdev.pci_dev = pci_dev
-    nvdev.devfmt  = pci_dev.pcibus
-    nvdev.mmio    = pci_dev.map_bar(0, fmt='I')
+    # ── 0. WPR2 warm-start guard (direct BAR0 read, no NVDev required) ───────
+    # NV_PFB_PRI_MMU_WPR2_ADDR_HI is at BAR0 byte-offset 0x1FA828 (index 518666).
+    # If it's non-zero the GPU is still initialised from a prior session;
+    # a full re-init without PCIe FLR (suppressed on macOS) will hang.
+    # ACTION: unplug and replug the Thunderbolt cable to power-cycle the eGPU.
+    _step("WPR2 pre-check (BAR0 direct read)")
+    _quick_mmio = pci_dev.map_bar(0, fmt='I')
+    _NV_PFB_PRI_MMU_WPR2_ADDR_HI_IDX = 2074664 // 4    # byte offset 0x1FA828; index 518666
+    _wpr2_hi = _quick_mmio[_NV_PFB_PRI_MMU_WPR2_ADDR_HI_IDX]
+    if _wpr2_hi != 0:
+        print(f"\nnv_init_helper: WARM-START DETECTED (WPR2_HI=0x{_wpr2_hi:08x})\n"
+              "The eGPU is still initialised from a prior session and cannot be\n"
+              "re-initialised without a PCIe FLR (suppressed on macOS to prevent\n"
+              "kernel panic).  ACTION REQUIRED: unplug and replug the Thunderbolt\n"
+              "cable to power-cycle the eGPU, then retry.", file=sys.stderr)
+        sys.exit(1)
+    _step("WPR2 = 0 — cold start confirmed")
 
-    _step("step 2/6 — _early_ip_init (WPR2 check; PCIe FLR suppressed)")
-    nvdev.smi_dev, nvdev.is_booting, nvdev.is_err_state = False, True, False
-    nvdev._early_ip_init()
+    # ── 1. Full GPU boot via NVDev ────────────────────────────────────────────
+    # NVDev(pci_dev) runs the complete init sequence:
+    #   _early_ip_init → _early_mmu_init → flcn.init_sw/hw → gsp.init_sw/hw
+    # The patched start_cpu above sleeps 20 s after SEC2 starts (inside
+    # gsp.init_hw) so the GC6 BSI register is accessible before we poll it.
+    # NVDev._early_ip_init suppresses FLR via our overridden reset() method.
+    _step("NVDev boot (this includes ~20 s SEC2 sleep — please wait) …")
+    nvdev = NVDev(pci_dev)
+    _step(f"NVDev boot complete — chip={nvdev.chip_name} vram={nvdev.vram_size>>20} MB")
 
-    _step("step 3/6 — _early_mmu_init (BAR1 map)")
-    nvdev._early_mmu_init()
-    nvdev.is_booting = False
-
-    _step("step 4/6 — flcn.init_sw")
-    nvdev.flcn.init_sw()
-    _step("step 5/6 — gsp.init_sw")
-    nvdev.gsp.init_sw()
-
-    # Monkey-patch rpc_rm_alloc to capture golden device + vaspace handles
-    # allocated inside init_golden_image() during gsp.init_hw() below.
-    _golden_refs = {'device': None, 'vaspace': None}
-    _orig_gsp_rpc_rm_alloc = type(nvdev.gsp).rpc_rm_alloc
-    def _tracking_rpc_rm_alloc(self, hParent, hClass, params, client=None):
-        result = _orig_gsp_rpc_rm_alloc(self, hParent, hClass, params, client)
-        if hClass == nv_gpu.NV01_DEVICE_0 and _golden_refs['device'] is None:
-            _golden_refs['device'] = result
-        if hClass == nv_gpu.FERMI_VASPACE_A and _golden_refs['vaspace'] is None:
-            _golden_refs['vaspace'] = result
-        return result
-    type(nvdev.gsp).rpc_rm_alloc = _tracking_rpc_rm_alloc
-
-    _step("step 6a/6 — flcn.init_hw (Falcon MCU boot)")
-    nvdev.flcn.init_hw()
-    _step("step 6b/6 — gsp.init_hw (GSP firmware load)")
-    nvdev.gsp.init_hw()
-    type(nvdev.gsp).rpc_rm_alloc = _orig_gsp_rpc_rm_alloc  # restore
-
-    _step("NVDev boot complete")
-    gsp            = nvdev.gsp
-    golden_client  = gsp.priv_root
-    golden_device  = _golden_refs['device']
-    golden_subdev  = gsp.subdevice
-    golden_vaspace = _golden_refs['vaspace']
-    if golden_device is None or golden_vaspace is None:
-        raise RuntimeError(
-            f"golden handle capture failed: device={golden_device!r} vaspace={golden_vaspace!r}")
-    _step(f"golden client=0x{golden_client:08x} device=0x{golden_device:08x} "
-          f"subdev=0x{golden_subdev:08x} vaspace=0x{golden_vaspace:08x}")
-
+    gsp          = nvdev.gsp
     bar1_paddr, _bar1_sz = pci_dev.bar_info(1)
 
     def to_vram_off(system_paddr: int) -> int:
@@ -242,7 +249,7 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
     # Code buffer: stores compiled cubin(s); defaults to 64 MB.
     CODE_BUF_SZ = int(os.environ.get("BEAGLE_NV_CODE_MB", "64")) << 20
 
-    # Data pool: capped at 64 MB for initial testing; expand with BEAGLE_NV_DATA_GB.
+    # Data pool: capped at 64 MB for initial testing; expand with BEAGLE_NV_DATA_MB.
     _max_mb      = int(os.environ.get("BEAGLE_NV_DATA_MB", "64"))
     DATA_POOL_SZ = (_max_mb << 20)
     DATA_POOL_SZ = (DATA_POOL_SZ + (2 << 20) - 1) & ~((2 << 20) - 1)  # 2MB align
@@ -251,113 +258,115 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
           f"(data_pool={DATA_POOL_SZ >> 20} MB, code={CODE_BUF_SZ >> 20} MB) …",
           file=sys.stderr)
 
-    # All allocations go through NVMemoryManager.valloc() which maps them in
-    # the GPU page tables.  C++ accesses them via (region_gpu_va + offset).
     _step("valloc gpfifo_area (3 MB)")
-    gpfifo_area = nvdev.mm.valloc(AREA_SZ,        contiguous=True)
+    gpfifo_area   = nvdev.mm.valloc(AREA_SZ,        contiguous=True)
+    _step("valloc notifier_area (4 KB)")
+    notifier_area = nvdev.mm.valloc(0x1000,          contiguous=True)
     _step("valloc cmdq_area (2 MB)")
-    cmdq_area   = nvdev.mm.valloc(CMDQ_SZ,        contiguous=False)
+    cmdq_area     = nvdev.mm.valloc(CMDQ_SZ,         contiguous=False)
     _step("valloc eop_area (4 KB)")
-    eop_area    = nvdev.mm.valloc(EOP_SZ,          contiguous=True)
+    eop_area      = nvdev.mm.valloc(EOP_SZ,          contiguous=True)
     _step(f"valloc code_area ({CODE_BUF_SZ >> 20} MB)")
-    code_area   = nvdev.mm.valloc(CODE_BUF_SZ,    contiguous=False)
+    code_area     = nvdev.mm.valloc(CODE_BUF_SZ,     contiguous=False)
     _step(f"valloc data_area ({DATA_POOL_SZ >> 20} MB)")
-    data_area   = nvdev.mm.valloc(DATA_POOL_SZ,   contiguous=False)
+    data_area     = nvdev.mm.valloc(DATA_POOL_SZ,    contiguous=False)
     _step("valloc complete")
 
-    gpfifo_vram = to_vram_off(gpfifo_area.paddrs[0][0])
-    cmdq_vram   = to_vram_off(cmdq_area.paddrs[0][0])
-    eop_vram    = to_vram_off(eop_area.paddrs[0][0])
-    code_vram   = to_vram_off(code_area.paddrs[0][0])
-    data_vram   = to_vram_off(data_area.paddrs[0][0])
+    gpfifo_paddr   = gpfifo_area.paddrs[0][0]
+    notifier_paddr = notifier_area.paddrs[0][0]
 
-    userd_vram  = gpfifo_vram + RING_SZ  # USERD page offset within VRAM (for C++ GPPut writes)
+    gpfifo_vram    = to_vram_off(gpfifo_paddr)
+    userd_vram     = gpfifo_vram + RING_SZ      # USERD page in BAR1 space
+    cmdq_vram      = to_vram_off(cmdq_area.paddrs[0][0])
+    eop_vram       = to_vram_off(eop_area.paddrs[0][0])
+    code_vram      = to_vram_off(code_area.paddrs[0][0])
+    data_vram      = to_vram_off(data_area.paddrs[0][0])
 
-    # ── 3. Share valloc'd VA ranges with golden_vaspace ─────────────────────
-    # FERMI_VASPACE_A fails (result 59) for ALL additional vaspaces on this
-    # macOS/TinyGPU.app setup — the GSP permits only one vaspace per device.
-    # The golden image already owns golden_vaspace.  We reuse it and copy our
-    # valloc'd page table pages into it with COPY_SERVER_RESERVED_PDES, exactly
-    # the same mechanism init_golden_image() uses for the 512MB reserved region.
+    # ── 3. Non-priv RM hierarchy (mirrors PCIIface / NVDevice in ops_nv.py) ──
+    #
+    # Use user root 0xc1000000 (not priv_root 0xc1e00004).  rpc_rm_alloc in
+    # ip.py auto-handles the non-priv path:
+    #   • FERMI_VASPACE_A → auto rpc_set_page_directory (no COPY_SERVER_RESERVED_PDES)
+    #   • compute_class   → auto promote_ctx for grctx_bufs [0,1,2]
+    USER_ROOT = 0xc1000000
 
-    vaspace = golden_vaspace  # reuse the golden vaspace for our channel
+    _step("RM 1 — NV01_ROOT (user root 0xc1000000)")
+    gsp.rpc_rm_alloc(0, nv_gpu.NV01_ROOT, nv_gpu.NV0000_ALLOC_PARAMETERS(), USER_ROOT)
 
-    _step("sharing valloc'd VA regions with golden_vaspace")
-    for area, aname in [(gpfifo_area, 'gpfifo'), (cmdq_area, 'cmdq'),
-                        (eop_area,    'eop'),    (code_area, 'code'),
-                        (data_area,   'data')]:
-        pts = nvdev.mm.page_tables(area.va_addr, area.size)
-        n   = len(pts)
-        _step(f"  COPY_SERVER_RESERVED_PDES {aname}: "
-              f"va=0x{area.va_addr:x} sz=0x{area.size:x} levels={n}")
-        bufs_p = nv_gpu.struct_NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS(
-            pageSize=area.size, numLevelsToCopy=n,
-            virtAddrLo=area.va_addr, virtAddrHi=area.va_addr + area.size - 1)
-        for i, pt in enumerate(pts):
-            bufs_p.levels[i] = \
-                nv_gpu.struct_NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS_level(
-                    physAddress=pt.paddr,
-                    size=nvdev.mm.pte_cnt[0] * 8 if i == 0 else 0x1000,
-                    pageShift=nvdev.mm.pte_covers[i].bit_length() - 1,
-                    aperture=1)
-        gsp.rpc_rm_control(golden_vaspace,
-                            nv_gpu.NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES,
-                            bufs_p, client=golden_client)
+    _step("RM 2 — NV01_DEVICE_0")
+    user_device = gsp.rpc_rm_alloc(
+        USER_ROOT, nv_gpu.NV01_DEVICE_0,
+        nv_gpu.NV0080_ALLOC_PARAMETERS(
+            deviceId=0, hClientShare=USER_ROOT,
+            vaMode=nv_gpu.NV_DEVICE_ALLOCATION_VAMODE_OPTIONAL_MULTIPLE_VASPACES),
+        USER_ROOT)
 
-    _step("RM 5 — KEPLER_CHANNEL_GROUP_A")
-    ch_grp = gsp.rpc_rm_alloc(golden_device, nv_gpu.KEPLER_CHANNEL_GROUP_A,
-                                nv_gpu.NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS(
-                                    engineType=nv_gpu.NV2080_ENGINE_TYPE_GRAPHICS),
-                                client=golden_client)
+    _step("RM 3 — NV20_SUBDEVICE_0")
+    user_subdev = gsp.rpc_rm_alloc(
+        user_device, nv_gpu.NV20_SUBDEVICE_0,
+        nv_gpu.NV2080_ALLOC_PARAMETERS(), USER_ROOT)
+
+    _step("RM 4 — FERMI_VASPACE_A (auto rpc_set_page_directory)")
+    # IS_EXTERNALLY_OWNED: page tables managed by us (nvdev.mm).
+    # ENABLE_PAGE_FAULTING: required for externally-owned vaspaces.
+    # rpc_rm_alloc auto-calls rpc_set_page_directory(pdir=root_page_table.paddr).
+    user_vaspace = gsp.rpc_rm_alloc(
+        user_device, nv_gpu.FERMI_VASPACE_A,
+        nv_gpu.NV_VASPACE_ALLOCATION_PARAMETERS(
+            vaBase=0x1000, vaSize=0x1fffffb000000,
+            flags=(nv_gpu.NV_VASPACE_ALLOCATION_FLAGS_ENABLE_PAGE_FAULTING |
+                   nv_gpu.NV_VASPACE_ALLOCATION_FLAGS_IS_EXTERNALLY_OWNED)),
+        USER_ROOT)
+
+    _step("RM 5 — KEPLER_CHANNEL_GROUP_A (TSG)")
+    user_cg = gsp.rpc_rm_alloc(
+        user_device, nv_gpu.KEPLER_CHANNEL_GROUP_A,
+        nv_gpu.NV_CHANNEL_GROUP_ALLOCATION_PARAMETERS(
+            engineType=nv_gpu.NV2080_ENGINE_TYPE_GRAPHICS),
+        USER_ROOT)
 
     _step("RM 6 — FERMI_CONTEXT_SHARE_A")
-    ctxshare = gsp.rpc_rm_alloc(ch_grp, nv_gpu.FERMI_CONTEXT_SHARE_A,
-                                  nv_gpu.NV_CTXSHARE_ALLOCATION_PARAMETERS(
-                                      hVASpace=vaspace,
-                                      flags=nv_gpu.NV_CTXSHARE_ALLOCATION_FLAGS_SUBCONTEXT_ASYNC),
-                                  client=golden_client)
+    user_ctxshare = gsp.rpc_rm_alloc(
+        user_cg, nv_gpu.FERMI_CONTEXT_SHARE_A,
+        nv_gpu.NV_CTXSHARE_ALLOCATION_PARAMETERS(
+            hVASpace=user_vaspace,
+            flags=nv_gpu.NV_CTXSHARE_ALLOCATION_FLAGS_SUBCONTEXT_ASYNC),
+        USER_ROOT)
 
-    _step("RM 7 — NV_CHANNELGPFIFO (priv_root, explicit userdMem)")
-    # vaspace comes from ctxshare — do NOT re-specify hVASpace here (causes
-    # NV_ERR_INSUFFICIENT_RESOURCES as RM tries a second VA resource alloc).
-    # For priv_root the auto-fill of userdMem (from hUserdMemory[]+userdOffset[])
-    # is skipped by rpc_rm_alloc, so provide userdMem directly.
-    userd_paddr   = gpfifo_area.paddrs[0][0] + RING_SZ
-    userd_mem     = nv_gpu.NV_MEMORY_DESC_PARAMS(base=userd_paddr, size=0x200,
-                                                   addressSpace=2, cacheAttrib=0)
+    _step("RM 7 — gpfifo_class (auto ramfcMem + userdMem)")
+    # hObjectError non-zero → rpc_rm_alloc auto-fills userdMem from
+    # hUserdMemory[0] + userdOffset[0] (= gpfifo_paddr + RING_SZ).
+    # hObjectBuffer = gpfifo_paddr (VRAM physical address of ring buffer).
     gpfifo_params = nv_gpu.NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS(
         gpFifoOffset  = gpfifo_area.va_addr,
         gpFifoEntries = GPFIFO_ENTRIES,
-        hContextShare = ctxshare,
-        userdMem      = userd_mem,
+        hContextShare = user_ctxshare,
+        hObjectError  = notifier_paddr,          # non-zero → triggers auto-fill
+        hObjectBuffer = gpfifo_paddr,
+        hUserdMemory  = (ctypes.c_uint32 * 8)(gpfifo_paddr),
+        userdOffset   = (ctypes.c_uint64 * 8)(RING_SZ),
         engineType    = 0)
-    gpfifo = gsp.rpc_rm_alloc(ch_grp, gsp.gpfifo_class, gpfifo_params,
-                                client=golden_client)
+    user_gpfifo = gsp.rpc_rm_alloc(user_cg, gsp.gpfifo_class, gpfifo_params, USER_ROOT)
+    _step(f"  gpfifo handle=0x{user_gpfifo:08x}")
 
-    _step("RM 8 — compute_class + manual promote_ctx (priv_root skips auto-promote)")
-    gsp.rpc_rm_alloc(gpfifo, gsp.compute_class, None, client=golden_client)
-    # rpc_rm_alloc only calls promote_ctx for non-priv clients; call explicitly.
-    phys_gr_ctx = gsp.promote_ctx(golden_client, golden_subdev, gpfifo,
-                                   {k: v for k, v in gsp.grctx_bufs.items() if k in [0, 1, 2]},
-                                   virt=False)
-    gsp.promote_ctx(golden_client, golden_subdev, gpfifo,
-                    {k: v for k, v in gsp.grctx_bufs.items() if k in [0, 1, 2]},
-                    phys_gr_ctx, phys=False)
+    _step("RM 8 — compute_class (auto promote_ctx for grctx_bufs [0,1,2])")
+    gsp.rpc_rm_alloc(user_gpfifo, gsp.compute_class, None, USER_ROOT)
 
     _step("RM 9 — dma_class")
-    gsp.rpc_rm_alloc(gpfifo, gsp.dma_class, None, client=golden_client)
+    gsp.rpc_rm_alloc(user_gpfifo, gsp.dma_class, None, USER_ROOT)
 
-    # Schedule channel group
-    gsp.rpc_rm_control(ch_grp, nv_gpu.NVA06C_CTRL_CMD_GPFIFO_SCHEDULE,
-                        nv_gpu.NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS(bEnable=1),
-                        client=golden_client)
+    _step("RM 10 — schedule TSG")
+    gsp.rpc_rm_control(
+        user_cg, nv_gpu.NVA06C_CTRL_CMD_GPFIFO_SCHEDULE,
+        nv_gpu.NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS(bEnable=1),
+        USER_ROOT)
 
-    # Work submission token
+    _step("RM 11 — work submit token")
     ws = gsp.rpc_rm_control(
-        gpfifo, nv_gpu.NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN,
+        user_gpfifo, nv_gpu.NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN,
         nv_gpu.NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS(
             workSubmitToken=-1),
-        client=golden_client)
+        USER_ROOT)
     work_token = ws.workSubmitToken
 
     # ── 4. Write handoff JSON ─────────────────────────────────────────────────
