@@ -106,10 +106,9 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                                                   BeaglePartialsType partialsType) {
 
     REALTYPE* cumulativeScaleBuffer = NULL;
-    if (cumulativeScaleIndex != BEAGLE_OP_NONE)
+    if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
         cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
-
-    // fprintf(stderr, "Call to upPartials\n");
+    }
 
     for (int op = 0; op < count; op++) {
 
@@ -159,8 +158,6 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
             startPattern = gPatternPartitionsStartPatterns[currentPartition];
             endPattern = gPatternPartitionsStartPatterns[currentPartition + 1];
         }
-
-        // fprintf(stderr, "start %d, end %d\n", startPattern, endPattern);
 
         int rescale = BEAGLE_OP_NONE;
         REALTYPE* scalingFactors = NULL;
@@ -475,7 +472,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
         const REALTYPE* partials2, const int state2,
             const BranchEigenInfo& info2,
             const REALTYPE* matrix2,
-            const int matrixIncr) {
+            const int matrixIncr,
+            const int catOffset) {
 
     if constexpr (
         !(std::is_same_v<First,  None> || std::is_same_v<First,  States> || std::is_same_v<First,  Partials>) ||
@@ -489,10 +487,10 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
         REALTYPE expat1;
         REALTYPE expat2;
         if constexpr (!std::is_same_v<First, None>) {
-            expat1 = info1.expat[i]; // std::exp(real1[i] * time1);
+            expat1 = info1.expat[catOffset + i];
         }
         if constexpr (!std::is_same_v<Second, None>) {
-            expat2 = info2.expat[i]; // std::exp(real2[i] * time2);
+            expat2 = info2.expat[catOffset + i];
         }
 
         if ((std::is_same_v<First,  None> || info1.sinbt[i] == 0.0) &&
@@ -559,17 +557,17 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
 
             if constexpr (!std::is_same_v<First, None>) {
                 if constexpr (std::is_same_v<Direction, Backward>) {
-                    expatcosbt1 = info1.expatcosbt[i]; // expat1 * std::cos(time1 * imag1[i]);
-                    expatsinbt1 = -info1.expatsinbt[i]; // expat1 * std::sin(time1 * imag1[i]);
+                    expatcosbt1 = info1.expatcosbt[catOffset + i];
+                    expatsinbt1 = -info1.expatsinbt[catOffset + i];
                 } else {
-                    expatcosbt1 = info1.expatcosbt[i]; // expat1 * std::cos(time1 * imag1[i]);
-                    expatsinbt1 = info1.expatsinbt[i]; // expat1 * std::sin(time1 * imag1[i]);
+                    expatcosbt1 = info1.expatcosbt[catOffset + i];
+                    expatsinbt1 = info1.expatsinbt[catOffset + i];
                 }
             }
 
             if constexpr (!std::is_same_v<Second, None>) {
-                expatcosbt2 = info2.expatcosbt[i]; // expat2 * std::cos(time2 * imag2[i]);
-                expatsinbt2 = info2.expatsinbt[i]; // expat2 * std::sin(time2 * imag2[i]);
+                expatcosbt2 = info2.expatcosbt[catOffset + i];
+                expatsinbt2 = info2.expatsinbt[catOffset + i];
             }
 
             const int row_i  = i  * matrixIncr;
@@ -673,11 +671,6 @@ inline REALTYPE branchLikelihoodInEigenBasis(
         const REALTYPE time,
         const int kStateCount) {
 
-    // fprintf(stderr, "beagle-time = %f\n", time);
-
-    // printVector("eval-real ", 0, evalR, kStateCount);
-    // printVector("eval-imag ", 0, evalI, kStateCount);
-
     REALTYPE sum = REALTYPE(0);
     for (int i = 0; i < kStateCount; ++i) {
         const REALTYPE real = evalR[i];
@@ -744,7 +737,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                 tmp1, tmp2,
                 partials1Ptr, 0, info_1, inverseEigenVectors1,
                 partials2Ptr, 0, info_2, inverseEigenVectors2,
-                matrixIncr);
+                matrixIncr, l * kPartialsPaddedStateCount);
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -815,7 +808,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
                 tmp1, tmp2,
                 nullptr, state1, info_1, inverseEigenVectors1,
                 partials2Ptr, 0, info_2, inverseEigenVectors2,
-                matrixIncr);
+                matrixIncr, l * kPartialsPaddedStateCount);
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -886,7 +879,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
                 tmp1, tmp2,
                 nullptr, state1, info_1, inverseEigenVectors1,
                 nullptr, state2, info_2, inverseEigenVectors2,
-                matrixIncr);
+                matrixIncr, l * kPartialsPaddedStateCount);
 
             if constexpr (T::useScaleFactors) {
                 const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
@@ -956,7 +949,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
                     intermediate, nullptr,
                     partials2Ptr, 0, info_2, inverseEigenVectors2,
                     nullptr, 0, info_1, nullptr,
-                    matrixIncr);
+                    matrixIncr, l * kPartialsPaddedStateCount);
 
                 MATRIX_VECTOR_SINGLE(parent[i] = sum2 * partials1Ptr[i], // fused Hadamard product
                     eigenVectors2, intermediate, sum2)
@@ -966,7 +959,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
                     intermediate, nullptr,
                     parent, 0, info_1, inverseEigenVectors1,
                     nullptr, 0, info_2, nullptr,
-                    matrixIncr);
+                    matrixIncr, l * kPartialsPaddedStateCount);
 
                 MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
 
@@ -978,7 +971,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
                         intermediate, nullptr,
                         partials2Ptr, 0, info_2, inverseEigenVectors2,
                         nullptr, 0, info_1, nullptr,
-                        matrixIncr);
+                        matrixIncr, l * kPartialsPaddedStateCount);
 
                     MATRIX_VECTOR_SINGLE(destPtr[i] = sum2 * partials1Ptr[i], // fused Hadamard product
                         eigenVectors2, intermediate, sum2)
@@ -991,7 +984,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
                         intermediate, parent,
                         partials1Ptr, 0, info_1, inverseEigenVectors1,
                         partials2Ptr, 0, info_2, inverseEigenVectors2,
-                        matrixIncr);
+                        matrixIncr, l * kPartialsPaddedStateCount);
 
                     this->template matVecDual<Partials, Partials>(
                         eigenVectors1, intermediate, 0,
@@ -1059,7 +1052,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                     intermediate, nullptr,
                     nullptr, state2, info_2, inverseEigenVectors2,
                     nullptr, 0, info_1, nullptr,
-                    matrixIncr);
+                    matrixIncr, l * kPartialsPaddedStateCount);
 
                 MATRIX_VECTOR_SINGLE(parent[i] = sum2 * partials1Ptr[i], // fused Hadamard product
                     eigenVectors2, intermediate, sum2)
@@ -1069,7 +1062,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                     intermediate, nullptr,
                     parent, 0, info_1, inverseEigenVectors1,
                     nullptr, 0, info_2, nullptr,
-                    matrixIncr);
+                    matrixIncr, l * kPartialsPaddedStateCount);
 
                 MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
 
@@ -1081,7 +1074,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                         intermediate, nullptr,
                         nullptr, state2, info_2, inverseEigenVectors2,
                         nullptr, 0, info_1, nullptr,
-                        matrixIncr);
+                        matrixIncr, l * kPartialsPaddedStateCount);
 
                     MATRIX_VECTOR_SINGLE(destPtr[i] = sum2 * partials1Ptr[i], // fused Hadamard product
                         eigenVectors2, intermediate, sum2)
@@ -1092,7 +1085,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                         intermediate, parent,
                         partials1Ptr, 0, info_1, inverseEigenVectors1,
                         nullptr, state2, info_2, inverseEigenVectors2,
-                        matrixIncr);
+                        matrixIncr, l * kPartialsPaddedStateCount);
 
                     this->template matVecDual<Partials, Partials>(
                         eigenVectors1, intermediate, 0,
