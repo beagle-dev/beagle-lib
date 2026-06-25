@@ -110,6 +110,7 @@ struct Options {
     bool doublePrecision = false;
     int  reps            = 1;
     long prefFlags       = 0;
+    bool spectral        = true;
 };
 
 static int createInstance(const Options& opts, int nTips, int nPartBufs,
@@ -119,6 +120,9 @@ static int createInstance(const Options& opts, int nTips, int nPartBufs,
     int  nResources  = (opts.forceResource >= 0) ? 1 : 0;
     long prec = opts.doublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE
                                      : BEAGLE_FLAG_PRECISION_SINGLE;
+
+    long spectralFlag = opts.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0;
+
     return beagleCreateInstance(
         nTips,
         nPartBufs,
@@ -132,7 +136,8 @@ static int createInstance(const Options& opts, int nTips, int nPartBufs,
         resources, nResources,
         opts.prefFlags | prec,
         // /*reqFlags=*/0,
-        BEAGLE_FLAG_SPECTRAL_REPRESENTATION,
+        // BEAGLE_FLAG_SPECTRAL_REPRESENTATION,
+        spectralFlag,
         det);
 }
 
@@ -147,6 +152,7 @@ int main(int argc, char** argv) {
         if      (a == "--opencl") forceOpenCL = true;
         else if (a == "--cpu")    forceCPU    = true;
         else if (a == "--double") opts.doublePrecision = true;
+        else if (a == "--nospectral") opts.spectral = false;
         else if (a == "--resource" && i+1 < argc)
             opts.forceResource = atoi(argv[++i]);
         else if (a == "--reps" && i+1 < argc)
