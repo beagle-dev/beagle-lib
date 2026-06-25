@@ -410,16 +410,33 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
         # cmd_q_view is a plain MMIOInterface without 'residx'.  In that case we
         # store 0 and the C++ RPC path is skipped (keeper fallback is used instead).
         "gsp_sysmem_handle": getattr(gsp.cmd_q_view, 'residx', 0),
+        "init_helper_pid":  os.getpid(),
     }
 
-    with open(out_path, "w") as f:
+    # Atomic write: .tmp then rename so C++ polling sees a complete file.
+    tmp_path = out_path + ".tmp"
+    with open(tmp_path, "w") as f:
         json.dump(state, f, indent=2)
+    os.rename(tmp_path, out_path)
 
-    print(f"nv_init_helper: done — work_token=0x{work_token:08x} "
-          f"compute_class=0x{gsp.compute_class:x} chip={nvdev.chip_name}",
-          file=sys.stderr)
+    print(f"nv_init_helper: handoff written — waiting for SIGTERM to finalize GPU",
+          file=sys.stderr, flush=True)
+    print(f"  work_token=0x{work_token:08x} compute_class=0x{gsp.compute_class:x} "
+          f"chip={nvdev.chip_name}", file=sys.stderr)
     print(f"  gpfifo_vram=0x{gpfifo_vram:x}  eop_vram=0x{eop_vram:x}  "
           f"data_pool={DATA_POOL_SZ>>20} MB", file=sys.stderr)
+
+    # Stay alive until C++ destructor signals us via SIGTERM.
+    import signal as _signal
+    _done = [False]
+    def _sigterm(sig, frame): _done[0] = True
+    _signal.signal(_signal.SIGTERM, _sigterm)
+    while not _done[0]:
+        time.sleep(0.5)
+
+    print("nv_init_helper: SIGTERM received — calling nvdev.fini()", file=sys.stderr, flush=True)
+    nvdev.fini()
+    print("nv_init_helper: fini complete — exiting cleanly", file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

@@ -153,7 +153,7 @@ def _arch_from_handoff(handoff: dict) -> str:
     return table.get(chip[:3], "sm_86")
 
 
-def extract_all_metadata(elf_bytes: bytes) -> tuple:
+def extract_all_metadata(elf_bytes: bytes, is_blackwell: bool = False) -> tuple:
     """
     Compile-once variant: parse every kernel found in the ELF and return metadata
     for all of them.
@@ -189,14 +189,18 @@ def extract_all_metadata(elf_bytes: bytes) -> tuple:
             cbuf0_size = 0
             for typ, param, data, sz in _parse_nv_info(bytes(sh.content)):
                 if param == EIATTR_PARAM_CBANK and typ == 0x4 and len(data) >= 6:
+                    cbuf0_base_raw = struct.unpack_from("I", data)[0]
                     cbuf0_size = struct.unpack_from("H", data, 4)[0]
+                    if kname in ("kernelMatrixMulADB", "kernelPartialsPartialsNoScale", "kernelSumSites1"):
+                        print(f"  DBG PARAM_CBANK {kname}: base=0x{cbuf0_base_raw:x} size=0x{cbuf0_size:x}", file=sys.stderr, flush=True)
                 elif param in (EIATTR_REGCOUNT, EIATTR_REGCOUNT_V2):
                     if typ == 0x4 and len(data) >= 4:
                         k["reg_count"] = struct.unpack_from("I", data)[0]
                     else:
                         k["reg_count"] = sz
             if cbuf0_size:
-                n = max(cbuf0_size // 4, 12)
+                min_entries = 224 if is_blackwell else 12
+                n = max(cbuf0_size // 4, min_entries)
                 k["cbuf0_num_u32s"] = n
                 k["cbuf0_param_off"] = n * 4
 
@@ -208,7 +212,7 @@ def extract_all_metadata(elf_bytes: bytes) -> tuple:
     # Finalize: round shmem, build cbuf0 prefix.
     for k in kernels.values():
         k["shmem_size"] = (max(k["shmem_size"], 0x400) + 127) & ~127
-        prefix = build_cbuf0_prefix(k["cbuf0_num_u32s"])
+        prefix = build_cbuf0_prefix(k["cbuf0_num_u32s"], is_blackwell=is_blackwell)
         k["cbuf0_prefix_b64"] = base64.b64encode(
             array.array('I', prefix).tobytes()).decode()
 
@@ -283,18 +287,25 @@ SHARED_MEM_WIN = 0x729400000000
 LOCAL_MEM_WIN  = 0x729300000000
 
 
-def build_cbuf0_prefix(n_u32s: int) -> list:
+def build_cbuf0_prefix(n_u32s: int, is_blackwell: bool = False) -> list:
     """Build the cbuf0 driver-params prefix (n_u32s uint32 elements)."""
-    buf = [0] * max(n_u32s, 12)
+    min_entries = 224 if is_blackwell else 12
+    buf = [0] * max(n_u32s, min_entries)
 
     def put64le(idx: int, val: int):
         buf[idx]     = val & 0xFFFFFFFF
         buf[idx + 1] = (val >> 32) & 0xFFFFFFFF
 
-    # indices 6-11 = shared_mem_window, local_mem_window, 0xfffdc0
-    put64le(6,  SHARED_MEM_WIN)
-    put64le(8,  LOCAL_MEM_WIN)
-    put64le(10, 0xfffdc0)
+    if is_blackwell:
+        # Blackwell: driver params at indices 188-191 (windows) and 223 (0xfffdc0)
+        put64le(188, SHARED_MEM_WIN)
+        put64le(190, LOCAL_MEM_WIN)
+        buf[223] = 0xfffdc0
+    else:
+        # Pre-Blackwell: indices 6-11
+        put64le(6,  SHARED_MEM_WIN)
+        put64le(8,  LOCAL_MEM_WIN)
+        put64le(10, 0xfffdc0)
     return buf
 
 
@@ -331,13 +342,15 @@ def _main_impl(ptx_file, kernel_name, handoff_f, result_f):
         handoff = json.load(f)
 
     arch = _arch_from_handoff(handoff)
-    print(f"nv_compile_helper: compiling {kernel_name} for {arch} …", file=sys.stderr)
+    compute_class = handoff.get("compute_class", 0)
+    is_blackwell = compute_class >= 0xcec0
+    print(f"nv_compile_helper: compiling {kernel_name} for {arch} (blackwell={is_blackwell}) …", file=sys.stderr)
 
     elf_bytes = compile_ptx(ptx_file, arch, kernel_name)
 
     if kernel_name == "_all":
         # Compile-once path: extract every kernel from the single ELF, write JSONL.
-        code_bytes, kernels = extract_all_metadata(elf_bytes)
+        code_bytes, kernels = extract_all_metadata(elf_bytes, is_blackwell=is_blackwell)
         with open(result_f, "w") as f:
             # Line 0: shared image
             json.dump({"arch": arch, "code_b64": base64.b64encode(code_bytes).decode()}, f)
