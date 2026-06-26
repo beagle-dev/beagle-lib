@@ -50,7 +50,7 @@ Plugin("GPU-CUDA-Spectral", "GPU-CUDA-Spectral")
                 anyGPUSupportsDP = true;
             }
 
-            resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+            resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CUDA;
 
             beagleResources.push_back(resource);
         }

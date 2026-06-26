@@ -56,7 +56,7 @@ Plugin("GPU-OpenCL-Spectral", "GPU-OpenCL-Spectral")
                 anyGPUSupportsDP = true;
             }
 
-            resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_OPENCL | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+            resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
             beagleResources.push_back(resource);
 

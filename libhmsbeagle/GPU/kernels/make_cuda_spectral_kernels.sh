@@ -5,6 +5,11 @@
 # kernel PTX AND the spectral PTX concatenated in the same string.
 # The spectral PTX module header (.version / .target / .address_size) is
 # stripped before appending so the combined PTX remains a valid single module.
+#
+# 4-state sections use kernelsSpectral4.cu (peeling stride = PADDED_STATE_COUNT)
+# because BLOCK_PEELING_SIZE_SP/DP_4 = 8 > PADDED_STATE_COUNT = 4.
+# Generic sections use kernelsSpectral.cu (peeling stride = BLOCK_PEELING_SIZE),
+# which is correct for all state counts >= 16 where BLOCK_PEELING_SIZE <= PADDED_STATE_COUNT.
 
 NVCC="$1"
 NVCCFLAGS="$2"
@@ -29,7 +34,7 @@ echo "// auto-generated header file with CUDA spectral kernels PTX code" > Beagl
 ${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 \
     $srcdir/kernels4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 ${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 \
-    $srcdir/kernelsSpectral.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
+    $srcdir/kernelsSpectral4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
@@ -56,7 +61,7 @@ done
 ${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
     $srcdir/kernels4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 ${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
-    $srcdir/kernelsSpectral.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
+    $srcdir/kernelsSpectral4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h

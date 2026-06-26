@@ -53,9 +53,6 @@ class BeagleGPUImpl : public BeagleImpl {
 
 
 private:
-    GPUInterface* gpu;
-    KernelLauncher* kernels;
-
     int kInitialized;
 
     long kFlags;
@@ -66,8 +63,6 @@ private:
     int kStateCount;
     int kPatternCount;
     int kEigenDecompCount;
-    int kMatrixCount;
-    int kCategoryCount;
 
     int kTipPartialsBufferCount;
     int kInternalPartialsBufferCount;
@@ -75,7 +70,6 @@ private:
     int kScaleBufferCount;
 
     int kPaddedStateCount;
-    int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
                                 //   * kPaddedStateCount is a multiple of 16
     int kSumSitesBlockCount;
 
@@ -117,10 +111,6 @@ private:
     GPUPtr dIndexMaxScalingFactors;
 
     GPUPtr dAccumulatedScalingFactors;
-
-    GPUPtr* dEigenValues;
-    GPUPtr* dEvec;
-    GPUPtr* dIevc;
 
     GPUPtr* dWeights;
     GPUPtr* dFrequencies;
@@ -192,8 +182,6 @@ private:
 
 	unsigned int* hDerivativeQueue;
 
-    double** hCategoryRates; // Can keep in double-precision
-
     Real* hPatternWeightsCache;
 
     Real* hDistanceQueue;
@@ -211,6 +199,36 @@ private:
     GPUPtr* dScalingFactorsMaster;
 
     int* hStreamIndices;
+
+protected:
+    GPUInterface*  gpu;
+    KernelLauncher* kernels;
+
+    int kMatrixCount;
+    int kCategoryCount;
+    int kPaddedPatternCount;
+
+    GPUPtr* dEigenValues;
+    GPUPtr* dEvec;
+    GPUPtr* dIevc;
+
+    double** hCategoryRates;
+
+    virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
+    virtual void dispatchPruneSP(GPUPtr s1, GPUPtr p2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
+    virtual void dispatchPruneSS(GPUPtr s1, GPUPtr s2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
 
 public:
     BeagleGPUImpl();
@@ -490,7 +508,7 @@ public:
 
 private:
 
-    char* getInstanceName();
+    virtual char* getInstanceName();
 
     void  allocateMultiGridBuffers();
 

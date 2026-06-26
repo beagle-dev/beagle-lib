@@ -345,6 +345,9 @@ void GPUInterface::SetDevice(int deviceNumber,
     kernelResource->patternCount = paddedPatternCount;
     kernelResource->unpaddedPatternCount = unpaddedPatternCount;
     kernelResource->flags = flags;
+#ifdef BEAGLE_SPECTRAL_KERNELS
+    kernelResource->flags |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+#endif
 
 #if defined(FW_OPENCL_BINARY) || defined(FW_OPENCL_PROFILING)
     //=========================================================================================================
@@ -1050,6 +1053,9 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     const size_t param_size = 256;
     char param_value[param_size];
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_VERSION, param_size, param_value, NULL));
+
+    size_t vlen = strlen(param_value);
+    while (vlen > 0 && param_value[vlen - 1] == ' ') param_value[--vlen] = '\0';
 
     strcat(deviceName, " (");
     strcat(deviceName, param_value);

@@ -109,6 +109,19 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         }
     }
 
+    // Set up block/grid for spectral peeling kernels.
+    // Spectral kernels always use a (state, patIdx) thread layout regardless of state count:
+    //   KW_LOCAL_ID_0 = state (0..S-1), KW_LOCAL_ID_1 = patIdx (0..PBS-1)
+    //   KW_GROUP_ID_0 = pattern block,  KW_GROUP_ID_1 = category
+    // For kPaddedStateCount == 4, bgPeelingBlock uses (16, PBS) to pack state+pat into
+    // dimension 0 (non-spectral layout), so a separate spectral block/grid is required.
+    // For kPaddedStateCount >= 16, bgPeelingBlock == (S, PBS) already matches the
+    // spectral layout, but we set bgSpectralPeelingBlock explicitly for clarity.
+    bgSpectralPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
+    bgSpectralPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+    if (kPatternCount % kPatternBlockSize != 0)
+        bgSpectralPeelingGrid.x += 1;
+
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
         int likePatternBlockSize = kPatternBlockSize;
@@ -288,13 +301,13 @@ void KernelLauncher::LoadKernels() {
             "kernelPartialsPartialsAutoScale");
 
     fPartialsPartialsGrowing = gpu->GetFunction(
-            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
-            "kernelPartialsPartialsGrowingSpectral" :
+            // (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            // "kernelPartialsPartialsGrowingSpectral" :
             "kernelPartialsPartialsGrowing");
 
     fPartialsStatesGrowing = gpu->GetFunction(
-            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
-            "kernelPartialsStatesGrowingSpectral" :
+            // (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            // "kernelPartialsStatesGrowingSpectral" :
             "kernelPartialsStatesGrowing");
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
@@ -1605,6 +1618,135 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesStatesPruningDynamicScaling\n");
 #endif
+}
+
+void KernelLauncher::PartialsPartialsPruningSpectral(GPUPtr partials1,
+                                                      GPUPtr partials2,
+                                                      GPUPtr partials3,
+                                                      GPUPtr ievc1, GPUPtr evec1,
+                                                      GPUPtr eigenValues1, GPUPtr distances1,
+                                                      GPUPtr ievc2, GPUPtr evec2,
+                                                      GPUPtr eigenValues2, GPUPtr distances2,
+                                                      GPUPtr scalingFactors,
+                                                      GPUPtr cumulativeScaling,
+                                                      unsigned int patternCount,
+                                                      unsigned int categoryCount,
+                                                      int doRescaling,
+                                                      int streamIndex,
+                                                      int waitIndex) {
+    if (doRescaling == 2) { // auto-rescaling
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
+                          bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                          12, 13,
+                          partials1, partials2, partials3,
+                          ievc1, evec1, eigenValues1, distances1,
+                          ievc2, evec2, eigenValues2, distances2,
+                          scalingFactors,
+                          patternCount);
+    } else if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    partials1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    partials1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesPartialsPruningSpectral(GPUPtr states1,
+                                                    GPUPtr partials2,
+                                                    GPUPtr partials3,
+                                                    GPUPtr ievc1, GPUPtr evec1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    GPUPtr ievc2, GPUPtr evec2,
+                                                    GPUPtr eigenValues2, GPUPtr distances2,
+                                                    GPUPtr scalingFactors,
+                                                    GPUPtr cumulativeScaling,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount,
+                                                    int doRescaling,
+                                                    int streamIndex,
+                                                    int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesPartialsByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    states1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesPartialsByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    states1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesStatesPruningSpectral(GPUPtr states1,
+                                                  GPUPtr states2,
+                                                  GPUPtr partials3,
+                                                  GPUPtr ievc1, GPUPtr evec1,
+                                                  GPUPtr eigenValues1, GPUPtr distances1,
+                                                  GPUPtr ievc2, GPUPtr evec2,
+                                                  GPUPtr eigenValues2, GPUPtr distances2,
+                                                  GPUPtr scalingFactors,
+                                                  GPUPtr cumulativeScaling,
+                                                  unsigned int patternCount,
+                                                  unsigned int categoryCount,
+                                                  int doRescaling,
+                                                  int streamIndex,
+                                                  int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    states1, states2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    states1, states2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
 }
 
 void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,

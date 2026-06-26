@@ -51,6 +51,8 @@
 #   endif
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h"
+#   elif defined(BEAGLE_SPECTRAL_KERNELS)
+        #include "libhmsbeagle/GPU/kernels/BeagleOpenCLSpectral_kernels.h"
 #   else
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
 #   endif

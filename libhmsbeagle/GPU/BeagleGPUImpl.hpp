@@ -2631,31 +2631,25 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
             if (tipStates1 != 0) {
                 if (tipStates2 != 0 ) {
-                    kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
-                                                               matrices1, matrices2, scalingFactors,
-                                                               cumulativeScalingBuffer,
-                                                               startPattern, endPattern,
-                                                               kPaddedPatternCount, kCategoryCount,
-                                                               rescale,
-                                                               streamIndex, waitIndex);
+                    dispatchPruneSS(tipStates1, tipStates2, partials3,
+                                    child1TransMatIndex, child2TransMatIndex,
+                                    scalingFactors, cumulativeScalingBuffer,
+                                    startPattern, endPattern,
+                                    rescale, streamIndex, waitIndex);
                 } else {
-                    kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
-                                                                 matrices1, matrices2, scalingFactors,
-                                                                 cumulativeScalingBuffer,
-                                                                 startPattern, endPattern,
-                                                                 kPaddedPatternCount, kCategoryCount,
-                                                                 rescale,
-                                                                 streamIndex, waitIndex);
+                    dispatchPruneSP(tipStates1, partials2, partials3,
+                                    child1TransMatIndex, child2TransMatIndex,
+                                    scalingFactors, cumulativeScalingBuffer,
+                                    startPattern, endPattern,
+                                    rescale, streamIndex, waitIndex);
                 }
             } else {
                 if (tipStates2 != 0) {
-                    kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
-                                                                 matrices2, matrices1, scalingFactors,
-                                                                 cumulativeScalingBuffer,
-                                                                 startPattern, endPattern,
-                                                                 kPaddedPatternCount, kCategoryCount,
-                                                                 rescale,
-                                                                 streamIndex, waitIndex);
+                    dispatchPruneSP(tipStates2, partials1, partials3,
+                                    child2TransMatIndex, child1TransMatIndex,
+                                    scalingFactors, cumulativeScalingBuffer,
+                                    startPattern, endPattern,
+                                    rescale, streamIndex, waitIndex);
                 } else {
                     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
                         kernels->PartialsPartialsPruningDynamicCheckScaling(partials1, partials2, partials3,
@@ -2664,13 +2658,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                                                                        kPaddedPatternCount, kCategoryCount,
                                                                        rescale, hRescalingTrigger, dRescalingTrigger, sizeof(Real));
                     } else {
-                        kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
-                                                                       matrices1, matrices2, scalingFactors,
-                                                                       cumulativeScalingBuffer,
-                                                                       startPattern, endPattern,
-                                                                       kPaddedPatternCount, kCategoryCount,
-                                                                       rescale,
-                                                                       streamIndex, waitIndex);
+                        dispatchPrunePP(partials1, partials2, partials3,
+                                        child1TransMatIndex, child2TransMatIndex,
+                                        scalingFactors, cumulativeScalingBuffer,
+                                        startPattern, endPattern,
+                                        rescale, streamIndex, waitIndex);
                     }
                 }
             }
@@ -2747,39 +2739,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 GPUPtr matrices2 = dMatrices[child2TransMatIndex];
 
                 if (gridOpType[i] == 1) {
-                        kernels->PartialsPartialsPruningDynamicScaling(partials1, partials2, partials3,
-                                                                       matrices1, matrices2, scalingFactorsMulti,
-                                                                       cumulativeScalingBuffer,
-                                                                       0, 0,
-                                                                       kPaddedPatternCount, kCategoryCount,
-                                                                       rescaleMulti,
-                                                                       -1, -1);
+                    dispatchPrunePP(partials1, partials2, partials3,
+                                    child1TransMatIndex, child2TransMatIndex,
+                                    scalingFactorsMulti, cumulativeScalingBuffer,
+                                    0, 0, rescaleMulti, -1, -1);
                 } else if (gridOpType[i] == 2) {
                     if (tipStates1 != 0) {
-                        kernels->StatesPartialsPruningDynamicScaling(tipStates1, partials2, partials3,
-                                                                     matrices1, matrices2, scalingFactorsMulti,
-                                                                     cumulativeScalingBuffer,
-                                                                     0, 0,
-                                                                     kPaddedPatternCount, kCategoryCount,
-                                                                     rescaleMulti,
-                                                                     -1, -1);
+                        dispatchPruneSP(tipStates1, partials2, partials3,
+                                        child1TransMatIndex, child2TransMatIndex,
+                                        scalingFactorsMulti, cumulativeScalingBuffer,
+                                        0, 0, rescaleMulti, -1, -1);
                     } else {
-                        kernels->StatesPartialsPruningDynamicScaling(tipStates2, partials1, partials3,
-                                                                     matrices2, matrices1, scalingFactorsMulti,
-                                                                     cumulativeScalingBuffer,
-                                                                     0, 0,
-                                                                     kPaddedPatternCount, kCategoryCount,
-                                                                     rescaleMulti,
-                                                                     -1, -1);
+                        dispatchPruneSP(tipStates2, partials1, partials3,
+                                        child2TransMatIndex, child1TransMatIndex,
+                                        scalingFactorsMulti, cumulativeScalingBuffer,
+                                        0, 0, rescaleMulti, -1, -1);
                     }
                 } else {
-                    kernels->StatesStatesPruningDynamicScaling(tipStates1, tipStates2, partials3,
-                                                               matrices1, matrices2, scalingFactorsMulti,
-                                                               cumulativeScalingBuffer,
-                                                               0, 0,
-                                                               kPaddedPatternCount, kCategoryCount,
-                                                               rescaleMulti,
-                                                               -1, -1);
+                    dispatchPruneSS(tipStates1, tipStates2, partials3,
+                                    child1TransMatIndex, child2TransMatIndex,
+                                    scalingFactorsMulti, cumulativeScalingBuffer,
+                                    0, 0, rescaleMulti, -1, -1);
                 }
             } else {
                 if (gridOpType[i] == 1) {
@@ -4727,6 +4707,45 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
     Real r = 0;
     modifyFlagsForPrecision(&flags, r);
     return flags;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
+                                                         int c1MatIdx, int c2MatIdx,
+                                                         GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                                         unsigned int startPattern, unsigned int endPattern,
+                                                         int rescale, int streamIndex, int waitIndex) {
+    kernels->PartialsPartialsPruningDynamicScaling(p1, p2, p3,
+        dMatrices[c1MatIdx], dMatrices[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        startPattern, endPattern, kPaddedPatternCount, kCategoryCount,
+        rescale, streamIndex, waitIndex);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSP(GPUPtr s1, GPUPtr p2, GPUPtr p3,
+                                                         int c1MatIdx, int c2MatIdx,
+                                                         GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                                         unsigned int startPattern, unsigned int endPattern,
+                                                         int rescale, int streamIndex, int waitIndex) {
+    kernels->StatesPartialsPruningDynamicScaling(s1, p2, p3,
+        dMatrices[c1MatIdx], dMatrices[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        startPattern, endPattern, kPaddedPatternCount, kCategoryCount,
+        rescale, streamIndex, waitIndex);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(GPUPtr s1, GPUPtr s2, GPUPtr p3,
+                                                         int c1MatIdx, int c2MatIdx,
+                                                         GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                                         unsigned int startPattern, unsigned int endPattern,
+                                                         int rescale, int streamIndex, int waitIndex) {
+    kernels->StatesStatesPruningDynamicScaling(s1, s2, p3,
+        dMatrices[c1MatIdx], dMatrices[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        startPattern, endPattern, kPaddedPatternCount, kCategoryCount,
+        rescale, streamIndex, waitIndex);
 }
 
 } // end of device namespace

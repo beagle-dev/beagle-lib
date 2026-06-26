@@ -114,10 +114,12 @@
  *   sCs == 0 → real eigenvalue
  *   sCs >  0 → first  of complex pair (imagEV > 0, neighbor = state+1)
  *   sCs <  0 → second of complex pair (imagEV < 0, neighbor = state-1)
- * sQ1/2: intermediate eigenspace vectors (phase 1 output, phase 2 input). */
+ * sQ1/2: intermediate eigenspace vectors (phase 1 output, phase 2 input).
+ * sBuf peeling stride is PADDED_STATE_COUNT (eigenstate space), NOT BLOCK_PEELING_SIZE
+ * (which is tuned for the non-spectral thread layout and may exceed PADDED_STATE_COUNT). */
 #define SPECTRAL_COMMON_SMEM_GPU() \
-    KW_LOCAL_MEM REAL sBuf1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT]; \
-    KW_LOCAL_MEM REAL sBuf2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT]; \
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT]; \
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT]; \
     KW_LOCAL_MEM REAL sDs1[PADDED_STATE_COUNT]; \
     KW_LOCAL_MEM REAL sCs1[PADDED_STATE_COUNT]; \
     KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT]; \
@@ -170,30 +172,29 @@
     } \
     KW_LOCAL_FENCE;
 
-/* ── Phase 1: Partials child — block-peeled dot product q = U^{-1}·p ────── */
-/* BUF  : sBuf1 or sBuf2 (scratch for ievc blocks; reused for evec in Phase 3)
+/* ── Phase 1: Partials child — dot product q = U^{-1}·p ─────────────────── */
+/* BUF  : sBuf1 or sBuf2 (scratch for ievc; reused for evec in Phase 3)
  * SP   : sP1 or sP2    (shared partial loaded above)
  * SQ   : sQ1 or sQ2    (output: eigenspace projection)
  * IEVC : ievc1 or ievc2
  *
- * dIevc[row*S+col] = (U^{-1})^T[row,col] = U^{-1}[col,row], so
- * BUF[peel_row][k] = ievc[(i+peel_row)*S + k] = U^{-1}[k, i+peel_row].
- * The inner FMA accumulates q[k] = Σ_j U^{-1}[k,j] * p[j].
- * Scoped in {} so the local accumulator q_loc does not collide across two
- * consecutive macro invocations (child 1 then child 2). */
+ * For 4 states the 4×4 ievc matrix is 16 contiguous REALs.  The 16 threads
+ * with patIdx<4 and state=0..3 load all 16 elements in one coalesced
+ * transaction (flat index patIdx*4+state = 0..15), matching the
+ * LOAD_MATRIX_4_GPU pattern used by the non-spectral kernels.
+ * The 4-element dot product is fully unrolled; no trailing fence is emitted
+ * because SPECTRAL_PHASE2_GPU opens with its own KW_LOCAL_FENCE.
+ * Scoped in {} so q_loc does not collide across two consecutive invocations. */
 #define SPECTRAL_PHASE1_PARTIALS_GPU(BUF, SP, SQ, IEVC) \
     { \
+        if (patIdx < PADDED_STATE_COUNT) \
+            BUF[patIdx][state] = (IEVC)[patIdx * PADDED_STATE_COUNT + state]; \
+        KW_LOCAL_FENCE; \
         REAL q_loc = (REAL)0; \
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
-            if (patIdx < BLOCK_PEELING_SIZE) \
-                BUF[patIdx][state] = (IEVC)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
-            KW_LOCAL_FENCE; \
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
-                REAL sp = SP[patIdx][i + j]; \
-                SPECTRAL_FMA(BUF[j][state], sp, q_loc); \
-            } \
-            KW_LOCAL_FENCE; \
-        } \
+        SPECTRAL_FMA(BUF[0][state], SP[patIdx][0], q_loc); \
+        SPECTRAL_FMA(BUF[1][state], SP[patIdx][1], q_loc); \
+        SPECTRAL_FMA(BUF[2][state], SP[patIdx][2], q_loc); \
+        SPECTRAL_FMA(BUF[3][state], SP[patIdx][3], q_loc); \
         SQ[patIdx][state] = q_loc; \
     }
 
@@ -216,30 +217,6 @@
             } \
         } \
         SQ[patIdx][state] = q_loc; \
-    }
-
-/* ── Phase 1: Partials × 2 — fused dual-child block-peel ────────────────── */
-/* Loads ievc1 and ievc2 in the same guarded block, halving the barrier count
- * for the PartialsPartials case relative to two sequential peel loops. */
-#define SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(BUF1, SP1, SQ1, IEVC1, BUF2, SP2, SQ2, IEVC2) \
-    { \
-        REAL q_loc1 = (REAL)0, q_loc2 = (REAL)0; \
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
-            if (patIdx < BLOCK_PEELING_SIZE) { \
-                BUF1[patIdx][state] = (IEVC1)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
-                BUF2[patIdx][state] = (IEVC2)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
-            } \
-            KW_LOCAL_FENCE; \
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
-                REAL sp1 = SP1[patIdx][i + j]; \
-                REAL sp2 = SP2[patIdx][i + j]; \
-                SPECTRAL_FMA(BUF1[j][state], sp1, q_loc1); \
-                SPECTRAL_FMA(BUF2[j][state], sp2, q_loc2); \
-            } \
-            KW_LOCAL_FENCE; \
-        } \
-        SQ1[patIdx][state] = q_loc1; \
-        SQ2[patIdx][state] = q_loc2; \
     }
 
 /* ── Phase 2: eigenvalue scaling and complex-pair rotation ──────────────── */
@@ -267,26 +244,28 @@
     } \
     KW_LOCAL_FENCE;
 
-/* ── Phase 3: project back to state space — block-peel evec×tmp ─────────── */
-/* Same block-peel pattern as SPECTRAL_PHASE1_PARTIALS_GPU; sBuf is reused.
+/* ── Phase 3: project back to state space — evec×tmp ────────────────────── */
+/* Same coalesced 16-element load pattern as SPECTRAL_PHASE1_PARTIALS_GPU;
+ * sBuf is reused for evec after Phase 2 has finished with sQ.
  * result[state] = Σ_k evec[k*S+state]*tmp[k] = (U·tmp)[state].
+ * Both children are handled in one pass with fully unrolled 4-element FMAs.
+ * No trailing fence: the global-memory write that follows needs none.
  * Declares sum1, sum2 at function scope so SPECTRAL_WRITE_*_GPU can use them. */
 #define SPECTRAL_PHASE3_GPU() \
     REAL sum1 = (REAL)0, sum2 = (REAL)0; \
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
-        if (patIdx < BLOCK_PEELING_SIZE) { \
-            sBuf1[patIdx][state] = evec1[(i + patIdx) * PADDED_STATE_COUNT + state]; \
-            sBuf2[patIdx][state] = evec2[(i + patIdx) * PADDED_STATE_COUNT + state]; \
-        } \
-        KW_LOCAL_FENCE; \
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
-            REAL q1 = sQ1[patIdx][i + j]; \
-            REAL q2 = sQ2[patIdx][i + j]; \
-            SPECTRAL_FMA(sBuf1[j][state], q1, sum1); \
-            SPECTRAL_FMA(sBuf2[j][state], q2, sum2); \
-        } \
-        KW_LOCAL_FENCE; \
-    }
+    if (patIdx < PADDED_STATE_COUNT) { \
+        sBuf1[patIdx][state] = evec1[patIdx * PADDED_STATE_COUNT + state]; \
+        sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state]; \
+    } \
+    KW_LOCAL_FENCE; \
+    SPECTRAL_FMA(sBuf1[0][state], sQ1[patIdx][0], sum1); \
+    SPECTRAL_FMA(sBuf2[0][state], sQ2[patIdx][0], sum2); \
+    SPECTRAL_FMA(sBuf1[1][state], sQ1[patIdx][1], sum1); \
+    SPECTRAL_FMA(sBuf2[1][state], sQ2[patIdx][1], sum2); \
+    SPECTRAL_FMA(sBuf1[2][state], sQ1[patIdx][2], sum1); \
+    SPECTRAL_FMA(sBuf2[2][state], sQ2[patIdx][2], sum2); \
+    SPECTRAL_FMA(sBuf1[3][state], sQ1[patIdx][3], sum1); \
+    SPECTRAL_FMA(sBuf2[3][state], sQ2[patIdx][3], sum2);
 
 /* ── Output writers ─────────────────────────────────────────────────────── */
 #define SPECTRAL_WRITE_NO_SCALE_GPU() \
@@ -301,11 +280,9 @@
 /* Auto-scaling: detect overflow/underflow per pattern, rescale if needed, and
  * write the per-pattern exponent to scalingFactors[matrix*totalPatterns+pattern]
  * as a signed char.  Reuses sQ1[patIdx][*] (free after Phase 3) as scratch for
- * the per-pattern max-exponent reduction.
- * XOR-based tree reduction: at each stride _s, thread k merges with its XOR
- * partner k^_s when the partner has a higher index and is in-bounds.  After
- * ceil(log2(N)) steps, sQ1[patIdx][0] holds the global max.  Correct for all
- * PADDED_STATE_COUNT values (power-of-2 and non-power-of-2 alike). */
+ * the per-pattern max-exponent reduction.  Thread 0 of each pattern row does a
+ * linear scan so correctness does not depend on PADDED_STATE_COUNT being a
+ * power of two. */
 #define SPECTRAL_WRITE_AUTO_SCALE_GPU() \
     { \
         REAL tmpPartial = sum1 * sum2; \
@@ -315,13 +292,13 @@
             (pattern < totalPatterns && abs(expTmp) > SCALING_EXPONENT_THRESHOLD) \
             ? expTmp : 0); \
         KW_LOCAL_FENCE; \
-        for (int _s = 1; _s < PADDED_STATE_COUNT; _s <<= 1) { \
-            int _p = state ^ _s; \
-            if (_p > state && _p < PADDED_STATE_COUNT) \
-                if (sQ1[patIdx][_p] > sQ1[patIdx][state]) \
-                    sQ1[patIdx][state] = sQ1[patIdx][_p]; \
-            KW_LOCAL_FENCE; \
+        if (state == 0) { \
+            REAL maxVal = sQ1[patIdx][0]; \
+            for (int _i = 1; _i < PADDED_STATE_COUNT; _i++) \
+                if (sQ1[patIdx][_i] > maxVal) maxVal = sQ1[patIdx][_i]; \
+            sQ1[patIdx][0] = maxVal; \
         } \
+        KW_LOCAL_FENCE; \
         int maxExp = (int)sQ1[patIdx][0]; \
         if (pattern < totalPatterns) \
             partials3[u] = (maxExp != 0) \
@@ -390,21 +367,17 @@ KW_DEVICE_FUNC void kernelSpectralBody(
     SPECTRAL_EIGENVALS_GPU()    /* ends with KW_LOCAL_FENCE */
 
     /* Phase 1: project to eigenspace.
-     * PP case fuses both children into one peel loop (half the barriers).
-     * SP/SS cases fall through to single-child macros. */
-#if !defined(SPECTRAL_CHILD1_STATES) && !defined(SPECTRAL_CHILD2_STATES)
-    SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
+     * #ifdef replaces if constexpr (is_same<Child1, States>) from the C++ version. */
+#ifdef SPECTRAL_CHILD1_STATES
+    SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
 #else
-    #ifdef SPECTRAL_CHILD1_STATES
-        SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
-    #else
-        SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
-    #endif
-    #ifdef SPECTRAL_CHILD2_STATES
-        SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
-    #else
-        SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
-    #endif
+    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
+#endif
+
+#ifdef SPECTRAL_CHILD2_STATES
+    SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
+#else
+    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
 #endif
 
     SPECTRAL_PHASE2_GPU()       /* fenced both ends */
@@ -449,7 +422,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleSpectral(
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_EIGENVALS_GPU()
-    SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
+    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
+    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
     SPECTRAL_WRITE_NO_SCALE_GPU()

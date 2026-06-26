@@ -130,15 +130,6 @@ void beagleLoadPlugins(void) {
     }
 
     try{
-        beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
-        plugins->push_back(cpuplug);
-    }catch(beagle::plugin::SharedLibraryException sle){
-        // this one should always work
-        std::cerr << "Unable to load CPU plugin!\n";
-        std::cerr << "Please check for proper libhmsbeagle installation.\n";
-    }
-
-    try{
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cpu-spectral" << std::endl;
 #endif
@@ -151,6 +142,27 @@ void beagleLoadPlugins(void) {
     }
 
     try{
+        beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
+        plugins->push_back(cpuplug);
+    }catch(beagle::plugin::SharedLibraryException sle){
+        // this one should always work
+        std::cerr << "Unable to load CPU plugin!\n";
+        std::cerr << "Please check for proper libhmsbeagle installation.\n";
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-cuda-spectral" << std::endl;
+#endif
+        beagle::plugin::Plugin* cudaplug = pm.findPlugin("hmsbeagle-cuda-spectral");
+        plugins->push_back(cudaplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-cuda-spectral: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cuda" << std::endl;
 #endif
@@ -159,6 +171,18 @@ void beagleLoadPlugins(void) {
     }catch(beagle::plugin::SharedLibraryException sle) {
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Unable to load hmsbeagle-cuda: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-opencl-spectral" << std::endl;
+#endif
+        beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl-spectral");
+        plugins->push_back(openclplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-opencl-spectral: " << sle.getError() << std::endl;
 #endif
     }
 
@@ -419,7 +443,12 @@ int rankResourceImplementationPairs(long preferenceFlags,
                 && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
                 ) {
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
-                int totalScore = resourceScore + implementationScore;
+                // Penalize unrequested factory capabilities so a minimal
+                // factory beats a more-capable one when they otherwise tie.
+                long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags);
+                int penalty = 0;
+                for (long f = unneeded; f; f &= (f - 1)) penalty++;
+                int totalScore = resourceScore + implementationScore + penalty;
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tPossible implementation: %s (%d)\n",
                         (*factory)->getName(),totalScore);

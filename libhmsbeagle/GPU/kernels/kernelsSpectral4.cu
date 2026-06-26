@@ -119,8 +119,8 @@ __device__ void kernelSpectralBody(
     KW_LOCAL_MEM REAL sP2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
 
     /* Matrix peel buffer — reused for ievc (phase 1) and evec (phase 3). */
-    KW_LOCAL_MEM REAL sBuf1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sBuf2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
 
     /* Per-eigenstate scaling factors:
      *   sDs[k] = expat_k * cos(imagEV_k * t)   (always non-negative)
@@ -210,15 +210,15 @@ __device__ void kernelSpectralBody(
      * the fence overhead.  The if constexpr guards suppress each load/FMA for
      * whichever child is of type States. */
     if constexpr (IsSameType<Child1, Partials> || IsSameType<Child2, Partials>) {
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-            if (patIdx < BLOCK_PEELING_SIZE) {
+        for (int i = 0; i < PADDED_STATE_COUNT; i += PADDED_STATE_COUNT) {
+            if (patIdx < PADDED_STATE_COUNT) {
                 if constexpr (IsSameType<Child1, Partials>)
                     sBuf1[patIdx][state] = ievc1[(i + patIdx) * PADDED_STATE_COUNT + state];
                 if constexpr (IsSameType<Child2, Partials>)
                     sBuf2[patIdx][state] = ievc2[(i + patIdx) * PADDED_STATE_COUNT + state];
             }
             KW_LOCAL_FENCE;
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+            for (int j = 0; j < PADDED_STATE_COUNT; j++) {
                 if constexpr (IsSameType<Child1, Partials>)
                     SPECTRAL_FMA(sBuf1[j][state], sP1[patIdx][i + j], q1);
                 if constexpr (IsSameType<Child2, Partials>)
@@ -256,13 +256,13 @@ __device__ void kernelSpectralBody(
     /* Same block-peel as Phase 1; sBuf is reused for evec blocks.
      * result[state] = Σ_k evec[k*S+state] * sQ[patIdx][k] = (U·tmp)[state]. */
     REAL sum1 = REAL(0), sum2 = REAL(0);
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        if (patIdx < BLOCK_PEELING_SIZE) {
+    for (int i = 0; i < PADDED_STATE_COUNT; i += PADDED_STATE_COUNT) {
+        if (patIdx < PADDED_STATE_COUNT) {
             sBuf1[patIdx][state] = evec1[(i + patIdx) * PADDED_STATE_COUNT + state];
             sBuf2[patIdx][state] = evec2[(i + patIdx) * PADDED_STATE_COUNT + state];
         }
         KW_LOCAL_FENCE;
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+        for (int j = 0; j < PADDED_STATE_COUNT; j++) {
             SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][i + j], sum1);
             SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][i + j], sum2);
         }
@@ -492,8 +492,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
 
     KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sP2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sBuf1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sBuf2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sDs1[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sCs1[PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT];
@@ -519,13 +519,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
     KW_LOCAL_FENCE;
 
     REAL q1 = REAL(0), q2 = REAL(0);
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        if (patIdx < BLOCK_PEELING_SIZE) {
+    for (int i = 0; i < PADDED_STATE_COUNT; i += PADDED_STATE_COUNT) {
+        if (patIdx < PADDED_STATE_COUNT) {
             sBuf1[patIdx][state] = ievc1[(i + patIdx) * PADDED_STATE_COUNT + state];
             sBuf2[patIdx][state] = ievc2[(i + patIdx) * PADDED_STATE_COUNT + state];
         }
         KW_LOCAL_FENCE;
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+        for (int j = 0; j < PADDED_STATE_COUNT; j++) {
             SPECTRAL_FMA(sBuf1[j][state], sP1[patIdx][i + j], q1);
             SPECTRAL_FMA(sBuf2[j][state], sP2[patIdx][i + j], q2);
         }
@@ -550,13 +550,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
     KW_LOCAL_FENCE;
 
     REAL sum1 = REAL(0), sum2 = REAL(0);
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-        if (patIdx < BLOCK_PEELING_SIZE) {
+    for (int i = 0; i < PADDED_STATE_COUNT; i += PADDED_STATE_COUNT) {
+        if (patIdx < PADDED_STATE_COUNT) {
             sBuf1[patIdx][state] = evec1[(i + patIdx) * PADDED_STATE_COUNT + state];
             sBuf2[patIdx][state] = evec2[(i + patIdx) * PADDED_STATE_COUNT + state];
         }
         KW_LOCAL_FENCE;
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
+        for (int j = 0; j < PADDED_STATE_COUNT; j++) {
             SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][i + j], sum1);
             SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][i + j], sum2);
         }

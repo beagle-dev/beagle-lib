@@ -22,6 +22,7 @@ add_custom_command(
             "../kernels/kernelsXDerivatives.cu"
             "../kernels/kernelsAll.cu"
             "../kernels/kernelsSpectralIfDef.cu"
+            "../kernels/kernelsSpectralIfDef4.cu"
         COMMENT "Building OpenCL spectral kernels"
         VERBATIM)
 
@@ -46,6 +47,8 @@ add_library(hmsbeagle-opencl-spectral SHARED
         )
 
 add_dependencies(hmsbeagle-opencl-spectral OpenCLSpectralKernels)
+
+target_compile_definitions(hmsbeagle-opencl-spectral PRIVATE BEAGLE_SPECTRAL_KERNELS)
 
 target_link_libraries(hmsbeagle-opencl-spectral ${OpenCL_LIBRARIES})
 

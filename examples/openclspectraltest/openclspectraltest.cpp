@@ -11,13 +11,14 @@
  *
  * Usage:
  *   openclspectraltest [--opencl] [--cpu] [--resource N]
- *                      [--double] [--reps R]
+ *                      [--double] [--reps R] [--highstates]
  *
- *   --opencl     Require OpenCL-spectral backend (exit if unavailable)
- *   --cpu        Prefer spectral CPU backend
- *   --resource N Use BEAGLE resource number N explicitly
- *   --double     Use double precision (default: single)
- *   --reps R     Repeat the partials+likelihood evaluation R times (timing)
+ *   --opencl      Require OpenCL-spectral backend (exit if unavailable)
+ *   --cpu         Prefer spectral CPU backend
+ *   --resource N  Use BEAGLE resource number N explicitly
+ *   --double      Use double precision (default: single)
+ *   --reps R      Repeat the partials+likelihood evaluation R times (timing)
+ *   --highstates  Run with kStateCount == 17 to exercise BLOCK_PEELING_SIZE loops
  */
 
 #include <cstdio>
@@ -73,9 +74,9 @@ static const char* kGorilla =
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
-static std::vector<double> makePartials(const char* seq) {
+static std::vector<double> makePartials(const char* seq, int nStates) {
     int n = (int)strlen(seq);
-    std::vector<double> p(n * 4, 0.0);
+    std::vector<double> p(n * nStates, 0.0);
     for (int i = 0; i < n; ++i) {
         int s = -1;
         switch (seq[i]) {
@@ -84,12 +85,39 @@ static std::vector<double> makePartials(const char* seq) {
             case 'G': s = 2; break;
             case 'T': s = 3; break;
         }
-        if (s >= 0)
-            p[i * 4 + s] = 1.0;
-        else
-            p[i*4]=p[i*4+1]=p[i*4+2]=p[i*4+3] = 1.0;
+        if (s >= 0) {
+            p[i * nStates + s] = 1.0;
+        } else {
+            // Ambiguous: set the 4 DNA states; higher states stay 0
+            for (int k = 0; k < std::min(nStates, 4); ++k)
+                p[i * nStates + k] = 1.0;
+        }
     }
     return p;
+}
+
+// Constructs a k-state equal-rates JC eigen decomposition.
+// evec col-0 = (1,...,1); col-j (j>=1): evec[0][j]=1, evec[j][j]=-1.
+// ivec[i][j] = 1/k, except ivec[j][j] = (1-k)/k for j>=1.
+// eval[0]=0, eval[j]= -k/(k-1) for j>=1.
+static void makeJCEigen(int k, std::vector<double>& evec,
+                        std::vector<double>& ivec, std::vector<double>& eval) {
+    evec.assign(k * k, 0.0);
+    ivec.assign(k * k, 0.0);
+    eval.assign(k, -(double)k / (k - 1));
+    eval[0] = 0.0;
+
+    for (int i = 0; i < k; ++i) evec[i * k + 0] = 1.0;
+    for (int j = 1; j < k; ++j) {
+        evec[0 * k + j] =  1.0;
+        evec[j * k + j] = -1.0;
+    }
+
+    for (int i = 0; i < k; ++i)
+        for (int j = 0; j < k; ++j)
+            ivec[i * k + j] = 1.0 / k;
+    for (int j = 1; j < k; ++j)
+        ivec[j * k + j] = (1.0 - k) / k;
 }
 
 static void printFlags(long f) {
@@ -111,6 +139,7 @@ struct Options {
     int  reps            = 1;
     long prefFlags       = 0;
     bool spectral        = true;
+    int  stateCount      = 4;
 };
 
 static int createInstance(const Options& opts, int nTips, int nPartBufs,
@@ -122,21 +151,20 @@ static int createInstance(const Options& opts, int nTips, int nPartBufs,
                                      : BEAGLE_FLAG_PRECISION_SINGLE;
 
     long spectralFlag = opts.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0;
+    long prefFlags = (opts.prefFlags | prec) & ~(opts.spectral ? 0 : BEAGLE_FLAG_SPECTRAL_REPRESENTATION);
 
     return beagleCreateInstance(
         nTips,
         nPartBufs,
         /*compactBufs=*/0,
-        /*stateCount=*/4,
+        opts.stateCount,
         nPatterns,
         /*nEigen=*/1,
         /*nMatrices=*/4,
         /*nRateCats=*/4,
         /*scalers=*/0,
         resources, nResources,
-        opts.prefFlags | prec,
-        // /*reqFlags=*/0,
-        // BEAGLE_FLAG_SPECTRAL_REPRESENTATION,
+        prefFlags,
         spectralFlag,
         det);
 }
@@ -149,10 +177,11 @@ int main(int argc, char** argv) {
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
-        if      (a == "--opencl") forceOpenCL = true;
-        else if (a == "--cpu")    forceCPU    = true;
-        else if (a == "--double") opts.doublePrecision = true;
+        if      (a == "--opencl")     forceOpenCL = true;
+        else if (a == "--cpu")        forceCPU    = true;
+        else if (a == "--double")     opts.doublePrecision = true;
         else if (a == "--nospectral") opts.spectral = false;
+        else if (a == "--highstates") opts.stateCount = 17;
         else if (a == "--resource" && i+1 < argc)
             opts.forceResource = atoi(argv[++i]);
         else if (a == "--reps" && i+1 < argc)
@@ -216,33 +245,37 @@ int main(int argc, char** argv) {
     printFlags(det.flags);
     printf("\n\n");
 
+    const int kS = opts.stateCount;
+    printf("State count: %d\n\n", kS);
+
     // ── Load tip partials ─────────────────────────────────────────────────────
-    auto hp = makePartials(kHuman);
-    auto cp = makePartials(kChimp);
-    auto gp = makePartials(kGorilla);
+    auto hp = makePartials(kHuman,   kS);
+    auto cp = makePartials(kChimp,   kS);
+    auto gp = makePartials(kGorilla, kS);
     beagleSetTipPartials(instance, 0, hp.data());
     beagleSetTipPartials(instance, 1, cp.data());
     beagleSetTipPartials(instance, 2, gp.data());
 
-    // ── JC69 eigen decomposition ──────────────────────────────────────────────
-    double evec[16] = {
-         1.0,  2.0,  0.0,  0.5,
-         1.0, -2.0,  0.5,  0.0,
-         1.0,  2.0,  0.0, -0.5,
-         1.0, -2.0, -0.5,  0.0
-    };
-    double ivec[16] = {
-         0.25,  0.25,  0.25,  0.25,
-         0.125,-0.125, 0.125,-0.125,
-         0.0,   1.0,   0.0,  -1.0,
-         1.0,   0.0,  -1.0,   0.0
-    };
-    double eval[4] = { 0.0, -4.0/3.0, -4.0/3.0, -4.0/3.0 };
-    beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
+    // ── Eigen decomposition ───────────────────────────────────────────────────
+    std::vector<double> evecV, ivecV, evalV;
+    if (kS == 4) {
+        // Original JC69 parameterization (preserves reference logL)
+        evecV = { 1.0,  2.0,  0.0,  0.5,
+                  1.0, -2.0,  0.5,  0.0,
+                  1.0,  2.0,  0.0, -0.5,
+                  1.0, -2.0, -0.5,  0.0 };
+        ivecV = { 0.25,  0.25,  0.25,  0.25,
+                  0.125,-0.125, 0.125,-0.125,
+                  0.0,   1.0,   0.0,  -1.0,
+                  1.0,   0.0,  -1.0,   0.0 };
+        evalV = { 0.0, -4.0/3.0, -4.0/3.0, -4.0/3.0 };
+    } else {
+        makeJCEigen(kS, evecV, ivecV, evalV);
+    }
+    beagleSetEigenDecomposition(instance, 0, evecV.data(), ivecV.data(), evalV.data());
 
-    double freqs[16] = { 0.25,0.25,0.25,0.25, 0.25,0.25,0.25,0.25,
-                         0.25,0.25,0.25,0.25, 0.25,0.25,0.25,0.25 };
-    beagleSetStateFrequencies(instance, 0, freqs);
+    std::vector<double> freqs(kS, 1.0 / kS);
+    beagleSetStateFrequencies(instance, 0, freqs.data());
 
     // ── Rate heterogeneity: 4-category discrete Gamma (alpha≈0.5) ────────────
     double rates[4]   = { 0.03338775, 0.25191592, 0.82026848, 2.89442785 };
@@ -292,21 +325,29 @@ int main(int argc, char** argv) {
     double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
     // ── Report ────────────────────────────────────────────────────────────────
-    printf("log L  = %.5f  (PAUP ref = -1498.89812)\n", logL);
+    if (kS == 4)
+        printf("log L  = %.5f  (PAUP ref = -1498.89812)\n", logL);
+    else
+        printf("log L  = %.5f\n", logL);
     if (opts.reps > 1)
         printf("Timing = %.3f ms / rep  (%d reps, %.3f ms total)\n",
                ms / opts.reps, opts.reps, ms);
     else
         printf("Timing = %.3f ms\n", ms);
 
-    const double kRef = -1498.89812;
-    const double kTol = opts.doublePrecision ? 1e-4 : 0.5;
-    double delta = std::fabs(logL - kRef);
-    if (delta < kTol)
-        printf("PASS   (|delta| = %.5f < %g)\n", delta, kTol);
-    else
-        printf("FAIL   (|delta| = %.5f >= %g)\n", delta, kTol);
-
-    beagleFinalizeInstance(instance);
-    return (delta < kTol) ? 0 : 1;
+    if (kS == 4) {
+        const double kRef = -1498.89812;
+        const double kTol = opts.doublePrecision ? 1e-4 : 0.5;
+        double delta = std::fabs(logL - kRef);
+        if (delta < kTol)
+            printf("PASS   (|delta| = %.5f < %g)\n", delta, kTol);
+        else
+            printf("FAIL   (|delta| = %.5f >= %g)\n", delta, kTol);
+        beagleFinalizeInstance(instance);
+        return (delta < kTol) ? 0 : 1;
+    } else {
+        printf("DONE   (no reference logL for %d-state model; kernel exercise complete)\n", kS);
+        beagleFinalizeInstance(instance);
+        return 0;
+    }
 }

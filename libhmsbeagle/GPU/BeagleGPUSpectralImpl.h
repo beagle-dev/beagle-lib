@@ -34,8 +34,55 @@ namespace gpu {
 
 BEAGLE_GPU_TEMPLATE
 class BeagleGPUSpectralImpl : public BeagleGPUImpl<Real> {
+private:
+    GPUPtr  dSpectralDistancesOrigin;
+    GPUPtr* dSpectralDistances;
+    int*    hEigenIndexForMatrix;
+
 public:
-    ~BeagleGPUSpectralImpl() override = default;
+    BeagleGPUSpectralImpl();
+    ~BeagleGPUSpectralImpl() override;
+
+    int createInstance(int tipCount,
+                       int partialsBufferCount,
+                       int compactBufferCount,
+                       int stateCount,
+                       int patternCount,
+                       int eigenDecompositionCount,
+                       int matrixCount,
+                       int categoryCount,
+                       int scaleBufferCount,
+                       int resourceNumber,
+                       int pluginResourceNumber,
+                       long preferenceFlags,
+                       long requirementFlags) override;
+
+    int updateTransitionMatrices(int eigenIndex,
+                                 const int* probabilityIndices,
+                                 const int* firstDerivativeIndices,
+                                 const int* secondDerivativeIndices,
+                                 const double* edgeLengths,
+                                 int count) override;
+
+    char* getInstanceName() override;
+    int getInstanceDetails(BeagleInstanceDetails* returnInfo) override;
+
+protected:
+    void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
+                          int c1MatIdx, int c2MatIdx,
+                          GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                          unsigned int startPattern, unsigned int endPattern,
+                          int rescale, int streamIndex, int waitIndex) override;
+    void dispatchPruneSP(GPUPtr s1, GPUPtr p2, GPUPtr p3,
+                          int c1MatIdx, int c2MatIdx,
+                          GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                          unsigned int startPattern, unsigned int endPattern,
+                          int rescale, int streamIndex, int waitIndex) override;
+    void dispatchPruneSS(GPUPtr s1, GPUPtr s2, GPUPtr p3,
+                          int c1MatIdx, int c2MatIdx,
+                          GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                          unsigned int startPattern, unsigned int endPattern,
+                          int rescale, int streamIndex, int waitIndex) override;
 };
 
 BEAGLE_GPU_TEMPLATE

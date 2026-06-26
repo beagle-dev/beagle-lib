@@ -112,6 +112,8 @@ private:
     Dim3Int bgTransitionProbabilitiesGrid;
     Dim3Int bgPeelingBlock;
     Dim3Int bgPeelingGrid;
+    Dim3Int bgSpectralPeelingBlock;
+    Dim3Int bgSpectralPeelingGrid;
 	Dim3Int bgDerivativeBlock;
 	Dim3Int bgDerivativeGrid;
     Dim3Int bgLikelihoodBlock;
@@ -294,6 +296,51 @@ public:
                                            int doRescaling,
                                            int streamIndex,
                                            int waitIndex);
+
+    void PartialsPartialsPruningSpectral(GPUPtr partials1,
+                                          GPUPtr partials2,
+                                          GPUPtr partials3,
+                                          GPUPtr ievc1, GPUPtr evec1,
+                                          GPUPtr eigenValues1, GPUPtr distances1,
+                                          GPUPtr ievc2, GPUPtr evec2,
+                                          GPUPtr eigenValues2, GPUPtr distances2,
+                                          GPUPtr scalingFactors,
+                                          GPUPtr cumulativeScaling,
+                                          unsigned int patternCount,
+                                          unsigned int categoryCount,
+                                          int doRescaling,
+                                          int streamIndex,
+                                          int waitIndex);
+
+    void StatesPartialsPruningSpectral(GPUPtr states1,
+                                        GPUPtr partials2,
+                                        GPUPtr partials3,
+                                        GPUPtr ievc1, GPUPtr evec1,
+                                        GPUPtr eigenValues1, GPUPtr distances1,
+                                        GPUPtr ievc2, GPUPtr evec2,
+                                        GPUPtr eigenValues2, GPUPtr distances2,
+                                        GPUPtr scalingFactors,
+                                        GPUPtr cumulativeScaling,
+                                        unsigned int patternCount,
+                                        unsigned int categoryCount,
+                                        int doRescaling,
+                                        int streamIndex,
+                                        int waitIndex);
+
+    void StatesStatesPruningSpectral(GPUPtr states1,
+                                      GPUPtr states2,
+                                      GPUPtr partials3,
+                                      GPUPtr ievc1, GPUPtr evec1,
+                                      GPUPtr eigenValues1, GPUPtr distances1,
+                                      GPUPtr ievc2, GPUPtr evec2,
+                                      GPUPtr eigenValues2, GPUPtr distances2,
+                                      GPUPtr scalingFactors,
+                                      GPUPtr cumulativeScaling,
+                                      unsigned int patternCount,
+                                      unsigned int categoryCount,
+                                      int doRescaling,
+                                      int streamIndex,
+                                      int waitIndex);
 
 	void PartialsStatesGrowing(GPUPtr partials1,
                                GPUPtr partials2,
