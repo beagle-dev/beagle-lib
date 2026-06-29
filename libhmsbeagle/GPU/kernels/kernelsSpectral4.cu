@@ -590,6 +590,735 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
         scalingFactors[matrix * totalPatterns + pattern] = (signed char)maxExp;
 }
 
+/* ── Growing (pre-order) kernels ─────────────────────────────────────────
+ *
+ * BOTTOM: dest = P_par^T · (P_sib·c_sib ⊙ p_par)   — chained transform
+ * TOP NotRoot PP: reuse kernelPartialsPartialsSpectralNoScale with backward
+ *                 matrices for child1 (no new kernel needed here).
+ * TOP NotRoot PS: dest = (P_par^T·p_par) ⊙ (P_sib·e_s)   — independent
+ * TOP Root PP/PS: dest = (P_sib·c_sib) ⊙ p_root           — sibling only
+ *
+ * Backward (parent) pass convention:
+ *   ievc1 = dEvecT[ei] = U   (row-major, so dEvecT[j*S+k]=U[j,k])
+ *   evec1 = dIevcT[ei] = U^-1 (row-major, so dIevcT[j*S+k]=U^-1[j,k])
+ *
+ * P^T = (U^-1)^T · diag(exp) · U^T
+ *   Ph1: q = U^T · p       (ievc1 = dEvecT: sBuf[j][k]=U[j,k])
+ *   Ph2: q *= exp(Λt)
+ *   Ph3: r = (U^-1)^T · q  (evec1 = dIevcT: sBuf[j][k]=U^-1[j,k])
+ * ────────────────────────────────────────────────────────────────────────── */
+
+KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int totalPatterns) {
+    const int state = KW_LOCAL_ID_0, patIdx = KW_LOCAL_ID_1;
+    const int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE) + patIdx;
+    const int matrix  = KW_GROUP_ID_1;
+    const int y = pattern * PADDED_STATE_COUNT + matrix * PADDED_STATE_COUNT * totalPatterns;
+    const int u = state + y;
+
+    KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sP2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs1[PADDED_STATE_COUNT], sCs1[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT], sCs2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    sP1[patIdx][state] = (pattern < totalPatterns) ? partials1[y + state] : REAL(0);
+    sP2[patIdx][state] = (pattern < totalPatterns) ? partials2[y + state] : REAL(0);
+    if (patIdx == 0) {
+        const REAL t1 = distances1[matrix];
+        sDs1[state] = exp(eigenValues1[state] * t1) * cos(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        sCs1[state] = exp(eigenValues1[state] * t1) * sin(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        const REAL t2 = distances2[matrix];
+        sDs2[state] = exp(eigenValues2[state] * t2) * cos(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+        sCs2[state] = exp(eigenValues2[state] * t2) * sin(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+    }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 1: sQ2 = ievc2 · sP2 */
+    { REAL q = REAL(0);
+      if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = ievc2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sP2[patIdx][j], q);
+      KW_LOCAL_FENCE; sQ2[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 2 */
+    { const REAL ec = sDs2[state], es = sCs2[state];
+      sQ2[patIdx][state] = (es == REAL(0)) ? ec * sQ2[patIdx][state]
+          : ec * sQ2[patIdx][state] + es * sQ2[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 3 + Hadamard: evec2·sQ2 ⊙ sP1 → sQ2 (combined) */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL tmp = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][j], tmp);
+      sQ2[patIdx][state] = tmp * sP1[patIdx][state]; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 1 (backward): sQ1 = ievc1 · sQ2  (ievc1 = dEvecT = U) */
+    { REAL q = REAL(0);
+      if (patIdx < PADDED_STATE_COUNT) sBuf1[patIdx][state] = ievc1[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf1[j][state], sQ2[patIdx][j], q);
+      KW_LOCAL_FENCE; sQ1[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 2 */
+    { const REAL ec = sDs1[state], es = sCs1[state];
+      sQ1[patIdx][state] = (es == REAL(0)) ? ec * sQ1[patIdx][state]
+          : ec * sQ1[patIdx][state] + es * sQ1[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 3: evec1·sQ1 → result  (evec1 = dIevcT = U^-1) */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf1[patIdx][state] = evec1[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL sum = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][j], sum);
+      if (pattern < totalPatterns) partials3[u] = sum; }
+}
+
+KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR int*  KW_RESTRICT states2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int totalPatterns) {
+    const int state = KW_LOCAL_ID_0, patIdx = KW_LOCAL_ID_1;
+    const int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE) + patIdx;
+    const int matrix  = KW_GROUP_ID_1;
+    const int y = pattern * PADDED_STATE_COUNT + matrix * PADDED_STATE_COUNT * totalPatterns;
+    const int u = state + y;
+
+    KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs1[PADDED_STATE_COUNT], sCs1[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT], sCs2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    sP1[patIdx][state] = (pattern < totalPatterns) ? partials1[y + state] : REAL(0);
+    if (patIdx == 0) {
+        const REAL t1 = distances1[matrix];
+        sDs1[state] = exp(eigenValues1[state] * t1) * cos(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        sCs1[state] = exp(eigenValues1[state] * t1) * sin(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        const REAL t2 = distances2[matrix];
+        sDs2[state] = exp(eigenValues2[state] * t2) * cos(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+        sCs2[state] = exp(eigenValues2[state] * t2) * sin(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+    }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 1 (states lookup) */
+    { REAL q = REAL(0);
+      if (pattern < totalPatterns) {
+          const int s = states2[pattern];
+          if (s < PADDED_STATE_COUNT) q = ievc2[s * PADDED_STATE_COUNT + state];
+          else for (int j = 0; j < PADDED_STATE_COUNT; j++) q += ievc2[j * PADDED_STATE_COUNT + state];
+      }
+      sQ2[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 2 */
+    { const REAL ec = sDs2[state], es = sCs2[state];
+      sQ2[patIdx][state] = (es == REAL(0)) ? ec * sQ2[patIdx][state]
+          : ec * sQ2[patIdx][state] + es * sQ2[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 3 + Hadamard: evec2·sQ2 ⊙ sP1 → sQ2 (combined) */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL tmp = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][j], tmp);
+      sQ2[patIdx][state] = tmp * sP1[patIdx][state]; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 1 (backward): sQ1 = ievc1 · sQ2 */
+    { REAL q = REAL(0);
+      if (patIdx < PADDED_STATE_COUNT) sBuf1[patIdx][state] = ievc1[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf1[j][state], sQ2[patIdx][j], q);
+      KW_LOCAL_FENCE; sQ1[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 2 */
+    { const REAL ec = sDs1[state], es = sCs1[state];
+      sQ1[patIdx][state] = (es == REAL(0)) ? ec * sQ1[patIdx][state]
+          : ec * sQ1[patIdx][state] + es * sQ1[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 3: evec1·sQ1 → result */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf1[patIdx][state] = evec1[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL sum = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][j], sum);
+      if (pattern < totalPatterns) partials3[u] = sum; }
+}
+
+/* Top NotRoot PS: parent=partials(backward), sibling=states(forward).
+ * dest = (P_par^T · p_par) ⊙ (P_sib · e_s)  — two independent transforms. */
+KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR int*  KW_RESTRICT states2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int totalPatterns) {
+    const int state = KW_LOCAL_ID_0, patIdx = KW_LOCAL_ID_1;
+    const int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE) + patIdx;
+    const int matrix  = KW_GROUP_ID_1;
+    const int y = pattern * PADDED_STATE_COUNT + matrix * PADDED_STATE_COUNT * totalPatterns;
+    const int u = state + y;
+
+    KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf1[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs1[PADDED_STATE_COUNT], sCs1[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT], sCs2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    sP1[patIdx][state] = (pattern < totalPatterns) ? partials1[y + state] : REAL(0);
+    if (patIdx == 0) {
+        const REAL t1 = distances1[matrix];
+        sDs1[state] = exp(eigenValues1[state] * t1) * cos(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        sCs1[state] = exp(eigenValues1[state] * t1) * sin(eigenValues1[PADDED_STATE_COUNT + state] * t1);
+        const REAL t2 = distances2[matrix];
+        sDs2[state] = exp(eigenValues2[state] * t2) * cos(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+        sCs2[state] = exp(eigenValues2[state] * t2) * sin(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+    }
+    KW_LOCAL_FENCE;
+
+    /* Parent Phase 1 (backward): sQ1 = ievc1 · sP1 */
+    { REAL q = REAL(0);
+      if (patIdx < PADDED_STATE_COUNT) sBuf1[patIdx][state] = ievc1[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf1[j][state], sP1[patIdx][j], q);
+      KW_LOCAL_FENCE; sQ1[patIdx][state] = q; }
+
+    /* Sibling Phase 1 (states lookup) */
+    { REAL q = REAL(0);
+      if (pattern < totalPatterns) {
+          const int s = states2[pattern];
+          if (s < PADDED_STATE_COUNT) q = ievc2[s * PADDED_STATE_COUNT + state];
+          else for (int j = 0; j < PADDED_STATE_COUNT; j++) q += ievc2[j * PADDED_STATE_COUNT + state];
+      }
+      sQ2[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Phase 2: scale both sQ1 and sQ2 */
+    { const REAL ec1 = sDs1[state], es1 = sCs1[state];
+      sQ1[patIdx][state] = (es1 == REAL(0)) ? ec1 * sQ1[patIdx][state]
+          : ec1 * sQ1[patIdx][state] + es1 * sQ1[patIdx][state + (es1 > REAL(0) ? 1 : -1)];
+      const REAL ec2 = sDs2[state], es2 = sCs2[state];
+      sQ2[patIdx][state] = (es2 == REAL(0)) ? ec2 * sQ2[patIdx][state]
+          : ec2 * sQ2[patIdx][state] + es2 * sQ2[patIdx][state + (es2 > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Phase 3: evec1·sQ1 → sum1, evec2·sQ2 → sum2 */
+    REAL sum1 = REAL(0), sum2 = REAL(0);
+    if (patIdx < PADDED_STATE_COUNT) {
+        sBuf1[patIdx][state] = evec1[patIdx * PADDED_STATE_COUNT + state];
+        sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state];
+    }
+    KW_LOCAL_FENCE;
+    for (int j = 0; j < PADDED_STATE_COUNT; j++) {
+        SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][j], sum1);
+        SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][j], sum2);
+    }
+    if (pattern < totalPatterns) partials3[u] = sum1 * sum2;
+}
+
+/* Top Root PP: only sibling gets forward transform; root pre-order is Hadamard factor. */
+KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTopRootSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int totalPatterns) {
+    const int state = KW_LOCAL_ID_0, patIdx = KW_LOCAL_ID_1;
+    const int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE) + patIdx;
+    const int matrix  = KW_GROUP_ID_1;
+    const int y = pattern * PADDED_STATE_COUNT + matrix * PADDED_STATE_COUNT * totalPatterns;
+    const int u = state + y;
+
+    KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sP2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT], sCs2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    sP1[patIdx][state] = (pattern < totalPatterns) ? partials1[y + state] : REAL(0);
+    sP2[patIdx][state] = (pattern < totalPatterns) ? partials2[y + state] : REAL(0);
+    if (patIdx == 0) {
+        const REAL t2 = distances2[matrix];
+        sDs2[state] = exp(eigenValues2[state] * t2) * cos(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+        sCs2[state] = exp(eigenValues2[state] * t2) * sin(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+    }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 1: sQ2 = ievc2 · sP2 */
+    { REAL q = REAL(0);
+      if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = ievc2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sP2[patIdx][j], q);
+      KW_LOCAL_FENCE; sQ2[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 2 */
+    { const REAL ec = sDs2[state], es = sCs2[state];
+      sQ2[patIdx][state] = (es == REAL(0)) ? ec * sQ2[patIdx][state]
+          : ec * sQ2[patIdx][state] + es * sQ2[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 3 + Hadamard + write: evec2·sQ2 ⊙ sP1 → partials3 */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL tmp = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][j], tmp);
+      if (pattern < totalPatterns) partials3[u] = tmp * sP1[patIdx][state]; }
+}
+
+/* Top Root PS: sibling=states, root pre-order is Hadamard factor. */
+KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR int*  KW_RESTRICT states2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int totalPatterns) {
+    const int state = KW_LOCAL_ID_0, patIdx = KW_LOCAL_ID_1;
+    const int pattern = __umul24(KW_GROUP_ID_0, PATTERN_BLOCK_SIZE) + patIdx;
+    const int matrix  = KW_GROUP_ID_1;
+    const int y = pattern * PADDED_STATE_COUNT + matrix * PADDED_STATE_COUNT * totalPatterns;
+    const int u = state + y;
+
+    KW_LOCAL_MEM REAL sP1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sBuf2[PADDED_STATE_COUNT][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDs2[PADDED_STATE_COUNT], sCs2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sQ2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    sP1[patIdx][state] = (pattern < totalPatterns) ? partials1[y + state] : REAL(0);
+    if (patIdx == 0) {
+        const REAL t2 = distances2[matrix];
+        sDs2[state] = exp(eigenValues2[state] * t2) * cos(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+        sCs2[state] = exp(eigenValues2[state] * t2) * sin(eigenValues2[PADDED_STATE_COUNT + state] * t2);
+    }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 1 (states lookup) */
+    { REAL q = REAL(0);
+      if (pattern < totalPatterns) {
+          const int s = states2[pattern];
+          if (s < PADDED_STATE_COUNT) q = ievc2[s * PADDED_STATE_COUNT + state];
+          else for (int j = 0; j < PADDED_STATE_COUNT; j++) q += ievc2[j * PADDED_STATE_COUNT + state];
+      }
+      sQ2[patIdx][state] = q; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 2 */
+    { const REAL ec = sDs2[state], es = sCs2[state];
+      sQ2[patIdx][state] = (es == REAL(0)) ? ec * sQ2[patIdx][state]
+          : ec * sQ2[patIdx][state] + es * sQ2[patIdx][state + (es > REAL(0) ? 1 : -1)]; }
+    KW_LOCAL_FENCE;
+
+    /* Sibling Phase 3 + Hadamard + write */
+    { if (patIdx < PADDED_STATE_COUNT) sBuf2[patIdx][state] = evec2[patIdx * PADDED_STATE_COUNT + state];
+      KW_LOCAL_FENCE;
+      REAL tmp = REAL(0);
+      for (int j = 0; j < PADDED_STATE_COUNT; j++) SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][j], tmp);
+      if (pattern < totalPatterns) partials3[u] = tmp * sP1[patIdx][state]; }
+}
+
 } // extern "C"
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * Adjoint cross-product kernels (4-state)
+ *
+ * For each branch, accumulates OP[ls,rs] = Σ_{k} w_k * w_c / L_k
+ *   * (dEvecT · pre_k)[ls] * (dIevc · post_k)[rs]
+ * over all patterns k (for one category, one branch), then applies the
+ * eigen-basis integral transform → gradient contribution.
+ *
+ * Matrix roles (see AdjointMethods.hpp):
+ *   evecT = dEvecT[ei]  — U stored row-major → block-peel gives (U^T · v)
+ *   ievc  = dIevc[ei]   — (U^{-1})^T row-major → block-peel gives (U^{-1} · v)
+ *
+ * Grid:  dim3(kCategoryCount) — one block per category, launched once per branch.
+ * Block: dim3(ADJOINT_BLOCK_SP4)
+ *
+ * dGradient[S*S] is accumulated via atomicAdd across all branch/category calls.
+ * ══════════════════════════════════════════════════════════════════════════*/
+
+#define ADJOINT_BLOCK_SP4   128
+#define ADJOINT_NWARPS_SP4  (ADJOINT_BLOCK_SP4 / 32)
+#define ADJOINT_SS4         (PADDED_STATE_COUNT * PADDED_STATE_COUNT)
+
+template <bool IsStates, bool IsAllReal>
+KW_GLOBAL_KERNEL void kernelAdjointCrossProductSpectral4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
+        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        int totalPatterns) {
+
+    const int tid = KW_LOCAL_ID_0;
+    const int cat = KW_GROUP_ID_0;
+
+    /* ── Shared memory ──────────────────────────────────────────────────── */
+    KW_LOCAL_MEM REAL sEvecT[ADJOINT_SS4];
+    KW_LOCAL_MEM REAL sIevc [ADJOINT_SS4];
+    KW_LOCAL_MEM REAL sEvalR[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sEvalI[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpat[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCosbt[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sSinbt[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatC[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatS[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sTime;
+    KW_LOCAL_MEM REAL sCatW;
+    KW_LOCAL_MEM REAL sWarp[ADJOINT_NWARPS_SP4][ADJOINT_SS4];
+    KW_LOCAL_MEM REAL sOp  [ADJOINT_SS4];
+
+    /* ── Load matrices and scalars ──────────────────────────────────────── */
+    if (tid < ADJOINT_SS4) { sEvecT[tid] = evecT[tid]; sIevc[tid] = ievc[tid]; }
+    if (tid < PADDED_STATE_COUNT) { sEvalR[tid] = eigenValues[tid]; sEvalI[tid] = eigenValues[PADDED_STATE_COUNT + tid]; }
+    if (tid == 0) { sTime = distances[cat]; sCatW = categoryWeights[cat]; }
+    KW_LOCAL_FENCE;
+
+    if (tid < PADDED_STATE_COUNT) {
+        const REAL t = sTime;
+        const REAL e = exp(sEvalR[tid] * t);
+        sExpat[tid] = e;
+        if (!IsAllReal) {
+            const REAL bt = sEvalI[tid] * t;
+            sCosbt[tid]  = cos(bt);
+            sSinbt[tid]  = sin(bt);
+            sExpatC[tid] = e * sCosbt[tid];
+            sExpatS[tid] = e * sSinbt[tid];
+        }
+    }
+    if (tid < ADJOINT_SS4) sOp[tid] = REAL(0);
+    KW_LOCAL_FENCE;
+
+    /* ── Register accumulators ──────────────────────────────────────────── */
+    REAL regOp[ADJOINT_SS4];
+    for (int i = 0; i < ADJOINT_SS4; i++) regOp[i] = REAL(0);
+
+    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
+
+    /* ── Pattern loop ───────────────────────────────────────────────────── */
+    for (int k = tid; k < totalPatterns; k += ADJOINT_BLOCK_SP4) {
+        /* Load pre-order partials */
+        REAL pre[PADDED_STATE_COUNT];
+        for (int s = 0; s < PADDED_STATE_COUNT; s++)
+            pre[s] = prePartials[catOff + k * PADDED_STATE_COUNT + s];
+
+        /* lhs[ls] = Σ_j evecT[j*S+ls] * pre[j] = (U^T · pre)[ls]
+         * dEvecT stores U row-major: evecT[j*S+ls] = U[j,ls] = U^T[ls,j] */
+        REAL lhs[PADDED_STATE_COUNT];
+        for (int ls = 0; ls < PADDED_STATE_COUNT; ls++) {
+            REAL q = REAL(0);
+            for (int j = 0; j < PADDED_STATE_COUNT; j++)
+                SPECTRAL_FMA(sEvecT[j * PADDED_STATE_COUNT + ls], pre[j], q);
+            lhs[ls] = q;
+        }
+
+        /* rhs[rs] = ievc[j*S+rs] · post[j]  (column-dot gives U^{-1} · post)
+         * or column lookup for tip states */
+        REAL rhs[PADDED_STATE_COUNT];
+        if constexpr (IsStates) {
+            const int s = tipStates[k];
+            if (s < PADDED_STATE_COUNT) {
+                for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
+                    rhs[rs] = sIevc[s * PADDED_STATE_COUNT + rs];
+            } else {
+                for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
+                    REAL sum = REAL(0);
+                    for (int j = 0; j < PADDED_STATE_COUNT; j++)
+                        sum += sIevc[j * PADDED_STATE_COUNT + rs];
+                    rhs[rs] = sum;
+                }
+            }
+        } else {
+            REAL post[PADDED_STATE_COUNT];
+            for (int s = 0; s < PADDED_STATE_COUNT; s++)
+                post[s] = postPartials[catOff + k * PADDED_STATE_COUNT + s];
+            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
+                REAL q = REAL(0);
+                for (int j = 0; j < PADDED_STATE_COUNT; j++)
+                    SPECTRAL_FMA(sIevc[j * PADDED_STATE_COUNT + rs], post[j], q);
+                rhs[rs] = q;
+            }
+        }
+
+        /* Accumulate scaled outer product */
+        const REAL sc = patternWeights[k] * sCatW / exp(perSiteLikelihoods[k]);
+        for (int ls = 0; ls < PADDED_STATE_COUNT; ls++) {
+            const REAL lv = lhs[ls] * sc;
+            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
+                regOp[ls * PADDED_STATE_COUNT + rs] += lv * rhs[rs];
+        }
+    }
+
+    /* ── Warp reduction ─────────────────────────────────────────────────── */
+    const unsigned int FMASK = 0xffffffff;
+    for (int i = 0; i < ADJOINT_SS4; i++)
+        for (int off = 16; off >= 1; off >>= 1)
+            regOp[i] += __shfl_down_sync(FMASK, regOp[i], off);
+
+    const int warpId = tid >> 5, laneId = tid & 31;
+    if (laneId == 0)
+        for (int i = 0; i < ADJOINT_SS4; i++) sWarp[warpId][i] = regOp[i];
+    KW_LOCAL_FENCE;
+
+    /* ── Sum warps → sOp, then apply integral transform ────────────────── */
+    if (tid == 0) {
+        for (int i = 0; i < ADJOINT_SS4; i++) {
+            REAL s = REAL(0);
+            for (int w = 0; w < ADJOINT_NWARPS_SP4; w++) s += sWarp[w][i];
+            sOp[i] = s;
+        }
+
+        const REAL t = sTime;
+        const int  S = PADDED_STATE_COUNT;
+
+        if constexpr (IsAllReal) {
+            for (int ls = 0; ls < S; ls++) {
+                const REAL la = sEvalR[ls], ea = sExpat[ls];
+                for (int rs = 0; rs < S; rs++) {
+                    const REAL lb    = sEvalR[rs];
+                    const REAL coeff = (t * fabsf(la - lb) < REAL(1e-12))
+                                       ? t * ea : (ea - sExpat[rs]) / (la - lb);
+                    atomicAdd(&dGradient[ls * S + rs], sOp[ls * S + rs] * coeff);
+                }
+            }
+        } else {
+            /* Complex eigenvalue integral transform.
+             * Classifies each (ls,rs) pair as 1×1, 1×2, 2×1, or 2×2 block
+             * based on imaginary eigenvalue sign. */
+            for (int ls = 0; ls < S; ) {
+                const REAL li = sEvalI[ls];
+                if (li == REAL(0)) {
+                    /* ls is real */
+                    for (int rs = 0; rs < S; ) {
+                        const REAL ri = sEvalI[rs];
+                        if (ri == REAL(0)) {
+                            /* 1×1: real × real */
+                            const REAL coeff = (t * fabsf(sEvalR[ls] - sEvalR[rs]) < REAL(1e-12))
+                                               ? t * sExpat[ls]
+                                               : (sExpat[ls] - sExpat[rs]) / (sEvalR[ls] - sEvalR[rs]);
+                            atomicAdd(&dGradient[ls * S + rs], sOp[ls * S + rs] * coeff);
+                            rs++;
+                        } else {
+                            /* 1×2: real × complex pair at rs, rs+1 */
+                            const REAL sr  = sEvalR[rs] - sEvalR[ls];
+                            const REAL den = sr * sr + ri * ri;
+                            REAL ic0, ic1;
+                            if (den < REAL(1e-12)) { ic0 = t; ic1 = REAL(0); }
+                            else {
+                                const REAL ex = sExpat[rs] / sExpat[ls];
+                                ic0 = (ex * (sr * sCosbt[rs] + ri * sSinbt[rs]) - sr) / den;
+                                ic1 = (ex * (sr * sSinbt[rs] - ri * sCosbt[rs]) + ri) / den;
+                            }
+                            const REAL c0 = sExpat[ls] * ic0, c1 = sExpat[ls] * ic1;
+                            const REAL in0 = sOp[ls*S+rs], in1 = sOp[ls*S+rs+1];
+                            atomicAdd(&dGradient[ls*S+rs],     c0*in0 + c1*in1);
+                            atomicAdd(&dGradient[ls*S+rs+1], -c1*in0 + c0*in1);
+                            rs += 2;
+                        }
+                    }
+                    ls++;
+                } else {
+                    /* ls is the first of a complex pair */
+                    const REAL lr = sEvalR[ls], li2 = li;
+                    const REAL ec = sExpatC[ls], es = sExpatS[ls];
+                    const REAL cI = sCosbt[ls],  sI = sSinbt[ls];
+                    for (int rs = 0; rs < S; ) {
+                        const REAL ri = sEvalI[rs];
+                        if (ri == REAL(0)) {
+                            /* 2×1: complex pair × real */
+                            const REAL sr  = sEvalR[rs] - lr;
+                            const REAL den = sr * sr + li2 * li2;
+                            REAL ic0, ic1;
+                            if (den < REAL(1e-12)) { ic0 = t; ic1 = REAL(0); }
+                            else {
+                                const REAL ex = sExpat[rs] / sExpat[ls];
+                                ic0 = (ex * (sr * cI + li2 * sI) - sr) / den;
+                                ic1 = (ex * (sr * sI - li2 * cI) + li2) / den;
+                            }
+                            const REAL p0 = ec*ic0 + es*ic1;
+                            const REAL p1 = ec*ic1 - es*ic0;
+                            const REAL p2 = es*ic0 - ec*ic1;
+                            const REAL p3 = es*ic1 + ec*ic0;
+                            const REAL in0 = sOp[ls*S+rs], in1 = sOp[(ls+1)*S+rs];
+                            atomicAdd(&dGradient[ls*S+rs],     p0*in0 + p1*in1);
+                            atomicAdd(&dGradient[(ls+1)*S+rs], p2*in0 + p3*in1);
+                            rs++;
+                        } else {
+                            /* 2×2: complex pair × complex pair */
+                            const REAL rr   = sEvalR[rs], ri2 = ri;
+                            const REAL sr   = rr - lr;
+                            const REAL si1  = li2 + ri2, si2 = ri2 - li2;
+                            const REAL sr2  = sr * sr;
+                            const REAL d1   = sr2 + si1*si1, d2 = sr2 + si2*si2;
+                            const REAL ex   = (d1 >= REAL(1e-12) || d2 >= REAL(1e-12))
+                                              ? sExpat[rs] / sExpat[ls] : REAL(0);
+                            const REAL clcr = cI*sCosbt[rs], slsr = sI*sSinbt[rs];
+                            const REAL clsr = cI*sSinbt[rs], slcr = sI*sCosbt[rs];
+                            REAL i1r, i1i;
+                            if (d1 < REAL(1e-12)) { i1r = t; i1i = REAL(0); }
+                            else {
+                                const REAL cs1 = clcr - slsr, sn1 = slcr + clsr;
+                                const REAL exc1 = ex*cs1 - REAL(1), exs1 = ex*sn1;
+                                i1r = (sr*exc1 + si1*exs1) / d1;
+                                i1i = (sr*exs1 - si1*exc1) / d1;
+                            }
+                            REAL i2r, i2i;
+                            if (d2 < REAL(1e-12)) { i2r = t; i2i = REAL(0); }
+                            else {
+                                const REAL cs2 = clcr + slsr, sn2 = clsr - slcr;
+                                const REAL exc2 = ex*cs2 - REAL(1), exs2 = ex*sn2;
+                                i2r = (sr*exc2 + si2*exs2) / d2;
+                                i2i = (sr*exs2 - si2*exc2) / d2;
+                            }
+                            const REAL pr  = ec*i1r + es*i1i, pi_ = ec*i1i - es*i1r;
+                            const REAL mr_ = ec*i2r - es*i2i, mi_ = ec*i2i + es*i2r;
+                            const REAL A = REAL(0.5)*(mr_+pr), B = REAL(0.5)*(mi_+pi_);
+                            const REAL C = REAL(0.5)*(pi_-mi_), D = REAL(0.5)*(mr_-pr);
+                            const REAL in00=sOp[ls*S+rs],    in01=sOp[ls*S+rs+1];
+                            const REAL in10=sOp[(ls+1)*S+rs],in11=sOp[(ls+1)*S+rs+1];
+                            atomicAdd(&dGradient[ls*S+rs],          A*in00+B*in01+C*in10+D*in11);
+                            atomicAdd(&dGradient[ls*S+rs+1],       -B*in00+A*in01-D*in10+C*in11);
+                            atomicAdd(&dGradient[(ls+1)*S+rs],     -C*in00-D*in01+A*in10+B*in11);
+                            atomicAdd(&dGradient[(ls+1)*S+rs+1],    D*in00-C*in01-B*in10+A*in11);
+                            rs += 2;
+                        }
+                    }
+                    ls += 2;
+                }
+            }
+        }
+    }
+}
+
+extern "C" {
+
+KW_GLOBAL_KERNEL void kernelAdjointCrossProductAllRealPartials4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        int totalPatterns) {
+    kernelAdjointCrossProductSpectral4<false, true>(
+        prePartials, postPartials, nullptr,
+        evecT, ievc, eigenValues, distances,
+        patternWeights, categoryWeights, perSiteLikelihoods,
+        dGradient, totalPatterns);
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointCrossProductAllRealStates4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
+        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        int totalPatterns) {
+    kernelAdjointCrossProductSpectral4<true, true>(
+        prePartials, nullptr, tipStates,
+        evecT, ievc, eigenValues, distances,
+        patternWeights, categoryWeights, perSiteLikelihoods,
+        dGradient, totalPatterns);
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointCrossProductComplexPartials4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        int totalPatterns) {
+    kernelAdjointCrossProductSpectral4<false, false>(
+        prePartials, postPartials, nullptr,
+        evecT, ievc, eigenValues, distances,
+        patternWeights, categoryWeights, perSiteLikelihoods,
+        dGradient, totalPatterns);
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointCrossProductComplexStates4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
+        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        int totalPatterns) {
+    kernelAdjointCrossProductSpectral4<true, false>(
+        prePartials, nullptr, tipStates,
+        evecT, ievc, eigenValues, distances,
+        patternWeights, categoryWeights, perSiteLikelihoods,
+        dGradient, totalPatterns);
+}
+
+} // extern "C" (adjoint 4-state)
 
 #endif // CUDA

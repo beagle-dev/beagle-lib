@@ -52,15 +52,26 @@ BEAGLE_GPU_TEMPLATE
 class BeagleGPUImpl : public BeagleImpl {
 
 
+protected:
+    long kFlags;
+
+    int kStateCount;
+    int kPaddedStateCount;     //   * kPaddedStateCount is a multiple of 16
+
+    GPUPtr* dStates;
+    GPUPtr* dPartials;
+
+    GPUPtr  dIntegrationTmp;
+    GPUPtr  dPatternWeights;
+    GPUPtr* dWeights;
+    GPUPtr* dFrequencies;
+
 private:
     int kInitialized;
-
-    long kFlags;
 
     int kTipCount;
     int kPartialsBufferCount;
     int kCompactBufferCount;
-    int kStateCount;
     int kPatternCount;
     int kEigenDecompCount;
 
@@ -69,8 +80,6 @@ private:
     int kBufferCount;
     int kScaleBufferCount;
 
-    int kPaddedStateCount;
-                                //   * kPaddedStateCount is a multiple of 16
     int kSumSitesBlockCount;
 
     int kPartialsSize;
@@ -83,7 +92,6 @@ private:
 
     int kResultPaddedPatterns;
 
-    GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
     GPUPtr dPartialsTmp;
@@ -96,8 +104,6 @@ private:
 
 	GPUPtr dMultipleDerivatives;
 	GPUPtr dMultipleDerivativeSum;
-
-    GPUPtr dPatternWeights;
 
     GPUPtr dBranchLengths;
 
@@ -112,14 +118,8 @@ private:
 
     GPUPtr dAccumulatedScalingFactors;
 
-    GPUPtr* dWeights;
-    GPUPtr* dFrequencies;
-
     GPUPtr* dScalingFactors;
 
-    GPUPtr* dStates;
-
-    GPUPtr* dPartials;
     GPUPtr* dMatrices;
     GPUPtr dMatricesOrigin;
     

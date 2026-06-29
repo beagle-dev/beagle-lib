@@ -39,6 +39,26 @@ private:
     GPUPtr* dSpectralDistances;
     int*    hEigenIndexForMatrix;
 
+    /* Backward eigenvector buffers for the parent branch in pre-order.
+     * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).
+     *               Used as ievc1 in Growing kernels (backward Phase 1: U^T·p).
+     * dIevcT[ei]  = U^-1 stored row-major (dIevcT[j*S+k] = U^-1[j,k]).
+     *               Used as evec1 in Growing kernels (backward Phase 3: (U^-1)^T·q).
+     * Allocated as one contiguous block each; sub-pointers per eigen index. */
+    GPUPtr  dEvecTOrigin;
+    GPUPtr* dEvecT;
+    GPUPtr  dIevcTOrigin;
+    GPUPtr* dIevcT;
+
+    /* Adjoint gradient buffers.
+     * dGradient: accumulated S×S gradient (one per eigen-decomposition).
+     * dOpBuf:    intermediate OP[cat*S*S + ls*S + rs] for generic-N phase 1.
+     * hEigenDecompIsAllReal: per-eigen flag; set in setEigenDecomposition. */
+    GPUPtr  dGradientOrigin;
+    GPUPtr* dGradient;
+    GPUPtr  dOpBuf;
+    bool*   hEigenDecompIsAllReal;
+
 public:
     BeagleGPUSpectralImpl();
     ~BeagleGPUSpectralImpl() override;
@@ -57,6 +77,11 @@ public:
                        long preferenceFlags,
                        long requirementFlags) override;
 
+    int setEigenDecomposition(int eigenIndex,
+                              const double* inEigenVectors,
+                              const double* inInverseEigenVectors,
+                              const double* inEigenValues) override;
+
     int updateTransitionMatrices(int eigenIndex,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
@@ -64,8 +89,28 @@ public:
                                  const double* edgeLengths,
                                  int count) override;
 
+    int updatePrePartials(const int* operations,
+                          int operationCount,
+                          int cumulativeScaleIndex,
+                          BeaglePartialsType partialsType) override;
+
+    int updatePrePartialsByPartition(const int* operations,
+                                     int operationCount,
+                                     BeaglePartialsType partialsType) override;
+
     char* getInstanceName() override;
     int getInstanceDetails(BeagleInstanceDetails* returnInfo) override;
+
+    int calculateAdjointCrossProducts(const int* postBufferIndices,
+                                      const int* preBufferIndices,
+                                      const int* eigenIndices,
+                                      const int* categoryRatesIndices,
+                                      const int* categoryWeightsIndices,
+                                      const int  rootPostOrderIndex,
+                                      const int  stateFrequenciesIndex,
+                                      int        count,
+                                      double*    outSumDerivatives,
+                                      double*    outSumSquaredDerivatives) override;
 
 protected:
     void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
@@ -83,6 +128,12 @@ protected:
                           GPUPtr scalingFactors, GPUPtr cumulativeScaling,
                           unsigned int startPattern, unsigned int endPattern,
                           int rescale, int streamIndex, int waitIndex) override;
+
+private:
+    void dispatchGrowingSpectral(bool isTop, bool isRoot,
+                                  GPUPtr partials1, GPUPtr c2, bool sibIsStates,
+                                  GPUPtr partials3,
+                                  int c1MatIdx, int c2MatIdx);
 };
 
 BEAGLE_GPU_TEMPLATE

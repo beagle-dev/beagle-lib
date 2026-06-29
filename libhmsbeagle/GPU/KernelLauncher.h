@@ -59,6 +59,24 @@ private:
 	GPUFunction fMultipleNodeSiteSquaredReduction;
 	GPUFunction fPartialsPartialsGrowing;
 	GPUFunction fPartialsStatesGrowing;
+    GPUFunction fPartialsPartialsGrowingSpectral;
+    GPUFunction fPartialsStatesGrowingSpectral;
+    GPUFunction fPartialsStatesGrowingTopSpectral;
+    GPUFunction fPartialsPartialsGrowingTopRootSpectral;
+    GPUFunction fPartialsStatesGrowingTopRootSpectral;
+
+    /* Adjoint cross-product kernels — 4-state */
+    GPUFunction fAdjointCrossProductAllRealPartials4;
+    GPUFunction fAdjointCrossProductAllRealStates4;
+    GPUFunction fAdjointCrossProductComplexPartials4;
+    GPUFunction fAdjointCrossProductComplexStates4;
+    /* Adjoint cross-product kernels — generic N-state (two-phase) */
+    GPUFunction fAdjointPhase1AllRealPartialsN;
+    GPUFunction fAdjointPhase1AllRealStatesN;
+    GPUFunction fAdjointPhase1ComplexPartialsN;
+    GPUFunction fAdjointPhase1ComplexStatesN;
+    GPUFunction fAdjointPhase2AllRealN;
+    GPUFunction fAdjointPhase2ComplexN;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -359,6 +377,96 @@ public:
                                  unsigned int patternCount,
                                  unsigned int categoryCount,
                                  int sizeReal);
+
+    /* Spectral Growing (pre-order) launchers.
+     * Bottom: dest = P_par^T·(P_sib·c_sib ⊙ p_par)   — chained.
+     * Top NotRoot PP: reuses PartialsPartialsPruningSpectral with backward
+     *                 matrices for child1 (no separate launcher needed).
+     * Top NotRoot PS: two independent transforms + Hadamard.
+     * Top Root PP/PS: sibling-only forward + Hadamard with root pre-order. */
+    void PartialsPartialsGrowingSpectral(GPUPtr partials1,
+                                         GPUPtr partials2,
+                                         GPUPtr partials3,
+                                         GPUPtr ievc1, GPUPtr evec1,
+                                         GPUPtr eigenValues1, GPUPtr distances1,
+                                         GPUPtr ievc2, GPUPtr evec2,
+                                         GPUPtr eigenValues2, GPUPtr distances2,
+                                         unsigned int patternCount,
+                                         unsigned int categoryCount);
+
+    void PartialsStatesGrowingSpectral(GPUPtr partials1,
+                                       GPUPtr states2,
+                                       GPUPtr partials3,
+                                       GPUPtr ievc1, GPUPtr evec1,
+                                       GPUPtr eigenValues1, GPUPtr distances1,
+                                       GPUPtr ievc2, GPUPtr evec2,
+                                       GPUPtr eigenValues2, GPUPtr distances2,
+                                       unsigned int patternCount,
+                                       unsigned int categoryCount);
+
+    void PartialsStatesGrowingSpectralTop(GPUPtr partials1,
+                                          GPUPtr states2,
+                                          GPUPtr partials3,
+                                          GPUPtr ievc1, GPUPtr evec1,
+                                          GPUPtr eigenValues1, GPUPtr distances1,
+                                          GPUPtr ievc2, GPUPtr evec2,
+                                          GPUPtr eigenValues2, GPUPtr distances2,
+                                          unsigned int patternCount,
+                                          unsigned int categoryCount);
+
+    void PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
+                                                GPUPtr partials2,
+                                                GPUPtr partials3,
+                                                GPUPtr ievc2, GPUPtr evec2,
+                                                GPUPtr eigenValues2, GPUPtr distances2,
+                                                unsigned int patternCount,
+                                                unsigned int categoryCount);
+
+    void PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
+                                              GPUPtr states2,
+                                              GPUPtr partials3,
+                                              GPUPtr ievc2, GPUPtr evec2,
+                                              GPUPtr eigenValues2, GPUPtr distances2,
+                                              unsigned int patternCount,
+                                              unsigned int categoryCount);
+
+    /* Adjoint cross-product launchers.
+     * isStates=true  → child is tip-states; isAllReal=true → all-real fast path.
+     * 4-state variant: single kernel per call.
+     * Generic-N variant: two-phase — call Phase1 then Phase2 per branch. */
+    void AdjointCrossProductSpectral4(bool isStates, bool isAllReal,
+                                      GPUPtr prePartials,
+                                      GPUPtr postOrStates,    /* partials or int* */
+                                      GPUPtr evecT,
+                                      GPUPtr ievc,
+                                      GPUPtr eigenValues,
+                                      GPUPtr distances,
+                                      GPUPtr patternWeights,
+                                      GPUPtr categoryWeights,
+                                      GPUPtr perSiteLikelihoods,
+                                      GPUPtr dGradient,
+                                      unsigned int patternCount,
+                                      unsigned int categoryCount);
+
+    void AdjointCrossProductPhase1SpectralN(bool isStates, bool isAllReal,
+                                            GPUPtr prePartials,
+                                            GPUPtr postOrStates,
+                                            GPUPtr evecT,
+                                            GPUPtr ievc,
+                                            GPUPtr distances,
+                                            GPUPtr patternWeights,
+                                            GPUPtr categoryWeights,
+                                            GPUPtr perSiteLikelihoods,
+                                            GPUPtr dOpBuf,
+                                            unsigned int patternCount,
+                                            unsigned int categoryCount);
+
+    void AdjointCrossProductPhase2SpectralN(bool isAllReal,
+                                            GPUPtr dOpBuf,
+                                            GPUPtr eigenValues,
+                                            GPUPtr distances,
+                                            GPUPtr dGradient,
+                                            unsigned int categoryCount);
 
 	void PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr states0,

@@ -88,7 +88,7 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition
     transposeInPlace(tIvec.data());
 
     adjointMethodsStorage[eigenIndex] = std::make_shared<AdjointIntegralPlan<REALTYPE>>(
-        eigenValuesStorage[eigenIndex].data(), kStateCount, false);
+        eigenValuesStorage[eigenIndex].data(), kStateCount, !isComplex);
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE

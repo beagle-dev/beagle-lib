@@ -4,6 +4,9 @@ add_executable(hmctest
 add_executable(hmctest5
 		hmctest/hmctest5.cpp)
 
+add_executable(adjointtest4
+		hmctest/adjointtest4.cpp)
+
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
 
@@ -50,6 +53,12 @@ target_link_libraries(hmctest5
 if(BUILD_SSE)
 	target_link_libraries(hmctest5 hmsbeagle-cpu-sse)
 endif(BUILD_SSE)
+
+target_link_libraries(adjointtest4
+	hmsbeagle
+	hmsbeagle-cpu
+	${BENCHMARK_LIBS}
+	${CMAKE_DL_LIBS})
 
 
 target_link_libraries(synthetictest
