@@ -206,43 +206,91 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
         const double* inEigenVectors,
         const double* inInverseEigenVectors,
         const double* inEigenValues) {
-    int rc = BeagleGPUImpl<Real>::setEigenDecomposition(eigenIndex, inEigenVectors,
-                                                         inInverseEigenVectors, inEigenValues);
-    if (rc != BEAGLE_SUCCESS) return rc;
-
+    // Built locally (not delegated to BeagleGPUImpl::setEigenDecomposition) so that every
+    // entry in [SC, S) is guaranteed zero rather than stale hMatrixCache scratch, and so
+    // column SC of every row can hold that row's row-sum (mirrors EigenDecompositionSpectral
+    // on the CPU side).
     const int S  = this->kPaddedStateCount;
     const int SC = this->kStateCount;
     const int SS = S * S;
+    // kEigenValuesSize is private to BeagleGPUImpl; recompute the same way it does.
+    const int eigenValuesSize = (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? 2 * S : S;
 
-    Real* EvecT  = (Real*) calloc(SS, sizeof(Real));
-    Real* IevcT  = (Real*) calloc(SS, sizeof(Real));
+    // Forward:  dEvec[row*S+col]  = U[col,row];    dIevc[row*S+col]  = U^-1[col,row]
+    // Backward: dEvecT[row*S+col] = U[row,col];    dIevcT[row*S+col] = U^-1[row,col]
+    Real* Evec  = (Real*) calloc(SS, sizeof(Real));
+    Real* Ievc  = (Real*) calloc(SS, sizeof(Real));
+    Real* EvecT = (Real*) calloc(SS, sizeof(Real));
+    Real* IevcT = (Real*) calloc(SS, sizeof(Real));
+    Real* Eval  = (Real*) calloc(eigenValuesSize, sizeof(Real));
+
+    for (int i = 0; i < SC; i++) {
+        Real rowSumEvec  = (Real) 0;
+        Real rowSumIevc  = (Real) 0;
+        Real rowSumEvecT = (Real) 0;
+        Real rowSumIevcT = (Real) 0;
+
+        for (int j = 0; j < SC; j++) {
+            Real evecVal  = (Real) inEigenVectors[j * SC + i];
+            Real evecTVal = (Real) inEigenVectors[i * SC + j];
+            Real ievcVal, ievcTVal;
+            if (this->kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
+                ievcVal  = (Real) inInverseEigenVectors[j * SC + i];
+                ievcTVal = (Real) inInverseEigenVectors[i * SC + j];
+            } else {
+                // INVEVEC_TRANSPOSED: input is (U^-1)^T
+                ievcVal  = (Real) inInverseEigenVectors[i * SC + j];
+                ievcTVal = (Real) inInverseEigenVectors[j * SC + i];
+            }
+
+            Evec[i * S + j]  = evecVal;
+            Ievc[i * S + j]  = ievcVal;
+            EvecT[i * S + j] = evecTVal;
+            IevcT[i * S + j] = ievcTVal;
+
+            rowSumEvec  += evecVal;
+            rowSumIevc  += ievcVal;
+            rowSumEvecT += evecTVal;
+            rowSumIevcT += ievcTVal;
+        }
+
+        // Column SC is only in the padding region when S > SC; when S == SC
+        // (e.g. 4- or 16-state, no padding gap) there is no spare column, and
+        // writing here would run one element past the end of these SS-sized
+        // buffers on the last row.
+        if (SC < S) {
+            Evec[i * S + SC]  = rowSumEvec;
+            Ievc[i * S + SC]  = rowSumIevc;
+            EvecT[i * S + SC] = rowSumEvecT;
+            IevcT[i * S + SC] = rowSumIevcT;
+        }
+    }
 
     for (int i = 0; i < SC; i++)
-        for (int j = 0; j < SC; j++)
-            EvecT[i * S + j] = (Real)inEigenVectors[i * SC + j];
-
-    if (this->kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
-        for (int i = 0; i < SC; i++)
-            for (int j = 0; j < SC; j++)
-                IevcT[i * S + j] = (Real)inInverseEigenVectors[i * SC + j];
-    } else {
-        // INVEVEC_TRANSPOSED: input is (U^-1)^T; transpose to get U^-1
-        for (int i = 0; i < SC; i++)
-            for (int j = 0; j < SC; j++)
-                IevcT[i * S + j] = (Real)inInverseEigenVectors[j * SC + i];
-    }
+        Eval[i] = (Real) inEigenValues[i];
 
     bool allReal = true;
     for (int i = 0; i < SC && allReal; i++)
         if (inEigenValues[SC + i] != 0.0) allReal = false;
     hEigenDecompIsAllReal[eigenIndex] = allReal;
 
+    if (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+        for (int i = 0; i < SC; i++)
+            Eval[S + i] = (Real) inEigenValues[SC + i];
+    }
+
     GPUInterface* gpuIf = this->gpu;
+    gpuIf->MemcpyHostToDevice(this->dEvec[eigenIndex],        Evec,  sizeof(Real) * SS);
+    gpuIf->MemcpyHostToDevice(this->dIevc[eigenIndex],        Ievc,  sizeof(Real) * SS);
+    gpuIf->MemcpyHostToDevice(this->dEigenValues[eigenIndex], Eval,  sizeof(Real) * eigenValuesSize);
     gpuIf->MemcpyHostToDevice(dEvecT[eigenIndex],  EvecT,  sizeof(Real) * SS);
     gpuIf->MemcpyHostToDevice(dIevcT[eigenIndex],  IevcT,  sizeof(Real) * SS);
 
+    free(Evec);
+    free(Ievc);
     free(EvecT);
     free(IevcT);
+    free(Eval);
     return BEAGLE_SUCCESS;
 }
 

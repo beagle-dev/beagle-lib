@@ -607,7 +607,10 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleSpectral(
     } \
     KW_LOCAL_FENCE;
 
-/* Scale only sQ1 (parent) by its eigenvalue exponentials. */
+/* Scale sQ1 (parent) by transposed eigenvalue exponentials D^T.
+ * For the backward (pre-order) pass, P^T = (U^{-1})^T · D^T · U^T.
+ * D^T for a complex conjugate pair negates the sin coupling term relative
+ * to the forward pass, so we subtract es1 instead of adding it. */
 #define SPECTRAL_PHASE2_PAR_GPU() \
     KW_LOCAL_FENCE; \
     { \
@@ -615,7 +618,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleSpectral(
         int  nb1 = state + (es1 > (REAL)0 ? 1 : -1); \
         sQ1[patIdx][state] = (es1 == (REAL)0) \
             ? ec1 * sQ1[patIdx][state] \
-            : ec1 * sQ1[patIdx][state] + es1 * sQ1[patIdx][nb1]; \
+            : ec1 * sQ1[patIdx][state] - es1 * sQ1[patIdx][nb1]; \
     } \
     KW_LOCAL_FENCE;
 
