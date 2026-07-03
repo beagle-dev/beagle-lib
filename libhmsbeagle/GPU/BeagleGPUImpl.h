@@ -214,6 +214,21 @@ protected:
 
     double** hCategoryRates;
 
+    /* Accessors for the pooled partials/states origins and their per-index
+     * element offsets, and the per-eigen-decomposition matrix/eigenvalue
+     * strides — needed by BeagleGPUSpectralImpl to build a single batched
+     * offset-queue kernel argument (mirrors this class's own dPtrQueue
+     * idiom) instead of resolving one GPUPtr per branch on the host. The
+     * offset accessors (not a naive index*stride recompute) are required
+     * for correctness across tip/pattern resorting, which swaps which
+     * physical buffer a logical index maps to. */
+    GPUPtr getPartialsOrigin() const { return dPartialsOrigin; }
+    GPUPtr getStatesOrigin() const { return dStatesOrigin; }
+    unsigned int getPartialsOffsetElements(int index) const { return hPartialsOffsets[index]; }
+    unsigned int getStatesOffsetElements(int index) const { return hStatesOffsets[index]; }
+    unsigned int getEvecStrideElements() const { return kEvecOffset; }
+    unsigned int getEvalStrideElements() const { return kEvalOffset; }
+
     virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                                   int c1MatIdx, int c2MatIdx,
                                   GPUPtr scalingFactors, GPUPtr cumulativeScaling,

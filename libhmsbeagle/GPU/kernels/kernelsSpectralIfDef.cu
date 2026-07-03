@@ -835,18 +835,22 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Adjoint cross-product kernels — generic N-state (OpenCL-compatible)
+ * Adjoint cross-product kernel — generic N-state (OpenCL-compatible)
  *
- * Phase 1: one block per (ls, category); block = ADJOINT_BLOCK_SP_N threads.
- *   Partials: all threads cooperate to peel ievc into sIevcBuf[BP][S].
- *             "Padded iteration" ensures all threads reach every barrier.
- *   States:   direct column lookup; no barriers inside the pattern loop.
- *   Reduction: column-by-column tree reduction through sRedBuf[128].
+ * Single launch, all branches at once (see kernelAdjointMergedN below):
+ * grid = (S, categoryCount, branchCount), block = ADJOINT_BLOCK_SP_N threads.
+ * One block computes one gradient row-group (a single real row, or a
+ * complex-conjugate pair) for one branch/category — pattern reduction and
+ * the integral-transform + atomicAdd both happen in that one block, no
+ * intermediate global scratch buffer. Per-branch buffers are resolved via
+ * a device offset-queue against pooled origins (see ADJOINT_QUEUE_STRIDE
+ * and kernelAdjointMergedN below) rather than passed individually.
  *
- * Phase 2: one block per category; block = PADDED_STATE_COUNT threads.
- *   Each thread handles one row ls of the gradient.
- *   Reads cross-row shared arrays (sExpat, sCosbt, etc.) written by all threads.
- *   atomicAdd via CAS-loop (OpenCL) / native (CUDA).
+ * This superseded an earlier two-phase (Phase1/Phase2 + global `dOpBuf`
+ * scratch) design, and an intermediate one-launch-per-branch / bucketed
+ * (up to 4 launches) design — both were implemented, verified, and
+ * benchmarked against this merged version before being removed; see
+ * STATUS.md/TODO.md for the full history and benchmark numbers.
  * ═══════════════════════════════════════════════════════════════════════════*/
 
 #if defined(FW_OPENCL) && defined(DOUBLE_PRECISION)
@@ -877,451 +881,311 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 #endif
 #endif /* ADJOINT_ATOMIC_ADD_GPU */
 
-/* ── Phase 1: Partials child ────────────────────────────────────────────── */
-/* Uses "padded iteration": rounds totalPatterns up to next multiple of
- * ADJOINT_BLOCK_SP_N so that all threads reach every barrier inside the
- * ievc block-peel loop.  Threads with k >= totalPatterns contribute lv=0. */
+#define ADJOINT_QUEUE_STRIDE 9
 
-KW_GLOBAL_KERNEL void kernelAdjointPhase1AllRealPartialsN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+/* Reduce a per-thread partial row (REGOP[PADDED_STATE_COUNT], one partial
+ * sum per rs, summed over this thread's strided patterns) across all
+ * threads in the block into DEST[PADDED_STATE_COUNT] (valid at tid==0,
+ * consistent with the accumulate-then-transform sequencing below since the
+ * transform is also applied by tid==0 only). Reuses sRedBuf; safe to call
+ * more than once per kernel invocation (each call's closing fence guards
+ * the next call's first write, identical reasoning to iterating one more
+ * `rs` in the original Phase-1 reduction loop). */
+#define ADJOINTN_REDUCE_ROW(REGOP, DEST) \
+    for (int _rs_r = 0; _rs_r < PADDED_STATE_COUNT; _rs_r++) { \
+        sRedBuf[tid] = (REGOP)[_rs_r]; \
+        KW_LOCAL_FENCE; \
+        for (int _str_r = ADJOINT_BLOCK_SP_N >> 1; _str_r >= 1; _str_r >>= 1) { \
+            if (tid < _str_r) sRedBuf[tid] += sRedBuf[tid + _str_r]; \
+            KW_LOCAL_FENCE; \
+        } \
+        if (tid == 0) (DEST)[_rs_r] = sRedBuf[0]; \
+    }
+
+/* Per-pattern accumulation for a Partials child, one gradient row (selected
+ * by EVECT_COL, a shared REAL[PADDED_STATE_COUNT] holding column `ls` or
+ * `ls+1` of evecT). Identical arithmetic to kernelAdjointPhase1*PartialsN;
+ * safe to invoke twice (pair-leader blocks) since it re-derives everything
+ * it needs from EVECT_COL/REGOP and only touches sIevcBuf/regOp-local state
+ * within its own braces. */
+#define ADJOINTN_ACCUM_PARTIALS_ROW(EVECT_COL, REGOP) \
+    { \
+        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) (REGOP)[_rs_a] = (REAL)0; \
+        for (int _iter_a = 0; _iter_a < maxIter; _iter_a++) { \
+            const int _k_a     = _iter_a * ADJOINT_BLOCK_SP_N + tid; \
+            const int _valid_a = (_k_a < totalPatterns); \
+            REAL _lhs_a = (REAL)0; \
+            REAL _lv_a  = (REAL)0; \
+            if (_valid_a) { \
+                for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++) \
+                    SPECTRAL_FMA((EVECT_COL)[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a); \
+                _lv_a = _lhs_a * (patternWeights[_k_a] * sCatW / exp(perSiteLikelihoods[_k_a])); \
+            } \
+            for (int _i_a = 0; _i_a < PADDED_STATE_COUNT; _i_a += BLOCK_PEELING_SIZE) { \
+                const int _elems_a = BLOCK_PEELING_SIZE * PADDED_STATE_COUNT; \
+                for (int _e_a = tid; _e_a < _elems_a; _e_a += ADJOINT_BLOCK_SP_N) { \
+                    const int _row_a = _e_a / PADDED_STATE_COUNT; \
+                    const int _col_a = _e_a % PADDED_STATE_COUNT; \
+                    sIevcBuf[_row_a][_col_a] = ievc[(_i_a + _row_a) * PADDED_STATE_COUNT + _col_a]; \
+                } \
+                KW_LOCAL_FENCE; \
+                if (_valid_a) { \
+                    for (int _jj_a = 0; _jj_a < BLOCK_PEELING_SIZE; _jj_a++) { \
+                        const REAL _pj_a = postPartials[catOff + _k_a*PADDED_STATE_COUNT + _i_a + _jj_a]; \
+                        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) \
+                            (REGOP)[_rs_a] += _lv_a * sIevcBuf[_jj_a][_rs_a] * _pj_a; \
+                    } \
+                } \
+                KW_LOCAL_FENCE; \
+            } \
+        } \
+    }
+
+/* Per-pattern accumulation for a States (tip) child — no barriers needed
+ * (mirrors kernelAdjointPhase1*StatesN). */
+#define ADJOINTN_ACCUM_STATES_ROW(EVECT_COL, REGOP) \
+    { \
+        for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) (REGOP)[_rs_s] = (REAL)0; \
+        for (int _k_s = tid; _k_s < totalPatterns; _k_s += ADJOINT_BLOCK_SP_N) { \
+            REAL _lhs_s = (REAL)0; \
+            for (int _j_s = 0; _j_s < PADDED_STATE_COUNT; _j_s++) \
+                SPECTRAL_FMA((EVECT_COL)[_j_s], prePartials[catOff + _k_s*PADDED_STATE_COUNT + _j_s], _lhs_s); \
+            const REAL _lv_s = _lhs_s * (patternWeights[_k_s] * sCatW / exp(perSiteLikelihoods[_k_s])); \
+            const int _st_s = tipStates[_k_s]; \
+            if (_st_s < PADDED_STATE_COUNT) { \
+                for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) \
+                    (REGOP)[_rs_s] += _lv_s * ievc[_st_s * PADDED_STATE_COUNT + _rs_s]; \
+            } else { \
+                for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) { \
+                    REAL _rhs_s = (REAL)0; \
+                    for (int _j_s = 0; _j_s < PADDED_STATE_COUNT; _j_s++) \
+                        _rhs_s += ievc[_j_s * PADDED_STATE_COUNT + _rs_s]; \
+                    (REGOP)[_rs_s] += _lv_s * _rhs_s; \
+                } \
+            } \
+        } \
+    }
+
+/* Apply the all-real integral transform to a single reduced row DEST[S] and
+ * atomicAdd into dGradient row `ROW`. Verbatim math from
+ * kernelAdjointPhase2AllRealN, tid==0 only (one block == one row already,
+ * unlike Phase2 where one thread per row shared a block). */
+#define ADJOINTN_APPLY_ALLREAL_ROW(DEST, ROW) \
+    if (tid == 0) { \
+        const int _S_p = PADDED_STATE_COUNT; \
+        const REAL _la_p = sEvalR[ROW], _ea_p = sExpat[ROW]; \
+        for (int _rs_p = 0; _rs_p < _S_p; _rs_p++) { \
+            const REAL _co_p = (t * fabs(_la_p - sEvalR[_rs_p]) < (REAL)1e-12) \
+                ? t * _ea_p : (_ea_p - sExpat[_rs_p]) / (_la_p - sEvalR[_rs_p]); \
+            ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ROW)*_S_p+_rs_p], (DEST)[_rs_p] * _co_p); \
+        } \
+    }
+
+/* Apply the complex-eigenvalue integral transform. Verbatim math from
+ * kernelAdjointPhase2ComplexN's two branches, tid==0 only, reading the
+ * shared reduced rows sOpRow0[S] (row `ls`) and, for the pair-leader case,
+ * sOpRow1[S] (row `ls+1`) instead of dOpBuf. */
+#define ADJOINTN_APPLY_COMPLEX_SINGLETON() \
+    if (tid == 0) { \
+        const int _S_c = PADDED_STATE_COUNT; \
+        const REAL _ea_c = sExpat[ls], _la_c = sEvalR[ls]; \
+        for (int _rs_c = 0; _rs_c < _S_c; ) { \
+            const REAL _ri_c = sEvalI[_rs_c]; \
+            if (_ri_c == (REAL)0) { \
+                const REAL _co_c = (t * fabs(_la_c - sEvalR[_rs_c]) < (REAL)1e-12) \
+                    ? t * _ea_c : (_ea_c - sExpat[_rs_c]) / (_la_c - sEvalR[_rs_c]); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c], sOpRow0[_rs_c] * _co_c); \
+                _rs_c++; \
+            } else { \
+                const REAL _sr_c = sEvalR[_rs_c] - _la_c; \
+                const REAL _dn_c = _sr_c*_sr_c + _ri_c*_ri_c; \
+                REAL _i0_c, _i1_c; \
+                if (_dn_c < (REAL)1e-12) { _i0_c = t; _i1_c = (REAL)0; } \
+                else { \
+                    const REAL _ex_c = sExpat[_rs_c] / _ea_c; \
+                    _i0_c = (_ex_c*(_sr_c*sCosbt[_rs_c]+_ri_c*sSinbt[_rs_c])-_sr_c)/_dn_c; \
+                    _i1_c = (_ex_c*(_sr_c*sSinbt[_rs_c]-_ri_c*sCosbt[_rs_c])+_ri_c)/_dn_c; \
+                } \
+                const REAL _c0_c = _ea_c*_i0_c, _c1_c = _ea_c*_i1_c; \
+                const REAL _n0_c = sOpRow0[_rs_c], _n1_c = sOpRow0[_rs_c+1]; \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c],     _c0_c*_n0_c+_c1_c*_n1_c); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c+1], -_c1_c*_n0_c+_c0_c*_n1_c); \
+                _rs_c += 2; \
+            } \
+        } \
+    }
+
+#define ADJOINTN_APPLY_COMPLEX_PAIRLEADER() \
+    if (tid == 0) { \
+        const int _S_q = PADDED_STATE_COUNT; \
+        const REAL _lr_q = sEvalR[ls], _li_q = sEvalI[ls]; \
+        const REAL _ec_q = sExpatC[ls], _es_q = sExpatS[ls]; \
+        const REAL _cI_q = sCosbt[ls],  _sI_q = sSinbt[ls]; \
+        const REAL _ea_q = sExpat[ls]; \
+        for (int _rs_q = 0; _rs_q < _S_q; ) { \
+            const REAL _ri_q = sEvalI[_rs_q]; \
+            if (_ri_q == (REAL)0) { \
+                const REAL _sr_q = sEvalR[_rs_q] - _lr_q; \
+                const REAL _dn_q = _sr_q*_sr_q + _li_q*_li_q; \
+                REAL _i0_q, _i1_q; \
+                if (_dn_q < (REAL)1e-12) { _i0_q = t; _i1_q = (REAL)0; } \
+                else { \
+                    const REAL _ex_q = sExpat[_rs_q] / _ea_q; \
+                    _i0_q = (_ex_q*(_sr_q*_cI_q+_li_q*_sI_q)-_sr_q)/_dn_q; \
+                    _i1_q = (_ex_q*(_sr_q*_sI_q-_li_q*_cI_q)+_li_q)/_dn_q; \
+                } \
+                const REAL _p0_q=_ec_q*_i0_q+_es_q*_i1_q, _p1_q=_ec_q*_i1_q-_es_q*_i0_q; \
+                const REAL _p2_q=_es_q*_i0_q-_ec_q*_i1_q, _p3_q=_es_q*_i1_q+_ec_q*_i0_q; \
+                const REAL _n0_q=sOpRow0[_rs_q], _n1_q=sOpRow1[_rs_q]; \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],     _p0_q*_n0_q+_p1_q*_n1_q); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q], _p2_q*_n0_q+_p3_q*_n1_q); \
+                _rs_q++; \
+            } else { \
+                const REAL _rr_q=sEvalR[_rs_q], _ri2_q=_ri_q; \
+                const REAL _sr_q=_rr_q-_lr_q, _si1_q=_li_q+_ri2_q, _si2_q=_ri2_q-_li_q; \
+                const REAL _sr2_q=_sr_q*_sr_q; \
+                const REAL _d1_q=_sr2_q+_si1_q*_si1_q, _d2_q=_sr2_q+_si2_q*_si2_q; \
+                const REAL _ex_q=(_d1_q>=(REAL)1e-12||_d2_q>=(REAL)1e-12) ? sExpat[_rs_q]/_ea_q : (REAL)0; \
+                const REAL _clcr_q=_cI_q*sCosbt[_rs_q], _slsr_q=_sI_q*sSinbt[_rs_q]; \
+                const REAL _clsr_q=_cI_q*sSinbt[_rs_q], _slcr_q=_sI_q*sCosbt[_rs_q]; \
+                REAL _i1r_q,_i1i_q; \
+                if (_d1_q<(REAL)1e-12){_i1r_q=t;_i1i_q=(REAL)0;} \
+                else{ \
+                    const REAL _cs1_q=_clcr_q-_slsr_q, _sn1_q=_slcr_q+_clsr_q; \
+                    _i1r_q=(_sr_q*(_ex_q*_cs1_q-(REAL)1)+_si1_q*_ex_q*_sn1_q)/_d1_q; \
+                    _i1i_q=(_sr_q*_ex_q*_sn1_q-_si1_q*(_ex_q*_cs1_q-(REAL)1))/_d1_q; \
+                } \
+                REAL _i2r_q,_i2i_q; \
+                if (_d2_q<(REAL)1e-12){_i2r_q=t;_i2i_q=(REAL)0;} \
+                else{ \
+                    const REAL _cs2_q=_clcr_q+_slsr_q, _sn2_q=_clsr_q-_slcr_q; \
+                    _i2r_q=(_sr_q*(_ex_q*_cs2_q-(REAL)1)+_si2_q*_ex_q*_sn2_q)/_d2_q; \
+                    _i2i_q=(_sr_q*_ex_q*_sn2_q-_si2_q*(_ex_q*_cs2_q-(REAL)1))/_d2_q; \
+                } \
+                const REAL _pr_q=_ec_q*_i1r_q+_es_q*_i1i_q, _pi_q=_ec_q*_i1i_q-_es_q*_i1r_q; \
+                const REAL _mr_q=_ec_q*_i2r_q-_es_q*_i2i_q, _mi_q=_ec_q*_i2i_q+_es_q*_i2r_q; \
+                const REAL _A_q=(REAL)0.5*(_mr_q+_pr_q), _B_q=(REAL)0.5*(_mi_q+_pi_q); \
+                const REAL _C_q=(REAL)0.5*(_pi_q-_mi_q), _D_q=(REAL)0.5*(_mr_q-_pr_q); \
+                const REAL _n00_q=sOpRow0[_rs_q],  _n01_q=sOpRow0[_rs_q+1]; \
+                const REAL _n10_q=sOpRow1[_rs_q], _n11_q=sOpRow1[_rs_q+1]; \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],          _A_q*_n00_q+_B_q*_n01_q+_C_q*_n10_q+_D_q*_n11_q); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q+1],       -_B_q*_n00_q+_A_q*_n01_q-_D_q*_n10_q+_C_q*_n11_q); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q],     -_C_q*_n00_q-_D_q*_n01_q+_A_q*_n10_q+_B_q*_n11_q); \
+                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q+1],    _D_q*_n00_q-_C_q*_n01_q-_B_q*_n10_q+_A_q*_n11_q); \
+                _rs_q += 2; \
+            } \
+        } \
+    }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Adjoint cross-product kernel — generic N-state, MERGED single launch
+ * (Stage 3 of the single-launch redesign — see STATUS.md/TODO.md)
+ *
+ * One kernel, one launch covering every branch in a call regardless of
+ * (isStates,isAllReal) — grid.z spans all `count` branches, not a bucket.
+ * `isStates`/`isAllReal` are read per-block from the offset-queue record
+ * (fields 2 and 8) and branched on at runtime; since both are uniform
+ * across every thread in a block (same record for the whole block), this
+ * costs a branch, not warp/wavefront divergence. Reuses the exact same
+ * ADJOINTN_* macros as the fused/batched kernels above — no math
+ * duplicated, only the dispatch is different.
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+KW_GLOBAL_KERNEL void kernelAdjointMergedN(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
         int totalPatterns) {
 
-    const int tid = KW_LOCAL_ID_0;
-    const int ls  = KW_GROUP_ID_0;
-    const int cat = KW_GROUP_ID_1;
+    const int tid    = KW_LOCAL_ID_0;
+    const int ls     = KW_GROUP_ID_0;
+    const int cat    = KW_GROUP_ID_1;
+    const int branch = KW_GROUP_ID_2;
+    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
 
-    KW_LOCAL_MEM REAL sEvecTCol[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sIevcBuf [BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
+    const bool isStates  = (rec[2] != 0u);
+    const bool isAllReal = (rec[8] != 0u);
+
+    KW_GLOBAL_VAR REAL* prePartials  = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* postPartials = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  tipStates    = statesOrigin    + rec[1];
+    KW_GLOBAL_VAR REAL* evecT        = evecTOrigin     + rec[3];
+    KW_GLOBAL_VAR REAL* ievc         = ievcOrigin      + rec[4];
+    KW_GLOBAL_VAR REAL* eigenValues  = evalOrigin      + rec[5];
+    KW_GLOBAL_VAR REAL* distances    = distOrigin      + rec[6];
+    KW_GLOBAL_VAR REAL* dGradient    = gradientOrigin  + rec[7];
+
+    KW_LOCAL_MEM REAL sEvecTCol [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sEvecTCol1[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sIevcBuf  [BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sCatW;
-    KW_LOCAL_MEM REAL sRedBuf  [ADJOINT_BLOCK_SP_N];
+    KW_LOCAL_MEM REAL sRedBuf   [ADJOINT_BLOCK_SP_N];
+    KW_LOCAL_MEM REAL sEvalR    [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sEvalI    [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpat    [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCosbt    [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sSinbt    [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatC   [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatS   [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sOpRow0   [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sOpRow1   [PADDED_STATE_COUNT];
 
-    if (tid < PADDED_STATE_COUNT) sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
-    if (tid == 0)                 sCatW = categoryWeights[cat];
-    KW_LOCAL_FENCE;
-
-    REAL regOp[PADDED_STATE_COUNT];
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) regOp[rs] = (REAL)0;
-
-    const int catOff  = cat * totalPatterns * PADDED_STATE_COUNT;
-    const int maxIter = (totalPatterns + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
-
-    for (int iter = 0; iter < maxIter; iter++) {
-        const int k     = iter * ADJOINT_BLOCK_SP_N + tid;
-        const int valid = (k < totalPatterns);
-
-        REAL lhsLs = (REAL)0;
-        REAL lv    = (REAL)0;
-        if (valid) {
-            for (int j = 0; j < PADDED_STATE_COUNT; j++)
-                SPECTRAL_FMA(sEvecTCol[j], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhsLs);
-            lv = lhsLs * (patternWeights[k] * sCatW / exp(perSiteLikelihoods[k]));
-        }
-
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-            const int elems = BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            for (int e = tid; e < elems; e += ADJOINT_BLOCK_SP_N) {
-                const int row = e / PADDED_STATE_COUNT;
-                const int col = e % PADDED_STATE_COUNT;
-                sIevcBuf[row][col] = ievc[(i + row) * PADDED_STATE_COUNT + col];
-            }
-            KW_LOCAL_FENCE;
-            if (valid) {
-                for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-                    const REAL pj = postPartials[catOff + k*PADDED_STATE_COUNT + i + j];
-                    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
-                        regOp[rs] += lv * sIevcBuf[j][rs] * pj;
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
+    if (tid < PADDED_STATE_COUNT) {
+        sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
+        sEvalR[tid]    = eigenValues[tid];
+        sEvalI[tid]    = isAllReal ? (REAL)0 : eigenValues[PADDED_STATE_COUNT + tid];
     }
-
-    /* Column-by-column tree reduction → write dOpBuf */
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-        sRedBuf[tid] = regOp[rs];
-        KW_LOCAL_FENCE;
-        for (int stride = ADJOINT_BLOCK_SP_N >> 1; stride >= 1; stride >>= 1) {
-            if (tid < stride) sRedBuf[tid] += sRedBuf[tid + stride];
-            KW_LOCAL_FENCE;
-        }
-        if (tid == 0)
-            dOpBuf[cat*PADDED_STATE_COUNT*PADDED_STATE_COUNT + ls*PADDED_STATE_COUNT + rs] = sRedBuf[0];
-    }
-}
-
-/* ── Phase 1: States child ──────────────────────────────────────────────── */
-/* No barriers inside the pattern loop → standard strided iteration is safe. */
-
-KW_GLOBAL_KERNEL void kernelAdjointPhase1AllRealStatesN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
-        int totalPatterns) {
-
-    const int tid = KW_LOCAL_ID_0;
-    const int ls  = KW_GROUP_ID_0;
-    const int cat = KW_GROUP_ID_1;
-
-    KW_LOCAL_MEM REAL sEvecTCol[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCatW;
-    KW_LOCAL_MEM REAL sRedBuf  [ADJOINT_BLOCK_SP_N];
-
-    if (tid < PADDED_STATE_COUNT) sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
-    if (tid == 0)                 sCatW = categoryWeights[cat];
-    KW_LOCAL_FENCE;
-
-    REAL regOp[PADDED_STATE_COUNT];
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) regOp[rs] = (REAL)0;
-
-    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-
-    for (int k = tid; k < totalPatterns; k += ADJOINT_BLOCK_SP_N) {
-        REAL lhsLs = (REAL)0;
-        for (int j = 0; j < PADDED_STATE_COUNT; j++)
-            SPECTRAL_FMA(sEvecTCol[j], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhsLs);
-        const REAL lv = lhsLs * (patternWeights[k] * sCatW / exp(perSiteLikelihoods[k]));
-
-        const int s = tipStates[k];
-        if (s < PADDED_STATE_COUNT) {
-            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
-                regOp[rs] += lv * ievc[s * PADDED_STATE_COUNT + rs];
-        } else {
-            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-                REAL rhs = (REAL)0;
-                for (int j = 0; j < PADDED_STATE_COUNT; j++)
-                    rhs += ievc[j * PADDED_STATE_COUNT + rs];
-                regOp[rs] += lv * rhs;
-            }
-        }
-    }
-
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-        sRedBuf[tid] = regOp[rs];
-        KW_LOCAL_FENCE;
-        for (int stride = ADJOINT_BLOCK_SP_N >> 1; stride >= 1; stride >>= 1) {
-            if (tid < stride) sRedBuf[tid] += sRedBuf[tid + stride];
-            KW_LOCAL_FENCE;
-        }
-        if (tid == 0)
-            dOpBuf[cat*PADDED_STATE_COUNT*PADDED_STATE_COUNT + ls*PADDED_STATE_COUNT + rs] = sRedBuf[0];
-    }
-}
-
-/* AllReal and Complex Phase 1 bodies are identical — the complex flag only
- * matters in Phase 2.  Provide all four required function names. */
-
-KW_GLOBAL_KERNEL void kernelAdjointPhase1ComplexPartialsN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
-        int totalPatterns) {
-
-    const int tid = KW_LOCAL_ID_0;
-    const int ls  = KW_GROUP_ID_0;
-    const int cat = KW_GROUP_ID_1;
-
-    KW_LOCAL_MEM REAL sEvecTCol[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sIevcBuf [BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCatW;
-    KW_LOCAL_MEM REAL sRedBuf  [ADJOINT_BLOCK_SP_N];
-
-    if (tid < PADDED_STATE_COUNT) sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
-    if (tid == 0)                 sCatW = categoryWeights[cat];
-    KW_LOCAL_FENCE;
-
-    REAL regOp[PADDED_STATE_COUNT];
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) regOp[rs] = (REAL)0;
-
-    const int catOff  = cat * totalPatterns * PADDED_STATE_COUNT;
-    const int maxIter = (totalPatterns + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
-
-    for (int iter = 0; iter < maxIter; iter++) {
-        const int k     = iter * ADJOINT_BLOCK_SP_N + tid;
-        const int valid = (k < totalPatterns);
-
-        REAL lhsLs = (REAL)0;
-        REAL lv    = (REAL)0;
-        if (valid) {
-            for (int j = 0; j < PADDED_STATE_COUNT; j++)
-                SPECTRAL_FMA(sEvecTCol[j], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhsLs);
-            lv = lhsLs * (patternWeights[k] * sCatW / exp(perSiteLikelihoods[k]));
-        }
-
-        for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
-            const int elems = BLOCK_PEELING_SIZE * PADDED_STATE_COUNT;
-            for (int e = tid; e < elems; e += ADJOINT_BLOCK_SP_N) {
-                const int row = e / PADDED_STATE_COUNT;
-                const int col = e % PADDED_STATE_COUNT;
-                sIevcBuf[row][col] = ievc[(i + row) * PADDED_STATE_COUNT + col];
-            }
-            KW_LOCAL_FENCE;
-            if (valid) {
-                for (int j = 0; j < BLOCK_PEELING_SIZE; j++) {
-                    const REAL pj = postPartials[catOff + k*PADDED_STATE_COUNT + i + j];
-                    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
-                        regOp[rs] += lv * sIevcBuf[j][rs] * pj;
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-    }
-
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-        sRedBuf[tid] = regOp[rs];
-        KW_LOCAL_FENCE;
-        for (int stride = ADJOINT_BLOCK_SP_N >> 1; stride >= 1; stride >>= 1) {
-            if (tid < stride) sRedBuf[tid] += sRedBuf[tid + stride];
-            KW_LOCAL_FENCE;
-        }
-        if (tid == 0)
-            dOpBuf[cat*PADDED_STATE_COUNT*PADDED_STATE_COUNT + ls*PADDED_STATE_COUNT + rs] = sRedBuf[0];
-    }
-}
-
-KW_GLOBAL_KERNEL void kernelAdjointPhase1ComplexStatesN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
-        int totalPatterns) {
-
-    const int tid = KW_LOCAL_ID_0;
-    const int ls  = KW_GROUP_ID_0;
-    const int cat = KW_GROUP_ID_1;
-
-    KW_LOCAL_MEM REAL sEvecTCol[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCatW;
-    KW_LOCAL_MEM REAL sRedBuf  [ADJOINT_BLOCK_SP_N];
-
-    if (tid < PADDED_STATE_COUNT) sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
-    if (tid == 0)                 sCatW = categoryWeights[cat];
-    KW_LOCAL_FENCE;
-
-    REAL regOp[PADDED_STATE_COUNT];
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) regOp[rs] = (REAL)0;
-
-    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-
-    for (int k = tid; k < totalPatterns; k += ADJOINT_BLOCK_SP_N) {
-        REAL lhsLs = (REAL)0;
-        for (int j = 0; j < PADDED_STATE_COUNT; j++)
-            SPECTRAL_FMA(sEvecTCol[j], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhsLs);
-        const REAL lv = lhsLs * (patternWeights[k] * sCatW / exp(perSiteLikelihoods[k]));
-
-        const int s = tipStates[k];
-        if (s < PADDED_STATE_COUNT) {
-            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
-                regOp[rs] += lv * ievc[s * PADDED_STATE_COUNT + rs];
-        } else {
-            for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-                REAL rhs = (REAL)0;
-                for (int j = 0; j < PADDED_STATE_COUNT; j++)
-                    rhs += ievc[j * PADDED_STATE_COUNT + rs];
-                regOp[rs] += lv * rhs;
-            }
-        }
-    }
-
-    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) {
-        sRedBuf[tid] = regOp[rs];
-        KW_LOCAL_FENCE;
-        for (int stride = ADJOINT_BLOCK_SP_N >> 1; stride >= 1; stride >>= 1) {
-            if (tid < stride) sRedBuf[tid] += sRedBuf[tid + stride];
-            KW_LOCAL_FENCE;
-        }
-        if (tid == 0)
-            dOpBuf[cat*PADDED_STATE_COUNT*PADDED_STATE_COUNT + ls*PADDED_STATE_COUNT + rs] = sRedBuf[0];
-    }
-}
-
-/* ── Phase 2: integral transform + atomicAdd ────────────────────────────── */
-/* Block = PADDED_STATE_COUNT threads (one per ls); grid = (categoryCount).
- * Each thread writes its eigenvalue data to shared memory first, then all
- * threads read cross-ls values after the fence. */
-
-KW_GLOBAL_KERNEL void kernelAdjointPhase2AllRealN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient) {
-
-    const int ls  = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
-
-    KW_LOCAL_MEM REAL sEvalR[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpat[PADDED_STATE_COUNT];
-
-    sEvalR[ls] = eigenValues[ls];
+    if (tid == 0) sCatW = categoryWeights[cat];
     KW_LOCAL_FENCE;
 
     const REAL t = distances[cat];
-    sExpat[ls] = exp(sEvalR[ls] * t);
-    KW_LOCAL_FENCE;
+    const int catOff  = cat * totalPatterns * PADDED_STATE_COUNT;
+    const int maxIter = (totalPatterns + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
+    REAL regOp[PADDED_STATE_COUNT];
 
-    const int S     = PADDED_STATE_COUNT;
-    const int opOff = cat * S * S + ls * S;
-    const REAL ea   = sExpat[ls];
-    const REAL la   = sEvalR[ls];
+    if (isAllReal) {
+        if (tid < PADDED_STATE_COUNT) sExpat[tid] = exp(sEvalR[tid] * t);
+        KW_LOCAL_FENCE;
 
-    for (int rs = 0; rs < S; rs++) {
-        const REAL coeff = (t * fabs(la - sEvalR[rs]) < (REAL)1e-12)
-            ? t * ea : (ea - sExpat[rs]) / (la - sEvalR[rs]);
-        ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs], dOpBuf[opOff+rs] * coeff);
-    }
-}
-
-KW_GLOBAL_KERNEL void kernelAdjointPhase2ComplexN(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dOpBuf,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient) {
-
-    const int ls  = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
-
-    KW_LOCAL_MEM REAL sEvalR [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sEvalI [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpat [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCosbt [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sSinbt [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpatC[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpatS[PADDED_STATE_COUNT];
-
-    sEvalR[ls] = eigenValues[ls];
-    sEvalI[ls] = eigenValues[PADDED_STATE_COUNT + ls];
-    KW_LOCAL_FENCE;
-
-    /* All threads write sExpat/sincos so both fences are always reached. */
-    const REAL t = distances[cat];
-    const REAL e = exp(sEvalR[ls] * t);
-    sExpat[ls] = e;
-    REAL sv, cv;
-    SPECTRAL_SINCOS(sEvalI[ls] * t, sv, cv);
-    sCosbt[ls] = cv; sSinbt[ls] = sv;
-    sExpatC[ls] = e * cv; sExpatS[ls] = e * sv;
-    KW_LOCAL_FENCE;
-
-    /* Second member of complex pair: its row is handled by ls-1. */
-    if (sEvalI[ls] < (REAL)0) return;
-
-    const int S     = PADDED_STATE_COUNT;
-    const int opOff = cat * S * S + ls * S;
-    const REAL ea   = sExpat[ls];
-    const REAL la   = sEvalR[ls];
-    const REAL li   = sEvalI[ls];
-
-    if (li == (REAL)0) {
-        /* ls is real */
-        for (int rs = 0; rs < S; ) {
-            const REAL ri = sEvalI[rs];
-            if (ri == (REAL)0) {
-                /* 1×1 */
-                const REAL coeff = (t * fabs(la - sEvalR[rs]) < (REAL)1e-12)
-                    ? t * ea : (ea - sExpat[rs]) / (la - sEvalR[rs]);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs], dOpBuf[opOff+rs] * coeff);
-                rs++;
-            } else {
-                /* 1×2 */
-                const REAL sr  = sEvalR[rs] - la;
-                const REAL den = sr*sr + ri*ri;
-                REAL ic0, ic1;
-                if (den < (REAL)1e-12) { ic0 = t; ic1 = (REAL)0; }
-                else {
-                    const REAL ex = sExpat[rs] / ea;
-                    ic0 = (ex*(sr*sCosbt[rs]+ri*sSinbt[rs])-sr)/den;
-                    ic1 = (ex*(sr*sSinbt[rs]-ri*sCosbt[rs])+ri)/den;
-                }
-                const REAL c0 = ea*ic0, c1 = ea*ic1;
-                const REAL in0 = dOpBuf[opOff+rs], in1 = dOpBuf[opOff+rs+1];
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs],     c0*in0+c1*in1);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs+1], -c1*in0+c0*in1);
-                rs += 2;
-            }
-        }
+        if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol, regOp) }
+        else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol, regOp) }
+        ADJOINTN_REDUCE_ROW(regOp, sOpRow0)
+        ADJOINTN_APPLY_ALLREAL_ROW(sOpRow0, ls)
     } else {
-        /* ls is first of complex pair — read both rows from dOpBuf */
-        const REAL ec   = sExpatC[ls], es = sExpatS[ls];
-        const REAL cI   = sCosbt[ls],  sI = sSinbt[ls];
-        const int opOff1 = cat * S * S + (ls + 1) * S;
-        for (int rs = 0; rs < S; ) {
-            const REAL ri = sEvalI[rs];
-            if (ri == (REAL)0) {
-                /* 2×1 */
-                const REAL sr  = sEvalR[rs] - la;
-                const REAL den = sr*sr + li*li;
-                REAL ic0, ic1;
-                if (den < (REAL)1e-12) { ic0 = t; ic1 = (REAL)0; }
-                else {
-                    const REAL ex = sExpat[rs] / ea;
-                    ic0 = (ex*(sr*cI+li*sI)-sr)/den;
-                    ic1 = (ex*(sr*sI-li*cI)+li)/den;
-                }
-                const REAL p0=ec*ic0+es*ic1, p1=ec*ic1-es*ic0;
-                const REAL p2=es*ic0-ec*ic1, p3=es*ic1+ec*ic0;
-                const REAL in0=dOpBuf[opOff+rs], in1=dOpBuf[opOff1+rs];
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs],     p0*in0+p1*in1);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*S+rs], p2*in0+p3*in1);
-                rs++;
-            } else {
-                /* 2×2 */
-                const REAL rr=sEvalR[rs], ri2=ri;
-                const REAL sr=rr-la, si1=li+ri2, si2=ri2-li;
-                const REAL sr2=sr*sr;
-                const REAL d1=sr2+si1*si1, d2=sr2+si2*si2;
-                const REAL ex=(d1>=(REAL)1e-12||d2>=(REAL)1e-12) ? sExpat[rs]/ea : (REAL)0;
-                const REAL clcr=cI*sCosbt[rs], slsr=sI*sSinbt[rs];
-                const REAL clsr=cI*sSinbt[rs], slcr=sI*sCosbt[rs];
-                REAL i1r,i1i;
-                if (d1<(REAL)1e-12){i1r=t;i1i=(REAL)0;}
-                else{
-                    const REAL cs1=clcr-slsr, sn1=slcr+clsr;
-                    i1r=(sr*(ex*cs1-(REAL)1)+si1*ex*sn1)/d1;
-                    i1i=(sr*ex*sn1-si1*(ex*cs1-(REAL)1))/d1;
-                }
-                REAL i2r,i2i;
-                if (d2<(REAL)1e-12){i2r=t;i2i=(REAL)0;}
-                else{
-                    const REAL cs2=clcr+slsr, sn2=clsr-slcr;
-                    i2r=(sr*(ex*cs2-(REAL)1)+si2*ex*sn2)/d2;
-                    i2i=(sr*ex*sn2-si2*(ex*cs2-(REAL)1))/d2;
-                }
-                const REAL pr=ec*i1r+es*i1i, pi_=ec*i1i-es*i1r;
-                const REAL mr_=ec*i2r-es*i2i, mi_=ec*i2i+es*i2r;
-                const REAL A=(REAL)0.5*(mr_+pr), B=(REAL)0.5*(mi_+pi_);
-                const REAL C=(REAL)0.5*(pi_-mi_), D=(REAL)0.5*(mr_-pr);
-                const REAL in00=dOpBuf[opOff+rs],  in01=dOpBuf[opOff+rs+1];
-                const REAL in10=dOpBuf[opOff1+rs], in11=dOpBuf[opOff1+rs+1];
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs],          A*in00+B*in01+C*in10+D*in11);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*S+rs+1],       -B*in00+A*in01-D*in10+C*in11);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*S+rs],     -C*in00-D*in01+A*in10+B*in11);
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*S+rs+1],    D*in00-C*in01-B*in10+A*in11);
-                rs += 2;
-            }
+        if (sEvalI[ls] < (REAL)0) return;
+        const bool isPairLeader = (sEvalI[ls] > (REAL)0);
+        if (isPairLeader && tid < PADDED_STATE_COUNT)
+            sEvecTCol1[tid] = evecT[tid * PADDED_STATE_COUNT + (ls+1)];
+
+        if (tid < PADDED_STATE_COUNT) {
+            const REAL e = exp(sEvalR[tid] * t);
+            sExpat[tid] = e;
+            REAL sv, cv;
+            SPECTRAL_SINCOS(sEvalI[tid] * t, sv, cv);
+            sCosbt[tid] = cv; sSinbt[tid] = sv;
+            sExpatC[tid] = e * cv; sExpatS[tid] = e * sv;
+        }
+        KW_LOCAL_FENCE;
+
+        if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol, regOp) }
+        else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol, regOp) }
+        ADJOINTN_REDUCE_ROW(regOp, sOpRow0)
+
+        if (isPairLeader) {
+            if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol1, regOp) }
+            else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol1, regOp) }
+            ADJOINTN_REDUCE_ROW(regOp, sOpRow1)
+            ADJOINTN_APPLY_COMPLEX_PAIRLEADER()
+        } else {
+            ADJOINTN_APPLY_COMPLEX_SINGLETON()
         }
     }
 }

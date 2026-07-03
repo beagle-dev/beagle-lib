@@ -65,18 +65,12 @@ private:
     GPUFunction fPartialsPartialsGrowingTopRootSpectral;
     GPUFunction fPartialsStatesGrowingTopRootSpectral;
 
-    /* Adjoint cross-product kernels — 4-state */
-    GPUFunction fAdjointCrossProductAllRealPartials4;
-    GPUFunction fAdjointCrossProductAllRealStates4;
-    GPUFunction fAdjointCrossProductComplexPartials4;
-    GPUFunction fAdjointCrossProductComplexStates4;
-    /* Adjoint cross-product kernels — generic N-state (two-phase) */
-    GPUFunction fAdjointPhase1AllRealPartialsN;
-    GPUFunction fAdjointPhase1AllRealStatesN;
-    GPUFunction fAdjointPhase1ComplexPartialsN;
-    GPUFunction fAdjointPhase1ComplexStatesN;
-    GPUFunction fAdjointPhase2AllRealN;
-    GPUFunction fAdjointPhase2ComplexN;
+    /* Adjoint cross-product kernel — generic N-state, merged single launch
+     * (see STATUS.md/TODO.md — supersedes earlier two-phase, fused, and
+     * bucketed designs, all verified and benchmarked before removal) */
+    GPUFunction fAdjointMergedN;
+    /* Adjoint cross-product kernel — 4-state, merged single launch */
+    GPUFunction fAdjointMerged4;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -430,43 +424,40 @@ public:
                                               unsigned int patternCount,
                                               unsigned int categoryCount);
 
-    /* Adjoint cross-product launchers.
-     * isStates=true  → child is tip-states; isAllReal=true → all-real fast path.
-     * 4-state variant: single kernel per call.
-     * Generic-N variant: two-phase — call Phase1 then Phase2 per branch. */
-    void AdjointCrossProductSpectral4(bool isStates, bool isAllReal,
-                                      GPUPtr prePartials,
-                                      GPUPtr postOrStates,    /* partials or int* */
-                                      GPUPtr evecT,
-                                      GPUPtr ievc,
-                                      GPUPtr eigenValues,
-                                      GPUPtr distances,
-                                      GPUPtr patternWeights,
-                                      GPUPtr categoryWeights,
-                                      GPUPtr perSiteLikelihoods,
-                                      GPUPtr dGradient,
-                                      unsigned int patternCount,
-                                      unsigned int categoryCount);
-
-    void AdjointCrossProductPhase1SpectralN(bool isStates, bool isAllReal,
-                                            GPUPtr prePartials,
-                                            GPUPtr postOrStates,
-                                            GPUPtr evecT,
-                                            GPUPtr ievc,
-                                            GPUPtr distances,
+    /* Adjoint cross-product launchers — merged single launch covers every
+     * branch in a call at once (grid spans branchCount), isStates/isAllReal
+     * read per-block from a device offset-queue rather than selecting among
+     * kernel functions. See STATUS.md/TODO.md for the earlier per-branch/
+     * two-phase/fused/bucketed designs these superseded. */
+    void AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
+                                            GPUPtr statesOrigin,
+                                            GPUPtr evecTOrigin,
+                                            GPUPtr ievcOrigin,
+                                            GPUPtr evalOrigin,
+                                            GPUPtr distOrigin,
                                             GPUPtr patternWeights,
                                             GPUPtr categoryWeights,
                                             GPUPtr perSiteLikelihoods,
-                                            GPUPtr dOpBuf,
+                                            GPUPtr gradientOrigin,
+                                            GPUPtr adjointQueue,
                                             unsigned int patternCount,
-                                            unsigned int categoryCount);
+                                            unsigned int categoryCount,
+                                            int branchCount);
 
-    void AdjointCrossProductPhase2SpectralN(bool isAllReal,
-                                            GPUPtr dOpBuf,
-                                            GPUPtr eigenValues,
-                                            GPUPtr distances,
-                                            GPUPtr dGradient,
-                                            unsigned int categoryCount);
+    void AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
+                                            GPUPtr statesOrigin,
+                                            GPUPtr evecTOrigin,
+                                            GPUPtr ievcOrigin,
+                                            GPUPtr evalOrigin,
+                                            GPUPtr distOrigin,
+                                            GPUPtr patternWeights,
+                                            GPUPtr categoryWeights,
+                                            GPUPtr perSiteLikelihoods,
+                                            GPUPtr gradientOrigin,
+                                            GPUPtr adjointQueue,
+                                            unsigned int patternCount,
+                                            unsigned int categoryCount,
+                                            int branchCount);
 
 	void PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr states0,

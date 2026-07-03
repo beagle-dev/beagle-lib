@@ -1135,100 +1135,73 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 
 /* ── Named kernel functions ────────────────────────────────────────────── */
 
-KW_GLOBAL_KERNEL void kernelAdjointCrossProductAllRealPartials4(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
-        int totalPatterns) {
-    const int tid = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
-    ADJOINT4_ALLREAL_SMEM()
-    ADJOINT4_LOAD_ALLREAL(evecT, ievc, eigenValues, distances, categoryWeights)
-    REAL regOp[ADJOINT_SS4];
-    for (int _i = 0; _i < ADJOINT_SS4; _i++) regOp[_i] = (REAL)0;
-    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-    ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff)
-    ADJOINT4_REDUCE()
-    ADJOINT4_APPLY_ALLREAL(dGradient)
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Adjoint cross-product kernel — 4-state, MERGED single launch across
+ * branches (see STATUS.md/TODO.md — mirrors kernelAdjointMergedN's design
+ * for the generic-N path). grid = (categoryCount, branchCount); every
+ * branch's buffers are resolved via the same 9-field-per-branch device
+ * offset-queue layout used by the N-state merged kernel. `kernelsSpectralIfDef.cu`
+ * and `kernelsSpectralIfDef4.cu` are never compiled into the same OpenCL
+ * program (one per state count — see `make_opencl_spectral_kernels.sh`), so
+ * `ADJOINT_QUEUE_STRIDE` is redefined locally here rather than shared.
+ * `isStates`/`isAllReal` are read per-block from the queue and branched on
+ * at runtime (block-uniform, no divergence cost) instead of selecting among
+ * 4 kernel functions. `ADJOINT4_COMPLEX_SMEM()` is a superset of
+ * `ADJOINT4_ALLREAL_SMEM()`, so declaring it unconditionally covers both
+ * cases. ═══════════════════════════════════════════════════════════════*/
 
-KW_GLOBAL_KERNEL void kernelAdjointCrossProductAllRealStates4(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
-        int totalPatterns) {
-    const int tid = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
-    ADJOINT4_ALLREAL_SMEM()
-    ADJOINT4_LOAD_ALLREAL(evecT, ievc, eigenValues, distances, categoryWeights)
-    REAL regOp[ADJOINT_SS4];
-    for (int _i = 0; _i < ADJOINT_SS4; _i++) regOp[_i] = (REAL)0;
-    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-    ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff)
-    ADJOINT4_REDUCE()
-    ADJOINT4_APPLY_ALLREAL(dGradient)
-}
+#define ADJOINT_QUEUE_STRIDE 9
 
-KW_GLOBAL_KERNEL void kernelAdjointCrossProductComplexPartials4(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT postPartials,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
+KW_GLOBAL_KERNEL void kernelAdjointMerged4(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
         int totalPatterns) {
-    const int tid = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
+
+    const int tid    = KW_LOCAL_ID_0;
+    const int cat    = KW_GROUP_ID_0;
+    const int branch = KW_GROUP_ID_1;
+    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
+
+    const bool isStates  = (rec[2] != 0u);
+    const bool isAllReal = (rec[8] != 0u);
+
+    KW_GLOBAL_VAR REAL* prePartials  = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* postPartials = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  tipStates    = statesOrigin    + rec[1];
+    KW_GLOBAL_VAR REAL* evecT        = evecTOrigin     + rec[3];
+    KW_GLOBAL_VAR REAL* ievc         = ievcOrigin      + rec[4];
+    KW_GLOBAL_VAR REAL* eigenValues  = evalOrigin      + rec[5];
+    KW_GLOBAL_VAR REAL* distances    = distOrigin      + rec[6];
+    KW_GLOBAL_VAR REAL* dGradient    = gradientOrigin  + rec[7];
+
     ADJOINT4_COMPLEX_SMEM()
-    ADJOINT4_LOAD_COMPLEX(evecT, ievc, eigenValues, distances, categoryWeights)
-    REAL regOp[ADJOINT_SS4];
-    for (int _i = 0; _i < ADJOINT_SS4; _i++) regOp[_i] = (REAL)0;
-    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-    ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff)
-    ADJOINT4_REDUCE()
-    ADJOINT4_APPLY_COMPLEX(dGradient)
-}
 
-KW_GLOBAL_KERNEL void kernelAdjointCrossProductComplexStates4(
-        KW_GLOBAL_VAR REAL* KW_RESTRICT prePartials,
-        KW_GLOBAL_VAR int*  KW_RESTRICT tipStates,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT distances,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT dGradient,
-        int totalPatterns) {
-    const int tid = KW_LOCAL_ID_0;
-    const int cat = KW_GROUP_ID_0;
-    ADJOINT4_COMPLEX_SMEM()
-    ADJOINT4_LOAD_COMPLEX(evecT, ievc, eigenValues, distances, categoryWeights)
     REAL regOp[ADJOINT_SS4];
     for (int _i = 0; _i < ADJOINT_SS4; _i++) regOp[_i] = (REAL)0;
     const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
-    ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff)
-    ADJOINT4_REDUCE()
-    ADJOINT4_APPLY_COMPLEX(dGradient)
+
+    if (isAllReal) {
+        ADJOINT4_LOAD_ALLREAL(evecT, ievc, eigenValues, distances, categoryWeights)
+        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff) }
+        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff) }
+        ADJOINT4_REDUCE()
+        ADJOINT4_APPLY_ALLREAL(dGradient)
+    } else {
+        ADJOINT4_LOAD_COMPLEX(evecT, ievc, eigenValues, distances, categoryWeights)
+        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff) }
+        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff) }
+        ADJOINT4_REDUCE()
+        ADJOINT4_APPLY_COMPLEX(dGradient)
+    }
 }
 
 #ifdef CUDA

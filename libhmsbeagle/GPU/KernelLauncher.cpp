@@ -70,6 +70,9 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     kMatrixBlockSize = gpu->kernelResource->matrixBlockSize;
     kSumSitesBlockSize = SUM_SITES_BLOCK_SIZE;
     kFlags = gpu->kernelResource->flags;
+    if (getenv("ADJBENCH_DEBUG_BLOCKSIZE"))
+        fprintf(stderr, "DEBUG kPaddedStateCount=%d kPatternBlockSize=%d\n",
+                kPaddedStateCount, kPatternBlockSize);
 
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
@@ -311,17 +314,9 @@ void KernelLauncher::LoadKernels() {
         fPartialsStatesGrowingTopRootSpectral  = gpu->GetFunction("kernelPartialsStatesGrowingTopRootSpectral");
 
         if (kPaddedStateCount == 4) {
-            fAdjointCrossProductAllRealPartials4 = gpu->GetFunction("kernelAdjointCrossProductAllRealPartials4");
-            fAdjointCrossProductAllRealStates4   = gpu->GetFunction("kernelAdjointCrossProductAllRealStates4");
-            fAdjointCrossProductComplexPartials4 = gpu->GetFunction("kernelAdjointCrossProductComplexPartials4");
-            fAdjointCrossProductComplexStates4   = gpu->GetFunction("kernelAdjointCrossProductComplexStates4");
+            fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
         } else {
-            fAdjointPhase1AllRealPartialsN = gpu->GetFunction("kernelAdjointPhase1AllRealPartialsN");
-            fAdjointPhase1AllRealStatesN   = gpu->GetFunction("kernelAdjointPhase1AllRealStatesN");
-            fAdjointPhase1ComplexPartialsN = gpu->GetFunction("kernelAdjointPhase1ComplexPartialsN");
-            fAdjointPhase1ComplexStatesN   = gpu->GetFunction("kernelAdjointPhase1ComplexStatesN");
-            fAdjointPhase2AllRealN         = gpu->GetFunction("kernelAdjointPhase2AllRealN");
-            fAdjointPhase2ComplexN         = gpu->GetFunction("kernelAdjointPhase2ComplexN");
+            fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
         }
     }
 
@@ -1128,70 +1123,54 @@ void KernelLauncher::PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
 }
 
 
-void KernelLauncher::AdjointCrossProductSpectral4(bool isStates, bool isAllReal,
-                                                  GPUPtr prePartials,
-                                                  GPUPtr postOrStates,
-                                                  GPUPtr evecT,
-                                                  GPUPtr ievc,
-                                                  GPUPtr eigenValues,
-                                                  GPUPtr distances,
-                                                  GPUPtr patternWeights,
-                                                  GPUPtr categoryWeights,
-                                                  GPUPtr perSiteLikelihoods,
-                                                  GPUPtr dGradient,
-                                                  unsigned int patternCount,
-                                                  unsigned int categoryCount) {
-    GPUFunction func = isStates
-        ? (isAllReal ? fAdjointCrossProductAllRealStates4 : fAdjointCrossProductComplexStates4)
-        : (isAllReal ? fAdjointCrossProductAllRealPartials4 : fAdjointCrossProductComplexPartials4);
+void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
+                                                         GPUPtr statesOrigin,
+                                                         GPUPtr evecTOrigin,
+                                                         GPUPtr ievcOrigin,
+                                                         GPUPtr evalOrigin,
+                                                         GPUPtr distOrigin,
+                                                         GPUPtr patternWeights,
+                                                         GPUPtr categoryWeights,
+                                                         GPUPtr perSiteLikelihoods,
+                                                         GPUPtr gradientOrigin,
+                                                         GPUPtr adjointQueue,
+                                                         unsigned int patternCount,
+                                                         unsigned int categoryCount,
+                                                         int branchCount) {
     Dim3Int block(128);
-    Dim3Int grid(categoryCount);
-    gpu->LaunchKernel(func, block, grid, 10, 11,
-        prePartials, postOrStates, evecT, ievc, eigenValues,
-        distances, patternWeights, categoryWeights,
-        perSiteLikelihoods, dGradient,
+    Dim3Int grid(categoryCount, branchCount);
+    gpu->LaunchKernel(fAdjointMerged4, block, grid, 11, 12,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        gradientOrigin, adjointQueue,
         (int)patternCount);
     gpu->SynchronizeDevice();
 }
 
-void KernelLauncher::AdjointCrossProductPhase1SpectralN(bool isStates, bool isAllReal,
-                                                        GPUPtr prePartials,
-                                                        GPUPtr postOrStates,
-                                                        GPUPtr evecT,
-                                                        GPUPtr ievc,
-                                                        GPUPtr distances,
-                                                        GPUPtr patternWeights,
-                                                        GPUPtr categoryWeights,
-                                                        GPUPtr perSiteLikelihoods,
-                                                        GPUPtr dOpBuf,
-                                                        unsigned int patternCount,
-                                                        unsigned int categoryCount) {
-    GPUFunction func = isStates
-        ? (isAllReal ? fAdjointPhase1AllRealStatesN : fAdjointPhase1ComplexStatesN)
-        : (isAllReal ? fAdjointPhase1AllRealPartialsN : fAdjointPhase1ComplexPartialsN);
+void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
+                                                         GPUPtr statesOrigin,
+                                                         GPUPtr evecTOrigin,
+                                                         GPUPtr ievcOrigin,
+                                                         GPUPtr evalOrigin,
+                                                         GPUPtr distOrigin,
+                                                         GPUPtr patternWeights,
+                                                         GPUPtr categoryWeights,
+                                                         GPUPtr perSiteLikelihoods,
+                                                         GPUPtr gradientOrigin,
+                                                         GPUPtr adjointQueue,
+                                                         unsigned int patternCount,
+                                                         unsigned int categoryCount,
+                                                         int branchCount) {
     Dim3Int block(128);
-    Dim3Int grid(kPaddedStateCount, categoryCount);
-    gpu->LaunchKernel(func, block, grid, 9, 10,
-        prePartials, postOrStates, evecT, ievc,
-        distances, patternWeights, categoryWeights,
-        perSiteLikelihoods, dOpBuf,
+    Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
+    gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 12,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        gradientOrigin, adjointQueue,
         (int)patternCount);
     gpu->SynchronizeDevice();
 }
 
-void KernelLauncher::AdjointCrossProductPhase2SpectralN(bool isAllReal,
-                                                        GPUPtr dOpBuf,
-                                                        GPUPtr eigenValues,
-                                                        GPUPtr distances,
-                                                        GPUPtr dGradient,
-                                                        unsigned int categoryCount) {
-    GPUFunction func = isAllReal ? fAdjointPhase2AllRealN : fAdjointPhase2ComplexN;
-    Dim3Int block(kPaddedStateCount);
-    Dim3Int grid(categoryCount);
-    gpu->LaunchKernel(func, block, grid, 4, 4,
-        dOpBuf, eigenValues, distances, dGradient);
-    gpu->SynchronizeDevice();
-}
 
 void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1,
                                                            GPUPtr partials2,

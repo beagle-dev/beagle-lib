@@ -423,6 +423,8 @@ void GPUInterface::SetDevice(int deviceNumber,
         strcat(buildDefs, "-D FW_OPENCL_AMDGPU -D FW_OPENCL_APPLEAMDGPU");
     }  else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU) {
         strcat(buildDefs, "-D FW_OPENCL_INTELGPU -D FW_OPENCL_APPLEINTELGPU");
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU) {
+        strcat(buildDefs, "-D FW_OPENCL_AMDGPU");
     }
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);

@@ -35,7 +35,8 @@ BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
-      dGradientOrigin(0), dGradient(NULL), dOpBuf(0), hEigenDecompIsAllReal(NULL) {
+      dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
+      dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0) {
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -46,7 +47,8 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
         if (dEvecTOrigin)             gpuIf->FreeMemory(dEvecTOrigin);
         if (dIevcTOrigin)             gpuIf->FreeMemory(dIevcTOrigin);
         if (dGradientOrigin)          gpuIf->FreeMemory(dGradientOrigin);
-        if (dOpBuf)                   gpuIf->FreeMemory(dOpBuf);
+        if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
+        if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
     }
     free(dSpectralDistances);
     free(dEvecT);
@@ -107,10 +109,6 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     for (int i = 0; i < eigenDecompositionCount; i++) {
         dGradient[i] = gpuIf->CreateSubPointer(dGradientOrigin, matStride * i, matStride);
     }
-
-    /* Phase-1 scratch for generic-N adjoint: C × S × S reals. */
-    size_t opBufStride = (size_t)this->kCategoryCount * (size_t)S * S * sizeof(Real);
-    dOpBuf = gpuIf->AllocateMemory(opBufStride);
 
     hEigenDecompIsAllReal = (bool*) calloc(eigenDecompositionCount, sizeof(bool));
 
@@ -545,10 +543,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         this->kPaddedPatternCount,
         this->kCategoryCount);
 
-    /* Allocate host zero-buffers once, reused for device-zeroing inside the loop. */
-    const size_t opBufSize = (size_t)this->kCategoryCount * SS;
+    /* Allocate host zero-buffer once, reused for device-zeroing inside the loop. */
     Real* hZeroGrad  = (Real*) gpuIf->CallocHost(sizeof(Real), SS);
-    Real* hZeroOpBuf = (S > 4) ? (Real*) gpuIf->CallocHost(sizeof(Real), opBufSize) : NULL;
 
     /* Zero the gradient accumulator for each eigen decomposition used. */
     for (int i = 0; i < count; i++) {
@@ -556,50 +552,71 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         gpuIf->MemcpyHostToDevice(dGradient[ei], hZeroGrad, SS * sizeof(Real));
     }
 
-    /* Process each branch. */
-    for (int i = 0; i < count; i++) {
-        const int postIdx = postBufferIndices[i];
-        const int preIdx  = preBufferIndices[i];
-        const int matIdx  = eigenIndices[i];
-        const int ei      = hEigenIndexForMatrix[matIdx];
+    GPUPtr catW = this->dWeights[cwIdx];
 
-        bool isStates  = (this->dStates[postIdx] != 0);
-        bool isAllReal = hEigenDecompIsAllReal[ei];
+    if (count > 0) {
+        /* Merged single-launch path (both S=4 and generic-N): build one
+         * offset-queue record per branch (single buffer, integer offsets
+         * into pooled origins — never per-branch device pointers), then one
+         * launch covers every branch at once; isStates/isAllReal are read
+         * per-block from the queue at runtime, so branch order doesn't
+         * matter here. This design won an A/B benchmark (generic-N) against
+         * a bucketed (up to 4 launches, grouped by isStates/isAllReal)
+         * alternative — see STATUS.md for the numbers; the S=4 path reuses
+         * the same queue format and dispatch style without repeating that
+         * A/B (same shape of result expected). */
+        if (count > kAdjointQueueCapacity) {
+            if (dAdjointQueue) gpuIf->FreeMemory(dAdjointQueue);
+            if (hAdjointQueue) gpuIf->FreeHostMemory(hAdjointQueue);
+            kAdjointQueueCapacity = count;
+            dAdjointQueue = gpuIf->AllocateMemory(
+                sizeof(unsigned int) * kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+            hAdjointQueue = (unsigned int*) gpuIf->CallocHost(
+                sizeof(unsigned int), kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+        }
 
-        GPUPtr prePtr  = this->dPartials[preIdx];
-        GPUPtr postPtr = isStates ? this->dStates[postIdx] : this->dPartials[postIdx];
-        GPUPtr evecT   = dEvecT[ei];
-        GPUPtr ievc    = this->dIevc[ei];
-        GPUPtr evalPtr = this->dEigenValues[ei];
-        GPUPtr distPtr = dSpectralDistances[matIdx];
-        GPUPtr catW    = this->dWeights[cwIdx];
+        for (int i = 0; i < count; i++) {
+            const int postIdx = postBufferIndices[i];
+            const int preIdx  = preBufferIndices[i];
+            const int matIdx  = eigenIndices[i];
+            const int ei      = hEigenIndexForMatrix[matIdx];
+            const bool isStates  = (this->dStates[postIdx] != 0);
+            const bool isAllReal = hEigenDecompIsAllReal[ei];
+            unsigned int* rec = hAdjointQueue + (size_t)i * kAdjointQueueFieldsPerBranch;
+
+            rec[0] = this->getPartialsOffsetElements(preIdx);
+            rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
+                               : this->getPartialsOffsetElements(postIdx);
+            rec[2] = isStates ? 1u : 0u;
+            rec[3] = (unsigned int)ei * SS;
+            rec[4] = (unsigned int)ei * this->getEvecStrideElements();
+            rec[5] = (unsigned int)ei * this->getEvalStrideElements();
+            rec[6] = (unsigned int)matIdx * this->kCategoryCount;
+            rec[7] = (unsigned int)ei * SS;
+            rec[8] = isAllReal ? 1u : 0u;
+        }
+
+        gpuIf->MemcpyHostToDevice(dAdjointQueue, hAdjointQueue,
+            sizeof(unsigned int) * count * kAdjointQueueFieldsPerBranch);
 
         if (S == 4) {
-            this->kernels->AdjointCrossProductSpectral4(
-                isStates, isAllReal,
-                prePtr, postPtr, evecT, ievc, evalPtr,
-                distPtr, this->dPatternWeights, catW,
-                this->dIntegrationTmp, dGradient[ei],
-                this->kPaddedPatternCount, this->kCategoryCount);
+            this->kernels->AdjointCrossProductMergedSpectral4(
+                this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                this->dIevc[0], this->dEigenValues[0],
+                dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
+                this->kPaddedPatternCount, this->kCategoryCount, count);
         } else {
-            /* Zero the phase-1 scratch buffer for this branch. */
-            gpuIf->MemcpyHostToDevice(dOpBuf, hZeroOpBuf, opBufSize * sizeof(Real));
-            this->kernels->AdjointCrossProductPhase1SpectralN(
-                isStates, isAllReal,
-                prePtr, postPtr, evecT, ievc,
-                distPtr, this->dPatternWeights, catW,
-                this->dIntegrationTmp, dOpBuf,
-                this->kPaddedPatternCount, this->kCategoryCount);
-            this->kernels->AdjointCrossProductPhase2SpectralN(
-                isAllReal,
-                dOpBuf, evalPtr, distPtr,
-                dGradient[ei],
-                this->kCategoryCount);
+            this->kernels->AdjointCrossProductMergedSpectralN(
+                this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                this->dIevc[0], this->dEigenValues[0],
+                dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
+                this->kPaddedPatternCount, this->kCategoryCount, count);
         }
     }
 
     gpuIf->FreeHostMemory(hZeroGrad);
-    if (hZeroOpBuf) gpuIf->FreeHostMemory(hZeroOpBuf);
 
     /* Download gradient to host.  The first eigen decomp's gradient is the
      * primary output.  Convert Real→double. */

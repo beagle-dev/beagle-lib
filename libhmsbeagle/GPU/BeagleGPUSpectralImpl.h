@@ -52,12 +52,21 @@ private:
 
     /* Adjoint gradient buffers.
      * dGradient: accumulated S×S gradient (one per eigen-decomposition).
-     * dOpBuf:    intermediate OP[cat*S*S + ls*S + rs] for generic-N phase 1.
      * hEigenDecompIsAllReal: per-eigen flag; set in setEigenDecomposition. */
     GPUPtr  dGradientOrigin;
     GPUPtr* dGradient;
-    GPUPtr  dOpBuf;
     bool*   hEigenDecompIsAllReal;
+
+    /* Offset-queue for the batched adjoint kernel: one 9-unsigned-int record
+     * per branch (see STATUS.md for the field layout), addressed via
+     * integer offsets into the pooled partials/states/evec/ievc/eigenvalue/
+     * distance/gradient origins — never per-branch device pointers. Grown
+     * lazily since branch count varies per calculateAdjointCrossProducts
+     * call and isn't known at createInstance time. */
+    static const int kAdjointQueueFieldsPerBranch = 9;
+    GPUPtr        dAdjointQueue;
+    unsigned int* hAdjointQueue;
+    int           kAdjointQueueCapacity;
 
 public:
     BeagleGPUSpectralImpl();
