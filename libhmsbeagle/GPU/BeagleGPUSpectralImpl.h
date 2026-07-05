@@ -68,6 +68,11 @@ private:
     unsigned int* hAdjointQueue;
     int           kAdjointQueueCapacity;
 
+    /* BeagleGPUImpl::kEigenDecompCount is private to the base class; kept
+     * here too so calculateAdjointCrossProducts can size a "seen ei" set
+     * for the dGradient zero-fill without re-deriving it. */
+    int kSpectralEigenDecompCount;
+
 public:
     BeagleGPUSpectralImpl();
     ~BeagleGPUSpectralImpl() override;

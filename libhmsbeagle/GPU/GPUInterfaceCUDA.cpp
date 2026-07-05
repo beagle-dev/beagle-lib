@@ -689,6 +689,20 @@ void GPUInterface::MemsetShort(GPUPtr dest,
 
 }
 
+void GPUInterface::MemsetZero(GPUPtr dest,
+                              size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetZero\n");
+#endif
+
+    SAFE_CUPP(cuMemsetD8Async(dest, 0, memSize, cudaStreams[0]));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetZero\n");
+#endif
+
+}
+
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
                                       size_t memSize) {

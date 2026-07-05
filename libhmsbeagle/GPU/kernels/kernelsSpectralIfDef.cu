@@ -883,87 +883,86 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 
 #define ADJOINT_QUEUE_STRIDE 9
 
-/* Reduce a per-thread partial row (REGOP[PADDED_STATE_COUNT], one partial
- * sum per rs, summed over this thread's strided patterns) across all
- * threads in the block into DEST[PADDED_STATE_COUNT] (valid at tid==0,
- * consistent with the accumulate-then-transform sequencing below since the
- * transform is also applied by tid==0 only). Reuses sRedBuf; safe to call
- * more than once per kernel invocation (each call's closing fence guards
- * the next call's first write, identical reasoning to iterating one more
- * `rs` in the original Phase-1 reduction loop). */
-#define ADJOINTN_REDUCE_ROW(REGOP, DEST) \
-    for (int _rs_r = 0; _rs_r < PADDED_STATE_COUNT; _rs_r++) { \
-        sRedBuf[tid] = (REGOP)[_rs_r]; \
-        KW_LOCAL_FENCE; \
-        for (int _str_r = ADJOINT_BLOCK_SP_N >> 1; _str_r >= 1; _str_r >>= 1) { \
-            if (tid < _str_r) sRedBuf[tid] += sRedBuf[tid + _str_r]; \
-            KW_LOCAL_FENCE; \
-        } \
-        if (tid == 0) (DEST)[_rs_r] = sRedBuf[0]; \
-    }
-
-/* Per-pattern accumulation for a Partials child, one gradient row (selected
- * by EVECT_COL, a shared REAL[PADDED_STATE_COUNT] holding column `ls` or
- * `ls+1` of evecT). Identical arithmetic to kernelAdjointPhase1*PartialsN;
- * safe to invoke twice (pair-leader blocks) since it re-derives everything
- * it needs from EVECT_COL/REGOP and only touches sIevcBuf/regOp-local state
- * within its own braces. */
-#define ADJOINTN_ACCUM_PARTIALS_ROW(EVECT_COL, REGOP) \
+/* ── Pattern-parallel raw accumulation + single post-loop ievc rotation ────
+ * First cut of this redesign parallelized threads over *output state* `rs`
+ * instead of pattern (see git history / prior STATUS.md revision) — that
+ * fixed register pressure and coalescing but, benchmarked, was a real
+ * regression at moderate-to-large pattern counts (e.g. S=32, nPat=2000:
+ * 0.803 -> 1.114 ms/branch, ~40% slower) because it cut per-block pattern
+ * parallelism from 128-way down to (ADJOINT_BLOCK_SP_N/S)-way — 4-way at
+ * S=32 — and the `lhs` projection (`EVECT_COL . prePartials[k,:]`, O(S))
+ * still has to happen once per pattern regardless, so throughput dropped
+ * ~32x for the dominant, patterns-scaling term while only removing an S-way
+ * redundancy elsewhere. Reverted to the design below, which keeps full
+ * 128-way pattern parallelism (matching the original kernel) and removes
+ * *only* the redundant `ievc` projection — the part that was genuinely
+ * S-fold redundant across the `S` per-row blocks (see STATUS.md's
+ * O(S^3)-vs-O(S^2) derivation), without touching pattern-level parallelism
+ * at all. Each thread still privately accumulates a RAW (not yet
+ * ievc-rotated) REGOP[PADDED_STATE_COUNT] over its strided patterns —
+ * register use is therefore unchanged from before at this step (still a
+ * real cost at very large S, e.g. S=256; those sizes are untestable on
+ * this machine today due to a separate, pre-existing GPU instance-creation
+ * bug — see STATUS.md — so fixing it isn't verifiable here and is left as
+ * a follow-on, not bundled into this already-large change). What *is* new:
+ * no per-pattern `ievc` tile load/projection (removes the O(S) inner loop
+ * and the `sIevcBuf`/`BLOCK_PEELING_SIZE` tiling it needed), and the
+ * ievc rotation itself happens exactly once per block afterward
+ * (ADJOINTN_ROTATE_ROW) instead of once per (block, pattern) — valid by
+ * linearity since `ievc` is constant across every pattern in a segment. */
+#define ADJOINTN_ACCUM_ROW_RAW(EVECT_COL, IS_STATES, REGOP, RAWROW) \
     { \
         for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) (REGOP)[_rs_a] = (REAL)0; \
-        for (int _iter_a = 0; _iter_a < maxIter; _iter_a++) { \
-            const int _k_a     = _iter_a * ADJOINT_BLOCK_SP_N + tid; \
-            const int _valid_a = (_k_a < totalPatterns); \
+        for (int _k_a = tid; _k_a < totalPatterns; _k_a += ADJOINT_BLOCK_SP_N) { \
             REAL _lhs_a = (REAL)0; \
-            REAL _lv_a  = (REAL)0; \
-            if (_valid_a) { \
-                for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++) \
-                    SPECTRAL_FMA((EVECT_COL)[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a); \
-                _lv_a = _lhs_a * (patternWeights[_k_a] * sCatW / exp(perSiteLikelihoods[_k_a])); \
-            } \
-            for (int _i_a = 0; _i_a < PADDED_STATE_COUNT; _i_a += BLOCK_PEELING_SIZE) { \
-                const int _elems_a = BLOCK_PEELING_SIZE * PADDED_STATE_COUNT; \
-                for (int _e_a = tid; _e_a < _elems_a; _e_a += ADJOINT_BLOCK_SP_N) { \
-                    const int _row_a = _e_a / PADDED_STATE_COUNT; \
-                    const int _col_a = _e_a % PADDED_STATE_COUNT; \
-                    sIevcBuf[_row_a][_col_a] = ievc[(_i_a + _row_a) * PADDED_STATE_COUNT + _col_a]; \
+            for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++) \
+                SPECTRAL_FMA((EVECT_COL)[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a); \
+            const REAL _lv_a = _lhs_a * (patternWeights[_k_a] * sCatW / exp(perSiteLikelihoods[_k_a])); \
+            if (IS_STATES) { \
+                const int _st_a = tipStates[_k_a]; \
+                if (_st_a >= PADDED_STATE_COUNT) { \
+                    for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) (REGOP)[_rs_a] += _lv_a; \
+                } else { \
+                    (REGOP)[_st_a] += _lv_a; \
                 } \
-                KW_LOCAL_FENCE; \
-                if (_valid_a) { \
-                    for (int _jj_a = 0; _jj_a < BLOCK_PEELING_SIZE; _jj_a++) { \
-                        const REAL _pj_a = postPartials[catOff + _k_a*PADDED_STATE_COUNT + _i_a + _jj_a]; \
-                        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) \
-                            (REGOP)[_rs_a] += _lv_a * sIevcBuf[_jj_a][_rs_a] * _pj_a; \
-                    } \
-                } \
+            } else { \
+                for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) \
+                    (REGOP)[_rs_a] += _lv_a * postPartials[catOff + _k_a*PADDED_STATE_COUNT + _rs_a]; \
+            } \
+        } \
+        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) { \
+            sRedBuf[tid] = (REGOP)[_rs_a]; \
+            KW_LOCAL_FENCE; \
+            for (int _str_a = ADJOINT_BLOCK_SP_N >> 1; _str_a >= 1; _str_a >>= 1) { \
+                if (tid < _str_a) sRedBuf[tid] += sRedBuf[tid + _str_a]; \
                 KW_LOCAL_FENCE; \
             } \
+            if (tid == 0) (RAWROW)[_rs_a] = sRedBuf[0]; \
+            KW_LOCAL_FENCE; \
         } \
     }
 
-/* Per-pattern accumulation for a States (tip) child — no barriers needed
- * (mirrors kernelAdjointPhase1*StatesN). */
-#define ADJOINTN_ACCUM_STATES_ROW(EVECT_COL, REGOP) \
+/* Rotate a raw (un-projected) row RAWROW[PADDED_STATE_COUNT] through `ievc`
+ * once: ROTATED[rs'] = sum_rs RAWROW[rs] * ievc[rs*S + rs']. Valid for every
+ * thread with tid (+ m*ADJOINT_BLOCK_SP_N) < PADDED_STATE_COUNT. The `ievc`
+ * read for fixed `rs` is coalesced across threads (consecutive tid ==
+ * consecutive rs' == consecutive addresses). O(S^2) total, done once per
+ * block (not per pattern) — mathematically equivalent to the old
+ * per-pattern `ievc` projection by linearity, since `ievc` is constant
+ * across every pattern within one segment/branch. */
+#define ADJOINTN_ROTATE_ROW(RAWROW, ROTATED) \
     { \
-        for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) (REGOP)[_rs_s] = (REAL)0; \
-        for (int _k_s = tid; _k_s < totalPatterns; _k_s += ADJOINT_BLOCK_SP_N) { \
-            REAL _lhs_s = (REAL)0; \
-            for (int _j_s = 0; _j_s < PADDED_STATE_COUNT; _j_s++) \
-                SPECTRAL_FMA((EVECT_COL)[_j_s], prePartials[catOff + _k_s*PADDED_STATE_COUNT + _j_s], _lhs_s); \
-            const REAL _lv_s = _lhs_s * (patternWeights[_k_s] * sCatW / exp(perSiteLikelihoods[_k_s])); \
-            const int _st_s = tipStates[_k_s]; \
-            if (_st_s < PADDED_STATE_COUNT) { \
-                for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) \
-                    (REGOP)[_rs_s] += _lv_s * ievc[_st_s * PADDED_STATE_COUNT + _rs_s]; \
-            } else { \
-                for (int _rs_s = 0; _rs_s < PADDED_STATE_COUNT; _rs_s++) { \
-                    REAL _rhs_s = (REAL)0; \
-                    for (int _j_s = 0; _j_s < PADDED_STATE_COUNT; _j_s++) \
-                        _rhs_s += ievc[_j_s * PADDED_STATE_COUNT + _rs_s]; \
-                    (REGOP)[_rs_s] += _lv_s * _rhs_s; \
-                } \
+        const int _rrpt = (PADDED_STATE_COUNT + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N; \
+        for (int _m = 0; _m < _rrpt; _m++) { \
+            const int _rsp = tid + _m * ADJOINT_BLOCK_SP_N; \
+            if (_rsp < PADDED_STATE_COUNT) { \
+                REAL _acc = (REAL)0; \
+                for (int _rs = 0; _rs < PADDED_STATE_COUNT; _rs++) \
+                    SPECTRAL_FMA((RAWROW)[_rs], ievc[_rs*PADDED_STATE_COUNT + _rsp], _acc); \
+                (ROTATED)[_rsp] = _acc; \
             } \
         } \
+        KW_LOCAL_FENCE; \
     }
 
 /* Apply the all-real integral transform to a single reduced row DEST[S] and
@@ -1125,7 +1124,6 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
 
     KW_LOCAL_MEM REAL sEvecTCol [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sEvecTCol1[PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sIevcBuf  [BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sCatW;
     KW_LOCAL_MEM REAL sRedBuf   [ADJOINT_BLOCK_SP_N];
     KW_LOCAL_MEM REAL sEvalR    [PADDED_STATE_COUNT];
@@ -1135,6 +1133,8 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
     KW_LOCAL_MEM REAL sSinbt    [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sExpatC   [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sExpatS   [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sRawRow0  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sRawRow1  [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sOpRow0   [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sOpRow1   [PADDED_STATE_COUNT];
 
@@ -1148,16 +1148,14 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
 
     const REAL t = distances[cat];
     const int catOff  = cat * totalPatterns * PADDED_STATE_COUNT;
-    const int maxIter = (totalPatterns + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
     REAL regOp[PADDED_STATE_COUNT];
 
     if (isAllReal) {
         if (tid < PADDED_STATE_COUNT) sExpat[tid] = exp(sEvalR[tid] * t);
         KW_LOCAL_FENCE;
 
-        if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol, regOp) }
-        else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol, regOp) }
-        ADJOINTN_REDUCE_ROW(regOp, sOpRow0)
+        ADJOINTN_ACCUM_ROW_RAW(sEvecTCol, isStates, regOp, sRawRow0)
+        ADJOINTN_ROTATE_ROW(sRawRow0, sOpRow0)
         ADJOINTN_APPLY_ALLREAL_ROW(sOpRow0, ls)
     } else {
         if (sEvalI[ls] < (REAL)0) return;
@@ -1175,14 +1173,12 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
         }
         KW_LOCAL_FENCE;
 
-        if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol, regOp) }
-        else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol, regOp) }
-        ADJOINTN_REDUCE_ROW(regOp, sOpRow0)
+        ADJOINTN_ACCUM_ROW_RAW(sEvecTCol, isStates, regOp, sRawRow0)
+        ADJOINTN_ROTATE_ROW(sRawRow0, sOpRow0)
 
         if (isPairLeader) {
-            if (isStates) { ADJOINTN_ACCUM_STATES_ROW(sEvecTCol1, regOp) }
-            else          { ADJOINTN_ACCUM_PARTIALS_ROW(sEvecTCol1, regOp) }
-            ADJOINTN_REDUCE_ROW(regOp, sOpRow1)
+            ADJOINTN_ACCUM_ROW_RAW(sEvecTCol1, isStates, regOp, sRawRow1)
+            ADJOINTN_ROTATE_ROW(sRawRow1, sOpRow1)
             ADJOINTN_APPLY_COMPLEX_PAIRLEADER()
         } else {
             ADJOINTN_APPLY_COMPLEX_SINGLETON()

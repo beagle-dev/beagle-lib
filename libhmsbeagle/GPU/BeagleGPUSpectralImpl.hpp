@@ -36,7 +36,8 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
-      dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0) {
+      dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
+      kSpectralEigenDecompCount(0) {
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -79,6 +80,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
                                                   resourceNumber, pluginResourceNumber,
                                                   preferenceFlags, requirementFlags);
     if (rc != BEAGLE_SUCCESS) return rc;
+
+    kSpectralEigenDecompCount = eigenDecompositionCount;
 
     hEigenIndexForMatrix = (int*) calloc(this->kMatrixCount, sizeof(int));
 
@@ -543,14 +546,19 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         this->kPaddedPatternCount,
         this->kCategoryCount);
 
-    /* Allocate host zero-buffer once, reused for device-zeroing inside the loop. */
-    Real* hZeroGrad  = (Real*) gpuIf->CallocHost(sizeof(Real), SS);
-
-    /* Zero the gradient accumulator for each eigen decomposition used. */
-    for (int i = 0; i < count; i++) {
-        int ei = hEigenIndexForMatrix[eigenIndices[i]];
-        gpuIf->MemcpyHostToDevice(dGradient[ei], hZeroGrad, SS * sizeof(Real));
-    }
+    /* Zero the gradient accumulator on-device, in one fill over the whole
+     * pooled origin buffer (covers every eigen decomposition, not just
+     * those used this call). Previously this looped per-branch, zeroing
+     * the same distinct eigen index's buffer redundantly whenever several
+     * branches shared it (the common case) — replaced by a single call.
+     * Deliberately fills through `dGradientOrigin`, the same buffer object
+     * the merged kernel addresses via `gradientOrigin + offset`, rather
+     * than the per-`ei` sub-pointer `dGradient[ei]`: filling via the
+     * sub-buffer view was observed to race against the kernel's access
+     * through the parent view (intermittent large garbage gradients,
+     * OpenCL, Apple M1 Max) even on the in-order command queue — filling
+     * through the same view the kernel uses avoids that hazard. */
+    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * SS * sizeof(Real));
 
     GPUPtr catW = this->dWeights[cwIdx];
 
@@ -615,8 +623,6 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 this->kPaddedPatternCount, this->kCategoryCount, count);
         }
     }
-
-    gpuIf->FreeHostMemory(hZeroGrad);
 
     /* Download gradient to host.  The first eigen decomp's gradient is the
      * primary output.  Convert Real→double. */

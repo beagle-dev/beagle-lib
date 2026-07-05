@@ -917,6 +917,32 @@ void GPUInterface::MemsetShort(GPUPtr dest,
 
 }
 
+void GPUInterface::MemsetZero(GPUPtr dest,
+                              size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetZero\n");
+#endif
+
+    /* Deliberately not clEnqueueFillBuffer: on this OpenCL implementation
+     * (observed on Apple M1 Max), a kernel launched afterward on the same
+     * in-order queue intermittently read stale/garbage data from a
+     * clEnqueueFillBuffer-zeroed region — completion wasn't reliably
+     * ordered before the next command despite the in-order queue, even
+     * with an explicit clFinish() inserted right after the fill (residual
+     * ~1/30 failure rate on adjointtest4 with clFinish, 0/45 with the
+     * blocking write below). Falls back to the same blocking
+     * clEnqueueWriteBuffer path MemcpyHostToDevice already uses elsewhere
+     * in this file, which has no such issue.  */
+    void* hZero = calloc(1, memSize);
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, hZero, 0,
+                                 NULL, NULL));
+    free(hZero);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetZero\n");
+#endif
+}
+
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,

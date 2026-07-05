@@ -155,6 +155,9 @@ public:
                      unsigned short val,
                      size_t count);
 
+    void MemsetZero(GPUPtr dest,
+                    size_t memSize);
+
     void MemcpyHostToDevice(GPUPtr dest,
                             const void* src,
                             size_t memSize);
