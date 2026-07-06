@@ -751,7 +751,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #endif
                kPaddedPatternCount < BEAGLE_MULTI_GRID_MAX ||
                kFlags & BEAGLE_FLAG_PARALLELOPS_GRID) &&
-           !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS)) {
+           !(kFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) &&
+           !(requirementFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) &&
+           !(preferenceFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) {
         kUsingMultiGrid = true;
         allocateMultiGridBuffers();
 

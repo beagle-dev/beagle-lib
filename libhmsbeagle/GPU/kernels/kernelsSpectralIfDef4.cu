@@ -198,6 +198,34 @@
         SQ[patIdx][state] = q_loc; \
     }
 
+/* ── Phase 1: both Partials children, fused ─────────────────────────────
+ * Same as SPECTRAL_PHASE1_PARTIALS_GPU but for the two-Partials-children
+ * (PartialsPartials) kernels: loads both children's ievc matrices behind a
+ * single shared KW_LOCAL_FENCE instead of two (one per child), halving the
+ * barrier count for this phase. Mirrors the fusion already applied to the
+ * generic N-state file's SPECTRAL_PHASE1_PARTIALS_DUAL_GPU
+ * (`kernelsSpectralIfDef.cu`, commit 1b73b87), ported here since the 4-state
+ * file never received it. */
+#define SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(BUF1, SP1, SQ1, IEVC1, BUF2, SP2, SQ2, IEVC2) \
+    { \
+        if (patIdx < PADDED_STATE_COUNT) { \
+            BUF1[patIdx][state] = (IEVC1)[patIdx * PADDED_STATE_COUNT + state]; \
+            BUF2[patIdx][state] = (IEVC2)[patIdx * PADDED_STATE_COUNT + state]; \
+        } \
+        KW_LOCAL_FENCE; \
+        REAL q_loc1 = (REAL)0, q_loc2 = (REAL)0; \
+        SPECTRAL_FMA(BUF1[0][state], SP1[patIdx][0], q_loc1); \
+        SPECTRAL_FMA(BUF1[1][state], SP1[patIdx][1], q_loc1); \
+        SPECTRAL_FMA(BUF1[2][state], SP1[patIdx][2], q_loc1); \
+        SPECTRAL_FMA(BUF1[3][state], SP1[patIdx][3], q_loc1); \
+        SPECTRAL_FMA(BUF2[0][state], SP2[patIdx][0], q_loc2); \
+        SPECTRAL_FMA(BUF2[1][state], SP2[patIdx][1], q_loc2); \
+        SPECTRAL_FMA(BUF2[2][state], SP2[patIdx][2], q_loc2); \
+        SPECTRAL_FMA(BUF2[3][state], SP2[patIdx][3], q_loc2); \
+        SQ1[patIdx][state] = q_loc1; \
+        SQ2[patIdx][state] = q_loc2; \
+    }
+
 /* ── Phase 1: States child — direct column lookup q[k] = U^{-1}[k, s] ─── */
 /* dIevc[s*S+k] = U^{-1}[k,s].  Threads k=0..S-1 with fixed s access
  * consecutive addresses → coalesced read.
@@ -422,8 +450,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleSpectral(
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_EIGENVALS_GPU()
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
+    SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
     SPECTRAL_WRITE_NO_SCALE_GPU()
@@ -449,8 +476,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleSpectral(
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_LOAD_SCALE_GPU()
     SPECTRAL_EIGENVALS_GPU()
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
+    SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
     SPECTRAL_WRITE_FIXED_SCALE_GPU()
@@ -688,8 +714,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_EIGENVALS_GPU()
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)
-    SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
+    SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
     SPECTRAL_WRITE_AUTO_SCALE_GPU()
