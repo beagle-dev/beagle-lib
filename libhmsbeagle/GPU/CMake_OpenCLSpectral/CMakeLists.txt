@@ -62,3 +62,5 @@ SET_TARGET_PROPERTIES(hmsbeagle-opencl-spectral
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
     SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+
+target_compile_options(hmsbeagle-opencl-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
