@@ -639,13 +639,24 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
     }
 
     /* Download gradient to host.  The first eigen decomp's gradient is the
-     * primary output.  Convert Real→double. */
+     * primary output.  Convert Real→double.
+     *
+     * The device buffer is laid out S×S with S=kPaddedStateCount (padding
+     * rows/cols beyond kStateCount hold unused/garbage values from the
+     * padding eigenstates), but callers (matching BeagleCPUImpl's
+     * convention) allocate outSumDerivatives sized kStateCount*kStateCount.
+     * Copying the full padded SS run would overflow that buffer whenever
+     * kPaddedStateCount > kStateCount — only copy the top-left
+     * kStateCount×kStateCount submatrix, row by row with the correct
+     * strides on each side. */
     if (count > 0 && outSumDerivatives != NULL) {
         const int ei0 = hEigenIndexForMatrix[eigenIndices[0]];
+        const int SC = this->kStateCount;
         Real* hGrad = (Real*) gpuIf->CallocHost(sizeof(Real), SS);
         gpuIf->MemcpyDeviceToHost(hGrad, dGradient[ei0], SS * sizeof(Real));
-        for (int k = 0; k < SS; k++)
-            outSumDerivatives[k] = (double)hGrad[k];
+        for (int i = 0; i < SC; i++)
+            for (int j = 0; j < SC; j++)
+                outSumDerivatives[i * SC + j] = (double)hGrad[i * S + j];
         gpuIf->FreeHostMemory(hGrad);
     }
 
