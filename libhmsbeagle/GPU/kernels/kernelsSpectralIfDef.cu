@@ -859,25 +859,44 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 
 #define ADJOINT_BLOCK_SP_N  128
 
+/* CAS-retry float/double atomic add, in its own KW_DEVICE_FUNC-free OpenCL
+ * helper function rather than inlined as a macro at the call site.
+ *
+ * This split is load-bearing, not stylistic: with the CAS loop inlined
+ * directly into kernelAdjointMergedN (compiled at PADDED_STATE_COUNT=32,
+ * i.e. any state count that pads above 16 states, e.g. the 17-state case),
+ * clEnqueueNDRangeKernel succeeds but clFinish() never returns — reproduced
+ * down to a single block (no cross-block contention at all) and shown by
+ * bisection to require *both* things at once: the atomic_cmpxchg call AND a
+ * retry loop around it (a lone, non-looping atomic_cmpxchg — or the same
+ * loop shape swapped for a different atomic like atomic_xchg — completes
+ * fine; only "loop whose exit condition reads back an atomic's result"
+ * hangs, regardless of do/while vs for(;;) syntax). That is consistent with
+ * a known class of ROCm/LLVM AMDGPU backend bugs (this is ROCm 4.0.1, circa
+ * 2020) around convergent-instruction handling for loops inlined into large,
+ * register-heavy kernels; it is not a BEAGLE logic bug — the 16-state
+ * (unpadded, S=16) build of the identical macro works correctly. Moving the
+ * loop into its own `__attribute__((noinline))` function keeps it out of
+ * the miscompiled inlined context and reliably avoids the hang. */
 #ifndef ADJOINT_ATOMIC_ADD_GPU  /* may already be defined if both IfDef files merged */
 #ifdef CUDA
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  atomicAdd((ptr), (REAL)(val))
 #elif defined(DOUBLE_PRECISION)
+__attribute__((noinline)) void adjointAtomicAddGpuDPHelper(__global long* _anp, double val) {
+    long _ano, _ann;
+    do { _ano = *_anp; _ann = as_long(as_double(_ano) + val); }
+    while (atom_cmpxchg(_anp, _ano, _ann) != _ano);
+}
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val) \
-    do { \
-        __global long* _anp = (__global long*)(ptr); \
-        long _ano, _ann; \
-        do { _ano = *_anp; _ann = as_long(as_double(_ano) + (double)(val)); } \
-        while (atom_cmpxchg(_anp, _ano, _ann) != _ano); \
-    } while(0)
+    adjointAtomicAddGpuDPHelper((__global long*)(ptr), (double)(val))
 #else
+__attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, float val) {
+    int _ano, _ann;
+    do { _ano = *_anp; _ann = as_int(as_float(_ano) + val); }
+    while (atomic_cmpxchg(_anp, _ano, _ann) != _ano);
+}
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val) \
-    do { \
-        __global int* _anp = (__global int*)(ptr); \
-        int _ano, _ann; \
-        do { _ano = *_anp; _ann = as_int(as_float(_ano) + (float)(val)); } \
-        while (atomic_cmpxchg(_anp, _ano, _ann) != _ano); \
-    } while(0)
+    adjointAtomicAddGpuSPHelper((__global int*)(ptr), (float)(val))
 #endif
 #endif /* ADJOINT_ATOMIC_ADD_GPU */
 
@@ -983,36 +1002,133 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 /* Apply the complex-eigenvalue integral transform. Verbatim math from
  * kernelAdjointPhase2ComplexN's two branches, tid==0 only, reading the
  * shared reduced rows sOpRow0[S] (row `ls`) and, for the pair-leader case,
- * sOpRow1[S] (row `ls+1`) instead of dOpBuf. */
-#define ADJOINTN_APPLY_COMPLEX_SINGLETON() \
-    if (tid == 0) { \
-        const int _S_c = PADDED_STATE_COUNT; \
-        const REAL _ea_c = sExpat[ls], _la_c = sEvalR[ls]; \
-        for (int _rs_c = 0; _rs_c < _S_c; ) { \
-            const REAL _ri_c = sEvalI[_rs_c]; \
-            if (_ri_c == (REAL)0) { \
-                const REAL _co_c = (t * fabs(_la_c - sEvalR[_rs_c]) < (REAL)1e-12) \
-                    ? t * _ea_c : (_ea_c - sExpat[_rs_c]) / (_la_c - sEvalR[_rs_c]); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c], sOpRow0[_rs_c] * _co_c); \
-                _rs_c++; \
-            } else { \
-                const REAL _sr_c = sEvalR[_rs_c] - _la_c; \
-                const REAL _dn_c = _sr_c*_sr_c + _ri_c*_ri_c; \
-                REAL _i0_c, _i1_c; \
-                if (_dn_c < (REAL)1e-12) { _i0_c = t; _i1_c = (REAL)0; } \
-                else { \
-                    const REAL _ex_c = sExpat[_rs_c] / _ea_c; \
-                    _i0_c = (_ex_c*(_sr_c*sCosbt[_rs_c]+_ri_c*sSinbt[_rs_c])-_sr_c)/_dn_c; \
-                    _i1_c = (_ex_c*(_sr_c*sSinbt[_rs_c]-_ri_c*sCosbt[_rs_c])+_ri_c)/_dn_c; \
-                } \
-                const REAL _c0_c = _ea_c*_i0_c, _c1_c = _ea_c*_i1_c; \
-                const REAL _n0_c = sOpRow0[_rs_c], _n1_c = sOpRow0[_rs_c+1]; \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c],     _c0_c*_n0_c+_c1_c*_n1_c); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c+1], -_c1_c*_n0_c+_c0_c*_n1_c); \
-                _rs_c += 2; \
-            } \
-        } \
+ * sOpRow1[S] (row `ls+1`) instead of dOpBuf.
+ *
+ * Each branch's per-iteration body is pulled into its own
+ * `__attribute__((noinline))` helper function, the same treatment already
+ * applied to the atomic CAS-retry loop above and for the same reason: these
+ * bodies carry a lot of REAL temporaries (the complex-pair branch alone has
+ * ~30), and inlining them directly into the `for` loop inside
+ * kernelAdjointMergedN (compiled at PADDED_STATE_COUNT=32) was observed to
+ * produce silently-wrong (NaN) results that turned into a hard GPU page
+ * fault the moment unrelated code (e.g. a debug printf) was added nearby —
+ * i.e. correctness that depended on incidental register allocation/code
+ * layout, the signature of the ROCm 4.0.1 AMDGPU-backend miscompilation
+ * class documented above, not a BEAGLE logic bug. Keeping only the cheap
+ * loop control (the `for` and the `_ri` branch dispatch) inlined and moving
+ * the heavy arithmetic out-of-line avoids it, matching the CAS-loop fix. */
+__attribute__((noinline)) void adjointSingletonRealStep(
+        __global REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
+        REAL _ea_c, REAL _la_c,
+        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sOpRow0) {
+    const REAL _co_c = (t * fabs(_la_c - sEvalR[_rs_c]) < (REAL)1e-12)
+        ? t * _ea_c : (_ea_c - sExpat[_rs_c]) / (_la_c - sEvalR[_rs_c]);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c], sOpRow0[_rs_c] * _co_c);
+}
+
+__attribute__((noinline)) void adjointSingletonComplexStep(
+        __global REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
+        REAL _ea_c, REAL _la_c, REAL _ri_c,
+        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sCosbt,
+        __local REAL* sSinbt, __local REAL* sOpRow0) {
+    const REAL _sr_c = sEvalR[_rs_c] - _la_c;
+    const REAL _dn_c = _sr_c*_sr_c + _ri_c*_ri_c;
+    REAL _i0_c, _i1_c;
+    if (_dn_c < (REAL)1e-12) { _i0_c = t; _i1_c = (REAL)0; }
+    else {
+        const REAL _ex_c = sExpat[_rs_c] / _ea_c;
+        _i0_c = (_ex_c*(_sr_c*sCosbt[_rs_c]+_ri_c*sSinbt[_rs_c])-_sr_c)/_dn_c;
+        _i1_c = (_ex_c*(_sr_c*sSinbt[_rs_c]-_ri_c*sCosbt[_rs_c])+_ri_c)/_dn_c;
     }
+    const REAL _c0_c = _ea_c*_i0_c, _c1_c = _ea_c*_i1_c;
+    const REAL _n0_c = sOpRow0[_rs_c], _n1_c = sOpRow0[_rs_c+1];
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c],     _c0_c*_n0_c+_c1_c*_n1_c);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c+1], -_c1_c*_n0_c+_c0_c*_n1_c);
+}
+
+__attribute__((noinline)) void adjointSingletonLoop(
+        int tid, int ls, REAL t, __global REAL* dGradient,
+        __local REAL* sEvalR, __local REAL* sEvalI, __local REAL* sExpat,
+        __local REAL* sCosbt, __local REAL* sSinbt, __local REAL* sOpRow0) {
+    if (tid != 0) return;
+    const int _S_c = PADDED_STATE_COUNT;
+    const REAL _ea_c = sExpat[ls], _la_c = sEvalR[ls];
+    for (int _rs_c = 0; _rs_c < _S_c; ) {
+        const REAL _ri_c = sEvalI[_rs_c];
+        if (_ri_c == (REAL)0) {
+            adjointSingletonRealStep(dGradient, _S_c, ls, _rs_c, t, _ea_c, _la_c,
+                                      sEvalR, sExpat, sOpRow0);
+            _rs_c++;
+        } else {
+            adjointSingletonComplexStep(dGradient, _S_c, ls, _rs_c, t, _ea_c, _la_c, _ri_c,
+                                         sEvalR, sExpat, sCosbt, sSinbt, sOpRow0);
+            _rs_c += 2;
+        }
+    }
+}
+
+#define ADJOINTN_APPLY_COMPLEX_SINGLETON() \
+    adjointSingletonLoop(tid, ls, t, dGradient, sEvalR, sEvalI, sExpat, sCosbt, sSinbt, sOpRow0);
+
+__attribute__((noinline)) void adjointPairleaderRealStep(
+        __global REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
+        REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
+        __local REAL* sEvalR, __local REAL* sExpat,
+        __local REAL* sOpRow0, __local REAL* sOpRow1) {
+    const REAL _sr_q = sEvalR[_rs_q] - _lr_q;
+    const REAL _dn_q = _sr_q*_sr_q + _li_q*_li_q;
+    REAL _i0_q, _i1_q;
+    if (_dn_q < (REAL)1e-12) { _i0_q = t; _i1_q = (REAL)0; }
+    else {
+        const REAL _ex_q = sExpat[_rs_q] / _ea_q;
+        _i0_q = (_ex_q*(_sr_q*_cI_q+_li_q*_sI_q)-_sr_q)/_dn_q;
+        _i1_q = (_ex_q*(_sr_q*_sI_q-_li_q*_cI_q)+_li_q)/_dn_q;
+    }
+    const REAL _p0_q=_ec_q*_i0_q+_es_q*_i1_q, _p1_q=_ec_q*_i1_q-_es_q*_i0_q;
+    const REAL _p2_q=_es_q*_i0_q-_ec_q*_i1_q, _p3_q=_es_q*_i1_q+_ec_q*_i0_q;
+    const REAL _n0_q=sOpRow0[_rs_q], _n1_q=sOpRow1[_rs_q];
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],     _p0_q*_n0_q+_p1_q*_n1_q);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q], _p2_q*_n0_q+_p3_q*_n1_q);
+}
+
+__attribute__((noinline)) void adjointPairleaderComplexStep(
+        __global REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
+        REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
+        REAL _ri_q,
+        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sCosbt, __local REAL* sSinbt,
+        __local REAL* sOpRow0, __local REAL* sOpRow1) {
+    const REAL _rr_q=sEvalR[_rs_q], _ri2_q=_ri_q;
+    const REAL _sr_q=_rr_q-_lr_q, _si1_q=_li_q+_ri2_q, _si2_q=_ri2_q-_li_q;
+    const REAL _sr2_q=_sr_q*_sr_q;
+    const REAL _d1_q=_sr2_q+_si1_q*_si1_q, _d2_q=_sr2_q+_si2_q*_si2_q;
+    const REAL _ex_q=(_d1_q>=(REAL)1e-12||_d2_q>=(REAL)1e-12) ? sExpat[_rs_q]/_ea_q : (REAL)0;
+    const REAL _clcr_q=_cI_q*sCosbt[_rs_q], _slsr_q=_sI_q*sSinbt[_rs_q];
+    const REAL _clsr_q=_cI_q*sSinbt[_rs_q], _slcr_q=_sI_q*sCosbt[_rs_q];
+    REAL _i1r_q,_i1i_q;
+    if (_d1_q<(REAL)1e-12){_i1r_q=t;_i1i_q=(REAL)0;}
+    else{
+        const REAL _cs1_q=_clcr_q-_slsr_q, _sn1_q=_slcr_q+_clsr_q;
+        _i1r_q=(_sr_q*(_ex_q*_cs1_q-(REAL)1)+_si1_q*_ex_q*_sn1_q)/_d1_q;
+        _i1i_q=(_sr_q*_ex_q*_sn1_q-_si1_q*(_ex_q*_cs1_q-(REAL)1))/_d1_q;
+    }
+    REAL _i2r_q,_i2i_q;
+    if (_d2_q<(REAL)1e-12){_i2r_q=t;_i2i_q=(REAL)0;}
+    else{
+        const REAL _cs2_q=_clcr_q+_slsr_q, _sn2_q=_clsr_q-_slcr_q;
+        _i2r_q=(_sr_q*(_ex_q*_cs2_q-(REAL)1)+_si2_q*_ex_q*_sn2_q)/_d2_q;
+        _i2i_q=(_sr_q*_ex_q*_sn2_q-_si2_q*(_ex_q*_cs2_q-(REAL)1))/_d2_q;
+    }
+    const REAL _pr_q=_ec_q*_i1r_q+_es_q*_i1i_q, _pi_q=_ec_q*_i1i_q-_es_q*_i1r_q;
+    const REAL _mr_q=_ec_q*_i2r_q-_es_q*_i2i_q, _mi_q=_ec_q*_i2i_q+_es_q*_i2r_q;
+    const REAL _A_q=(REAL)0.5*(_mr_q+_pr_q), _B_q=(REAL)0.5*(_mi_q+_pi_q);
+    const REAL _C_q=(REAL)0.5*(_pi_q-_mi_q), _D_q=(REAL)0.5*(_mr_q-_pr_q);
+    const REAL _n00_q=sOpRow0[_rs_q],  _n01_q=sOpRow0[_rs_q+1];
+    const REAL _n10_q=sOpRow1[_rs_q], _n11_q=sOpRow1[_rs_q+1];
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],          _A_q*_n00_q+_B_q*_n01_q+_C_q*_n10_q+_D_q*_n11_q);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q+1],       -_B_q*_n00_q+_A_q*_n01_q-_D_q*_n10_q+_C_q*_n11_q);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q],     -_C_q*_n00_q-_D_q*_n01_q+_A_q*_n10_q+_B_q*_n11_q);
+    ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q+1],    _D_q*_n00_q-_C_q*_n01_q-_B_q*_n10_q+_A_q*_n11_q);
+}
 
 #define ADJOINTN_APPLY_COMPLEX_PAIRLEADER() \
     if (tid == 0) { \
@@ -1024,54 +1140,17 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
         for (int _rs_q = 0; _rs_q < _S_q; ) { \
             const REAL _ri_q = sEvalI[_rs_q]; \
             if (_ri_q == (REAL)0) { \
-                const REAL _sr_q = sEvalR[_rs_q] - _lr_q; \
-                const REAL _dn_q = _sr_q*_sr_q + _li_q*_li_q; \
-                REAL _i0_q, _i1_q; \
-                if (_dn_q < (REAL)1e-12) { _i0_q = t; _i1_q = (REAL)0; } \
-                else { \
-                    const REAL _ex_q = sExpat[_rs_q] / _ea_q; \
-                    _i0_q = (_ex_q*(_sr_q*_cI_q+_li_q*_sI_q)-_sr_q)/_dn_q; \
-                    _i1_q = (_ex_q*(_sr_q*_sI_q-_li_q*_cI_q)+_li_q)/_dn_q; \
-                } \
-                const REAL _p0_q=_ec_q*_i0_q+_es_q*_i1_q, _p1_q=_ec_q*_i1_q-_es_q*_i0_q; \
-                const REAL _p2_q=_es_q*_i0_q-_ec_q*_i1_q, _p3_q=_es_q*_i1_q+_ec_q*_i0_q; \
-                const REAL _n0_q=sOpRow0[_rs_q], _n1_q=sOpRow1[_rs_q]; \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],     _p0_q*_n0_q+_p1_q*_n1_q); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q], _p2_q*_n0_q+_p3_q*_n1_q); \
+                adjointPairleaderRealStep(dGradient, _S_q, ls, _rs_q, t, \
+                                           _lr_q, _li_q, _ec_q, _es_q, _cI_q, _sI_q, _ea_q, \
+                                           sEvalR, sExpat, sOpRow0, sOpRow1); \
                 _rs_q++; \
-            } else { \
-                const REAL _rr_q=sEvalR[_rs_q], _ri2_q=_ri_q; \
-                const REAL _sr_q=_rr_q-_lr_q, _si1_q=_li_q+_ri2_q, _si2_q=_ri2_q-_li_q; \
-                const REAL _sr2_q=_sr_q*_sr_q; \
-                const REAL _d1_q=_sr2_q+_si1_q*_si1_q, _d2_q=_sr2_q+_si2_q*_si2_q; \
-                const REAL _ex_q=(_d1_q>=(REAL)1e-12||_d2_q>=(REAL)1e-12) ? sExpat[_rs_q]/_ea_q : (REAL)0; \
-                const REAL _clcr_q=_cI_q*sCosbt[_rs_q], _slsr_q=_sI_q*sSinbt[_rs_q]; \
-                const REAL _clsr_q=_cI_q*sSinbt[_rs_q], _slcr_q=_sI_q*sCosbt[_rs_q]; \
-                REAL _i1r_q,_i1i_q; \
-                if (_d1_q<(REAL)1e-12){_i1r_q=t;_i1i_q=(REAL)0;} \
-                else{ \
-                    const REAL _cs1_q=_clcr_q-_slsr_q, _sn1_q=_slcr_q+_clsr_q; \
-                    _i1r_q=(_sr_q*(_ex_q*_cs1_q-(REAL)1)+_si1_q*_ex_q*_sn1_q)/_d1_q; \
-                    _i1i_q=(_sr_q*_ex_q*_sn1_q-_si1_q*(_ex_q*_cs1_q-(REAL)1))/_d1_q; \
-                } \
-                REAL _i2r_q,_i2i_q; \
-                if (_d2_q<(REAL)1e-12){_i2r_q=t;_i2i_q=(REAL)0;} \
-                else{ \
-                    const REAL _cs2_q=_clcr_q+_slsr_q, _sn2_q=_clsr_q-_slcr_q; \
-                    _i2r_q=(_sr_q*(_ex_q*_cs2_q-(REAL)1)+_si2_q*_ex_q*_sn2_q)/_d2_q; \
-                    _i2i_q=(_sr_q*_ex_q*_sn2_q-_si2_q*(_ex_q*_cs2_q-(REAL)1))/_d2_q; \
-                } \
-                const REAL _pr_q=_ec_q*_i1r_q+_es_q*_i1i_q, _pi_q=_ec_q*_i1i_q-_es_q*_i1r_q; \
-                const REAL _mr_q=_ec_q*_i2r_q-_es_q*_i2i_q, _mi_q=_ec_q*_i2i_q+_es_q*_i2r_q; \
-                const REAL _A_q=(REAL)0.5*(_mr_q+_pr_q), _B_q=(REAL)0.5*(_mi_q+_pi_q); \
-                const REAL _C_q=(REAL)0.5*(_pi_q-_mi_q), _D_q=(REAL)0.5*(_mr_q-_pr_q); \
-                const REAL _n00_q=sOpRow0[_rs_q],  _n01_q=sOpRow0[_rs_q+1]; \
-                const REAL _n10_q=sOpRow1[_rs_q], _n11_q=sOpRow1[_rs_q+1]; \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q],          _A_q*_n00_q+_B_q*_n01_q+_C_q*_n10_q+_D_q*_n11_q); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_q+_rs_q+1],       -_B_q*_n00_q+_A_q*_n01_q-_D_q*_n10_q+_C_q*_n11_q); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q],     -_C_q*_n00_q-_D_q*_n01_q+_A_q*_n10_q+_B_q*_n11_q); \
-                ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q+1],    _D_q*_n00_q-_C_q*_n01_q-_B_q*_n10_q+_A_q*_n11_q); \
+            } else if (_ri_q > (REAL)0) { \
+                adjointPairleaderComplexStep(dGradient, _S_q, ls, _rs_q, t, \
+                                              _lr_q, _li_q, _ec_q, _es_q, _cI_q, _sI_q, _ea_q, _ri_q, \
+                                              sEvalR, sExpat, sCosbt, sSinbt, sOpRow0, sOpRow1); \
                 _rs_q += 2; \
+            } else { \
+                _rs_q++; \
             } \
         } \
     }
