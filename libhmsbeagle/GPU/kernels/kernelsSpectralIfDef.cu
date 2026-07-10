@@ -929,37 +929,56 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
  * ievc rotation itself happens exactly once per block afterward
  * (ADJOINTN_ROTATE_ROW) instead of once per (block, pattern) — valid by
  * linearity since `ievc` is constant across every pattern in a segment. */
-#define ADJOINTN_ACCUM_ROW_RAW(EVECT_COL, IS_STATES, REGOP, RAWROW) \
-    { \
-        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) (REGOP)[_rs_a] = (REAL)0; \
-        for (int _k_a = tid; _k_a < totalPatterns; _k_a += ADJOINT_BLOCK_SP_N) { \
-            REAL _lhs_a = (REAL)0; \
-            for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++) \
-                SPECTRAL_FMA((EVECT_COL)[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a); \
-            const REAL _lv_a = _lhs_a * (patternWeights[_k_a] * sCatW / exp(perSiteLikelihoods[_k_a])); \
-            if (IS_STATES) { \
-                const int _st_a = tipStates[_k_a]; \
-                if (_st_a >= PADDED_STATE_COUNT) { \
-                    for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) (REGOP)[_rs_a] += _lv_a; \
-                } else { \
-                    (REGOP)[_st_a] += _lv_a; \
-                } \
-            } else { \
-                for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) \
-                    (REGOP)[_rs_a] += _lv_a * postPartials[catOff + _k_a*PADDED_STATE_COUNT + _rs_a]; \
-            } \
-        } \
-        for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) { \
-            sRedBuf[tid] = (REGOP)[_rs_a]; \
-            KW_LOCAL_FENCE; \
-            for (int _str_a = ADJOINT_BLOCK_SP_N >> 1; _str_a >= 1; _str_a >>= 1) { \
-                if (tid < _str_a) sRedBuf[tid] += sRedBuf[tid + _str_a]; \
-                KW_LOCAL_FENCE; \
-            } \
-            if (tid == 0) (RAWROW)[_rs_a] = sRedBuf[0]; \
-            KW_LOCAL_FENCE; \
-        } \
+/* Extracted into its own `__attribute__((noinline))` helper (§5.4 of
+ * GPU_ADJOINT_PLAN.md) — this is the single densest concentration of
+ * `tid`-predicated, barrier-synchronized code in the kernel (a 32x-repeated
+ * 128-wide tree reduction), shared by every code path (isAllReal, singleton,
+ * pairleader alike) and never previously isolated by the noinline treatment
+ * already proven for the SINGLETON/PAIRLEADER bodies above. Giving it its
+ * own function/register-allocation scope is a diagnostic for whether it is
+ * the specific miscompiled hot spot behind the PADDED_STATE_COUNT=32
+ * get_local_id(0) corruption documented in CLUSTER_AGENT_FINDINGS.md §3. */
+__attribute__((noinline)) void adjointAccumRowRaw(
+        int tid, __local REAL* evectCol, bool isStates,
+        REAL* regOp, __local REAL* rawRow,
+        __global REAL* prePartials, __global REAL* postPartials,
+        __global int* tipStates, __global REAL* patternWeights, REAL sCatW,
+        __global REAL* perSiteLikelihoods, __local REAL* sRedBuf,
+        int totalPatterns, int catOff) {
+    for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) regOp[_rs_a] = (REAL)0;
+    for (int _k_a = tid; _k_a < totalPatterns; _k_a += ADJOINT_BLOCK_SP_N) {
+        REAL _lhs_a = (REAL)0;
+        for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++)
+            SPECTRAL_FMA(evectCol[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a);
+        const REAL _lv_a = _lhs_a * (patternWeights[_k_a] * sCatW / exp(perSiteLikelihoods[_k_a]));
+        if (isStates) {
+            const int _st_a = tipStates[_k_a];
+            if (_st_a >= PADDED_STATE_COUNT) {
+                for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) regOp[_rs_a] += _lv_a;
+            } else {
+                regOp[_st_a] += _lv_a;
+            }
+        } else {
+            for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++)
+                regOp[_rs_a] += _lv_a * postPartials[catOff + _k_a*PADDED_STATE_COUNT + _rs_a];
+        }
     }
+    for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) {
+        sRedBuf[tid] = regOp[_rs_a];
+        KW_LOCAL_FENCE;
+        for (int _str_a = ADJOINT_BLOCK_SP_N >> 1; _str_a >= 1; _str_a >>= 1) {
+            if (tid < _str_a) sRedBuf[tid] += sRedBuf[tid + _str_a];
+            KW_LOCAL_FENCE;
+        }
+        if (tid == 0) rawRow[_rs_a] = sRedBuf[0];
+        KW_LOCAL_FENCE;
+    }
+}
+
+#define ADJOINTN_ACCUM_ROW_RAW(EVECT_COL, IS_STATES, REGOP, RAWROW) \
+    adjointAccumRowRaw(tid, EVECT_COL, IS_STATES, REGOP, RAWROW, \
+        prePartials, postPartials, tipStates, patternWeights, sCatW, \
+        perSiteLikelihoods, sRedBuf, totalPatterns, catOff);
 
 /* Rotate a raw (un-projected) row RAWROW[PADDED_STATE_COUNT] through `ievc`
  * once: ROTATED[rs'] = sum_rs RAWROW[rs] * ievc[rs*S + rs']. Valid for every
@@ -969,20 +988,26 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
  * block (not per pattern) — mathematically equivalent to the old
  * per-pattern `ievc` projection by linearity, since `ievc` is constant
  * across every pattern within one segment/branch. */
-#define ADJOINTN_ROTATE_ROW(RAWROW, ROTATED) \
-    { \
-        const int _rrpt = (PADDED_STATE_COUNT + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N; \
-        for (int _m = 0; _m < _rrpt; _m++) { \
-            const int _rsp = tid + _m * ADJOINT_BLOCK_SP_N; \
-            if (_rsp < PADDED_STATE_COUNT) { \
-                REAL _acc = (REAL)0; \
-                for (int _rs = 0; _rs < PADDED_STATE_COUNT; _rs++) \
-                    SPECTRAL_FMA((RAWROW)[_rs], ievc[_rs*PADDED_STATE_COUNT + _rsp], _acc); \
-                (ROTATED)[_rsp] = _acc; \
-            } \
-        } \
-        KW_LOCAL_FENCE; \
+/* Extracted into its own noinline helper for the same reason and as part of
+ * the same §5.4 diagnostic as adjointAccumRowRaw() above — smaller than that
+ * one but shares the `tid`-indexed pattern with its own KW_LOCAL_FENCE. */
+__attribute__((noinline)) void adjointRotateRow(
+        int tid, __local REAL* rawRow, __global REAL* ievc, __local REAL* rotated) {
+    const int _rrpt = (PADDED_STATE_COUNT + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
+    for (int _m = 0; _m < _rrpt; _m++) {
+        const int _rsp = tid + _m * ADJOINT_BLOCK_SP_N;
+        if (_rsp < PADDED_STATE_COUNT) {
+            REAL _acc = (REAL)0;
+            for (int _rs = 0; _rs < PADDED_STATE_COUNT; _rs++)
+                SPECTRAL_FMA(rawRow[_rs], ievc[_rs*PADDED_STATE_COUNT + _rsp], _acc);
+            rotated[_rsp] = _acc;
+        }
     }
+    KW_LOCAL_FENCE;
+}
+
+#define ADJOINTN_ROTATE_ROW(RAWROW, ROTATED) \
+    adjointRotateRow(tid, RAWROW, ievc, ROTATED);
 
 /* Apply the all-real integral transform to a single reduced row DEST[S] and
  * atomicAdd into dGradient row `ROW`. Verbatim math from
