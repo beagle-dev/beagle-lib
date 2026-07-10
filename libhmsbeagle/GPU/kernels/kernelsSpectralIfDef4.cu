@@ -152,23 +152,41 @@
 /* patIdx-0 threads: one thread per eigenstate (state = k).
  * eigenValues layout: [realEV_0..realEV_{S-1} | imagEV_0..imagEV_{S-1}]
  * distances[matrix] = branchLength * categoryRate[matrix].
+ * ISALLREAL1/ISALLREAL2: per-eigendecomposition runtime flags (from
+ * hEigenDecompIsAllReal, threaded through as ordinary kernel arguments — see
+ * kernelAdjointMerged4's isAllReal for the precedent this mirrors). When a
+ * decomposition is all-real, the imaginary half of eigenValues[] is never
+ * read: it may not even be allocated (kEigenValuesSize is only widened for
+ * BEAGLE_FLAG_EIGEN_COMPLEX, not merely for spectral-representation use), so
+ * reading it unconditionally is an out-of-bounds access, not just wasted
+ * work. sCs == 0 (the real-eigenvalue convention already documented on
+ * SPECTRAL_COMMON_SMEM_GPU above) is produced explicitly rather than relying
+ * on cos(0)=1/sin(0)=0 falling out of an unread angle.
  * Ends with KW_LOCAL_FENCE so sP*, sScale, sDs*, sCs* are all visible. */
-#define SPECTRAL_EIGENVALS_GPU() \
+#define SPECTRAL_EIGENVALS_GPU(ISALLREAL1, ISALLREAL2) \
     if (patIdx == 0) { \
         REAL t1  = distances1[matrix]; \
         REAL e1  = exp(eigenValues1[state] * t1); \
-        REAL bt1 = eigenValues1[PADDED_STATE_COUNT + state] * t1; \
-        REAL cv1, sv1; \
-        SPECTRAL_SINCOS(bt1, sv1, cv1); \
-        sDs1[state] = e1 * cv1; \
-        sCs1[state] = e1 * sv1; \
+        sDs1[state] = e1; \
+        sCs1[state] = (REAL)0; \
+        if (!(ISALLREAL1)) { \
+            REAL bt1 = eigenValues1[PADDED_STATE_COUNT + state] * t1; \
+            REAL cv1, sv1; \
+            SPECTRAL_SINCOS(bt1, sv1, cv1); \
+            sDs1[state] = e1 * cv1; \
+            sCs1[state] = e1 * sv1; \
+        } \
         REAL t2  = distances2[matrix]; \
         REAL e2  = exp(eigenValues2[state] * t2); \
-        REAL bt2 = eigenValues2[PADDED_STATE_COUNT + state] * t2; \
-        REAL cv2, sv2; \
-        SPECTRAL_SINCOS(bt2, sv2, cv2); \
-        sDs2[state] = e2 * cv2; \
-        sCs2[state] = e2 * sv2; \
+        sDs2[state] = e2; \
+        sCs2[state] = (REAL)0; \
+        if (!(ISALLREAL2)) { \
+            REAL bt2 = eigenValues2[PADDED_STATE_COUNT + state] * t2; \
+            REAL cv2, sv2; \
+            SPECTRAL_SINCOS(bt2, sv2, cv2); \
+            sDs2[state] = e2 * cv2; \
+            sCs2[state] = e2 * sv2; \
+        } \
     } \
     KW_LOCAL_FENCE;
 
@@ -375,6 +393,7 @@ KW_DEVICE_FUNC void kernelSpectralBody(
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors, /* NULL if !USE_SCALING */
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
 
     SPECTRAL_INDICES_GPU()
@@ -392,7 +411,7 @@ KW_DEVICE_FUNC void kernelSpectralBody(
     SPECTRAL_LOAD_SCALE_GPU()
 #endif
 
-    SPECTRAL_EIGENVALS_GPU()    /* ends with KW_LOCAL_FENCE */
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)    /* ends with KW_LOCAL_FENCE */
 
     /* Phase 1: project to eigenspace.
      * #ifdef replaces if constexpr (is_same<Child1, States>) from the C++ version. */
@@ -444,12 +463,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
@@ -469,13 +489,14 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_LOAD_SCALE_GPU()
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
@@ -498,11 +519,12 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()   /* no sP1: child 1 is States */
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
     SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
@@ -523,12 +545,13 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
     SPECTRAL_LOAD_SCALE_GPU()
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
     SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
@@ -551,10 +574,11 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()      /* no LOAD_PARTIALS: both children are States */
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
     SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
     SPECTRAL_PHASE2_GPU()
@@ -575,11 +599,12 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_SCALE_GPU()
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_STATES_GPU(sQ1, ievc1, states1)
     SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
     SPECTRAL_PHASE2_GPU()
@@ -664,16 +689,21 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleSpectral(
     }
 
 /* Load only sibling (child2) eigenvalue exponentials — for Top Root kernels
- * where child1 is the root and carries no branch transform. */
-#define SPECTRAL_EIGENVALS_SIB_ONLY_GPU() \
+ * where child1 is the root and carries no branch transform.
+ * ISALLREAL2: see SPECTRAL_EIGENVALS_GPU's comment above — same gating. */
+#define SPECTRAL_EIGENVALS_SIB_ONLY_GPU(ISALLREAL2) \
     if (patIdx == 0) { \
         REAL t2  = distances2[matrix]; \
         REAL e2  = exp(eigenValues2[state] * t2); \
-        REAL bt2 = eigenValues2[PADDED_STATE_COUNT + state] * t2; \
-        REAL cv2, sv2; \
-        SPECTRAL_SINCOS(bt2, sv2, cv2); \
-        sDs2[state] = e2 * cv2; \
-        sCs2[state] = e2 * sv2; \
+        sDs2[state] = e2; \
+        sCs2[state] = (REAL)0; \
+        if (!(ISALLREAL2)) { \
+            REAL bt2 = eigenValues2[PADDED_STATE_COUNT + state] * t2; \
+            REAL cv2, sv2; \
+            SPECTRAL_SINCOS(bt2, sv2, cv2); \
+            sDs2[state] = e2 * cv2; \
+            sCs2[state] = e2 * sv2; \
+        } \
     } \
     KW_LOCAL_FENCE;
 
@@ -708,12 +738,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScaleSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
         KW_GLOBAL_VAR signed char* KW_RESTRICT scalingFactors,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()
     SPECTRAL_LOAD_PARTIALS2_GPU()
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_PARTIALS_DUAL_GPU(sBuf1, sP1, sQ1, ievc1, sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_GPU()
     SPECTRAL_PHASE3_GPU()
@@ -744,12 +775,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
     SPECTRAL_LOAD_PARTIALS2_GPU()           /* sP2 = sibling post-order */
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     /* Sibling: forward (P_sib · p_sib) */
     SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_SIB_GPU()
@@ -772,11 +804,12 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     /* Sibling: forward (P_sib · e_s) using States Phase 1 */
     SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
     SPECTRAL_PHASE2_SIB_GPU()
@@ -815,11 +848,12 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal1, int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
-    SPECTRAL_EIGENVALS_GPU()
+    SPECTRAL_EIGENVALS_GPU(isAllReal1, isAllReal2)
     SPECTRAL_PHASE1_PARTIALS_GPU(sBuf1, sP1, sQ1, ievc1)   /* parent backward Ph1 */
     SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)          /* sibling forward Ph1 */
     SPECTRAL_PHASE2_GPU()                   /* scale sQ1 and sQ2 independently */
@@ -837,12 +871,13 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingTopRootSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = root pre-order (Hadamard factor) */
     SPECTRAL_LOAD_PARTIALS2_GPU()           /* sP2 = sibling post-order */
-    SPECTRAL_EIGENVALS_SIB_ONLY_GPU()
+    SPECTRAL_EIGENVALS_SIB_ONLY_GPU(isAllReal2)
     SPECTRAL_PHASE1_PARTIALS_GPU(sBuf2, sP2, sQ2, ievc2)
     SPECTRAL_PHASE2_SIB_GPU()
     SPECTRAL_PHASE3_SIB_HADAMARD_WRITE_GPU()  /* evec2·sQ2 ⊙ sP1 → partials3 */
@@ -857,11 +892,12 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evec2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues2,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distances2,
+        int isAllReal2,
         int totalPatterns) {
     SPECTRAL_INDICES_GPU()
     SPECTRAL_COMMON_SMEM_GPU()
     SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = root pre-order (Hadamard factor) */
-    SPECTRAL_EIGENVALS_SIB_ONLY_GPU()
+    SPECTRAL_EIGENVALS_SIB_ONLY_GPU(isAllReal2)
     SPECTRAL_PHASE1_STATES_GPU(sQ2, ievc2, states2)
     SPECTRAL_PHASE2_SIB_GPU()
     SPECTRAL_PHASE3_SIB_HADAMARD_WRITE_GPU()
