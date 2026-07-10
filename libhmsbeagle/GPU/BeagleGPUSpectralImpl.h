@@ -38,6 +38,12 @@ private:
     GPUPtr  dSpectralDistancesOrigin;
     GPUPtr* dSpectralDistances;
     int*    hEigenIndexForMatrix;
+    /* Per-matrix element stride within dSpectralDistancesOrigin, i.e.
+     * AlignMemOffset(kCategoryCount * sizeof(Real)) / sizeof(Real). Device
+     * alignment padding can make this larger than kCategoryCount, so any code
+     * that indexes into the pooled origin buffer by matrix index (e.g. the
+     * adjoint offset-queue) must multiply by this, not by kCategoryCount. */
+    unsigned int kSpectralDistanceStrideElements;
 
     /* Backward eigenvector buffers for the parent branch in pre-order.
      * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).

@@ -88,7 +88,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     GPUInterface* gpuIf = this->gpu;
 
     dSpectralDistances = (GPUPtr*) malloc(sizeof(GPUPtr) * this->kMatrixCount);
-    size_t distStride = this->kCategoryCount * sizeof(Real);
+    size_t distStride = gpuIf->AlignMemOffset(this->kCategoryCount * sizeof(Real));
+    kSpectralDistanceStrideElements = (unsigned int)(distStride / sizeof(Real));
     dSpectralDistancesOrigin = gpuIf->AllocateMemory(this->kMatrixCount * distStride);
     for (int i = 0; i < this->kMatrixCount; i++) {
         dSpectralDistances[i] = gpuIf->CreateSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
@@ -96,7 +97,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
 
     // Backward eigenvector arrays: one S*S block per eigen decomposition.
     int S = this->kPaddedStateCount;
-    size_t matStride = (size_t)S * S * sizeof(Real);
+    size_t matStride = gpuIf->AlignMemOffset((size_t)S * S * sizeof(Real));
     dEvecT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
     dIevcT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
     dEvecTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
@@ -599,7 +600,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             rec[3] = (unsigned int)ei * SS;
             rec[4] = (unsigned int)ei * this->getEvecStrideElements();
             rec[5] = (unsigned int)ei * this->getEvalStrideElements();
-            rec[6] = (unsigned int)matIdx * this->kCategoryCount;
+            rec[6] = (unsigned int)matIdx * kSpectralDistanceStrideElements;
             rec[7] = (unsigned int)ei * SS;
             rec[8] = isAllReal ? 1u : 0u;
         }
