@@ -87,6 +87,13 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition
     memcpy(tIvec.data(), evec.data(), kMatrixStride * kStateCount * sizeof(REALTYPE));
     transposeInPlace(tIvec.data());
 
+    if (getenv("BEAGLE_DEBUG_EIGEN")) {
+        fprintf(stderr, "[CPU setEigenDecomposition] eigenIndex=%d kStateCount=%d kMatrixStride=%d\n", eigenIndex, kStateCount, kMatrixStride);
+        fprintf(stderr, "[CPU] eval: "); for (int i=0;i<kEigenValuesSize;i++) fprintf(stderr, "%.6f ", (double)eval[i]); fprintf(stderr, "\n");
+        fprintf(stderr, "[CPU] evec:\n"); for (int i=0;i<kStateCount;i++){ for(int j=0;j<kStateCount;j++) fprintf(stderr, "%.6f ", (double)evec[i*kMatrixStride+j]); fprintf(stderr, "\n"); }
+        fprintf(stderr, "[CPU] ivec:\n"); for (int i=0;i<kStateCount;i++){ for(int j=0;j<kStateCount;j++) fprintf(stderr, "%.6f ", (double)ivec[i*kMatrixStride+j]); fprintf(stderr, "\n"); }
+        fflush(stderr);
+    }
     adjointMethodsStorage[eigenIndex] = std::make_shared<AdjointIntegralPlan<REALTYPE>>(
         eigenValuesStorage[eigenIndex].data(), kStateCount, !isComplex);
 }

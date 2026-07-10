@@ -771,16 +771,10 @@ static int runTest17(int gpuDevice) {
             { 2, 7, 2, 0 },
             { 3, 6, 3, 0 }
         };
-        /* GPU writes kPaddedStateCount² values with stride kPaddedStateCount;
-         * CPU writes kStateCount² values with stride kStateCount.
-         * Allocate the padded size to prevent overflow, then re-index to S×S. */
-        int Sp = useGpu ? ((S <= 4) ? 4 : (S <= 16) ? 16 : (S <= 32) ? 32 : S) : S;
-        std::vector<double> gradBuf(Sp * Sp, 0.0);
-        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, gradBuf.data(), NULL);
+        /* Both CPU and GPU write kStateCount² values with stride kStateCount
+         * (GPU downsamples from its internal kPaddedStateCount² buffer). */
         std::vector<double> grad(S * S, 0.0);
-        for (int ls = 0; ls < S; ls++)
-            for (int rs = 0; rs < S; rs++)
-                grad[ls*S+rs] = gradBuf[ls*Sp+rs];
+        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
 
         const char* preLabels[] = { "pre6", "pre7", "pre8", "pre9" };
         for (int b = 0; b < 4; b++) {
@@ -794,12 +788,12 @@ static int runTest17(int gpuDevice) {
         const char* bNames[4] = { "chimp", "human", "gorilla", "internal" };
         fprintf(stdout, "  Per-branch gradient G[ls,rs] (first 4x4 sub-block):\n");
         for (int b = 0; b < 4; b++) {
-            std::vector<double> gbuf(Sp * Sp, 0.0);
+            std::vector<double> gbuf(S * S, 0.0);
             beagleCalculateAdjointDerivative(inst, &branchOps[b], 0, 0, 4, 0, 1, gbuf.data(), NULL);
             fprintf(stdout, "    Branch %s (transMatrix=%d):\n", bNames[b], branchOps[b].branchTransitionMatrix);
             for (int ls = 0; ls < 4; ls++) {
                 for (int rs = 0; rs < 4; rs++)
-                    fprintf(stdout, " %12.4f", gbuf[ls*Sp+rs]);
+                    fprintf(stdout, " %12.4f", gbuf[ls*S+rs]);
                 fprintf(stdout, "\n");
             }
         }

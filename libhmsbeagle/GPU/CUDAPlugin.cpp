@@ -77,7 +77,7 @@ CUDAPlugin::~CUDAPlugin()
 
 
 extern "C" {
-void* plugin_init(void){
+__attribute__((visibility("default"))) void* plugin_init(void){
 	return new beagle::gpu::CUDAPlugin();
 }
 }
