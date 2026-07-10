@@ -545,8 +545,8 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif
 
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
     if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernel] %s: parameterCountV=%d totalParameterCount=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount);
     }
@@ -656,8 +656,8 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 #endif
 
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
     if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernelConcurrent] %s: parameterCountV=%d totalParameterCount=%d streamIndex=%d waitIndex=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount, streamIndex, waitIndex);
     }
