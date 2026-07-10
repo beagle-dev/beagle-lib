@@ -462,6 +462,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         kFlags |= BEAGLE_FLAG_EIGEN_REAL;
     }
 
+    // kFlags is rebuilt from scratch above (kFlags = 0) and only specific bits are copied
+    // over from preferenceFlags/requirementFlags; BEAGLE_FLAG_SPECTRAL_REPRESENTATION must be
+    // copied too, since BeagleGPUSpectralImpl and the checks just below key off this bit in
+    // kFlags (not off the caller-supplied flags directly).
+    if (preferenceFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION || requirementFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) {
+        kFlags |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+    }
+
     if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED || preferenceFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED)
         kFlags |= BEAGLE_FLAG_INVEVEC_TRANSPOSED;
     else
@@ -497,7 +505,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 
-    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
+    // Spectral kernels (kernelsSpectralIfDef*.cu / kernelsSpectral*.cu) always read a
+    // real+imaginary pair per eigenstate (SPECTRAL_EIGENVALS_GPU unconditionally indexes
+    // eigenValues[PADDED_STATE_COUNT + state]) regardless of BEAGLE_FLAG_EIGEN_COMPLEX, so the
+    // device buffer must be sized/copied as complex whenever spectral representation is in use,
+    // otherwise that read runs past the data actually written by setEigenDecomposition.
+    if ((kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) || (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION))
         kEigenValuesSize = 2 * kPaddedStateCount;
     else
         kEigenValuesSize = kPaddedStateCount;

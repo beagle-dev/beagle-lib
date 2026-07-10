@@ -216,7 +216,12 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     const int SC = this->kStateCount;
     const int SS = S * S;
     // kEigenValuesSize is private to BeagleGPUImpl; recompute the same way it does.
-    const int eigenValuesSize = (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? 2 * S : S;
+    // Spectral kernels always read a real+imaginary pair per eigenstate regardless of
+    // BEAGLE_FLAG_EIGEN_COMPLEX (see matching comment/fix in BeagleGPUImpl::createInstance),
+    // so this local copy must widen for BEAGLE_FLAG_SPECTRAL_REPRESENTATION too, or the
+    // imaginary half of the device buffer is left uninitialized.
+    const int eigenValuesSize = ((this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ||
+                                  (this->kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) ? 2 * S : S;
 
     // Forward:  dEvec[row*S+col]  = U[col,row];    dIevc[row*S+col]  = U^-1[col,row]
     // Backward: dEvecT[row*S+col] = U[row,col];    dIevcT[row*S+col] = U^-1[row,col]
