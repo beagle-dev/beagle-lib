@@ -505,12 +505,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 
-    // Spectral kernels (kernelsSpectralIfDef*.cu / kernelsSpectral*.cu) always read a
-    // real+imaginary pair per eigenstate (SPECTRAL_EIGENVALS_GPU unconditionally indexes
-    // eigenValues[PADDED_STATE_COUNT + state]) regardless of BEAGLE_FLAG_EIGEN_COMPLEX, so the
-    // device buffer must be sized/copied as complex whenever spectral representation is in use,
-    // otherwise that read runs past the data actually written by setEigenDecomposition.
-    if ((kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) || (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION))
+    // Spectral kernels (kernelsSpectralIfDef*.cu / kernelsSpectral*.cu) read a real+imaginary
+    // pair per eigenstate only when that eigendecomposition is not all-real
+    // (SPECTRAL_EIGENVALS_GPU is now gated on the isAllReal1/isAllReal2 kernel arguments, threaded
+    // from hEigenDecompIsAllReal — see BeagleGPUSpectralImpl.hpp::setEigenDecomposition), matching
+    // the CPU implementation's EigenDecompositionSpectral.hpp, which only widens on
+    // BEAGLE_FLAG_EIGEN_COMPLEX. Widening for BEAGLE_FLAG_SPECTRAL_REPRESENTATION alone (regardless
+    // of EIGEN_COMPLEX) has no CPU analog and would waste memory/copy work for spectral-mode
+    // instances that are structurally guaranteed real, so this only widens for EIGEN_COMPLEX.
+    if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
         kEigenValuesSize = 2 * kPaddedStateCount;
     else
         kEigenValuesSize = kPaddedStateCount;
