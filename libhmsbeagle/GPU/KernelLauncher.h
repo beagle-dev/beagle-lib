@@ -320,6 +320,8 @@ public:
                                           GPUPtr cumulativeScaling,
                                           unsigned int patternCount,
                                           unsigned int categoryCount,
+                                          int isAllReal1,
+                                          int isAllReal2,
                                           int doRescaling,
                                           int streamIndex,
                                           int waitIndex);
@@ -335,6 +337,8 @@ public:
                                         GPUPtr cumulativeScaling,
                                         unsigned int patternCount,
                                         unsigned int categoryCount,
+                                        int isAllReal1,
+                                        int isAllReal2,
                                         int doRescaling,
                                         int streamIndex,
                                         int waitIndex);
@@ -350,6 +354,8 @@ public:
                                       GPUPtr cumulativeScaling,
                                       unsigned int patternCount,
                                       unsigned int categoryCount,
+                                      int isAllReal1,
+                                      int isAllReal2,
                                       int doRescaling,
                                       int streamIndex,
                                       int waitIndex);
@@ -386,7 +392,9 @@ public:
                                          GPUPtr ievc2, GPUPtr evec2,
                                          GPUPtr eigenValues2, GPUPtr distances2,
                                          unsigned int patternCount,
-                                         unsigned int categoryCount);
+                                         unsigned int categoryCount,
+                                         int isAllReal1,
+                                         int isAllReal2);
 
     void PartialsStatesGrowingSpectral(GPUPtr partials1,
                                        GPUPtr states2,
@@ -396,7 +404,9 @@ public:
                                        GPUPtr ievc2, GPUPtr evec2,
                                        GPUPtr eigenValues2, GPUPtr distances2,
                                        unsigned int patternCount,
-                                       unsigned int categoryCount);
+                                       unsigned int categoryCount,
+                                       int isAllReal1,
+                                       int isAllReal2);
 
     void PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                                           GPUPtr states2,
@@ -406,7 +416,9 @@ public:
                                           GPUPtr ievc2, GPUPtr evec2,
                                           GPUPtr eigenValues2, GPUPtr distances2,
                                           unsigned int patternCount,
-                                          unsigned int categoryCount);
+                                          unsigned int categoryCount,
+                                          int isAllReal1,
+                                          int isAllReal2);
 
     void PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
                                                 GPUPtr partials2,
@@ -414,7 +426,8 @@ public:
                                                 GPUPtr ievc2, GPUPtr evec2,
                                                 GPUPtr eigenValues2, GPUPtr distances2,
                                                 unsigned int patternCount,
-                                                unsigned int categoryCount);
+                                                unsigned int categoryCount,
+                                                int isAllReal2);
 
     void PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
                                               GPUPtr states2,
@@ -422,7 +435,8 @@ public:
                                               GPUPtr ievc2, GPUPtr evec2,
                                               GPUPtr eigenValues2, GPUPtr distances2,
                                               unsigned int patternCount,
-                                              unsigned int categoryCount);
+                                              unsigned int categoryCount,
+                                              int isAllReal2);
 
     /* Adjoint cross-product launchers — merged single launch covers every
      * branch in a call at once (grid spans branchCount), isStates/isAllReal

@@ -165,6 +165,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPrunePP(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -182,6 +183,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSP(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -200,6 +202,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -320,18 +323,21 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
     GPUPtr evec2 = this->dEvec[ei2];
     GPUPtr eval2 = this->dEigenValues[ei2];
     GPUPtr dist2 = dSpectralDistances[c2MatIdx];
+    int isAllReal2 = hEigenDecompIsAllReal[ei2] ? 1 : 0;
 
     if (isRoot) {
         if (sibIsStates) {
             this->kernels->PartialsStatesGrowingSpectralTopRoot(
                 partials1, c2, partials3,
                 ievc2, evec2, eval2, dist2,
-                this->kPaddedPatternCount, this->kCategoryCount);
+                this->kPaddedPatternCount, this->kCategoryCount,
+                isAllReal2);
         } else {
             this->kernels->PartialsPartialsGrowingSpectralTopRoot(
                 partials1, c2, partials3,
                 ievc2, evec2, eval2, dist2,
-                this->kPaddedPatternCount, this->kCategoryCount);
+                this->kPaddedPatternCount, this->kCategoryCount,
+                isAllReal2);
         }
     } else {
         int ei1 = hEigenIndexForMatrix[c1MatIdx];
@@ -341,6 +347,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
         GPUPtr bEvec1 = dIevcT[ei1];
         GPUPtr eval1  = this->dEigenValues[ei1];
         GPUPtr dist1  = dSpectralDistances[c1MatIdx];
+        int isAllReal1 = hEigenDecompIsAllReal[ei1] ? 1 : 0;
 
         if (isTop) {
             if (sibIsStates) {
@@ -348,7 +355,8 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             } else {
                 // Top NotRoot PP: reuse no-scale PP pruning kernel with backward matrices
                 this->kernels->PartialsPartialsPruningSpectral(
@@ -357,6 +365,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     ievc2, evec2, eval2, dist2,
                     nullptr, nullptr,
                     this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2,
                     -1, -1, -1);
             }
         } else {
@@ -365,13 +374,15 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             } else {
                 this->kernels->PartialsPartialsGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             }
         }
     }
