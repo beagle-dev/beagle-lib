@@ -91,13 +91,18 @@ static double edgeLengths[4]  = { 0.1, 0.1, 0.2, 0.5 };
  *   Evec[j, 2m-1] = (1/N)*cos(2πjm/N)   Ievc[2m-1, j] = 2*cos(2πjm/N)
  *   Evec[j, 2m  ] = (1/N)*sin(2πjm/N)   Ievc[2m,   j] = 2*sin(2πjm/N)
  */
+/* r_fwd/r_bkd default to the asymmetric (complex-eigenvalue) case used by the
+ * existing 16-/17-state tests. Passing r_fwd == r_bkd instead makes Q
+ * symmetric/reversible: b = (r_fwd-r_bkd)*sin(theta_m) is then identically
+ * zero for every mode, so every eigenvalue comes out genuinely real (not
+ * just numerically close to zero) -- used by the real-only test below. */
 static void buildCirculantN(
     int N,
     std::vector<double>& evec,   /* N×N */
     std::vector<double>& ivec,   /* N×N */
-    std::vector<double>& eval)   /* 2N  */
+    std::vector<double>& eval,   /* 2N  */
+    double r_fwd = 1.0, double r_bkd = 0.5)
 {
-    const double r_fwd = 1.0, r_bkd = 0.5;
     const double two_pi_over_N = 2.0 * M_PI / N;
     const bool evenN = (N % 2 == 0);
     const int nPairs = evenN ? N/2 - 1 : (N-1)/2;
@@ -934,6 +939,318 @@ static int runTest17(int gpuDevice) {
     return gradOk ? 0 : 1;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Real-only 17-state test (BEAGLE_FLAG_EIGEN_COMPLEX NOT requested)
+ *
+ * Regression test for the msuchard PR #242 review comment ("if isAllReal
+ * then the imaginary parts should never be written or read"): the GPU
+ * spectral pruning kernels now gate their imaginary-eigenvalue reads on a
+ * per-decomposition isAllReal flag, and the device eigenvalue buffer is
+ * sized EIGEN_COMPLEX-only (matching CPU), not widened just because
+ * BEAGLE_FLAG_SPECTRAL_REPRESENTATION is in use. This test uses a
+ * *symmetric* circulant (r_fwd == r_bkd, so eigenvalues are exactly real,
+ * not just numerically close to zero) at a padded state count
+ * (17 -> kPaddedStateCount=32) and never requests
+ * BEAGLE_FLAG_EIGEN_COMPLEX, so the GPU device eigenvalue buffer is
+ * allocated at exactly kPaddedStateCount width -- no imaginary slack at
+ * all. If the kernel's imaginary-eigenvalue read were not properly gated,
+ * this configuration reads past the end of that buffer: the exact bug
+ * class PR #242 fixed and this follow-up refines. Run with
+ * BEAGLE_DEBUG_EIGEN=1 to see the device Eval buffer printed at its
+ * (narrow) width directly.
+ * ═══════════════════════════════════════════════════════════════════════*/
+
+static int runTestRealOnly(int gpuDevice) {
+    const int S = 17, nPat = 4, nCats = 2;
+    const double tol = 1e-3;       /* absolute tolerance for entries with |value|<=1 */
+    const double relTol = 1e-2;    /* relative tolerance for entries with |value|>1 (single vs double precision), same policy as runTest17 */
+
+    fprintf(stdout, "\n=== Real-only 17-state test (no BEAGLE_FLAG_EIGEN_COMPLEX) ===\n");
+    fprintf(stdout, "    r_fwd=r_bkd=1.0 -> symmetric/reversible circulant, all eigenvalues exactly real\n");
+    fprintf(stdout, "    Device eigenvalue buffer allocated at exactly kPaddedStateCount width (no imaginary slack)\n");
+
+    std::vector<double> evec, ivec, eval;
+    buildCirculantN(S, evec, ivec, eval, /*r_fwd=*/1.0, /*r_bkd=*/1.0);
+
+    fprintf(stdout, "  Eigenvalue imag parts (must all be exactly 0): ");
+    bool anyImag = false;
+    for (int k = 0; k < S; k++) {
+        fprintf(stdout, "%.3f ", eval[S + k]);
+        if (eval[S + k] != 0.0) anyImag = true;
+    }
+    fprintf(stdout, "\n");
+    if (anyImag) {
+        fprintf(stderr, "  ERROR: expected all-zero imaginary eigenvalues for a symmetric circulant\n");
+        return 1;
+    }
+
+    std::vector<double> freqs(S, 1.0 / S);
+    double rates_[2]    = { 0.5, 1.5 };
+    double catWts_[2]   = { 0.5, 0.5 };
+    double edgeLens_[4] = { 0.1, 0.1, 0.2, 0.5 };
+
+    int hSt[4] = { 3, 0, 5, 7 };
+    int cSt[4] = { 3, 0, 5, 5 };
+    int gSt[4] = { 0, 0, 0, 12 };
+
+    auto runOne = [&](bool useGpu, int dev, bool singlePrec) -> std::pair<double, std::vector<double>> {
+        int inst = createInstance(useGpu, dev, singlePrec, S, nPat, nCats, /*complexEigen=*/false);
+        if (inst < 0) return { 0.0, {} };
+
+        beagleSetTipStates(inst, 0, hSt);
+        beagleSetTipStates(inst, 1, cSt);
+        beagleSetTipStates(inst, 2, gSt);
+
+        beagleSetCategoryRates(inst, rates_);
+        std::vector<double> pw(nPat, 1.0);
+        beagleSetPatternWeights(inst, pw.data());
+        beagleSetStateFrequencies(inst, 0, freqs.data());
+        beagleSetCategoryWeights(inst, 0, catWts_);
+        beagleSetEigenDecomposition(inst, 0, evec.data(), ivec.data(), eval.data());
+
+        int nodeIdx[4] = { 0, 1, 2, 3 };
+        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens_, 4);
+
+        BeagleOperation postOps[2] = {
+            { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+            { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+        };
+        beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+
+        double logL = 0.0;
+        int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+        beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+
+        std::vector<double> rootPre((size_t)nCats * nPat * S);
+        for (int c = 0; c < nCats; c++)
+            for (int p = 0; p < nPat; p++)
+                for (int s = 0; s < S; s++)
+                    rootPre[(size_t)c * nPat * S + p * S + s] = freqs[s];
+        beagleSetPartials(inst, 5, rootPre.data());
+
+        BeagleOperation preOps[4] = {
+            { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
+            { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
+            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
+            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+        };
+        beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+
+        BeagleBranchOperation branchOps[4] = {
+            { 1, 8, 1, 0 },
+            { 0, 9, 0, 0 },
+            { 2, 7, 2, 0 },
+            { 3, 6, 3, 0 }
+        };
+        std::vector<double> grad(S * S, 0.0);
+        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
+
+        beagleFinalizeInstance(inst);
+        return { logL, grad };
+    };
+
+    fprintf(stdout, "\nCreating CPU (double) instance:\n");
+    auto [cpuLogL, cpuGrad] = runOne(false, -1, false);
+    if (cpuGrad.empty()) return 1;
+    fprintf(stdout, "CPU log-likelihood: %.6f\n", cpuLogL);
+
+    if (gpuDevice < 0) return 0;
+
+    fprintf(stdout, "\nCreating GPU (single) instance:\n");
+    auto [gpuLogL, gpuGrad] = runOne(true, gpuDevice, true);
+    if (gpuGrad.empty()) return 1;
+    fprintf(stdout, "GPU log-likelihood: %.6f\n", gpuLogL);
+
+    /* Gradient magnitudes here range up to ~190 (same character as runTest17's
+     * complex-eigenvalue case), so single-precision GPU vs double-precision
+     * CPU error scales with the *largest* magnitude in the computation --
+     * threshold against the matrix-wide max magnitude instead of a flat
+     * absolute tolerance (same policy as runTest17). */
+    double maxMagnitude = 0.0;
+    for (int k = 0; k < S*S; k++) {
+        if (!std::isnan(cpuGrad[k])) maxMagnitude = std::max(maxMagnitude, fabs(cpuGrad[k]));
+        if (!std::isnan(gpuGrad[k])) maxMagnitude = std::max(maxMagnitude, fabs(gpuGrad[k]));
+    }
+    const double threshold = std::max(tol, relTol * maxMagnitude);
+
+    bool gradOk = true;
+    double maxDiff = 0.0;
+    for (int k = 0; k < S*S; k++) {
+        double d = fabs(cpuGrad[k] - gpuGrad[k]);
+        if (d > maxDiff || std::isnan(d)) maxDiff = d;
+        if (d > threshold || std::isnan(d)) gradOk = false;
+    }
+    fprintf(stdout, "Real-only 17-state gradient max|diff|=%.3e  threshold=%.3e (rel to max|value|=%.3e)  %s\n",
+            maxDiff, threshold, maxMagnitude, gradOk ? "PASS" : "FAIL");
+    return gradOk ? 0 : 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Dynamic real <-> complex eigendecomposition transition test (16-state)
+ *
+ * A single BEAGLE_FLAG_EIGEN_COMPLEX-flagged instance (device eigenvalue
+ * buffer wide enough for either case) has beagleSetEigenDecomposition
+ * called three times in sequence for the same eigenIndex, alternating
+ * between a genuinely real-only decomposition and a genuinely complex one
+ * -- mirroring how one MCMC run can produce either kind of decomposition
+ * from one iteration to the next for a general asymmetric-rate model (see
+ * hEigenDecompIsAllReal's recomputation on every setEigenDecomposition
+ * call). Confirms the isAllReal gating doesn't leave stale sDs/sCs kernel
+ * state, or stale device Eval data, bleeding from one call into the next.
+ * ═══════════════════════════════════════════════════════════════════════*/
+
+static int runTestDynamicTransition(int gpuDevice) {
+    const int S = 16, nPat = 4, nCats = 2;
+    const double tol = 1e-3;
+
+    fprintf(stdout, "\n=== Dynamic real<->complex eigendecomposition transition test (16-state) ===\n");
+
+    std::vector<double> evecReal, ivecReal, evalReal;
+    buildCirculantN(S, evecReal, ivecReal, evalReal, /*r_fwd=*/1.0, /*r_bkd=*/1.0);
+    std::vector<double> evecCplx, ivecCplx, evalCplx;
+    buildCirculantN(S, evecCplx, ivecCplx, evalCplx, /*r_fwd=*/1.0, /*r_bkd=*/0.5);
+
+    std::vector<double> freqs(S, 1.0 / S);
+    double rates_[2]    = { 0.5, 1.5 };
+    double catWts_[2]   = { 0.5, 0.5 };
+    double edgeLens_[4] = { 0.1, 0.1, 0.2, 0.5 };
+    int hSt[4] = { 3, 0, 5, 7 };
+    int cSt[4] = { 3, 0, 5, 5 };
+    int gSt[4] = { 0, 0, 0, 7 };
+
+    auto setupAndRun = [&](int inst, const std::vector<double>& evec,
+                           const std::vector<double>& ivec, const std::vector<double>& eval)
+                           -> std::pair<double, std::vector<double>> {
+        beagleSetEigenDecomposition(inst, 0, evec.data(), ivec.data(), eval.data());
+        int nodeIdx[4] = { 0, 1, 2, 3 };
+        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens_, 4);
+        BeagleOperation postOps[2] = {
+            { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+            { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+        };
+        beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+        double logL = 0.0;
+        int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+        beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+        std::vector<double> rootPre((size_t)nCats * nPat * S);
+        for (int c = 0; c < nCats; c++)
+            for (int p = 0; p < nPat; p++)
+                for (int s = 0; s < S; s++)
+                    rootPre[(size_t)c * nPat * S + p * S + s] = freqs[s];
+        beagleSetPartials(inst, 5, rootPre.data());
+        BeagleOperation preOps[4] = {
+            { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
+            { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
+            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
+            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+        };
+        beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+        BeagleBranchOperation branchOps[4] = {
+            { 1, 8, 1, 0 },
+            { 0, 9, 0, 0 },
+            { 2, 7, 2, 0 },
+            { 3, 6, 3, 0 }
+        };
+        std::vector<double> grad(S * S, 0.0);
+        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
+        return { logL, grad };
+    };
+
+    auto makeInst = [&](bool useGpu, int dev, bool singlePrec) -> int {
+        int inst = createInstance(useGpu, dev, singlePrec, S, nPat, nCats, /*complexEigen=*/true);
+        if (inst < 0) return inst;
+        beagleSetTipStates(inst, 0, hSt);
+        beagleSetTipStates(inst, 1, cSt);
+        beagleSetTipStates(inst, 2, gSt);
+        beagleSetCategoryRates(inst, rates_);
+        std::vector<double> pw(nPat, 1.0);
+        beagleSetPatternWeights(inst, pw.data());
+        beagleSetStateFrequencies(inst, 0, freqs.data());
+        beagleSetCategoryWeights(inst, 0, catWts_);
+        return inst;
+    };
+
+    fprintf(stdout, "\nCreating CPU (double) instance (BEAGLE_FLAG_EIGEN_COMPLEX requested):\n");
+    int cpuInst = makeInst(false, -1, false);
+    if (cpuInst < 0) { fprintf(stderr, "Failed CPU instance\n"); return 1; }
+
+    const char* stepNames[3] = { "real", "complex", "real (again)" };
+    const std::vector<double>* stepEvec[3] = { &evecReal, &evecCplx, &evecReal };
+    const std::vector<double>* stepIvec[3] = { &ivecReal, &ivecCplx, &ivecReal };
+    const std::vector<double>* stepEval[3] = { &evalReal, &evalCplx, &evalReal };
+
+    double cpuLogL[3];
+    std::vector<double> cpuGrad[3];
+    for (int i = 0; i < 3; i++) {
+        auto r = setupAndRun(cpuInst, *stepEvec[i], *stepIvec[i], *stepEval[i]);
+        cpuLogL[i] = r.first;
+        cpuGrad[i] = r.second;
+        fprintf(stdout, "  [CPU step %d: %-13s] logL=%.6f\n", i, stepNames[i], cpuLogL[i]);
+    }
+    beagleFinalizeInstance(cpuInst);
+
+    if (gpuDevice < 0) return 0;
+
+    fprintf(stdout, "\nCreating GPU (single) instance (BEAGLE_FLAG_EIGEN_COMPLEX requested):\n");
+    int gpuInst = makeInst(true, gpuDevice, true);
+    if (gpuInst < 0) { fprintf(stderr, "Failed GPU instance\n"); return 1; }
+
+    /* The "complex" step reuses runTest16's exact asymmetric circulant
+     * (r_fwd=1.0, r_bkd=0.5), which has a documented pre-existing marginal
+     * single-vs-double-precision diff of ~1.02e-03 (CLUSTER_AGENT_FINDINGS2.md
+     * section 8.2) unrelated to eigen-real/complex gating. Give that one step
+     * a matching looser tolerance so this test isn't tripped by that same
+     * known, already-accepted noise floor; the "real" steps (the actual
+     * subject of this test) are held to the tighter tol. */
+    const double tolComplexStep = 1.1e-3;
+    std::vector<double> gpuGradSteps[3];
+    bool allOk = true;
+    for (int i = 0; i < 3; i++) {
+        auto r = setupAndRun(gpuInst, *stepEvec[i], *stepIvec[i], *stepEval[i]);
+        double gpuLogL = r.first;
+        gpuGradSteps[i] = r.second;
+        fprintf(stdout, "  [GPU step %d: %-13s] logL=%.6f\n", i, stepNames[i], gpuLogL);
+
+        double maxDiff = 0.0;
+        for (int k = 0; k < S*S; k++) {
+            double d = fabs(cpuGrad[i][k] - gpuGradSteps[i][k]);
+            if (d > maxDiff || std::isnan(d)) maxDiff = d;
+        }
+        double stepTol = (i == 1) ? tolComplexStep : tol;
+        bool stepOk = (maxDiff <= stepTol) && !std::isnan(maxDiff);
+        fprintf(stdout, "    step %d (%s) gradient max|diff|=%.3e (tol=%.1e)  %s\n",
+                i, stepNames[i], maxDiff, stepTol, stepOk ? "PASS" : "FAIL");
+        allOk &= stepOk;
+    }
+
+    /* Consistency check: step 0 and step 2 use the IDENTICAL real-only
+     * decomposition, with a genuinely complex decomposition (step 1)
+     * processed on the same instance/eigenIndex in between. If isAllReal
+     * gating left any stale sDs/sCs kernel state or stale device Eval data
+     * from the complex step bleeding into the next real step, step 2 would
+     * diverge from step 0 -- this is the most direct test for that failure
+     * mode, independent of any CPU-vs-GPU precision noise.
+     * Tolerance is not zero: verified empirically (by rerunning with all
+     * three steps set to the same real decomposition, i.e. no complex step
+     * at all) that back-to-back identical GPU launches already differ by
+     * this same ~1e-5 magnitude on this hardware -- ADJOINT_ATOMIC_ADD_GPU's
+     * float addition is not associative, so summation order across
+     * concurrent atomics is not guaranteed bit-identical between launches.
+     * That noise floor is unrelated to eigen real/complex gating, so the
+     * threshold here is set an order of magnitude above it. */
+    double stepConsistencyDiff = 0.0;
+    for (int k = 0; k < S*S; k++)
+        stepConsistencyDiff = std::max(stepConsistencyDiff, fabs(gpuGradSteps[0][k] - gpuGradSteps[2][k]));
+    bool consistencyOk = stepConsistencyDiff < 1e-4;
+    fprintf(stdout, "  GPU step0 vs step2 (both real, complex processed in between) max|diff|=%.3e  %s\n",
+            stepConsistencyDiff, consistencyOk ? "PASS (no stale state)" : "FAIL (possible stale state)");
+    allOk &= consistencyOk;
+    beagleFinalizeInstance(gpuInst);
+
+    fprintf(stdout, "Dynamic real<->complex transition test: %s\n", allOk ? "PASS" : "FAIL");
+    return allOk ? 0 : 1;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 int main(int argc, const char *argv[]) {
@@ -941,9 +1258,11 @@ int main(int argc, const char *argv[]) {
 
     bool useGpu    = false;
     int  whichDevice = -1;
-    bool run4      = true;
-    bool run16     = false;
-    bool run17     = false;
+    bool run4       = true;
+    bool run16      = false;
+    bool run17      = false;
+    bool runRealOnly    = false;
+    bool runDynamic     = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--gpu") == 0 && i+1 < argc) {
@@ -954,17 +1273,25 @@ int main(int argc, const char *argv[]) {
             run4  = (ns == 4);
             run16 = (ns == 16);
             run17 = (ns == 17);
+        } else if (strcmp(argv[i], "--realonly") == 0) {
+            run4 = false;
+            runRealOnly = true;
+        } else if (strcmp(argv[i], "--dynamic") == 0) {
+            run4 = false;
+            runDynamic = true;
         } else if (strcmp(argv[i], "--all") == 0) {
-            run4 = run16 = run17 = true;
+            run4 = run16 = run17 = runRealOnly = runDynamic = true;
         }
     }
 
     int gpuDev = useGpu ? whichDevice : -1;
 
     int result = 0;
-    if (run4)  result |= runTest4(gpuDev);
-    if (run16) result |= runTest16(gpuDev);
-    if (run17) result |= runTest17(gpuDev);
+    if (run4)       result |= runTest4(gpuDev);
+    if (run16)      result |= runTest16(gpuDev);
+    if (run17)      result |= runTest17(gpuDev);
+    if (runRealOnly) result |= runTestRealOnly(gpuDev);
+    if (runDynamic)  result |= runTestDynamicTransition(gpuDev);
 
     return result;
 }
