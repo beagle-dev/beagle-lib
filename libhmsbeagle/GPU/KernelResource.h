@@ -32,7 +32,10 @@ public:
         int inSumAcrossBlockSize,
         int inBlockPeelingSizeSCA,
         int inSlabOpsPerBlock,
-        int inSpineT,
+        int inHazardMaxIntervalsPerBlock,
+        int inProjectOpsPerBlock,
+        int inHeigOpsPerBlock,
+        int inCoalEventsPerBlock,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -55,7 +58,10 @@ public:
     int sumAcrossBlockSize;
     int blockPeelingSizeSCA;
     int slabOpsPerBlock;
-    int spineT;
+    int hazardMaxIntervalsPerBlock;
+    int projectOpsPerBlock;
+    int heigOpsPerBlock;
+    int coalEventsPerBlock;
     int blockPeelingSize;
     int isPowerOfTwo;
     int smallestPowerOfTwo;

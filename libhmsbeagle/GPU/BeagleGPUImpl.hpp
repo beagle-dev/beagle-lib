@@ -127,22 +127,10 @@ namespace gpu {
     hBastaDistance = NULL;
     hBastazeroes = NULL;
 
-    dPartialsGrad = (GPUPtr)NULL;
-    dCoalescentGrad = (GPUPtr)NULL;
-    dPartialsGradPopSize = (GPUPtr)NULL;
-    dCoalescentGradPopSize = (GPUPtr)NULL;
-    dBastaGradBuffers = (GPUPtr)NULL;
-    dBastaGradBuffersPopSize = (GPUPtr)NULL;
     dEdgeLengthsGrad = (GPUPtr)NULL;
-    dGradOut = (GPUPtr)NULL;
-    dBastaGradNodeOps = (GPUPtr)NULL;
-    hBastaGradNodeOps = NULL;
     hEdgeLengthsGrad = NULL;
     hGradZeros = NULL;
     kGradZerosSize = 0;
-    kGradAbStride = 0;
-    kGradAbStridePopSize = 0;
-    kCoalescentGradLength = 0;
     kGradBuffersAllocated = false;
     kBastaOpsUploaded = false;
     kBastaOpsCount = 0;
@@ -202,6 +190,8 @@ namespace gpu {
     kAdjointGraphValid = false;
     kAdjointGraphFingerprint = 0;
     kAdjointGraphIntervalCount = 0;
+    kAdjointGraphAnchor = -1;
+    kSlabAnchorActive = false;
     kAdjointGraphNumEvBlocks = -1;
     kAdjointGraphReplayCount = 0;
     kAdjointGraphRebuildCount = 0;
@@ -216,6 +206,8 @@ namespace gpu {
     kForwardGraphRebuildCount = 0;
     kForwardGraphFallbackCount = 0;
 
+    kCfgUseForwardSlab = true;
+    kCfgUseAdjointSlab = true;
     kForwardSlabPipelineEnabled = false;
     kForwardSlabGraphExec = NULL;
     kForwardSlabGraphValid = false;
@@ -270,6 +262,7 @@ namespace gpu {
     dBranchSlabList = (GPUPtr)NULL;
     dSlabCarryOut = (GPUPtr)NULL;
     dSlabCarryPrefix = (GPUPtr)NULL;
+    dSlabAlpha = (GPUPtr)NULL;
     dSlabAStash = (GPUPtr)NULL;
     dSlabYBottomEigen = (GPUPtr)NULL;
     kSlabBlockCap = 0;
@@ -281,6 +274,9 @@ namespace gpu {
     dIntervalBranchLengths = (GPUPtr)NULL;
     kIntervalBLBytes = 0;
     kIntervalOpStartBytes = 0;
+
+    dLoewnerExp = (GPUPtr)NULL;
+    kLoewnerExpBytes = 0;
 
     // Forward-buffer projection list.
     dForwardBufList = (GPUPtr)NULL;
@@ -303,6 +299,7 @@ namespace gpu {
     kSlabNumEvBlocks = 0;
 
     kBastaSlabMetadataUploaded = false;
+    kBastaPipelineAnnounced = false;
 
     hStashedEval = NULL;
     kStashedEvalSize = NULL;
@@ -550,9 +547,11 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         if (dBranchSlabList != (GPUPtr)NULL) gpu->FreeMemory(dBranchSlabList);
         if (dSlabCarryOut != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryOut);
         if (dSlabCarryPrefix != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryPrefix);
+        if (dSlabAlpha != (GPUPtr)NULL) gpu->FreeMemory(dSlabAlpha);
         if (dSlabAStash != (GPUPtr)NULL) gpu->FreeMemory(dSlabAStash);
         if (dSlabYBottomEigen != (GPUPtr)NULL) gpu->FreeMemory(dSlabYBottomEigen);
         if (dIntervalBranchLengths != (GPUPtr)NULL) gpu->FreeMemory(dIntervalBranchLengths);
+        if (dLoewnerExp != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerExp);
         if (dForwardBufList != (GPUPtr)NULL) gpu->FreeMemory(dForwardBufList);
         if (hBranchKb != NULL) gpu->FreeHostMemory(hBranchKb);
         if (hBranchKTop != NULL) gpu->FreeHostMemory(hBranchKTop);
@@ -1173,7 +1172,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     kSumIntervalBlockSize = gpu->kernelResource->sumIntervalBlockSize;
     kSlabOpsPerBlock = gpu->kernelResource->slabOpsPerBlock;
-    kSpineT = gpu->kernelResource->spineT;
     kSumAcrossBlockSize = gpu->kernelResource->sumAcrossBlockSize;
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2698,6 +2696,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
             size_t ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
             size_t newTotalSize = partialsCount * ptrIncrement;
 
+            if (dPartialsOrigin != (GPUPtr)NULL) {
+                gpu->FreeMemory(dPartialsOrigin);
+                dPartialsOrigin = (GPUPtr)NULL;
+            }
+
             GPUPtr new_dPartialsTmpOrigin = gpu->AllocateMemory(newTotalSize);
 
             GPUPtr new_dPartialsOrigin = gpu->CreateSubPointer(new_dPartialsTmpOrigin, 0, ptrIncrement);
@@ -2850,28 +2853,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
     if (adjointMode) {
         kAdjointGradMode = true;
 
-        const bool kCfgUseForwardSlab = true;
-        const bool kCfgUseAdjointSlab = true;
-
-        kForwardSlabPipelineEnabled = kCfgUseForwardSlab;
-        kAdjointSlabPipelineEnabled = kCfgUseAdjointSlab;
-
-
-        const char* cfgTag;
-        if (kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
-            cfgTag = "FULL-SLAB   (fwd=slab,   adj=slab)";
-        } else if (!kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
-            cfgTag = "FWD-LEGACY  (fwd=legacy, adj=slab)";
-        } else if (kForwardSlabPipelineEnabled && !kAdjointSlabPipelineEnabled) {
-            cfgTag = "ADJ-LEGACY  (fwd=slab,   adj=legacy)";
-        } else {
-            cfgTag = "FULL-LEGACY (fwd=legacy, adj=legacy)";
-        }
-        fprintf(stderr,
-            "BeagleGPUImpl: BASTA pipeline version = %s\n",
-            cfgTag);
-
-
         if (dAdjointPopSizeGrad != (GPUPtr)NULL) gpu->FreeMemory(dAdjointPopSizeGrad);
         dAdjointPopSizeGrad = gpu->AllocateMemory((size_t)S * sizeof(Real));
 
@@ -2901,40 +2882,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
         kAdjointGradBuffersAllocated = true;
 
     } else {
-        kGradAbStride = bufCount * S;
-        kGradAbStridePopSize = bufCount * S;
-
-        if (dBastaGradBuffers != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradBuffers);
-        dBastaGradBuffers = gpu->AllocateMemory((size_t)4 * S2 * S * L * sizeof(Real));
-
-        if (dBastaGradBuffersPopSize != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradBuffersPopSize);
-        dBastaGradBuffersPopSize = gpu->AllocateMemory((size_t)4 * S * S * L * sizeof(Real));
-
-        if (dPartialsGrad != (GPUPtr)NULL) gpu->FreeMemory(dPartialsGrad);
-        dPartialsGrad = gpu->AllocateMemory((size_t)S2 * bufCount * S * sizeof(Real));
-
-        if (dCoalescentGrad != (GPUPtr)NULL) gpu->FreeMemory(dCoalescentGrad);
-        dCoalescentGrad = gpu->AllocateMemory((size_t)S2 * L * sizeof(Real));
-        kCoalescentGradLength = L;
-
-        if (dPartialsGradPopSize != (GPUPtr)NULL) gpu->FreeMemory(dPartialsGradPopSize);
-        dPartialsGradPopSize = gpu->AllocateMemory((size_t)S * bufCount * S * sizeof(Real));
-
-        if (dCoalescentGradPopSize != (GPUPtr)NULL) gpu->FreeMemory(dCoalescentGradPopSize);
-        dCoalescentGradPopSize = gpu->AllocateMemory((size_t)S * L * sizeof(Real));
-
-        if (dGradOut != (GPUPtr)NULL) gpu->FreeMemory(dGradOut);
-        dGradOut = gpu->AllocateMemory((size_t)S2 * (L + 1) * sizeof(Real));
-
-        if (dBastaGradNodeOps != (GPUPtr)NULL) gpu->FreeMemory(dBastaGradNodeOps);
-        dBastaGradNodeOps = gpu->AllocateMemory((size_t)bufCount * 5 * sizeof(int));
-        if (hBastaGradNodeOps != NULL) gpu->FreeHostMemory(hBastaGradNodeOps);
-        hBastaGradNodeOps = (int*) gpu->CallocHost(sizeof(int), bufCount * 5);
-
-        size_t partialsGradBytes = (size_t)S2 * bufCount * S * sizeof(Real);
-        if (hGradZeros != NULL) gpu->FreeHostMemory(hGradZeros);
-        hGradZeros = (Real*) gpu->CallocHost(sizeof(Real), partialsGradBytes / sizeof(Real));
-        kGradZerosSize = partialsGradBytes;
+        fprintf(stderr,
+                "BeagleGPUImpl::the non-adjoint "
+                "BASTA gradient path has been removed ");
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
 
     kGradBuffersAllocated = true;
@@ -3226,7 +3177,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
 
 
                 const int eigenIndexFwd = kActiveEigenIndexFwd;
-                const GPUPtr dRawIevcFwd = dRawIevc[eigenIndexFwd];
                 const GPUPtr dEvecTFwd = dEvecT[eigenIndexFwd];
                 const GPUPtr dInverseEvecTFwd = dInverseEvecT[eigenIndexFwd];
 
@@ -3340,7 +3290,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
 
 
                         kernels->ProjectPartialsToEigenbasis(
-                            dPartialsOrigin, dRawIevcFwd,
+                            dPartialsOrigin, dInverseEvecTFwd,
                             dPartialsTilde, dForwardBufList,
                             kForwardBufCount, kStateCount, kIndexOffsetPat);
 
@@ -3400,7 +3350,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
                         sizeof(Real) * kCoalescentBufferLength);
 
                     kernels->ProjectPartialsToEigenbasis(
-                        dPartialsOrigin, dRawIevcFwd,
+                        dPartialsOrigin, dInverseEvecTFwd,
                         dPartialsTilde, dForwardBufList,
                         kForwardBufCount, kStateCount, kIndexOffsetPat);
 
@@ -3456,6 +3406,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
 #ifdef BEAGLE_DEBUG_SYNCH
                 gpu->SynchronizeHost();
 #endif
+
                 return BEAGLE_SUCCESS;
             }
 
@@ -3585,58 +3536,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad(const int* operat
         return BEAGLE_ERROR_GENERAL;
     }
 
-    if (kAdjointGradMode) {
-        const bool skipOpQueueUpload =
-            kAdjointSlabPipelineEnabled && kBastaSlabMetadataUploaded;
-        if (!skipOpQueueUpload) {
-            if (!kBastaOpsUploaded || kBastaOpsCount != count) {
-                uploadBastaOperationQueue(operations, count);
-            }
+    const bool skipOpQueueUpload =
+        kAdjointSlabPipelineEnabled && kBastaSlabMetadataUploaded;
+    if (!skipOpQueueUpload) {
+        if (!kBastaOpsUploaded || kBastaOpsCount != count) {
+            uploadBastaOperationQueue(operations, count);
         }
-        return BEAGLE_SUCCESS;
-    }
-
-    const int numOps = BEAGLE_BASTA_OP_COUNT;
-    const int S = kPaddedStateCount;
-    const int S2 = S * S;
-
-    GPUPtr coalescent = dCoalescentBuffers;
-    const GPUPtr sizes = dFrequencies[populationSizesIndex];
-
-    gpu->MemcpyHostToDevice(dPartialsGrad, hGradZeros, (size_t)kBufferCount * S2 * S * sizeof(Real));
-    gpu->MemcpyHostToDevice(dCoalescentGrad, hGradZeros, (size_t)S2 * kCoalescentBufferLength * sizeof(Real));
-
-    if (!kBastaOpsUploaded || kBastaOpsCount != count) {
-        uploadBastaOperationQueue(operations, count);
-    }
-
-    for (int i = 0; i < count; ++i) {
-        int srcIdx = i * numOps;
-        hBastaGradNodeOps[i * 5] = operations[srcIdx];
-        hBastaGradNodeOps[i * 5 + 1] = operations[srcIdx + 1];
-        hBastaGradNodeOps[i * 5 + 2] = operations[srcIdx + 3];
-        hBastaGradNodeOps[i * 5 + 3] = operations[srcIdx + 5];
-        hBastaGradNodeOps[i * 5 + 4] = operations[srcIdx + 6];
-    }
-    gpu->MemcpyHostToDevice(dBastaGradNodeOps, hBastaGradNodeOps, sizeof(int) * count * 5);
-
-    for (int interval = 0; interval < intervalCount - 1; ++interval) {
-        const int begin = intervals[interval];
-        const int end   = intervals[interval + 1];
-        const int opCount = end - begin;
-
-        int lastSrcIdx = (end - 1) * numOps;
-        int matIdx = operations[lastSrcIdx + 2];
-
-        kernels->BastaPartialsGradMigrationAB(dPartialsOrigin, dPartialsGrad, dMatricesOrigin,
-            dBastaOperationQueue, dBastaGradNodeOps, sizes,
-            coalescent, dCoalescentGrad, dEdgeLengthsGrad,
-            (unsigned int)begin, numOps, opCount,
-            kPaddedStateCount, kGradAbStride, kCoalescentBufferLength, (unsigned int)matIdx);
-
-#ifdef BEAGLE_DEBUG_SYNCH
-        gpu->SynchronizeHost();
-#endif
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -3946,10 +3851,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
         }
     }
 
-    if (dPartialsTilde == (GPUPtr)NULL) {
-        kPartialsTildeBytes = (size_t)kBufferCount * stride * sizeof(Real);
-        dPartialsTilde = gpu->AllocateMemory(kPartialsTildeBytes);
-        metadataPointersChanged = true;
+    {   size_t needTilde = (size_t)kBufferCount * stride * sizeof(Real);
+        if (dPartialsTilde == (GPUPtr)NULL || needTilde > kPartialsTildeBytes) {
+            if (dPartialsTilde != (GPUPtr)NULL) gpu->FreeMemory(dPartialsTilde);
+            kPartialsTildeBytes = needTilde;
+            dPartialsTilde = gpu->AllocateMemory(kPartialsTildeBytes);
+            metadataPointersChanged = true;
+        }
     }
 
     if (dGEigen == (GPUPtr)NULL) {
@@ -3977,9 +3885,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
         if (needCarry > kSlabCarryBytes) {
             if (dSlabCarryOut != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryOut);
             if (dSlabCarryPrefix != (GPUPtr)NULL) gpu->FreeMemory(dSlabCarryPrefix);
+            if (dSlabAlpha != (GPUPtr)NULL) gpu->FreeMemory(dSlabAlpha);
             size_t alloc = needCarry + needCarry / 4 + (size_t)S * sizeof(Real);
             dSlabCarryOut = gpu->AllocateMemory(alloc);
             dSlabCarryPrefix = gpu->AllocateMemory(alloc);
+            dSlabAlpha = gpu->AllocateMemory(alloc * 2);
             kSlabCarryBytes = alloc;
             metadataPointersChanged = true;
         }
@@ -4007,9 +3917,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
         }
     }
 
-    growHostInt(hForwardBufList, kSlabForwardBufCap, kBufferCount);
-    growDevice(dForwardBufList,  kSlabForwardBufCap, kBufferCount, sizeof(int));
-    if (kBufferCount > kSlabForwardBufCap) kSlabForwardBufCap = kBufferCount;
+    growHostInt(hForwardBufList, kSlabForwardBufCap, forwardBufCount);
+    growDevice(dForwardBufList,  kSlabForwardBufCap, forwardBufCount, sizeof(int));
+    if (forwardBufCount > kSlabForwardBufCap) kSlabForwardBufCap = forwardBufCount;
 
     if (intervalCount > 0) {
         size_t needCS = (size_t)(intervalCount + 1) * sizeof(int);
@@ -4083,13 +3993,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
     copyTo(hSlabBlockChunkLen, p, totalSlabBlocks);
     copyTo(hSlabBlockChunkIdx, p, totalSlabBlocks);
     copyTo(hOpReduceTable, p, operationCount * 5);
-
-    if (p != packedLen) {
-        fprintf(stderr, "BeagleGPUImpl::uploadBastaSlabMetadata: cursor "
-                        "ended at %d but packedLen=%d (schema drift)\n",
-                        p, packedLen);
-        return BEAGLE_ERROR_OUT_OF_RANGE;
-    }
+    (void)p;
 
     gpu->MemcpyHostToDevice(dBranchKb, hBranchKb, sizeof(int) * branchCount);
     gpu->MemcpyHostToDevice(dBranchKTop, hBranchKTop, sizeof(int) * branchCount);
@@ -4142,6 +4046,27 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaSlabMetadata(const int* packed
     kForwardBufCount = forwardBufCount;
     kBastaOpReduceCount = operationCount;
     kBastaSlabMetadataUploaded = true;
+
+    {
+        kForwardSlabPipelineEnabled = kCfgUseForwardSlab;
+        kAdjointSlabPipelineEnabled = kCfgUseAdjointSlab;
+        if (!kBastaPipelineAnnounced) {
+            const char* cfgTag;
+            if (kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
+                cfgTag = "FULL-SLAB   (fwd=slab,   adj=slab)";
+            } else if (!kForwardSlabPipelineEnabled && kAdjointSlabPipelineEnabled) {
+                cfgTag = "FWD-LEGACY  (fwd=legacy, adj=slab)";
+            } else if (kForwardSlabPipelineEnabled && !kAdjointSlabPipelineEnabled) {
+                cfgTag = "ADJ-LEGACY  (fwd=slab,   adj=legacy)";
+            } else {
+                cfgTag = "FULL-LEGACY (fwd=legacy, adj=legacy)";
+            }
+            fprintf(stderr,
+                "BeagleGPUImpl: BASTA pipeline version = %s\n",
+                cfgTag);
+            kBastaPipelineAnnounced = true;
+        }
+    }
 
     if (metadataPointersChanged) {
         if (kForwardSlabGraphExec != NULL) {
@@ -4348,11 +4273,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
 
         size_t adjPopSize  = (size_t)S * sizeof(Real);
         size_t hazardSize  = (size_t)4 * L * S * sizeof(Real);
-        gpu->MemsetZero(dPartialAdjoint, adjPartSize);
-        gpu->MemsetZero(dAdjointPopSizeGrad, adjPopSize);
-        gpu->MemsetZero(dHazardAdjoints, hazardSize);
+        gpu->MemsetZeroAsync(dPartialAdjoint, adjPartSize);
+        gpu->MemsetZeroAsync(dAdjointPopSizeGrad, adjPopSize);
+        gpu->MemsetZeroAsync(dHazardAdjoints, hazardSize);
         if (!kAdjointSlabPipelineEnabled) {
-            gpu->MemsetZero(dMatrixAdjoint, adjMatSize);
+            gpu->MemsetZeroAsync(dMatrixAdjoint, adjMatSize);
         } else {
             (void) adjMatSize;
         }
@@ -4403,9 +4328,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
             int maxOpsPerInterval = 0;
             for (int i = 0; i < intervalCount; i++) {
                 int start = intervalStarts[i];
-                int end   = intervalStarts[i + 1];
+                int end = intervalStarts[i + 1];
                 hAdjointIntervalNumbers[i] = operations[start * numOps + 7];
-                hAdjointIntervalStarts[i]  = start;
+                hAdjointIntervalStarts[i] = start;
                 hAdjointMatTransIndices[i] = operations[(end - 1) * numOps + 2] * matStride;
 
                 int opsInInterval = end - start;
@@ -4487,7 +4412,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
 
             kSlabNumEvBlocks = kLoewnerNumBlocks;
 
-
             const int kMatStride = S2;
             const bool useEdgeBL =
                 (hEdgeLengthsGrad != NULL) &&
@@ -4528,9 +4452,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
             };
 
             int branchTimeTotal = 0;
+            Real maxBranchT = (Real) 0.0;
             for (int bi = 0; bi < kSlabBranchCountActive; ++bi) {
-                int kTop      = hBranchKTop[bi];
-                int K_b       = hBranchKb[bi];
+                int kTop = hBranchKTop[bi];
+                int K_b = hBranchKb[bi];
                 int timeStart = hBranchTimeStart[bi];
 
                 Real cumT = (Real) 0.0;
@@ -4539,6 +4464,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                     cumT += cachedBL(absInterval);
                     hBranchT[timeStart + n - 1] = cumT;
                 }
+                if (cumT > maxBranchT) maxBranchT = cumT;
                 branchTimeTotal = std::max(branchTimeTotal, timeStart + K_b);
             }
 
@@ -4547,12 +4473,56 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                     sizeof(Real) * (size_t)branchTimeTotal);
             }
 
+            Real maxAbsReEig = (Real) 0.0;
+            if (hLoewnerEigenValues != NULL) {
+                for (int i = 0; i < kStateCount; ++i) {
+                    Real v = hLoewnerEigenValues[i];
+                    Real av = (v < (Real) 0.0) ? -v : v;
+                    if (av > maxAbsReEig) maxAbsReEig = av;
+                }
+            }
+            const double anchorTrigger = (sizeof(Real) >= sizeof(double)) ? 700.0 : 80.0;
+            const double anchorRelease = (sizeof(Real) >= sizeof(double)) ? 560.0 : 64.0;
+            double anchorMetric = (double) maxBranchT * (double) maxAbsReEig;
+            int useAnchor;
+            if (anchorMetric <= 0.0) {
+                useAnchor = kSlabAnchorActive ? 1 : 0;
+            } else {
+                useAnchor = kSlabAnchorActive
+                            ? (anchorMetric > anchorRelease ? 1 : 0)
+                            : (anchorMetric > anchorTrigger ? 1 : 0);
+            }
+            if (useAnchor && !kSlabAnchorActive) {
+                fprintf(stderr,
+                    "BeagleGPUImpl: BASTA slab anchor path ENGAGED "
+                    "(maxT*max|Re(lambda)| = %g > %g)\n",
+                    anchorMetric, anchorTrigger);
+            } else if (!useAnchor && kSlabAnchorActive) {
+                fprintf(stderr,
+                    "BeagleGPUImpl: BASTA slab anchor path released "
+                    "(maxT*max|Re(lambda)| = %g <= %g)\n",
+                    anchorMetric, anchorRelease);
+            }
+            kSlabAnchorActive = (useAnchor != 0);
+
+            {
+                size_t loewnerExpNeed =
+                    (size_t) 3 * (size_t) S * (size_t) intervalCount * sizeof(Real);
+                if (loewnerExpNeed > 0 &&
+                    (dLoewnerExp == (GPUPtr)NULL || loewnerExpNeed > kLoewnerExpBytes)) {
+                    if (dLoewnerExp != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerExp);
+                    size_t alloc = loewnerExpNeed + loewnerExpNeed / 4 + sizeof(Real);
+                    dLoewnerExp = gpu->AllocateMemory(alloc);
+                    kLoewnerExpBytes = alloc;
+                }
+            }
 
             bool graphSupported = gpu->SupportsGraphCapture();
             bool graphReady = graphSupported
                               && kAdjointGraphValid
                               && kAdjointGraphExec != NULL
                               && kAdjointGraphFingerprint == metaFingerprint
+                              && kAdjointGraphAnchor == useAnchor
                               && kAdjointGraphIntervalCount == intervalCount;
 
             if (graphSupported && !graphReady) {
@@ -4564,7 +4534,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
 
                 if (gpu->BeginGraphCapture()) {
                     kernels->ProjectPartialsToEigenbasis(
-                        dPartialsOrigin, dRawIevc_e,
+                        dPartialsOrigin, dInverseEvecT_e,
                         dPartialsTilde, dForwardBufList,
                         kForwardBufCount, kStateCount, kIndexOffsetPat);
 
@@ -4574,7 +4544,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                                                    sizes, dHazardAdjoints, dAdjointPopSizeGrad,
                                                    intervalCount, L);
 
-                    kernels->ProjectHazardsToEigen(dPartialsOrigin, dHazardAdjoints, dEvecT_e, dOpInBufOff,
+                    kernels->ProjectHazardsToEigen(dPartialsOrigin, dHazardAdjoints, dRawEvec_e, dOpInBufOff,
 						dOpKIn, dOpKAcc, dOpHasAcc, dHazardEigenPerOp, kSlabBranchOpTotalActive, kStateCount);
 
                     for (int d = 0; d <= kMaxSlabDepth; ++d) {
@@ -4608,15 +4578,21 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                             dBranchTopBuf, dBranchOpFirst,
                             dBranchTimeStart, dBranchT,
                             dSlabCarryOut, dSlabAStash, dSlabYBottomEigen,
+                            dSlabAlpha,
+                            useAnchor,
                             blockBase, numBlocks,
                             kSlabNumEvBlocks,
                             kStateCount, kIndexOffsetPat);
 
-                        kernels->AdjointBranchSlabSpine(
-                            dSlabCarryOut, dSlabCarryPrefix,
-                            dSlabBlockBranchIdx,
-                            (unsigned int)blockBase, (unsigned int)numBlocks,
-                            kStateCount);
+                        if (numBlocks != branchesInSlab) {
+                            kernels->AdjointBranchSlabSpinePerBranch(
+                                dSlabCarryOut, dSlabCarryPrefix,
+                                dSlabAlpha, dLoewnerBlockStarts, dLoewnerBlockDims,
+                                dBranchSlabList, dBranchKb, dBranchFirstBlock,
+                                useAnchor,
+                                (unsigned int)brLo, (unsigned int)branchesInSlab,
+                                kSlabOpsPerBlock, kStateCount);
+                        }
 
                         kernels->AdjointBranchSlabApply(
                             dPartialAdjoint, dScratchYBar,
@@ -4639,10 +4615,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                         dIntervalOpStartCSR, dIntervalOpListCSR,
                         dMatrixAdjoint,
                         (unsigned int) intervalCount);
-                    kernels->ApplyComplexLoewnerInPlace(
+                    kernels->LoewnerExpPrecompute(
+                        dLoewnerEigenValues, dIntervalBranchLengths,
+                        dLoewnerBlockStarts, dLoewnerBlockDims, dLoewnerExp,
+                        (unsigned int) intervalCount,
+                        (unsigned int) kStateCount,
+                        (unsigned int) kSlabNumEvBlocks);
+                    kernels->ApplyComplexLoewnerInPlacePrecomp(
                         dMatrixAdjoint, dLoewnerEigenValues,
                         dIntervalBranchLengths,
-                        dLoewnerBlockStarts, dLoewnerBlockDims,
+                        dLoewnerBlockStarts, dLoewnerBlockDims, dLoewnerExp,
                         (unsigned int) intervalCount,
                         (unsigned int) kStateCount,
                         (unsigned int) kSlabNumEvBlocks);
@@ -4662,6 +4644,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                         kAdjointGraphValid = true;
                         kAdjointGraphFingerprint = metaFingerprint;
                         kAdjointGraphIntervalCount = intervalCount;
+                        kAdjointGraphAnchor = useAnchor;
                         kAdjointGraphNumEvBlocks = kSlabNumEvBlocks;
                         kAdjointGraphRebuildCount++;
                         graphReady = true;
@@ -4682,7 +4665,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
 
 
                 kernels->ProjectPartialsToEigenbasis(
-                    dPartialsOrigin, dRawIevc_e,
+                    dPartialsOrigin, dInverseEvecT_e,
                     dPartialsTilde, dForwardBufList,
                     kForwardBufCount, kStateCount, kIndexOffsetPat);
 
@@ -4694,7 +4677,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
 
 
                 kernels->ProjectHazardsToEigen(
-                    dPartialsOrigin, dHazardAdjoints, dEvecT_e,
+                    dPartialsOrigin, dHazardAdjoints, dRawEvec_e,
                     dOpInBufOff, dOpKIn, dOpKAcc, dOpHasAcc,
                     dHazardEigenPerOp,
                     kSlabBranchOpTotalActive, kStateCount);
@@ -4730,15 +4713,21 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                             dBranchTopBuf, dBranchOpFirst,
                             dBranchTimeStart, dBranchT,
                             dSlabCarryOut, dSlabAStash, dSlabYBottomEigen,
+                            dSlabAlpha,
+                            useAnchor,
                             blockBase, numBlocks,
                             kSlabNumEvBlocks,
                             kStateCount, kIndexOffsetPat);
 
-                        kernels->AdjointBranchSlabSpine(
-                            dSlabCarryOut, dSlabCarryPrefix,
-                            dSlabBlockBranchIdx,
-                            (unsigned int)blockBase, (unsigned int)numBlocks,
-                            kStateCount);
+                        if (numBlocks != branchesInSlab) {
+                            kernels->AdjointBranchSlabSpinePerBranch(
+                                dSlabCarryOut, dSlabCarryPrefix,
+                                dSlabAlpha, dLoewnerBlockStarts, dLoewnerBlockDims,
+                                dBranchSlabList, dBranchKb, dBranchFirstBlock,
+                                useAnchor,
+                                (unsigned int)brLo, (unsigned int)branchesInSlab,
+                                kSlabOpsPerBlock, kStateCount);
+                        }
 
                         kernels->AdjointBranchSlabApply(
                             dPartialAdjoint, dScratchYBar,
@@ -4760,10 +4749,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                     dIntervalOpStartCSR, dIntervalOpListCSR,
                     dMatrixAdjoint,
                     (unsigned int) intervalCount);
-                kernels->ApplyComplexLoewnerInPlace(
+                kernels->LoewnerExpPrecompute(
+                    dLoewnerEigenValues, dIntervalBranchLengths,
+                    dLoewnerBlockStarts, dLoewnerBlockDims, dLoewnerExp,
+                    (unsigned int) intervalCount,
+                    (unsigned int) kStateCount,
+                    (unsigned int) kSlabNumEvBlocks);
+                kernels->ApplyComplexLoewnerInPlacePrecomp(
                     dMatrixAdjoint, dLoewnerEigenValues,
                     dIntervalBranchLengths,
-                    dLoewnerBlockStarts, dLoewnerBlockDims,
+                    dLoewnerBlockStarts, dLoewnerBlockDims, dLoewnerExp,
                     (unsigned int) intervalCount,
                     (unsigned int) kStateCount,
                     (unsigned int) kSlabNumEvBlocks);
@@ -4893,59 +4888,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
         return BEAGLE_SUCCESS;
     }
 
-    size_t gradBufSize = (size_t)4 * S2 * S * L * sizeof(Real);
-    gpu->MemcpyHostToDevice(dBastaGradBuffers, hGradZeros, gradBufSize);
-
-    kernels->reduceWithinIntervalGrad(
-        dBastaOperationQueue, dPartialsOrigin, dPartialsGrad,
-        dBastaGradNodeOps, dBastaGradBuffers,
-        numOps, 0, operationCount,
-        S, kGradAbStride, L);
-
-#ifdef BEAGLE_DEBUG_SYNCH
-    gpu->SynchronizeHost();
-#endif
-
-    for (int i = 0; i < intervalCount; ++i) {
-        hBastaDistance[i] = (Real) intervalLengths[i];
-    }
-    gpu->MemcpyHostToDevice(dBastaDistance, hBastaDistance, sizeof(Real) * L);
-
-    int numGradBlocks = intervalCount / kSumAcrossBlockSize + 1;
-
-    kernels->reduceAcrossIntervalGrad(
-        dBastaMemory, dBastaGradBuffers,
-        dBastaDistance, sizes, coalescent, dCoalescentGrad,
-        dGradOut,
-        intervalCount, S, L);
-
-#ifdef BEAGLE_DEBUG_SYNCH
-    gpu->SynchronizeHost();
-#endif
-
-    std::vector<Real> hGradOut((size_t)S2 * numGradBlocks);
-    gpu->MemcpyDeviceToHost(hGradOut.data(), dGradOut, sizeof(Real) * S2 * numGradBlocks);
-
-    const int Sunpad = kStateCount;
-    const int S2unpad = Sunpad * Sunpad;
-    std::fill(out, out + S2unpad, 0.0);
-    for (int a = 0; a < Sunpad; ++a) {
-        for (int b = 0; b < Sunpad; ++b) {
-            int abPadded = a * S + b;
-            int abUnpadded = a * Sunpad + b;
-            double sum = 0.0;
-            for (int blk = 0; blk < numGradBlocks; ++blk) {
-                sum += hGradOut[abPadded * numGradBlocks + blk];
-            }
-            out[abUnpadded] = sum;
-        }
-    }
-
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad\n");
-#endif
-
-    return BEAGLE_SUCCESS;
+    fprintf(stderr,
+            "BeagleGPUImpl:: the non-adjoint "
+            "BASTA gradient path has been removed; enable adjoint gradient mode.\n");
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 BEAGLE_GPU_TEMPLATE

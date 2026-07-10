@@ -172,9 +172,10 @@ protected:
     std::vector<double> gCachedIntervalLengths;
 
     std::vector<REALTYPE> gAdjointWorkE, gAdjointWorkF, gAdjointWorkG, gAdjointWorkH;
-    std::vector<REALTYPE> gAdjointWorkW, gAdjointWorkLeft, gAdjointWorkRight;
+    std::vector<REALTYPE> gAdjointWorkW;
     std::vector<REALTYPE> gAdjointWorkIexp;
     std::vector<REALTYPE> gAdjointWorkTemp;
+    std::vector<REALTYPE> gAdjointYBar;
 
     struct threadData
     {
@@ -921,6 +922,12 @@ protected:
     void adjointAddMatTVecAndOuterInPlace(REALTYPE* transposeVecTarget, REALTYPE* outerTarget,
                                           const REALTYPE* matrix, const REALTYPE* left, const REALTYPE* right,
                                           int matrixIncr);
+
+    void adjointAddMatTVecInPlace(REALTYPE* transposeVecTarget, const REALTYPE* matrix,
+                                  const REALTYPE* left, int matrixIncr);
+
+    void adjointAddOuterInPlace(REALTYPE* outerTarget, const REALTYPE* left, const REALTYPE* right,
+                                int matrixIncr);
 
     void adjointReversePass(const int* operations, int count,
                             const int* intervals, int intervalCount,

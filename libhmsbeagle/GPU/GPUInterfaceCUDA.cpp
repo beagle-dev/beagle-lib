@@ -46,7 +46,10 @@
             BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
             BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
             BASTA_SLAB_OPS_PER_BLOCK_##prec##_##state, \
-            BASTA_SPINE_T_##prec##_##state, \
+            BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK_##prec##_##state, \
+            BASTA_PROJECT_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HEIG_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_COAL_EVENTS_PER_BLOCK_##prec##_##state, \
             0,0,0,0);
 
 namespace cuda_device {
@@ -823,6 +826,11 @@ void GPUInterface::MemsetShort(GPUPtr dest,
 void GPUInterface::MemsetZero(GPUPtr dest,
                               size_t byteCount) {
     SAFE_CUPP(cuMemsetD8(dest, 0, byteCount));
+}
+
+void GPUInterface::MemsetZeroAsync(GPUPtr dest,
+                                   size_t byteCount) {
+    SAFE_CUPP(cuMemsetD8Async(dest, 0, byteCount, cudaStreams[0]));
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,

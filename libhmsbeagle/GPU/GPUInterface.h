@@ -23,6 +23,7 @@
 #endif
 
 #include <map>
+#include <string>
 
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -173,6 +174,9 @@ public:
 
     void MemsetZero(GPUPtr dest,
                     size_t byteCount);
+
+    void MemsetZeroAsync(GPUPtr dest,
+                         size_t byteCount);
 
     void MemcpyHostToDevice(GPUPtr dest,
                             const void* src,

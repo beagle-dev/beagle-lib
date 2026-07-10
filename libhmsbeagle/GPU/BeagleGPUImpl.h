@@ -92,7 +92,6 @@ private:
 
 	int kSumIntervalBlockSize;
 	int kSlabOpsPerBlock;
-	int kSpineT;
 	int kSumAcrossBlockSize;
     GPUPtr dIntegrationTmp;
     GPUPtr dOutFirstDeriv;
@@ -232,31 +231,12 @@ private:
 	Real* hBastaDistance;
 	Real* hBastazeroes;
 
-	GPUPtr dPartialsGrad;
-	GPUPtr dCoalescentGrad;
-
-
-	GPUPtr dPartialsGradPopSize;
-	GPUPtr dCoalescentGradPopSize;
-
-	GPUPtr dBastaGradBuffers;
-	GPUPtr dBastaGradBuffersPopSize;
-
 	GPUPtr dEdgeLengthsGrad;
-	GPUPtr dGradOut;
-
-
-	GPUPtr dBastaGradNodeOps;
-	int* hBastaGradNodeOps;
 
 	Real* hEdgeLengthsGrad;
 	Real* hGradZeros;
 	size_t kGradZerosSize;
 
-
-	int kGradAbStride;
-	int kGradAbStridePopSize;
-	int kCoalescentGradLength;
 	bool kGradBuffersAllocated;
 	bool kBastaOpsUploaded;
 	int  kBastaOpsCount;
@@ -319,11 +299,15 @@ private:
 	bool kAdjointGraphValid;
 	uint64_t kAdjointGraphFingerprint;
 	int kAdjointGraphIntervalCount;
+	int kAdjointGraphAnchor;
+	bool kSlabAnchorActive;
 	int kAdjointGraphNumEvBlocks;    // kSlabNumEvBlocks at capture time
 	long kAdjointGraphReplayCount;    // diagnostics
 	long kAdjointGraphRebuildCount;
 	long kAdjointGraphFallbackCount;
 
+	bool kCfgUseForwardSlab;
+	bool kCfgUseAdjointSlab;
 	bool kForwardSlabPipelineEnabled;
 	void* kForwardSlabGraphExec;
 	bool kForwardSlabGraphValid;
@@ -335,7 +319,7 @@ private:
 	long kForwardSlabGraphFallbackCount;
 
 
-	bool   kAdjointSlabPipelineEnabled;
+	bool kAdjointSlabPipelineEnabled;
 	GPUPtr dPartialsTilde;
 	size_t kPartialsTildeBytes;
 
@@ -390,6 +374,7 @@ private:
 	GPUPtr dBranchSlabList;
 	GPUPtr dSlabCarryOut;
 	GPUPtr dSlabCarryPrefix;
+	GPUPtr dSlabAlpha;
 	GPUPtr dSlabCtaCarry;
 	GPUPtr dSlabCtaCarryBranch;
 	GPUPtr dSlabAStash;
@@ -402,6 +387,9 @@ private:
 	size_t kIntervalBLBytes;
 	size_t kIntervalOpStartBytes;
 	Real*  hIntervalBranchLengths;
+
+	GPUPtr dLoewnerExp;
+	size_t kLoewnerExpBytes;
 
 
 	int kSlabBlockCap;
@@ -466,6 +454,7 @@ private:
 
 
 	bool kBastaSlabMetadataUploaded;
+	bool kBastaPipelineAnnounced;
 
 
 	void* kForwardGraphExec;

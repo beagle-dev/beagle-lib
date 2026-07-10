@@ -52,7 +52,10 @@
             BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
 			BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
             BASTA_SLAB_OPS_PER_BLOCK_##prec##_##state, \
-            BASTA_SPINE_T_##prec##_##state, \
+            BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK_##prec##_##state, \
+            BASTA_PROJECT_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HEIG_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_COAL_EVENTS_PER_BLOCK_##prec##_##state, \
             0,0,0,0);
 
 namespace opencl_device {
@@ -929,6 +932,11 @@ void GPUInterface::MemsetZero(GPUPtr dest,
                               size_t byteCount) {
     cl_uchar zero = 0;
     SAFE_CL(clEnqueueFillBuffer(openClCommandQueues[0], dest, &zero, 1, 0, byteCount, 0, NULL, NULL));
+}
+
+void GPUInterface::MemsetZeroAsync(GPUPtr dest,
+                                   size_t byteCount) {
+    MemsetZero(dest, byteCount);
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,

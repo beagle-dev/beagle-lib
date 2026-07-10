@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  BeagleCPUImpl.cpp
  *  BEAGLE
  *
@@ -1908,8 +1908,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
             gAdjointWorkG.resize(S_pad);
             gAdjointWorkH.resize(S_pad);
             gAdjointWorkW.resize(S_pad);
-            gAdjointWorkLeft.resize(S_pad);
-            gAdjointWorkRight.resize(S_pad);
             gAdjointWorkIexp.resize(S2);
             gAdjointWorkTemp.resize(S2);
 
@@ -2190,6 +2188,42 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointAddMatTVecAndOuterInPlace(
     }
 }
 
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointAddMatTVecInPlace(REALTYPE* transposeVecTarget,
+																const REALTYPE* matrix,
+        														const REALTYPE* left,
+																int matrixIncr) {
+    if (transposeVecTarget == NULL) return;
+    const int S = kStateCount;
+    for (int i = 0; i < S; ++i) {
+        REALTYPE leftVal = left[i];
+        if (leftVal == REALTYPE(0)) continue;
+        const REALTYPE* matRow = matrix + i * matrixIncr;
+        for (int j = 0; j < S; ++j) {
+            transposeVecTarget[j] += matRow[j] * leftVal;
+        }
+    }
+}
+
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointAddOuterInPlace( REALTYPE* outerTarget,
+														const REALTYPE* left,
+														const REALTYPE* right,
+        												int matrixIncr) {
+    if (outerTarget == NULL) return;
+    const int S = kStateCount;
+    for (int i = 0; i < S; ++i) {
+        REALTYPE leftVal = left[i];
+        if (leftVal == REALTYPE(0)) continue;
+        REALTYPE* outerRow = outerTarget + i * matrixIncr;
+        for (int j = 0; j < S; ++j) {
+            outerRow[j] += leftVal * right[j];
+        }
+    }
+}
+
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
         const int* operations, int count,
@@ -2206,6 +2240,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
     const int numOps = BEAGLE_BASTA_OP_COUNT;
     const int matrixIncr = S + T_PAD;
 
+    const bool bastaThreading = (kBastaNumThreads > 1);
+    const int bastaNumThreads = bastaThreading ? kBastaNumThreads : 1;
+    const int CUT_POINT_REVERSE = 16;
+
     if (partialAdjointBufferBase < 0 || matrixAdjointBufferBase < 0) {
         return;
     }
@@ -2216,6 +2254,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
     const int adjPartialCount = kBufferCount - partialAdjointBufferBase;
     const int adjMatrixCount  = kMatrixCount - matrixAdjointBufferBase;
 
+
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading)
     for (int b = 0; b < adjPartialCount; ++b) {
         REALTYPE* adj = gPartials[partialAdjointBufferBase + b];
         if (adj != NULL) {
@@ -2224,6 +2264,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
     }
 
 
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading)
     for (int m = 0; m < adjMatrixCount; ++m) {
         REALTYPE* adj = gTransitionMatrices[matrixAdjointBufferBase + m];
         if (adj != NULL) {
@@ -2257,18 +2298,38 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
 
         REALTYPE* coal = const_cast<REALTYPE*>(coalescent);
         memset(coal, 0, kCoalescentBufferLength * sizeof(REALTYPE));
-        updateInnerBastaPartials(operations, 0, count, sizes, coal);
+        if (bastaThreading) {
+            for (int iv = 0; iv < intervalCount - 1; ++iv) {
+                const int ivBegin = intervals[iv];
+                const int ivEnd = intervals[iv + 1];
+                if (ivEnd - ivBegin > CUT_POINT_REVERSE) {
+#pragma omp parallel for num_threads(bastaNumThreads)
+                    for (int op = ivBegin; op < ivEnd; ++op) {
+                        updateInnerBastaPartials2(operations, op, sizes, coal);
+                    }
+                } else {
+                    updateInnerBastaPartials(operations, ivBegin, ivEnd, sizes, coal);
+                }
+            }
+        } else {
+            updateInnerBastaPartials(operations, 0, count, sizes, coal);
+        }
 
         std::fill(gBastaBuffers.begin(), gBastaBuffers.end(), REALTYPE(0));
         REALTYPE* eB = gBastaBuffers.data();
         REALTYPE* fB = eB + S_pad * kCoalescentBufferLength;
         REALTYPE* gB = fB + S_pad * kCoalescentBufferLength;
         REALTYPE* hB = gB + S_pad * kCoalescentBufferLength;
-        for (int op = 0; op < count; ++op) {
-            reduceWithinInterval(eB, fB, gB, hB,
-                operations[op * numOps + 1], operations[op * numOps + 3],
-                operations[op * numOps + 5], operations[op * numOps + 6],
-                operations[op * numOps + 7]);
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading)
+        for (int iv = 0; iv < intervalCount - 1; ++iv) {
+            const int ivBegin = intervals[iv];
+            const int ivEnd = intervals[iv + 1];
+            for (int op = ivBegin; op < ivEnd; ++op) {
+                reduceWithinInterval(eB, fB, gB, hB,
+                    operations[op * numOps + 1], operations[op * numOps + 3],
+                    operations[op * numOps + 5], operations[op * numOps + 6],
+                    operations[op * numOps + 7]);
+            }
         }
         kUnclampedForwardDone = true;
     }
@@ -2283,14 +2344,18 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
     REALTYPE* adjG = gAdjointWorkG.data();
     REALTYPE* adjH = gAdjointWorkH.data();
     REALTYPE* adjW = gAdjointWorkW.data();
-    REALTYPE* leftEndBar = gAdjointWorkLeft.data();
-    REALTYPE* rightEndBar = gAdjointWorkRight.data();
 
     auto partialAdjOf = [&](int bufferIndex) -> REALTYPE* {
         return (bufferIndex < 0) ? NULL : gPartials[partialAdjointBufferBase + bufferIndex];
     };
     auto matrixAdjOf = [&](int matIndex) -> REALTYPE* {
         return (matIndex < 0) ? NULL : gTransitionMatrices[matrixAdjointBufferBase + matIndex];
+    };
+
+    gAdjointYBar.assign((size_t)2 * count * S, REALTYPE(0));
+    REALTYPE* ybarStore = gAdjointYBar.data();
+    auto ybarSlot = [&](int opIdx, int slot) -> REALTYPE* {
+        return ybarStore + ((size_t)2 * opIdx + slot) * S;
     };
 
     for (int interval = intervalCount - 2; interval >= 0; --interval) {
@@ -2317,6 +2382,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
             }
         }
 
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading && (end - start) > CUT_POINT_REVERSE)
         for (int idx = start; idx < end; ++idx) {
             const int accBuf1 = operations[idx * numOps + 5];
             const int accBuf2 = operations[idx * numOps + 6];
@@ -2353,13 +2419,14 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
 
             const REALTYPE* leftEnd = gPartials[accBuf1];
             const REALTYPE* rightEnd = gPartials[accBuf2];
-            const REALTYPE* leftStart = gPartials[inBuf1];
-            const REALTYPE* rightStart = gPartials[inBuf2];
             REALTYPE J = coalescent[intNum];
 
             REALTYPE* zAdj = partialAdjOf(destBuf);
             REALTYPE* accAdj1 = partialAdjOf(accBuf1);
             REALTYPE* accAdj2 = partialAdjOf(accBuf2);
+
+            REALTYPE* ybL = ybarSlot(coalOpIdx, 0);
+            REALTYPE* ybR = ybarSlot(coalOpIdx, 1);
 
             REALTYPE dotZW = REALTYPE(0);
             for (int i = 0; i < S; ++i) {
@@ -2369,41 +2436,61 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointReversePass(
             REALTYPE adjJ = REALTYPE(1) / J - dotZW / (J * J);
 
             for (int i = 0; i < S; ++i) {
-                REALTYPE w_i = leftEnd[i] * rightEnd[i] / sizes[i];
                 adjW[i] = zAdj[i] / J + adjJ;
-                leftEndBar[i] = accAdj1[i] + adjW[i] * rightEnd[i] / sizes[i];
-                rightEndBar[i] = accAdj2[i] + adjW[i] * leftEnd[i] / sizes[i];
+                ybL[i] = accAdj1[i] + adjW[i] * rightEnd[i] / sizes[i];
+                ybR[i] = accAdj2[i] + adjW[i] * leftEnd[i] / sizes[i];
                 if (popSizeGradOut != NULL) {
                     popSizeGradOut[i] -= adjW[i] * leftEnd[i] * rightEnd[i] / (sizes[i] * sizes[i]);
                 }
             }
 
-            adjointAddMatTVecAndOuterInPlace(
-                    partialAdjOf(inBuf1),
-                    matrixAdjOf(inMat1),
-                    gTransitionMatrices[inMat1], leftEndBar, leftStart, matrixIncr);
-            adjointAddMatTVecAndOuterInPlace(
-                    partialAdjOf(inBuf2),
-                    matrixAdjOf(inMat2),
-                    gTransitionMatrices[inMat2], rightEndBar, rightStart, matrixIncr);
+            adjointAddMatTVecInPlace(partialAdjOf(inBuf1),
+                    gTransitionMatrices[inMat1], ybL, matrixIncr);
+            adjointAddMatTVecInPlace(partialAdjOf(inBuf2),
+                    gTransitionMatrices[inMat2], ybR, matrixIncr);
         }
 
-        for (int idx = end - 1; idx >= start; --idx) {
+
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading && (end - start) > CUT_POINT_REVERSE)
+        for (int idx = start; idx < end; ++idx) {
             if (operations[idx * numOps + 3] >= 0) continue;
 
             const int inBuf1 = operations[idx * numOps + 1];
             const int inMat1 = operations[idx * numOps + 2];
             const int accBuf1 = operations[idx * numOps + 5];
 
-            REALTYPE* yBar = partialAdjOf(accBuf1);
-            const REALTYPE* x = gPartials[inBuf1];
+            const REALTYPE* yBar = partialAdjOf(accBuf1);
+            REALTYPE* yb = ybarSlot(idx, 0);
+            for (int i = 0; i < S; ++i) yb[i] = yBar[i];
 
-            adjointAddMatTVecAndOuterInPlace(
-                    partialAdjOf(inBuf1),
-                    matrixAdjOf(inMat1),
-                    gTransitionMatrices[inMat1], yBar, x, matrixIncr);
+            adjointAddMatTVecInPlace(partialAdjOf(inBuf1),
+                    gTransitionMatrices[inMat1], yBar, matrixIncr);
         }
+    }
 
+
+#pragma omp parallel for num_threads(bastaNumThreads) if(bastaThreading)
+    for (int interval = 0; interval <= intervalCount - 2; ++interval) {
+        const int start = intervals[interval];
+        const int end = intervals[interval + 1];
+
+        for (int idx = start; idx < end; ++idx) {
+            const int inBuf2 = operations[idx * numOps + 3];
+            if (inBuf2 >= 0) {
+                const int inBuf1 = operations[idx * numOps + 1];
+                const int inMat1 = operations[idx * numOps + 2];
+                const int inMat2 = operations[idx * numOps + 4];
+                adjointAddOuterInPlace(matrixAdjOf(inMat1),
+                        ybarSlot(idx, 0), gPartials[inBuf1], matrixIncr);
+                adjointAddOuterInPlace(matrixAdjOf(inMat2),
+                        ybarSlot(idx, 1), gPartials[inBuf2], matrixIncr);
+            } else {
+                const int inBuf1 = operations[idx * numOps + 1];
+                const int inMat1 = operations[idx * numOps + 2];
+                adjointAddOuterInPlace(matrixAdjOf(inMat1),
+                        ybarSlot(idx, 0), gPartials[inBuf1], matrixIncr);
+            }
+        }
     }
 }
 
@@ -2450,13 +2537,23 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateEigenBasisGradient(
         numBlocks++;
     }
 
-    REALTYPE* eigenBasisGrad = gAdjointWorkTemp.data();
-    memset(eigenBasisGrad, 0, S2 * sizeof(REALTYPE));
+    REALTYPE* eigenBasisGradShared = gAdjointWorkTemp.data();
+    memset(eigenBasisGradShared, 0, S2 * sizeof(REALTYPE));
 
-    REALTYPE* localTemp = gAdjointWorkIexp.data();
-    std::vector<REALTYPE> transformedVec(S2);
-    REALTYPE* transformed = transformedVec.data();
+    const bool bastaThreading = (kBastaNumThreads > 1);
+    const int bastaNumThreads = bastaThreading ? kBastaNumThreads : 1;
 
+
+#pragma omp parallel num_threads(bastaNumThreads)
+    {
+        std::vector<REALTYPE> localTempVec(S2);
+        std::vector<REALTYPE> transformedVecLocal(S2);
+        std::vector<REALTYPE> eigenBasisGradVec(S2, REALTYPE(0));
+        REALTYPE* localTemp = localTempVec.data();
+        REALTYPE* transformed = transformedVecLocal.data();
+        REALTYPE* eigenBasisGrad = eigenBasisGradVec.data();
+
+#pragma omp for
     for (int m = 0; m < M; ++m) {
         const REALTYPE* matAdj = gTransitionMatrices[matrixAdjointBufferBase + m];
         if (matAdj == NULL) continue;
@@ -2503,9 +2600,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateEigenBasisGradient(
                 } else if (ld == 2 && rd == 1) {
                     REALTYPE lr=evals[ls],li=evals[S+ls],rb2=evals[rs];
                     REALTYPE sr=rb2-lr,den=sr*sr+li*li,ic0,ic1;
-                    if(den<1e-12){ic0=t;ic1=0;}else{REALTYPE ex=std::exp(t*sr),cs=std::cos(t*li),sn=std::sin(t*li);
-                        ic0=(ex*(sr*cs+li*sn)-sr)/den;ic1=(ex*(sr*sn-li*cs)+li)/den;}
-                    REALTYPE eR=std::exp(t*lr),cI=std::cos(t*li),sI=std::sin(t*li);
+                    REALTYPE cI=std::cos(t*li),sI=std::sin(t*li);
+                    if(den<1e-12){ic0=t;ic1=0;}else{REALTYPE ex=std::exp(t*sr);
+                        ic0=(ex*(sr*cI+li*sI)-sr)/den;ic1=(ex*(sr*sI-li*cI)+li)/den;}
+                    REALTYPE eR=std::exp(t*lr);
                     REALTYPE l00=eR*cI,l01=-eR*sI,l10=eR*sI,l11=eR*cI;
                     REALTYPE p0=l00*ic0-l01*ic1,p1=l00*ic1+l01*ic0;
                     REALTYPE p2=l10*ic0-l11*ic1,p3=l10*ic1+l11*ic0;
@@ -2546,13 +2644,19 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateEigenBasisGradient(
         }
     }
 
+#pragma omp critical
+        {
+            for (int k = 0; k < S2; ++k) eigenBasisGradShared[k] += eigenBasisGrad[k];
+        }
+    }
+
     REALTYPE* backTemp = gAdjointWorkIexp.data();
     memset(backTemp, 0, S2 * sizeof(REALTYPE));
     for (int i = 0; i < S; ++i)
         for (int a = 0; a < S; ++a) {
             REALTYPE w = ievc[a * S + i];
             if (w == REALTYPE(0)) continue;
-            for (int b = 0; b < S; ++b) backTemp[i * S + b] += w * eigenBasisGrad[a * S + b];
+            for (int b = 0; b < S; ++b) backTemp[i * S + b] += w * eigenBasisGradShared[a * S + b];
         }
 
     memset(outRateGradient, 0, S2 * sizeof(double));

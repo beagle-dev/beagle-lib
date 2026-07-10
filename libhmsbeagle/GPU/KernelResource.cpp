@@ -31,7 +31,10 @@ KernelResource::KernelResource(
         int inSumAcrossBlockSize,
         int inBlockPeelingSizeSCA,
         int inSlabOpsPerBlock,
-        int inSpineT,
+        int inHazardMaxIntervalsPerBlock,
+        int inProjectOpsPerBlock,
+        int inHeigOpsPerBlock,
+        int inCoalEventsPerBlock,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -48,7 +51,10 @@ KernelResource::KernelResource(
     sumAcrossBlockSize = inSumAcrossBlockSize;
     blockPeelingSizeSCA = inBlockPeelingSizeSCA;
     slabOpsPerBlock = inSlabOpsPerBlock;
-    spineT = inSpineT;
+    hazardMaxIntervalsPerBlock = inHazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = inProjectOpsPerBlock;
+    heigOpsPerBlock = inHeigOpsPerBlock;
+    coalEventsPerBlock = inCoalEventsPerBlock;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
     unpaddedPatternCount = inUnpaddedPatternCount;
@@ -68,7 +74,10 @@ KernelResource::KernelResource(const KernelResource& krIn,
     sumAcrossBlockSize= krIn.sumAcrossBlockSize;
     blockPeelingSizeSCA = krIn.blockPeelingSizeSCA;
     slabOpsPerBlock = krIn.slabOpsPerBlock;
-    spineT = krIn.spineT;
+    hazardMaxIntervalsPerBlock = krIn.hazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = krIn.projectOpsPerBlock;
+    heigOpsPerBlock = krIn.heigOpsPerBlock;
+    coalEventsPerBlock = krIn.coalEventsPerBlock;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
     unpaddedPatternCount = krIn.unpaddedPatternCount;
@@ -91,7 +100,10 @@ KernelResource* KernelResource::copy(void) {
             sumAcrossBlockSize,
             blockPeelingSizeSCA,
             slabOpsPerBlock,
-            spineT,
+            hazardMaxIntervalsPerBlock,
+            projectOpsPerBlock,
+            heigOpsPerBlock,
+            coalEventsPerBlock,
             categoryCount,
             patternCount,
             unpaddedPatternCount,
