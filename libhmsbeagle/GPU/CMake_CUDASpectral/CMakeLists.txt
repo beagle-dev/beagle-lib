@@ -70,3 +70,5 @@ SET_TARGET_PROPERTIES(hmsbeagle-cuda-spectral
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
     SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+
+target_compile_options(hmsbeagle-cuda-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
