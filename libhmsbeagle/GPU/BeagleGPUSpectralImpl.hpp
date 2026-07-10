@@ -286,6 +286,13 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
             Eval[S + i] = (Real) inEigenValues[SC + i];
     }
 
+    if (getenv("BEAGLE_DEBUG_EIGEN")) {
+        fprintf(stderr, "[GPU setEigenDecomposition] eigenIndex=%d S=%d SC=%d\n", eigenIndex, S, SC);
+        fprintf(stderr, "[GPU] Eval: "); for (int i=0;i<eigenValuesSize;i++) fprintf(stderr, "%.6f ", (double)Eval[i]); fprintf(stderr, "\n");
+        fprintf(stderr, "[GPU] Evec:\n"); for (int i=0;i<S;i++){ for(int j=0;j<S;j++) fprintf(stderr, "%.6f ", (double)Evec[i*S+j]); fprintf(stderr, "\n"); }
+        fprintf(stderr, "[GPU] Ievc:\n"); for (int i=0;i<S;i++){ for(int j=0;j<S;j++) fprintf(stderr, "%.6f ", (double)Ievc[i*S+j]); fprintf(stderr, "\n"); }
+        fflush(stderr);
+    }
     GPUInterface* gpuIf = this->gpu;
     gpuIf->MemcpyHostToDevice(this->dEvec[eigenIndex],        Evec,  sizeof(Real) * SS);
     gpuIf->MemcpyHostToDevice(this->dIevc[eigenIndex],        Ievc,  sizeof(Real) * SS);
