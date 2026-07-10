@@ -603,6 +603,18 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif
 
     if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        size_t maxLocal = 0;
+        clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE,
+                                  sizeof(maxLocal), &maxLocal, NULL);
+        size_t prefMultiple = 0;
+        clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+                                  sizeof(prefMultiple), &prefMultiple, NULL);
+        fprintf(stderr, "[LaunchKernel] %s: CL_KERNEL_WORK_GROUP_SIZE=%zu preferredMultiple=%zu (requested local=%zu)\n",
+                kernelNameBuf, maxLocal, prefMultiple, localWorkSize[0]);
+        fflush(stderr);
+    }
+
+    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
         fprintf(stderr, "[LaunchKernel] %s: about to enqueue\n", kernelNameBuf);
         fflush(stderr);
     }
