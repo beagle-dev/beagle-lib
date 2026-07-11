@@ -194,7 +194,6 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         GPUPtr scalingFactors, GPUPtr cumulativeScaling,
         unsigned int startPattern, unsigned int endPattern,
         int rescale, int streamIndex, int waitIndex) {
-    fprintf(stderr, "[DISPATCH] SPECTRAL BeagleGPUSpectralImpl::dispatchPruneSS called\n"); fflush(stderr);
     int ei1 = hEigenIndexForMatrix[c1MatIdx];
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
     this->kernels->StatesStatesPruningSpectral(s1, s2, p3,

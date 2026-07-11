@@ -4759,7 +4759,6 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(GPUPtr s1, GPUPtr s2, GP
                                                          GPUPtr scalingFactors, GPUPtr cumulativeScaling,
                                                          unsigned int startPattern, unsigned int endPattern,
                                                          int rescale, int streamIndex, int waitIndex) {
-    fprintf(stderr, "[DISPATCH] BASE BeagleGPUImpl::dispatchPruneSS called\n"); fflush(stderr);
     kernels->StatesStatesPruningDynamicScaling(s1, s2, p3,
         dMatrices[c1MatIdx], dMatrices[c2MatIdx],
         scalingFactors, cumulativeScaling,
