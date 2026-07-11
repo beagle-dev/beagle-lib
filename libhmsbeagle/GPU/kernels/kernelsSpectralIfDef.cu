@@ -1326,6 +1326,24 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
     }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Batched scatter for updateTransitionMatrices' per-branch distance queue.
+ * One thread per (branch, category) queue entry: replaces what used to be
+ * one MemcpyHostToDevice call per branch with two flat uploads (destOffsets,
+ * values) plus this single on-device scatter. No PADDED_STATE_COUNT/
+ * STATE_COUNT dependence, so this is byte-identical in kernelsSpectralIfDef4.cu.
+ * ═══════════════════════════════════════════════════════════════════════════*/
+KW_GLOBAL_KERNEL void kernelScatterSpectralDistances(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT destOffsets,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT values,
+        int totalCount) {
+    int idx = KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + KW_LOCAL_ID_0;
+    if (idx < totalCount) {
+        distOrigin[destOffsets[idx]] = values[idx];
+    }
+}
+
 #ifdef CUDA
 } /* extern "C" */
 #endif

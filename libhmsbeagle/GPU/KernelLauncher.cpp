@@ -318,6 +318,8 @@ void KernelLauncher::LoadKernels() {
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
         }
+
+        fScatterSpectralDistances = gpu->GetFunction("kernelScatterSpectralDistances");
     }
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
@@ -1182,6 +1184,27 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
         gradientOrigin, adjointQueue,
         (int)patternCount);
     gpu->SynchronizeDevice();
+}
+
+void KernelLauncher::ScatterSpectralDistances(GPUPtr distOrigin,
+                                              GPUPtr destOffsets,
+                                              GPUPtr values,
+                                              unsigned int totalCount) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::ScatterSpectralDistances\n");
+#endif
+
+    const unsigned int blockSize = 128;
+    Dim3Int block(blockSize);
+    Dim3Int grid((totalCount + blockSize - 1) / blockSize);
+
+    gpu->LaunchKernel(fScatterSpectralDistances, block, grid, 3, 4,
+        distOrigin, destOffsets, values,
+        totalCount);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::ScatterSpectralDistances\n");
+#endif
 }
 
 

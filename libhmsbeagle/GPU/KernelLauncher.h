@@ -71,6 +71,12 @@ private:
     GPUFunction fAdjointMergedN;
     /* Adjoint cross-product kernel — 4-state, merged single launch */
     GPUFunction fAdjointMerged4;
+    /* Scatter kernel for the batched spectral-distance queue: one thread per
+     * (branch, category) queue entry, writes value to a device-computed
+     * offset. State-count-independent, so the same function name resolves
+     * regardless of which spectral kernel program (4-state or generic-N)
+     * was compiled. */
+    GPUFunction fScatterSpectralDistances;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -472,6 +478,15 @@ public:
                                             unsigned int patternCount,
                                             unsigned int categoryCount,
                                             int branchCount);
+
+    /* Batched scatter of per-branch spectral distances: destOffsets[k]/
+     * values[k] pairs (one per (branch, category) queue entry) are written
+     * to distOrigin[destOffsets[k]] in a single launch, replacing what was
+     * previously one MemcpyHostToDevice call per branch. */
+    void ScatterSpectralDistances(GPUPtr distOrigin,
+                                  GPUPtr destOffsets,
+                                  GPUPtr values,
+                                  unsigned int totalCount);
 
 	void PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr states0,

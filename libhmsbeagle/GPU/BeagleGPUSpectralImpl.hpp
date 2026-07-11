@@ -34,6 +34,8 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
+      dSpectralPtrQueue(0), dSpectralDistanceQueue(0),
+      hSpectralPtrQueue(NULL), hSpectralDistanceQueue(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
@@ -45,6 +47,10 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
     GPUInterface* gpuIf = this->gpu;
     if (gpuIf) {
         if (dSpectralDistancesOrigin) gpuIf->FreeMemory(dSpectralDistancesOrigin);
+        if (dSpectralPtrQueue)        gpuIf->FreeMemory(dSpectralPtrQueue);
+        if (dSpectralDistanceQueue)   gpuIf->FreeMemory(dSpectralDistanceQueue);
+        if (hSpectralPtrQueue)        gpuIf->FreeHostMemory(hSpectralPtrQueue);
+        if (hSpectralDistanceQueue)   gpuIf->FreeHostMemory(hSpectralDistanceQueue);
         if (dEvecTOrigin)             gpuIf->FreeMemory(dEvecTOrigin);
         if (dIevcTOrigin)             gpuIf->FreeMemory(dIevcTOrigin);
         if (dGradientOrigin)          gpuIf->FreeMemory(dGradientOrigin);
@@ -95,6 +101,17 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
         dSpectralDistances[i] = gpuIf->CreateSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
     }
 
+    // Gather-batch-scatter queue for the per-branch distance upload in
+    // updateTransitionMatrices (see BeagleGPUSpectralImpl.h for rationale).
+    // Sized for the largest possible single call: every matrix, every category.
+    int spectralQueueLength = this->kMatrixCount * this->kCategoryCount;
+    dSpectralPtrQueue = gpuIf->AllocateMemory(sizeof(unsigned int) * spectralQueueLength);
+    hSpectralPtrQueue = (unsigned int*) gpuIf->MallocHost(sizeof(unsigned int) * spectralQueueLength);
+    checkHostMemory(hSpectralPtrQueue);
+    dSpectralDistanceQueue = gpuIf->AllocateMemory(sizeof(Real) * spectralQueueLength);
+    hSpectralDistanceQueue = (Real*) gpuIf->MallocHost(sizeof(Real) * spectralQueueLength);
+    checkHostMemory(hSpectralDistanceQueue);
+
     // Backward eigenvector arrays: one S*S block per eigen decomposition.
     int S = this->kPaddedStateCount;
     size_t matStride = gpuIf->AlignMemOffset((size_t)S * S * sizeof(Real));
@@ -136,17 +153,21 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
     if (count > 0) {
         const double* categoryRates = this->hCategoryRates[0];
         int nCat = this->kCategoryCount;
-        Real* hDist = (Real*) malloc(sizeof(Real) * nCat);
         GPUInterface* gpuIf = this->gpu;
+        int totalCount = 0;
         for (int i = 0; i < count; i++) {
             int matIdx = probabilityIndices[i];
             hEigenIndexForMatrix[matIdx] = eigenIndex;
             for (int j = 0; j < nCat; j++) {
-                hDist[j] = (Real)(edgeLengths[i] * categoryRates[j]);
+                hSpectralPtrQueue[totalCount] = matIdx * kSpectralDistanceStrideElements + j;
+                hSpectralDistanceQueue[totalCount] = (Real)(edgeLengths[i] * categoryRates[j]);
+                totalCount++;
             }
-            gpuIf->MemcpyHostToDevice(dSpectralDistances[matIdx], hDist, sizeof(Real) * nCat);
         }
-        free(hDist);
+        gpuIf->MemcpyHostToDevice(dSpectralPtrQueue, hSpectralPtrQueue, sizeof(unsigned int) * totalCount);
+        gpuIf->MemcpyHostToDevice(dSpectralDistanceQueue, hSpectralDistanceQueue, sizeof(Real) * totalCount);
+        this->kernels->ScatterSpectralDistances(dSpectralDistancesOrigin, dSpectralPtrQueue,
+                                                dSpectralDistanceQueue, totalCount);
     }
     return BEAGLE_SUCCESS;
 }
