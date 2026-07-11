@@ -45,6 +45,22 @@ private:
      * adjoint offset-queue) must multiply by this, not by kCategoryCount. */
     unsigned int kSpectralDistanceStrideElements;
 
+    /* Gather-batch-scatter queue for updateTransitionMatrices' per-branch
+     * distance uploads: one flat host-side (destination-offset, value) pair
+     * per (branch, category), uploaded with two MemcpyHostToDevice calls
+     * regardless of branch count, then scattered into dSpectralDistancesOrigin
+     * by one GPU kernel -- mirrors BeagleGPUImpl's own dPtrQueue/dDistanceQueue
+     * pattern for its dense-matrix update. Dedicated buffers rather than
+     * reusing that base-class pair: those are declared in BeagleGPUImpl's
+     * `private:` section, not `protected:`, so this derived class cannot
+     * reach them without changing the base class's access specifiers.
+     * Sized kMatrixCount * kCategoryCount, the largest a single
+     * updateTransitionMatrices call can need. */
+    GPUPtr        dSpectralPtrQueue;
+    GPUPtr        dSpectralDistanceQueue;
+    unsigned int* hSpectralPtrQueue;
+    Real*         hSpectralDistanceQueue;
+
     /* Backward eigenvector buffers for the parent branch in pre-order.
      * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).
      *               Used as ievc1 in Growing kernels (backward Phase 1: U^T·p).

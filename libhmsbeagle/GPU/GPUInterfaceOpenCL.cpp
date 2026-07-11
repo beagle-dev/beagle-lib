@@ -22,12 +22,100 @@
 #include <cstdarg>
 #include <cmath>
 #include <map>
+#include <chrono>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
+
+// ---------------------------------------------------------------------------
+// Diagnostic-only profiling instrumentation, gated behind BEAGLE_PROFILE_SUMMARY.
+// Accumulates call counts + elapsed host-side time into static counters (no
+// per-call printing) and dumps one summary at process exit. A warmup window
+// (first BEAGLE_PROFILE_WARMUP_SYNC SynchronizeHost calls, i.e. host<->device
+// round trips) is discarded before any counter starts accumulating, so the
+// summary reflects steady-state behavior rather than one-time clBuildProgram/
+// initial-allocation/GPU-clock-ramp costs. Not intended to be a permanent
+// feature; safe to leave disabled (default off, near-zero overhead: one
+// getenv + one bool check per call) or revert entirely.
+// ---------------------------------------------------------------------------
+namespace {
+
+const long BEAGLE_PROFILE_WARMUP_SYNC = 300;
+
+struct BeagleProfileStats {
+    bool registered = false;
+    bool enabled = false;
+    bool warm = false;
+    long warmupRemaining = BEAGLE_PROFILE_WARMUP_SYNC;
+
+    long launchKernelCalls = 0;
+    double launchKernelSeconds = 0.0;
+    long launchKernelConcurrentCalls = 0;
+    double launchKernelConcurrentSeconds = 0.0;
+    long syncHostCalls = 0;
+    double syncHostSeconds = 0.0;
+    long memcpyH2DCalls = 0;
+    double memcpyH2DSeconds = 0.0;
+    size_t memcpyH2DBytes = 0;
+    long memcpyD2HCalls = 0;
+    double memcpyD2HSeconds = 0.0;
+    size_t memcpyD2HBytes = 0;
+    long memsetZeroCalls = 0;
+    double memsetZeroSeconds = 0.0;
+    size_t memsetZeroBytes = 0;
+};
+
+BeagleProfileStats gBeagleProfile;
+
+void beagleProfilePrintSummary() {
+    if (!gBeagleProfile.enabled) return;
+    BeagleProfileStats& p = gBeagleProfile;
+    double totalAccounted = p.launchKernelSeconds + p.launchKernelConcurrentSeconds +
+                             p.syncHostSeconds + p.memcpyH2DSeconds + p.memcpyD2HSeconds +
+                             p.memsetZeroSeconds;
+    fprintf(stderr, "\n===== BEAGLE_PROFILE_SUMMARY (GPUInterfaceOpenCL) =====\n");
+    fprintf(stderr, "warmup discarded: first %ld SynchronizeHost calls\n", BEAGLE_PROFILE_WARMUP_SYNC);
+    fprintf(stderr, "LaunchKernel            : calls=%-8ld total=%.6fs avg=%.3fus\n",
+            p.launchKernelCalls, p.launchKernelSeconds,
+            p.launchKernelCalls ? p.launchKernelSeconds * 1e6 / p.launchKernelCalls : 0.0);
+    fprintf(stderr, "LaunchKernelConcurrent  : calls=%-8ld total=%.6fs avg=%.3fus\n",
+            p.launchKernelConcurrentCalls, p.launchKernelConcurrentSeconds,
+            p.launchKernelConcurrentCalls ? p.launchKernelConcurrentSeconds * 1e6 / p.launchKernelConcurrentCalls : 0.0);
+    fprintf(stderr, "SynchronizeHost(clFinish): calls=%-8ld total=%.6fs avg=%.3fus\n",
+            p.syncHostCalls, p.syncHostSeconds,
+            p.syncHostCalls ? p.syncHostSeconds * 1e6 / p.syncHostCalls : 0.0);
+    fprintf(stderr, "MemcpyHostToDevice      : calls=%-8ld total=%.6fs avg=%.3fus bytes=%zu\n",
+            p.memcpyH2DCalls, p.memcpyH2DSeconds,
+            p.memcpyH2DCalls ? p.memcpyH2DSeconds * 1e6 / p.memcpyH2DCalls : 0.0,
+            p.memcpyH2DBytes);
+    fprintf(stderr, "MemcpyDeviceToHost      : calls=%-8ld total=%.6fs avg=%.3fus bytes=%zu\n",
+            p.memcpyD2HCalls, p.memcpyD2HSeconds,
+            p.memcpyD2HCalls ? p.memcpyD2HSeconds * 1e6 / p.memcpyD2HCalls : 0.0,
+            p.memcpyD2HBytes);
+    fprintf(stderr, "MemsetZero              : calls=%-8ld total=%.6fs avg=%.3fus bytes=%zu\n",
+            p.memsetZeroCalls, p.memsetZeroSeconds,
+            p.memsetZeroCalls ? p.memsetZeroSeconds * 1e6 / p.memsetZeroCalls : 0.0,
+            p.memsetZeroBytes);
+    fprintf(stderr, "Total host-side time accounted above (post-warmup): %.6fs\n", totalAccounted);
+    fprintf(stderr, "===== END BEAGLE_PROFILE_SUMMARY =====\n\n");
+    fflush(stderr);
+}
+
+inline bool beagleProfilingEnabled() {
+    if (!gBeagleProfile.registered) {
+        gBeagleProfile.enabled = (getenv("BEAGLE_PROFILE_SUMMARY") != NULL);
+        gBeagleProfile.registered = true;
+        if (gBeagleProfile.enabled) {
+            atexit(beagleProfilePrintSummary);
+        }
+    }
+    return gBeagleProfile.enabled;
+}
+
+} // anonymous namespace
 
 #define SAFE_CL(call)   { \
                             int error = call; \
@@ -477,7 +565,23 @@ void GPUInterface::SynchronizeHost() {
     //     SAFE_CL(clFinish(openClCommandQueues[i]));
     // }
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
     SAFE_CL(clFinish(openClCommandQueues[0]));
+
+    if (prof) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        if (gBeagleProfile.warmupRemaining > 0) {
+            gBeagleProfile.warmupRemaining--;
+            if (gBeagleProfile.warmupRemaining == 0) gBeagleProfile.warm = true;
+        } else {
+            gBeagleProfile.syncHostCalls++;
+            gBeagleProfile.syncHostSeconds += dt;
+        }
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::SynchronizeHost\n");
@@ -545,17 +649,24 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
 #endif
 
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    // Hoisted once instead of calling getenv() again on every parameter in the loops
+    // below (previously re-checked per-arg, tens of getenv() calls per kernel launch).
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernel] %s: parameterCountV=%d totalParameterCount=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount);
     }
+
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
 
     va_list parameters;
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernel] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
             fflush(stderr);
         }
@@ -564,7 +675,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernel] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
             fflush(stderr);
         }
@@ -584,7 +695,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
                 kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
                 localWorkSize[0], localWorkSize[1], localWorkSize[2],
@@ -602,7 +713,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     printf("local = %lu\n\n", local);
 #endif
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         size_t maxLocal = 0;
         clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE,
                                   sizeof(maxLocal), &maxLocal, NULL);
@@ -614,7 +725,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
         fflush(stderr);
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: about to enqueue\n", kernelNameBuf);
         fflush(stderr);
     }
@@ -630,7 +741,14 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.launchKernelCalls++;
+        gBeagleProfile.launchKernelSeconds += dt;
+    }
+
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
         fflush(stderr);
         clFinish(openClCommandQueues[0]);
@@ -656,17 +774,24 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 #endif
 
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    // Hoisted once instead of calling getenv() again on every parameter in the loops
+    // below (previously re-checked per-arg, tens of getenv() calls per kernel launch).
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernelConcurrent] %s: parameterCountV=%d totalParameterCount=%d streamIndex=%d waitIndex=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount, streamIndex, waitIndex);
     }
+
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
 
     va_list parameters;
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernelConcurrent] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
             fflush(stderr);
         }
@@ -675,7 +800,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernelConcurrent] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
             fflush(stderr);
         }
@@ -695,7 +820,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
                 kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
                 localWorkSize[0], localWorkSize[1], localWorkSize[2],
@@ -720,7 +845,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
         dims = 2;
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: about to enqueue (dims=%d)\n", kernelNameBuf, dims);
         fflush(stderr);
     }
@@ -764,7 +889,14 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize,
                                        0, NULL, NULL));
     // }
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.launchKernelConcurrentCalls++;
+        gBeagleProfile.launchKernelConcurrentSeconds += dt;
+    }
+
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
         fflush(stderr);
         clFinish(openClCommandQueues[0]);
@@ -1006,6 +1138,10 @@ void GPUInterface::MemsetZero(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetZero\n");
 #endif
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
     /* Deliberately not clEnqueueFillBuffer: on this OpenCL implementation
      * (observed on Apple M1 Max), a kernel launched afterward on the same
      * in-order queue intermittently read stale/garbage data from a
@@ -1021,6 +1157,14 @@ void GPUInterface::MemsetZero(GPUPtr dest,
                                  NULL, NULL));
     free(hZero);
 
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.memsetZeroCalls++;
+        gBeagleProfile.memsetZeroSeconds += dt;
+        gBeagleProfile.memsetZeroBytes += memSize;
+    }
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetZero\n");
 #endif
@@ -1034,8 +1178,22 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDevice\n");
 #endif
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
+    // CL_TRUE => blocking write: this call does not return until the transfer
+    // completes, regardless of payload size.
     SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, src, 0,
                                  NULL, NULL));
+
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.memcpyH2DCalls++;
+        gBeagleProfile.memcpyH2DSeconds += dt;
+        gBeagleProfile.memcpyH2DBytes += memSize;
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
@@ -1049,8 +1207,22 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
+    // CL_TRUE => blocking read: this call does not return until the transfer
+    // completes, regardless of payload size.
     SAFE_CL(clEnqueueReadBuffer(openClCommandQueues[0], src, CL_TRUE, 0, memSize, dest, 0,
                                 NULL, NULL));
+
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.memcpyD2HCalls++;
+        gBeagleProfile.memcpyD2HSeconds += dt;
+        gBeagleProfile.memcpyD2HBytes += memSize;
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");

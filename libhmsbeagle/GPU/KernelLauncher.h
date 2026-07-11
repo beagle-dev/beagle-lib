@@ -71,6 +71,12 @@ private:
     GPUFunction fAdjointMergedN;
     /* Adjoint cross-product kernel — 4-state, merged single launch */
     GPUFunction fAdjointMerged4;
+    /* Scatter kernel for the batched spectral-distance queue: one thread per
+     * (branch, category) queue entry, writes value to a device-computed
+     * offset. State-count-independent, so the same function name resolves
+     * regardless of which spectral kernel program (4-state or generic-N)
+     * was compiled. */
+    GPUFunction fScatterSpectralDistances;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -320,6 +326,8 @@ public:
                                           GPUPtr cumulativeScaling,
                                           unsigned int patternCount,
                                           unsigned int categoryCount,
+                                          int isAllReal1,
+                                          int isAllReal2,
                                           int doRescaling,
                                           int streamIndex,
                                           int waitIndex);
@@ -335,6 +343,8 @@ public:
                                         GPUPtr cumulativeScaling,
                                         unsigned int patternCount,
                                         unsigned int categoryCount,
+                                        int isAllReal1,
+                                        int isAllReal2,
                                         int doRescaling,
                                         int streamIndex,
                                         int waitIndex);
@@ -350,6 +360,8 @@ public:
                                       GPUPtr cumulativeScaling,
                                       unsigned int patternCount,
                                       unsigned int categoryCount,
+                                      int isAllReal1,
+                                      int isAllReal2,
                                       int doRescaling,
                                       int streamIndex,
                                       int waitIndex);
@@ -386,7 +398,9 @@ public:
                                          GPUPtr ievc2, GPUPtr evec2,
                                          GPUPtr eigenValues2, GPUPtr distances2,
                                          unsigned int patternCount,
-                                         unsigned int categoryCount);
+                                         unsigned int categoryCount,
+                                         int isAllReal1,
+                                         int isAllReal2);
 
     void PartialsStatesGrowingSpectral(GPUPtr partials1,
                                        GPUPtr states2,
@@ -396,7 +410,9 @@ public:
                                        GPUPtr ievc2, GPUPtr evec2,
                                        GPUPtr eigenValues2, GPUPtr distances2,
                                        unsigned int patternCount,
-                                       unsigned int categoryCount);
+                                       unsigned int categoryCount,
+                                       int isAllReal1,
+                                       int isAllReal2);
 
     void PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                                           GPUPtr states2,
@@ -406,7 +422,9 @@ public:
                                           GPUPtr ievc2, GPUPtr evec2,
                                           GPUPtr eigenValues2, GPUPtr distances2,
                                           unsigned int patternCount,
-                                          unsigned int categoryCount);
+                                          unsigned int categoryCount,
+                                          int isAllReal1,
+                                          int isAllReal2);
 
     void PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
                                                 GPUPtr partials2,
@@ -414,7 +432,8 @@ public:
                                                 GPUPtr ievc2, GPUPtr evec2,
                                                 GPUPtr eigenValues2, GPUPtr distances2,
                                                 unsigned int patternCount,
-                                                unsigned int categoryCount);
+                                                unsigned int categoryCount,
+                                                int isAllReal2);
 
     void PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
                                               GPUPtr states2,
@@ -422,7 +441,8 @@ public:
                                               GPUPtr ievc2, GPUPtr evec2,
                                               GPUPtr eigenValues2, GPUPtr distances2,
                                               unsigned int patternCount,
-                                              unsigned int categoryCount);
+                                              unsigned int categoryCount,
+                                              int isAllReal2);
 
     /* Adjoint cross-product launchers — merged single launch covers every
      * branch in a call at once (grid spans branchCount), isStates/isAllReal
@@ -458,6 +478,15 @@ public:
                                             unsigned int patternCount,
                                             unsigned int categoryCount,
                                             int branchCount);
+
+    /* Batched scatter of per-branch spectral distances: destOffsets[k]/
+     * values[k] pairs (one per (branch, category) queue entry) are written
+     * to distOrigin[destOffsets[k]] in a single launch, replacing what was
+     * previously one MemcpyHostToDevice call per branch. */
+    void ScatterSpectralDistances(GPUPtr distOrigin,
+                                  GPUPtr destOffsets,
+                                  GPUPtr values,
+                                  unsigned int totalCount);
 
 	void PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr states0,

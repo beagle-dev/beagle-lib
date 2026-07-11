@@ -34,6 +34,8 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
+      dSpectralPtrQueue(0), dSpectralDistanceQueue(0),
+      hSpectralPtrQueue(NULL), hSpectralDistanceQueue(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
@@ -45,6 +47,10 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
     GPUInterface* gpuIf = this->gpu;
     if (gpuIf) {
         if (dSpectralDistancesOrigin) gpuIf->FreeMemory(dSpectralDistancesOrigin);
+        if (dSpectralPtrQueue)        gpuIf->FreeMemory(dSpectralPtrQueue);
+        if (dSpectralDistanceQueue)   gpuIf->FreeMemory(dSpectralDistanceQueue);
+        if (hSpectralPtrQueue)        gpuIf->FreeHostMemory(hSpectralPtrQueue);
+        if (hSpectralDistanceQueue)   gpuIf->FreeHostMemory(hSpectralDistanceQueue);
         if (dEvecTOrigin)             gpuIf->FreeMemory(dEvecTOrigin);
         if (dIevcTOrigin)             gpuIf->FreeMemory(dIevcTOrigin);
         if (dGradientOrigin)          gpuIf->FreeMemory(dGradientOrigin);
@@ -95,6 +101,17 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
         dSpectralDistances[i] = gpuIf->CreateSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
     }
 
+    // Gather-batch-scatter queue for the per-branch distance upload in
+    // updateTransitionMatrices (see BeagleGPUSpectralImpl.h for rationale).
+    // Sized for the largest possible single call: every matrix, every category.
+    int spectralQueueLength = this->kMatrixCount * this->kCategoryCount;
+    dSpectralPtrQueue = gpuIf->AllocateMemory(sizeof(unsigned int) * spectralQueueLength);
+    hSpectralPtrQueue = (unsigned int*) gpuIf->MallocHost(sizeof(unsigned int) * spectralQueueLength);
+    checkHostMemory(hSpectralPtrQueue);
+    dSpectralDistanceQueue = gpuIf->AllocateMemory(sizeof(Real) * spectralQueueLength);
+    hSpectralDistanceQueue = (Real*) gpuIf->MallocHost(sizeof(Real) * spectralQueueLength);
+    checkHostMemory(hSpectralDistanceQueue);
+
     // Backward eigenvector arrays: one S*S block per eigen decomposition.
     int S = this->kPaddedStateCount;
     size_t matStride = gpuIf->AlignMemOffset((size_t)S * S * sizeof(Real));
@@ -136,17 +153,21 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
     if (count > 0) {
         const double* categoryRates = this->hCategoryRates[0];
         int nCat = this->kCategoryCount;
-        Real* hDist = (Real*) malloc(sizeof(Real) * nCat);
         GPUInterface* gpuIf = this->gpu;
+        int totalCount = 0;
         for (int i = 0; i < count; i++) {
             int matIdx = probabilityIndices[i];
             hEigenIndexForMatrix[matIdx] = eigenIndex;
             for (int j = 0; j < nCat; j++) {
-                hDist[j] = (Real)(edgeLengths[i] * categoryRates[j]);
+                hSpectralPtrQueue[totalCount] = matIdx * kSpectralDistanceStrideElements + j;
+                hSpectralDistanceQueue[totalCount] = (Real)(edgeLengths[i] * categoryRates[j]);
+                totalCount++;
             }
-            gpuIf->MemcpyHostToDevice(dSpectralDistances[matIdx], hDist, sizeof(Real) * nCat);
         }
-        free(hDist);
+        gpuIf->MemcpyHostToDevice(dSpectralPtrQueue, hSpectralPtrQueue, sizeof(unsigned int) * totalCount);
+        gpuIf->MemcpyHostToDevice(dSpectralDistanceQueue, hSpectralDistanceQueue, sizeof(Real) * totalCount);
+        this->kernels->ScatterSpectralDistances(dSpectralDistancesOrigin, dSpectralPtrQueue,
+                                                dSpectralDistanceQueue, totalCount);
     }
     return BEAGLE_SUCCESS;
 }
@@ -165,6 +186,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPrunePP(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -182,6 +204,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSP(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -192,7 +215,6 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         GPUPtr scalingFactors, GPUPtr cumulativeScaling,
         unsigned int startPattern, unsigned int endPattern,
         int rescale, int streamIndex, int waitIndex) {
-    fprintf(stderr, "[DISPATCH] SPECTRAL BeagleGPUSpectralImpl::dispatchPruneSS called\n"); fflush(stderr);
     int ei1 = hEigenIndexForMatrix[c1MatIdx];
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
     this->kernels->StatesStatesPruningSpectral(s1, s2, p3,
@@ -200,6 +222,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
         scalingFactors, cumulativeScaling,
         this->kPaddedPatternCount, this->kCategoryCount,
+        hEigenDecompIsAllReal[ei1] ? 1 : 0, hEigenDecompIsAllReal[ei2] ? 1 : 0,
         rescale, streamIndex, waitIndex);
 }
 
@@ -217,12 +240,12 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     const int SC = this->kStateCount;
     const int SS = S * S;
     // kEigenValuesSize is private to BeagleGPUImpl; recompute the same way it does.
-    // Spectral kernels always read a real+imaginary pair per eigenstate regardless of
-    // BEAGLE_FLAG_EIGEN_COMPLEX (see matching comment/fix in BeagleGPUImpl::createInstance),
-    // so this local copy must widen for BEAGLE_FLAG_SPECTRAL_REPRESENTATION too, or the
-    // imaginary half of the device buffer is left uninitialized.
-    const int eigenValuesSize = ((this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ||
-                                  (this->kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) ? 2 * S : S;
+    // Spectral kernels read a real+imaginary pair per eigenstate only when that decomposition is
+    // not all-real (see matching comment/fix in BeagleGPUImpl::createInstance) -- gated at the
+    // kernel level on isAllReal1/isAllReal2, computed below from inEigenValues and cached in
+    // hEigenDecompIsAllReal. This local copy only widens for BEAGLE_FLAG_EIGEN_COMPLEX, matching
+    // CPU's EigenDecompositionSpectral.hpp.
+    const int eigenValuesSize = (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? 2 * S : S;
 
     // Forward:  dEvec[row*S+col]  = U[col,row];    dIevc[row*S+col]  = U^-1[col,row]
     // Backward: dEvecT[row*S+col] = U[row,col];    dIevcT[row*S+col] = U^-1[row,col]
@@ -320,18 +343,21 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
     GPUPtr evec2 = this->dEvec[ei2];
     GPUPtr eval2 = this->dEigenValues[ei2];
     GPUPtr dist2 = dSpectralDistances[c2MatIdx];
+    int isAllReal2 = hEigenDecompIsAllReal[ei2] ? 1 : 0;
 
     if (isRoot) {
         if (sibIsStates) {
             this->kernels->PartialsStatesGrowingSpectralTopRoot(
                 partials1, c2, partials3,
                 ievc2, evec2, eval2, dist2,
-                this->kPaddedPatternCount, this->kCategoryCount);
+                this->kPaddedPatternCount, this->kCategoryCount,
+                isAllReal2);
         } else {
             this->kernels->PartialsPartialsGrowingSpectralTopRoot(
                 partials1, c2, partials3,
                 ievc2, evec2, eval2, dist2,
-                this->kPaddedPatternCount, this->kCategoryCount);
+                this->kPaddedPatternCount, this->kCategoryCount,
+                isAllReal2);
         }
     } else {
         int ei1 = hEigenIndexForMatrix[c1MatIdx];
@@ -341,6 +367,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
         GPUPtr bEvec1 = dIevcT[ei1];
         GPUPtr eval1  = this->dEigenValues[ei1];
         GPUPtr dist1  = dSpectralDistances[c1MatIdx];
+        int isAllReal1 = hEigenDecompIsAllReal[ei1] ? 1 : 0;
 
         if (isTop) {
             if (sibIsStates) {
@@ -348,7 +375,8 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             } else {
                 // Top NotRoot PP: reuse no-scale PP pruning kernel with backward matrices
                 this->kernels->PartialsPartialsPruningSpectral(
@@ -357,6 +385,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     ievc2, evec2, eval2, dist2,
                     nullptr, nullptr,
                     this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2,
                     -1, -1, -1);
             }
         } else {
@@ -365,13 +394,15 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             } else {
                 this->kernels->PartialsPartialsGrowingSpectral(
                     partials1, c2, partials3,
                     bIevc1, bEvec1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    this->kPaddedPatternCount, this->kCategoryCount);
+                    this->kPaddedPatternCount, this->kCategoryCount,
+                    isAllReal1, isAllReal2);
             }
         }
     }
