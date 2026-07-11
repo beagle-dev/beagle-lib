@@ -65,6 +65,17 @@
 #endif
 #endif
 
+#ifdef FW_OPENCL
+struct OpenCLDiscoveryApi {
+    typedef cl_int (*GetPlatformIds)(cl_uint, cl_platform_id*, cl_uint*);
+    typedef cl_int (*GetDeviceIds)(cl_platform_id, cl_device_type, cl_uint,
+                                   cl_device_id*, cl_uint*);
+
+    GetPlatformIds getPlatformIds;
+    GetDeviceIds getDeviceIds;
+};
+#endif
+
 class GPUInterface {
 private:
     int numStreams;
@@ -91,6 +102,10 @@ public:
     ~GPUInterface();
 
     int Initialize();
+
+#ifdef FW_OPENCL
+    int Initialize(const OpenCLDiscoveryApi& discoveryApi);
+#endif
 
     int GetDeviceCount();
 
