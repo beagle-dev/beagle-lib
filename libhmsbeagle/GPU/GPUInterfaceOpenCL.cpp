@@ -100,21 +100,41 @@ GPUInterface::~GPUInterface() {
 }
 
 int GPUInterface::Initialize() {
+    const OpenCLDiscoveryApi discoveryApi = {clGetPlatformIDs, clGetDeviceIDs};
+    return Initialize(discoveryApi);
+}
+
+int GPUInterface::Initialize(const OpenCLDiscoveryApi& discoveryApi) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::Initialize\n");
 #endif
 
     cl_uint numPlatforms = 0;
-    SAFE_CL(clGetPlatformIDs(0, NULL, &numPlatforms));
+    cl_int status = discoveryApi.getPlatformIds(0, NULL, &numPlatforms);
+    if (status != CL_SUCCESS || numPlatforms == 0)
+        return 0;
+
     cl_platform_id* platforms = new cl_platform_id[numPlatforms];
-    SAFE_CL(clGetPlatformIDs(numPlatforms, platforms, NULL));
+    status = discoveryApi.getPlatformIds(numPlatforms, platforms, NULL);
+    if (status != CL_SUCCESS) {
+        delete[] platforms;
+        return 0;
+    }
 
     int deviceAdded = 0;
     for (int i=0; i<numPlatforms; i++) {
         cl_uint numDevices = 0;
-        SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices));
+        status = discoveryApi.getDeviceIds(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL,
+                                           &numDevices);
+        if (status != CL_SUCCESS || numDevices == 0)
+            continue;
         cl_device_id* deviceIds = new cl_device_id[numDevices];
-        SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
+        status = discoveryApi.getDeviceIds(platforms[i], CL_DEVICE_TYPE_ALL, numDevices,
+                                           deviceIds, NULL);
+        if (status != CL_SUCCESS) {
+            delete[] deviceIds;
+            continue;
+        }
         for (int j=0; j<numDevices; j++) {
             openClDeviceId = deviceIds[j];
             BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
@@ -1326,4 +1346,3 @@ void GPUInterface::ReleaseDevice(int deviceNumber) {
 
 
 }; // namespace
-

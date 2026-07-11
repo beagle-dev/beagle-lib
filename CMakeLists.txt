@@ -195,6 +195,10 @@ enable_testing()
 
 add_subdirectory(examples)
 
+if(TARGET hmsbeagle-opencl)
+    add_subdirectory(tests/opencl)
+endif()
+
 IF(BEAGLE_DEBUG_KERNELS)
     add_subdirectory(tests/tensor_cores)
     add_subdirectory(tests/basta)

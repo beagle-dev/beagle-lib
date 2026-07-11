@@ -48,4 +48,17 @@ jobs:
         cmake ..
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
+
+  opencl-discovery-macos-arm64:
+    name: OpenCL discovery on macOS arm64
+    runs-on: macos-14
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Build OpenCL tests
+      run: |
+        cmake -S . -B build -DBUILD_OPENCL=ON -DBUILD_CUDA=OFF -DBUILD_JNI=OFF
+        cmake --build build --target test_opencl_discovery test_opencl_cpu_instance
+    - name: Run OpenCL discovery tests
+      run: ctest --test-dir build --output-on-failure -R 'opencl_.*'
         
