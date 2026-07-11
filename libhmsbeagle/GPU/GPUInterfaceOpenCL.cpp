@@ -60,6 +60,12 @@ struct BeagleProfileStats {
     long memcpyH2DCalls = 0;
     double memcpyH2DSeconds = 0.0;
     size_t memcpyH2DBytes = 0;
+    long memcpyD2HCalls = 0;
+    double memcpyD2HSeconds = 0.0;
+    size_t memcpyD2HBytes = 0;
+    long memsetZeroCalls = 0;
+    double memsetZeroSeconds = 0.0;
+    size_t memsetZeroBytes = 0;
 };
 
 BeagleProfileStats gBeagleProfile;
@@ -68,7 +74,8 @@ void beagleProfilePrintSummary() {
     if (!gBeagleProfile.enabled) return;
     BeagleProfileStats& p = gBeagleProfile;
     double totalAccounted = p.launchKernelSeconds + p.launchKernelConcurrentSeconds +
-                             p.syncHostSeconds + p.memcpyH2DSeconds;
+                             p.syncHostSeconds + p.memcpyH2DSeconds + p.memcpyD2HSeconds +
+                             p.memsetZeroSeconds;
     fprintf(stderr, "\n===== BEAGLE_PROFILE_SUMMARY (GPUInterfaceOpenCL) =====\n");
     fprintf(stderr, "warmup discarded: first %ld SynchronizeHost calls\n", BEAGLE_PROFILE_WARMUP_SYNC);
     fprintf(stderr, "LaunchKernel            : calls=%-8ld total=%.6fs avg=%.3fus\n",
@@ -84,6 +91,14 @@ void beagleProfilePrintSummary() {
             p.memcpyH2DCalls, p.memcpyH2DSeconds,
             p.memcpyH2DCalls ? p.memcpyH2DSeconds * 1e6 / p.memcpyH2DCalls : 0.0,
             p.memcpyH2DBytes);
+    fprintf(stderr, "MemcpyDeviceToHost      : calls=%-8ld total=%.6fs avg=%.3fus bytes=%zu\n",
+            p.memcpyD2HCalls, p.memcpyD2HSeconds,
+            p.memcpyD2HCalls ? p.memcpyD2HSeconds * 1e6 / p.memcpyD2HCalls : 0.0,
+            p.memcpyD2HBytes);
+    fprintf(stderr, "MemsetZero              : calls=%-8ld total=%.6fs avg=%.3fus bytes=%zu\n",
+            p.memsetZeroCalls, p.memsetZeroSeconds,
+            p.memsetZeroCalls ? p.memsetZeroSeconds * 1e6 / p.memsetZeroCalls : 0.0,
+            p.memsetZeroBytes);
     fprintf(stderr, "Total host-side time accounted above (post-warmup): %.6fs\n", totalAccounted);
     fprintf(stderr, "===== END BEAGLE_PROFILE_SUMMARY =====\n\n");
     fflush(stderr);
@@ -1123,6 +1138,10 @@ void GPUInterface::MemsetZero(GPUPtr dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetZero\n");
 #endif
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
     /* Deliberately not clEnqueueFillBuffer: on this OpenCL implementation
      * (observed on Apple M1 Max), a kernel launched afterward on the same
      * in-order queue intermittently read stale/garbage data from a
@@ -1137,6 +1156,14 @@ void GPUInterface::MemsetZero(GPUPtr dest,
     SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, hZero, 0,
                                  NULL, NULL));
     free(hZero);
+
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.memsetZeroCalls++;
+        gBeagleProfile.memsetZeroSeconds += dt;
+        gBeagleProfile.memsetZeroBytes += memSize;
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetZero\n");
@@ -1180,8 +1207,22 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
     fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyDeviceToHost\n");
 #endif
 
+    bool prof = beagleProfilingEnabled();
+    std::chrono::high_resolution_clock::time_point t0;
+    if (prof) t0 = std::chrono::high_resolution_clock::now();
+
+    // CL_TRUE => blocking read: this call does not return until the transfer
+    // completes, regardless of payload size.
     SAFE_CL(clEnqueueReadBuffer(openClCommandQueues[0], src, CL_TRUE, 0, memSize, dest, 0,
                                 NULL, NULL));
+
+    if (prof && gBeagleProfile.warm) {
+        double dt = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        gBeagleProfile.memcpyD2HCalls++;
+        gBeagleProfile.memcpyD2HSeconds += dt;
+        gBeagleProfile.memcpyD2HBytes += memSize;
+    }
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyDeviceToHost\n");
