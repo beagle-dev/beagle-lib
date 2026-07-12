@@ -38,6 +38,19 @@ private:
     GPUPtr  dSpectralDistancesOrigin;
     GPUPtr* dSpectralDistances;
     int*    hEigenIndexForMatrix;
+
+    /* Lazy dense-matrix materialization (see PLAN.md in
+     * beagle-bugs/gpu-spectral-skip-redundant-dense-matrix/): probability-only
+     * updateTransitionMatrices calls no longer eagerly build the dense
+     * kStateCount x kStateCount transition matrix, since the spectral
+     * pruning/gradient paths never read it. Instead the eigenIndex/edgeLength
+     * needed to rebuild it are cached here, and the dense matrix is
+     * materialized on first actual getTransitionMatrix() call. All sized
+     * kMatrixCount. */
+    bool*   hDenseMatrixValid;
+    int*    hPendingDenseEigenIndex;
+    double* hPendingDenseEdgeLength;
+
     /* Per-matrix element stride within dSpectralDistancesOrigin, i.e.
      * AlignMemOffset(kCategoryCount * sizeof(Real)) / sizeof(Real). Device
      * alignment padding can make this larger than kCategoryCount, so any code
@@ -124,6 +137,9 @@ public:
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count) override;
+
+    int getTransitionMatrix(int matrixIndex,
+                            double* outMatrix) override;
 
     int updatePrePartials(const int* operations,
                           int operationCount,

@@ -34,6 +34,7 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
+      hDenseMatrixValid(NULL), hPendingDenseEigenIndex(NULL), hPendingDenseEdgeLength(NULL),
       dSpectralPtrQueue(0), dSpectralDistanceQueue(0),
       hSpectralPtrQueue(NULL), hSpectralDistanceQueue(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
@@ -62,6 +63,9 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
     free(dIevcT);
     free(dGradient);
     free(hEigenIndexForMatrix);
+    free(hDenseMatrixValid);
+    free(hPendingDenseEigenIndex);
+    free(hPendingDenseEdgeLength);
     free(hEigenDecompIsAllReal);
 }
 
@@ -90,6 +94,10 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     kSpectralEigenDecompCount = eigenDecompositionCount;
 
     hEigenIndexForMatrix = (int*) calloc(this->kMatrixCount, sizeof(int));
+
+    hDenseMatrixValid        = (bool*)   calloc(this->kMatrixCount, sizeof(bool));   // false = stale/never built
+    hPendingDenseEigenIndex   = (int*)    calloc(this->kMatrixCount, sizeof(int));
+    hPendingDenseEdgeLength   = (double*) calloc(this->kMatrixCount, sizeof(double));
 
     GPUInterface* gpuIf = this->gpu;
 
@@ -144,11 +152,26 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
         const int* secondDerivativeIndices,
         const double* edgeLengths,
         int count) {
-    int rc = BeagleGPUImpl<Real>::updateTransitionMatrices(eigenIndex, probabilityIndices,
-                                                            firstDerivativeIndices,
-                                                            secondDerivativeIndices,
-                                                            edgeLengths, count);
-    if (rc != BEAGLE_SUCCESS || firstDerivativeIndices != NULL) return rc;
+    // Only defer the dense (probability-only) case. Derivative requests are rare in this
+    // project's usage and the existing eager-build behavior for them is left completely
+    // untouched, to keep this change minimal and scoped to the one case that's actually
+    // wasteful (see PLAN.md in beagle-bugs/gpu-spectral-skip-redundant-dense-matrix/).
+    if (firstDerivativeIndices != NULL) {
+        return BeagleGPUImpl<Real>::updateTransitionMatrices(eigenIndex, probabilityIndices,
+                                                              firstDerivativeIndices,
+                                                              secondDerivativeIndices,
+                                                              edgeLengths, count);
+    }
+
+    // Probability-only update: DO NOT build the dense matrix now. Cache what's needed to
+    // build it lazily (see getTransitionMatrix override below), in case some caller asks
+    // for it later. Spectral pruning/gradient paths never read dMatrices.
+    for (int i = 0; i < count; i++) {
+        int matIdx = probabilityIndices[i];
+        hPendingDenseEigenIndex[matIdx] = eigenIndex;
+        hPendingDenseEdgeLength[matIdx] = edgeLengths[i];
+        hDenseMatrixValid[matIdx] = false;
+    }
 
     if (count > 0) {
         const double* categoryRates = this->hCategoryRates[0];
@@ -170,6 +193,22 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
                                                 dSpectralDistanceQueue, totalCount);
     }
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
+                                                                    double* outMatrix) {
+    if (!hDenseMatrixValid[matrixIndex]) {
+        // Materialize on demand, reusing the existing, already-correct base-class
+        // construction unchanged -- just deferred to first actual use instead of built
+        // eagerly and thrown away.
+        int rc = BeagleGPUImpl<Real>::updateTransitionMatrices(
+            hPendingDenseEigenIndex[matrixIndex], &matrixIndex,
+            NULL, NULL, &hPendingDenseEdgeLength[matrixIndex], 1);
+        if (rc != BEAGLE_SUCCESS) return rc;
+        hDenseMatrixValid[matrixIndex] = true;
+    }
+    return BeagleGPUImpl<Real>::getTransitionMatrix(matrixIndex, outMatrix);
 }
 
 BEAGLE_GPU_TEMPLATE
