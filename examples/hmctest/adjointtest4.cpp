@@ -207,7 +207,8 @@ static void printResources() {
 
 static int createInstance(bool useGpu, int whichDevice, bool singlePrec,
                           int stateCount, int nPatterns, int nCats,
-                          bool complexEigen = false) {
+                          bool complexEigen = false,
+                          int nEigenDecomp = 1, int nTransitionMatrices = 4) {
     long prefFlags = BEAGLE_FLAG_SCALERS_RAW;
     prefFlags |= useGpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU;
     prefFlags |= singlePrec ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE;
@@ -223,8 +224,8 @@ static int createInstance(bool useGpu, int whichDevice, bool singlePrec,
         3,          /* nCompact */
         stateCount,
         nPatterns,
-        1,          /* nEigenDecomp */
-        4,          /* nTransitionMatrices */
+        nEigenDecomp,
+        nTransitionMatrices,
         nCats,
         0,          /* nScaleBuffers */
         whichDevice >= 0 ? &whichDevice : NULL,
@@ -1251,6 +1252,177 @@ static int runTestDynamicTransition(int gpuDevice) {
     return allOk ? 0 : 1;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Multi-eigendecomposition test (S=4, nEigenDecomp=2)
+ *
+ * Regression test for the misaligned adjoint-queue/MemsetZero stride bug
+ * (beagle-bugs/gpu-spectral-misaligned-adjoint-queue-stride/PLAN.md).
+ * BeagleGPUSpectralImpl allocates dEvecTOrigin/dIevcTOrigin/dGradientOrigin
+ * with a per-eigendecomposition stride that is *aligned*
+ * (AlignMemOffset(S*S*sizeof(Real))), which device alignment rules can make
+ * strictly larger than the logical S*S*sizeof(Real). The queue-building code
+ * in calculateAdjointCrossProducts (rec[3]/rec[7]) and the MemsetZero call
+ * that clears the gradient accumulator must use that same aligned stride to
+ * index into these pooled buffers by eigendecomposition index -- using the
+ * raw unaligned S*S instead is invisible whenever eigenIndex==0 (multiplied
+ * away by ei*anything==0), which is true of every other test/benchmark in
+ * this project. This test creates a real nEigenDecomp=2 instance and runs
+ * the SAME 4-edge tree/topology twice on the SAME 4 transition-matrix slots:
+ * once with all edges bound to eigenIndex=0 (JC69 -- expected to pass
+ * regardless of the bug, since ei=0 can never expose it) and once with all
+ * edges rebound to eigenIndex=1 (a distinct, non-degenerate real
+ * eigendecomposition -- exercises the exact rec[3]/rec[7]/MemsetZero code
+ * path this bug lives in, since ei=1 is where "ei*SS" and "ei*matStride"
+ * first diverge whenever matStride>SS*sizeof(Real) on this hardware).
+ * GPU output for each step is compared against an independently-computed
+ * CPU (double-precision) reference for the same step -- the CPU
+ * implementation has no analogous aligned/unaligned pooled-buffer stride
+ * concept, so it is unaffected by this bug and serves as ground truth.
+ * ═══════════════════════════════════════════════════════════════════════*/
+
+struct MultiEigenResult {
+    double logLA, logLB;
+    std::vector<double> gradA, gradB;   /* S*S each */
+};
+
+static MultiEigenResult runMultiEigenOne(bool useGpu, int dev, bool singlePrec,
+                                          const std::vector<double>& evecB,
+                                          const std::vector<double>& ivecB,
+                                          const std::vector<double>& evalB) {
+    const int S = 4, nPat = 4, nCats = 2;
+    MultiEigenResult R;
+
+    int inst = createInstance(useGpu, dev, singlePrec, S, nPat, nCats,
+                               /*complexEigen=*/false, /*nEigenDecomp=*/2);
+    if (inst < 0) { R.logLA = R.logLB = NAN; return R; }
+
+    int *hSt = dnaToStates(human);
+    int *cSt = dnaToStates(chimp);
+    int *gSt = dnaToStates(gorilla);
+    beagleSetTipStates(inst, 0, hSt);
+    beagleSetTipStates(inst, 1, cSt);
+    beagleSetTipStates(inst, 2, gSt);
+    free(hSt); free(cSt); free(gSt);
+
+    beagleSetCategoryRates(inst, rates2);
+    std::vector<double> pw(nPat, 1.0);
+    beagleSetPatternWeights(inst, pw.data());
+    beagleSetStateFrequencies(inst, 0, freqs4);
+    beagleSetCategoryWeights(inst, 0, catWeights2);
+
+    int nodeIdx[4] = { 0, 1, 2, 3 };
+    BeagleOperation postOps[2] = {
+        { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+        { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+    };
+    std::vector<double> rootPre((size_t)nCats * nPat * S);
+    for (int c = 0; c < nCats; c++)
+        for (int p = 0; p < nPat; p++)
+            for (int s = 0; s < S; s++)
+                rootPre[(size_t)c * nPat * S + p * S + s] = freqs4[s];
+    BeagleOperation preOps[4] = {
+        { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
+        { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
+        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
+        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+    };
+    BeagleBranchOperation branchOps[4] = {
+        { 1, 8, 1, 0 },
+        { 0, 9, 0, 0 },
+        { 2, 7, 2, 0 },
+        { 3, 6, 3, 0 }
+    };
+
+    auto runStep = [&](int eigenIndex, const double* evec, const double* ivec,
+                        const double* eval) -> std::pair<double, std::vector<double>> {
+        beagleSetEigenDecomposition(inst, eigenIndex, evec, ivec, eval);
+        beagleUpdateTransitionMatrices(inst, eigenIndex, nodeIdx, NULL, NULL, edgeLengths, 4);
+        beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+        double logL = 0.0;
+        int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+        beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+        beagleSetPartials(inst, 5, rootPre.data());
+        beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+        std::vector<double> grad(S * S, 0.0);
+        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
+        return { logL, grad };
+    };
+
+    /* Step A: eigenIndex=0 (JC69) -- ei==0, bug is provably invisible here. */
+    auto a = runStep(0, jcEvec, jcIvec, jcEval);
+    R.logLA = a.first;  R.gradA = a.second;
+
+    /* Step B: eigenIndex=1 (distinct real model) -- exercises the bug. */
+    auto b = runStep(1, evecB.data(), ivecB.data(), evalB.data());
+    R.logLB = b.first;  R.gradB = b.second;
+
+    beagleFinalizeInstance(inst);
+    return R;
+}
+
+static int runTestMultiEigen(int gpuDevice) {
+    const int S = 4;
+    const double tol = 1e-4;
+
+    fprintf(stdout, "\n=== Multi-eigendecomposition test (S=4, nEigenDecomp=2) ===\n");
+    setenv("BEAGLE_DEBUG_STRIDE", "1", 1);
+
+    /* Model B: symmetric (r_fwd=r_bkd=1.0) 4-state circulant -- exactly
+     * real eigenvalues, numerically distinct from JC69. */
+    std::vector<double> evecB, ivecB, evalB;
+    buildCirculantN(4, evecB, ivecB, evalB, /*r_fwd=*/1.0, /*r_bkd=*/1.0);
+
+    fprintf(stdout, "\nCreating CPU (double) instance (nEigenDecomp=2):\n");
+    MultiEigenResult cpuR = runMultiEigenOne(false, -1, false, evecB, ivecB, evalB);
+    if (std::isnan(cpuR.logLA)) { fprintf(stderr, "Failed CPU instance\n"); return 1; }
+    fprintf(stdout, "  CPU step A (eigenIndex=0, JC69):        logL=%.6f\n", cpuR.logLA);
+    fprintf(stdout, "  CPU step B (eigenIndex=1, model B):     logL=%.6f\n", cpuR.logLB);
+
+    if (gpuDevice < 0) {
+        fprintf(stdout, "(no --gpu device given; CPU-only run, nothing to compare)\n");
+        return 0;
+    }
+
+    fprintf(stdout, "\nCreating GPU (single) instance (nEigenDecomp=2):\n");
+    MultiEigenResult gpuR = runMultiEigenOne(true, gpuDevice, true, evecB, ivecB, evalB);
+    if (std::isnan(gpuR.logLA)) { fprintf(stderr, "Failed GPU instance\n"); return 1; }
+    fprintf(stdout, "  GPU step A (eigenIndex=0, JC69):        logL=%.6f\n", gpuR.logLA);
+    fprintf(stdout, "  GPU step B (eigenIndex=1, model B):     logL=%.6f\n", gpuR.logLB);
+
+    auto compareGrad = [&](const char* label, const std::vector<double>& cpu,
+                            const std::vector<double>& gpu) -> bool {
+        double maxDiff = 0.0;
+        for (int k = 0; k < S * S; k++) {
+            double d = fabs(cpu[k] - gpu[k]);
+            if (d > maxDiff || std::isnan(d)) maxDiff = d;
+        }
+        bool ok = (maxDiff <= tol) && !std::isnan(maxDiff);
+        fprintf(stdout, "  %-42s max|CPU-GPU diff|=%.3e (tol=%.0e)  %s\n",
+                label, maxDiff, tol, ok ? "PASS" : "FAIL");
+        if (!ok) {
+            fprintf(stdout, "    CPU grad:\n");
+            for (int i = 0; i < S; i++) {
+                fprintf(stdout, "     ");
+                for (int j = 0; j < S; j++) fprintf(stdout, " %10.6f", cpu[i*S+j]);
+                fprintf(stdout, "\n");
+            }
+            fprintf(stdout, "    GPU grad:\n");
+            for (int i = 0; i < S; i++) {
+                fprintf(stdout, "     ");
+                for (int j = 0; j < S; j++) fprintf(stdout, " %10.6f", gpu[i*S+j]);
+                fprintf(stdout, "\n");
+            }
+        }
+        return ok;
+    };
+
+    bool okA = compareGrad("Step A gradient (eigenIndex=0, JC69)", cpuR.gradA, gpuR.gradA);
+    bool okB = compareGrad("Step B gradient (eigenIndex=1, model B)", cpuR.gradB, gpuR.gradB);
+
+    fprintf(stdout, "Multi-eigendecomposition test: %s\n", (okA && okB) ? "PASS" : "FAIL");
+    return (okA && okB) ? 0 : 1;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 int main(int argc, const char *argv[]) {
@@ -1263,6 +1435,7 @@ int main(int argc, const char *argv[]) {
     bool run17      = false;
     bool runRealOnly    = false;
     bool runDynamic     = false;
+    bool runMultiEigen  = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--gpu") == 0 && i+1 < argc) {
@@ -1279,8 +1452,11 @@ int main(int argc, const char *argv[]) {
         } else if (strcmp(argv[i], "--dynamic") == 0) {
             run4 = false;
             runDynamic = true;
+        } else if (strcmp(argv[i], "--multieigen") == 0) {
+            run4 = false;
+            runMultiEigen = true;
         } else if (strcmp(argv[i], "--all") == 0) {
-            run4 = run16 = run17 = runRealOnly = runDynamic = true;
+            run4 = run16 = run17 = runRealOnly = runDynamic = runMultiEigen = true;
         }
     }
 
@@ -1292,6 +1468,7 @@ int main(int argc, const char *argv[]) {
     if (run17)      result |= runTest17(gpuDev);
     if (runRealOnly) result |= runTestRealOnly(gpuDev);
     if (runDynamic)  result |= runTestDynamicTransition(gpuDev);
+    if (runMultiEigen) result |= runTestMultiEigen(gpuDev);
 
     return result;
 }

@@ -123,6 +123,13 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     // Backward eigenvector arrays: one S*S block per eigen decomposition.
     int S = this->kPaddedStateCount;
     size_t matStride = gpuIf->AlignMemOffset((size_t)S * S * sizeof(Real));
+    kSpectralMatrixStrideBytes    = matStride;
+    kSpectralMatrixStrideElements = (unsigned int)(matStride / sizeof(Real));
+    if (getenv("BEAGLE_DEBUG_STRIDE")) {
+        fprintf(stderr, "[BEAGLE_DEBUG_STRIDE] S=%d matStride=%zu bytes, S*S*sizeof(Real)=%zu bytes, "
+                "aligned>logical=%s\n", S, matStride, (size_t)S * S * sizeof(Real),
+                (matStride > (size_t)S * S * sizeof(Real)) ? "YES" : "no");
+    }
     dEvecT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
     dIevcT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
     dEvecTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
@@ -642,7 +649,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
      * through the parent view (intermittent large garbage gradients,
      * OpenCL, Apple M1 Max) even on the in-order command queue — filling
      * through the same view the kernel uses avoids that hazard. */
-    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * SS * sizeof(Real));
+    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * kSpectralMatrixStrideBytes);
 
     GPUPtr catW = this->dWeights[cwIdx];
 
@@ -680,11 +687,11 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
                                : this->getPartialsOffsetElements(postIdx);
             rec[2] = isStates ? 1u : 0u;
-            rec[3] = (unsigned int)ei * SS;
+            rec[3] = (unsigned int)ei * kSpectralMatrixStrideElements;
             rec[4] = (unsigned int)ei * this->getEvecStrideElements();
             rec[5] = (unsigned int)ei * this->getEvalStrideElements();
             rec[6] = (unsigned int)matIdx * kSpectralDistanceStrideElements;
-            rec[7] = (unsigned int)ei * SS;
+            rec[7] = (unsigned int)ei * kSpectralMatrixStrideElements;
             rec[8] = isAllReal ? 1u : 0u;
         }
 

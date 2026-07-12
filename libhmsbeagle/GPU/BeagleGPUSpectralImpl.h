@@ -92,6 +92,15 @@ private:
     GPUPtr* dGradient;
     bool*   hEigenDecompIsAllReal;
 
+    /* Per-eigendecomposition element/byte stride shared by dEvecTOrigin,
+     * dIevcTOrigin, and dGradientOrigin, i.e. AlignMemOffset(S*S*sizeof(Real))
+     * (as elements / as bytes). Device alignment padding can make this
+     * larger than S*S, so any code that indexes into these pooled origin
+     * buffers by eigendecomposition index (e.g. the adjoint offset-queue's
+     * rec[3]/rec[7], or the gradient MemsetZero) must use this, not S*S. */
+    unsigned int kSpectralMatrixStrideElements;
+    size_t       kSpectralMatrixStrideBytes;
+
     /* Offset-queue for the batched adjoint kernel: one 9-unsigned-int record
      * per branch (see STATUS.md for the field layout), addressed via
      * integer offsets into the pooled partials/states/evec/ievc/eigenvalue/
