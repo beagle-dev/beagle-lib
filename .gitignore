@@ -209,6 +209,7 @@ examples/tinytest/.libs/
 examples/tinytest/tinytest.o
 libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h
 libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h
+libhmsbeagle/GPU/kernels/BeagleOpenCLSpectral_kernels.h
 libhmsbeagle/GPU/libhmsbeagle-opencl.la
 libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUImplHelper.lo
 libhmsbeagle/GPU/libhmsbeagle_opencl_la-GPUInterfaceOpenCL.lo
