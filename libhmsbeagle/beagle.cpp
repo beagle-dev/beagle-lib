@@ -448,10 +448,10 @@ int rankResourceImplementationPairs(long preferenceFlags,
                 long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags);
                 int penalty = 0;
                 for (long f = unneeded; f; f &= (f - 1)) penalty++;
-                int totalScore = resourceScore + implementationScore + penalty;
+                int totalScore = 2 * resourceScore + implementationScore + penalty / 2;
 #ifdef BEAGLE_DEBUG_FLOW
-                fprintf(stderr,"\tPossible implementation: %s (%d)\n",
-                        (*factory)->getName(),totalScore);
+                fprintf(stderr,"\tPossible implementation: %s (%d = %d + %d + %d)\n",
+                        (*factory)->getName(),totalScore, resourceScore, implementationScore, penalty);
 #endif
 
                 possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));

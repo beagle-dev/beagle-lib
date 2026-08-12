@@ -34,6 +34,7 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
+      hSpectralDistances(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
@@ -50,6 +51,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
         if (dGradientOrigin)          gpuIf->FreeMemory(dGradientOrigin);
         if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
         if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
+        if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
     }
     free(dSpectralDistances);
     free(dEvecT);
@@ -94,6 +96,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     for (int i = 0; i < this->kMatrixCount; i++) {
         dSpectralDistances[i] = gpuIf->CreateSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
     }
+    // Zero-initialized host mirror of dSpectralDistancesOrigin; see updateTransitionMatrices.
+    hSpectralDistances = (Real*) gpuIf->CallocHost(sizeof(Real), this->kMatrixCount * kSpectralDistanceStrideElements);
 
     // Backward eigenvector arrays: one S*S block per eigen decomposition.
     int S = this->kPaddedStateCount;
@@ -127,26 +131,32 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
         const int* secondDerivativeIndices,
         const double* edgeLengths,
         int count) {
-    int rc = BeagleGPUImpl<Real>::updateTransitionMatrices(eigenIndex, probabilityIndices,
-                                                            firstDerivativeIndices,
-                                                            secondDerivativeIndices,
-                                                            edgeLengths, count);
-    if (rc != BEAGLE_SUCCESS || firstDerivativeIndices != NULL) return rc;
+    // int rc = BeagleGPUImpl<Real>::updateTransitionMatrices(eigenIndex, probabilityIndices,
+    //                                                         firstDerivativeIndices,
+    //                                                         secondDerivativeIndices,
+    //                                                         edgeLengths, count);
+    // if (rc != BEAGLE_SUCCESS || firstDerivativeIndices != NULL) return rc;
 
     if (count > 0) {
         const double* categoryRates = this->hCategoryRates[0];
         int nCat = this->kCategoryCount;
-        Real* hDist = (Real*) malloc(sizeof(Real) * nCat);
         GPUInterface* gpuIf = this->gpu;
+
+        // Patch the touched matrices' entries into the persistent host mirror
+        // (untouched matrices keep whatever they were last set to).
         for (int i = 0; i < count; i++) {
             int matIdx = probabilityIndices[i];
             hEigenIndexForMatrix[matIdx] = eigenIndex;
+            Real* hDist = hSpectralDistances + (size_t) matIdx * kSpectralDistanceStrideElements;
             for (int j = 0; j < nCat; j++) {
                 hDist[j] = (Real)(edgeLengths[i] * categoryRates[j]);
             }
-            gpuIf->MemcpyHostToDevice(dSpectralDistances[matIdx], hDist, sizeof(Real) * nCat);
         }
-        free(hDist);
+
+        // Push the whole pooled buffer in one call, rather than one
+        // MemcpyHostToDevice per matrix.
+        gpuIf->MemcpyHostToDevice(dSpectralDistancesOrigin, hSpectralDistances,
+            sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
     }
     return BEAGLE_SUCCESS;
 }

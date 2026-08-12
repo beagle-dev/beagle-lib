@@ -44,6 +44,12 @@ private:
      * that indexes into the pooled origin buffer by matrix index (e.g. the
      * adjoint offset-queue) must multiply by this, not by kCategoryCount. */
     unsigned int kSpectralDistanceStrideElements;
+    /* Host-side mirror of dSpectralDistancesOrigin (same layout/size:
+     * kMatrixCount * kSpectralDistanceStrideElements elements), kept
+     * persistent across calls so updateTransitionMatrices can patch just the
+     * touched matrices' entries and then push the whole pooled buffer to the
+     * device in a single MemcpyHostToDevice call. */
+    Real*   hSpectralDistances;
 
     /* Backward eigenvector buffers for the parent branch in pre-order.
      * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).
