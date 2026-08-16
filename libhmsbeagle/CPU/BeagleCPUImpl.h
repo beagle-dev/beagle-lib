@@ -141,6 +141,10 @@ protected:
     std::vector<REALTYPE> gPatternScaleTmp;
     std::vector<REALTYPE> gAdjointPartitionBuffers;
     std::vector<REALTYPE> gOuterProductTmp;
+    // Per-thread/per-partition scratch holding gPatternScaleTmp[k] with the
+    // requesting branch's rescaling (post-order + pre-order cumulative, minus
+    // the root's cumulative scale) divided back out; see calcAdjointCrossProductsRange.
+    std::vector<REALTYPE> gAdjointScaleCorrectedLk;
 
     struct BranchEigenInfo {
         REALTYPE branchLength;
@@ -502,7 +506,10 @@ public:
                                       const int stateFrequenciesIndex,
                                       int count,
                                       double *outSumDerivatives,
-                                      double *outSumSquaredDerivatives);
+                                      double *outSumSquaredDerivatives,
+                                      const int *postScaleIndices = nullptr,
+                                      const int *preScaleIndices = nullptr,
+                                      const int cumulativeScaleIndex = BEAGLE_OP_NONE);
 
     int calculateAdjointDerivative(const BeagleBranchOperation *operations,
                                    const int categoryRatesIndex,
@@ -618,7 +625,10 @@ protected:
                                          const int stateFrequenciesIndex,
                                          int count,
                                          double *outSumDerivatives,
-                                         double *outSumSquaredDerivatives);
+                                         double *outSumSquaredDerivatives,
+                                         const int *postScaleIndices,
+                                         const int *preScaleIndices,
+                                         const int cumulativeScaleIndex);
 
     virtual void calcAdjointCrossProductsRange(const int *postBufferIndices,
                                                const int *preBufferIndices,
@@ -631,7 +641,10 @@ protected:
                                                int endNode,
                                                int startPattern,
                                                int endPattern,
-                                               int currentPartition);
+                                               int currentPartition,
+                                               const int *postScaleIndices,
+                                               const int *preScaleIndices,
+                                               const int cumulativeScaleIndex);
 
     template <typename T, typename V, typename COLLECTOR>
     void calcAdjointCrossProducts(const REALTYPE* partialsPost,
@@ -660,7 +673,10 @@ protected:
                                                  const REALTYPE *categoryWeights,
                                                  const REALTYPE *perSiteLikelihoods,
                                                  REALTYPE *buffer,
-                                                 int count);
+                                                 int count,
+                                                 const int *postScaleIndices,
+                                                 const int *preScaleIndices,
+                                                 const int cumulativeScaleIndex);
 
     int calcAdjointCrossProductsByNodeAsync(const int *postBufferIndices,
                                             const int *preBufferIndices,
@@ -669,7 +685,10 @@ protected:
                                             const REALTYPE *categoryWeights,
                                             const REALTYPE *perSiteLikelihoods,
                                             REALTYPE *buffer,
-                                            int count);
+                                            int count,
+                                            const int *postScaleIndices,
+                                            const int *preScaleIndices,
+                                            const int cumulativeScaleIndex);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,

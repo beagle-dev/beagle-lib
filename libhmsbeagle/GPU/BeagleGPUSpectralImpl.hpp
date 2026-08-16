@@ -554,7 +554,19 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         const int  stateFrequenciesIndex,
         int        count,
         double*    outSumDerivatives,
-        double*    outSumSquaredDerivatives) {
+        double*    outSumSquaredDerivatives,
+        const int* postScaleIndices,
+        const int* preScaleIndices,
+        const int  cumulativeScaleIndex) {
+
+    if (postScaleIndices != NULL || preScaleIndices != NULL) {
+        // Rescaling-corrected adjoint cross-products (see the CPU
+        // implementation, BeagleCPUImpl::calcAdjointCrossProductsRange) are
+        // not yet implemented for the GPU merged-kernel path -- fail
+        // explicitly rather than silently return an uncorrected (wrong when
+        // partials were independently rescaled) gradient.
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
 
     GPUInterface* gpuIf = this->gpu;
     const int S  = this->kPaddedStateCount;

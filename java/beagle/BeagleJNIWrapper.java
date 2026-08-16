@@ -283,7 +283,10 @@ public class BeagleJNIWrapper {
         												 final int stateFrequenciesIndex,
         												 int count,
 	        											 double[] outSumDerivatives,
-	        											 double[] outSumSquaredDerivatives);
+	        											 double[] outSumSquaredDerivatives,
+	        											 final int[] postScaleIndices,
+	        											 final int[] preScaleIndices,
+	        											 final int cumulativeScaleIndex);
 
     public native int calculateEdgeDerivative(int instance,
     										  final int[] postBufferIndices,

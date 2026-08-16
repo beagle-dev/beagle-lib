@@ -405,7 +405,7 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
 /*
  * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateAdjointCrossProductDifferentials
- * Signature: (I[I[I[I[I[IIII[D[D)I
+ * Signature: (I[I[I[I[I[IIII[D[D[I[II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProductDifferentials
   (JNIEnv *env, jobject obj, jint instance,
@@ -418,7 +418,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProduct
 		jint stateFrequenciesIndex,
 		jint count,
 		jdoubleArray outSumDerivatives,
-		jdoubleArray outSumSquaredDerivatives);
+		jdoubleArray outSumSquaredDerivatives,
+		jintArray postScaleIndices,
+		jintArray preScaleIndices,
+		jint cumulativeScaleIndex);
 
 #ifdef __cplusplus
 }

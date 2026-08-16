@@ -7,12 +7,15 @@
  *   (b) 16-state asymmetric circulant model (complex eigenvalues, r_fwd=1.0, r_bkd=0.5)
  *   (c) 17-state asymmetric circulant model — GPU uses 32-state kernel
  *       (PADDED_STATE_COUNT=32, BLOCK_PEELING_SIZE=8 → 4 block-peel passes)
+ *   (d) 56-state generalized-JC (all equal rates) model — real, (N-1)-fold
+ *       degenerate eigenvalue; CPU adjoint gradient diagonal is checked against
+ *       a central-difference derivative of log-likelihood w.r.t. eigenvalue
  *
  * For each case, post-order and pre-order-TOP partials are compared first, then
  * the full adjoint gradient.
  *
  * Usage:
- *   adjointtest4 [--gpu <device>] [--nstates 4|16|17]
+ *   adjointtest4 [--gpu <device>] [--nstates 4|16|17|56]
  *
  * Tree: ((human:0.1, chimp:0.1):0.5, gorilla:0.2)
  */
@@ -138,6 +141,49 @@ static void buildCirculantN(
             double v = (j % 2 == 0) ? 1.0 : -1.0;
             evec[j * N + last] = v / N;
             ivec[last * N + j] = v;
+        }
+    }
+}
+
+/* ── Generalized-JC N-state model (all off-diagonal rates equal) ───────── */
+/*
+ * Q[i,i] = -1, Q[i,j] = r = 1/(N-1) for i≠j  (a symmetric circulant matrix).
+ * Eigenvalues: 0 (stationary direction, ones vector) and -N/(N-1) with
+ * multiplicity N-1 — real and (N-1)-fold degenerate, so BEAGLE_FLAG_EIGEN_REAL
+ * applies. Q = r*(J - N*I) where J = ones*ones^T, so any orthogonal V whose
+ * first column is ones/sqrt(N) diagonalizes Q. We use the symmetric orthogonal
+ * Householder reflection H mapping e_0 -> ones/sqrt(N); since H = H^T = H^-1,
+ * it serves as both Evec and Ivec.
+ */
+static void buildEqualRateN(
+    int N,
+    std::vector<double>& evec,   /* N×N */
+    std::vector<double>& ivec,   /* N×N */
+    std::vector<double>& eval)   /* 2N  */
+{
+    const double r = 1.0 / (N - 1);
+    const double offDiagEigenvalue = -N * r;
+
+    evec.assign(N * N, 0.0);
+    ivec.assign(N * N, 0.0);
+    eval.assign(2 * N, 0.0);
+
+    eval[0] = 0.0;
+    for (int k = 1; k < N; k++) eval[k] = offDiagEigenvalue;
+    /* imaginary parts already zero */
+
+    std::vector<double> u(N);
+    const double invSqrtN = 1.0 / sqrt((double)N);
+    u[0] = 1.0 - invSqrtN;
+    for (int i = 1; i < N; i++) u[i] = -invSqrtN;
+    double uNormSq = 0.0;
+    for (int i = 0; i < N; i++) uNormSq += u[i] * u[i];
+
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            double hij = (i == j ? 1.0 : 0.0) - 2.0 * u[i] * u[j] / uNormSq;
+            evec[i * N + j] = hij;
+            ivec[i * N + j] = hij;
         }
     }
 }
@@ -288,11 +334,15 @@ static AdjointResult4 runAdjoint4(int instance) {
                 rootPre[(size_t)c * nPat * S + p * S + s] = freqs4[s];
     beagleSetPartials(instance, 5, rootPre.data());
 
+    /* buf6/buf7's parent (5) is the literal root prior -> parentTransMatIndex=NONE.
+     * buf8/buf9's parent (6) is internal's own (non-root) pre-order buffer, so it
+     * must be propagated through internal's own branch (matrix 3) before combining
+     * with the sibling -> parentTransMatIndex=3, NOT NONE. */
     BeagleOperation preOps[4] = {
         { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
         { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
-        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
-        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
     };
     beagleUpdatePrePartials_v5(instance, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
 
@@ -624,11 +674,15 @@ static int runTest16(int gpuDevice) {
                     rootPre[(size_t)c * nPat * S + p * S + s] = freqs16[s];
         beagleSetPartials(inst, 5, rootPre.data());
 
+        /* buf6/buf7's parent (5) is the literal root prior -> parentTransMatIndex=NONE.
+         * buf8/buf9's parent (6) is internal's own (non-root) pre-order buffer, so it
+         * must be propagated through internal's own branch (matrix 3) before combining
+         * with the sibling -> parentTransMatIndex=3, NOT NONE. */
         BeagleOperation preOps[4] = {
             { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
             { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
-            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
-            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
         };
         beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
 
@@ -757,11 +811,15 @@ static int runTest17(int gpuDevice) {
                     rootPre[(size_t)c * nPat * S + p * S + s] = freqs17[s];
         beagleSetPartials(inst, 5, rootPre.data());
 
+        /* buf6/buf7's parent (5) is the literal root prior -> parentTransMatIndex=NONE.
+         * buf8/buf9's parent (6) is internal's own (non-root) pre-order buffer, so it
+         * must be propagated through internal's own branch (matrix 3) before combining
+         * with the sibling -> parentTransMatIndex=3, NOT NONE. */
         BeagleOperation preOps[4] = {
             { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
             { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
-            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
-            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
         };
         beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
 
@@ -841,7 +899,7 @@ static int runTest17(int gpuDevice) {
     fprintf(stdout, "CPU log-likelihood: %.6f\n", cpuLogL17);
 
     fprintf(stdout, "\n--- Finite-difference check on diagonal G[ls,ls] (17-state) ---\n");
-    const double fdEps = 1e-5;
+    const double fdEps = 1e-6;
     double logLSanity = computeLogLOnly(eval17);
     fprintf(stdout, "  logL sanity recompute = %.6f  (cpuLogL17=%.6f, diff=%+.3e)\n",
             logLSanity, cpuLogL17, logLSanity - cpuLogL17);
@@ -857,26 +915,37 @@ static int runTest17(int gpuDevice) {
     /* For a complex-conjugate pair (li, li+1), eval[li]==eval[li+1] (shared
      * real part `a`); perturbing eval[li] moves `a` for the whole pair, so
      * the FD derivative corresponds to G[li,li]+G[li+1,li+1], not G[li,li]
-     * alone. Real eigenvalues (imag==0) keep the direct one-to-one check. */
+     * alone. Real eigenvalues (imag==0) keep the direct one-to-one check.
+     * Gradient magnitudes here reach ~2000 (small 4-pattern/3-tip dataset,
+     * unfavorable likelihood surface), so central-difference truncation
+     * error (O(fdEps^2), empirically confirmed by sweeping fdEps) is
+     * compared against a magnitude-relative tolerance rather than a tiny
+     * absolute one — mirrors the CPU-vs-GPU threshold below. */
     fprintf(stdout, "  ls   FD_grad        G_diag(sum)    diff(FD-G)\n");
-    double maxFdCpuDiff = 0.0;
+    double maxFdCpuDiff = 0.0, maxFdMagnitude = 0.0;
     for (int ls = 0; ls < S; ls++) {
         if (eval17[S + ls] > 0.0) {
             double gSum = cpuGrad17[ls*S+ls] + cpuGrad17[(ls+1)*S+(ls+1)];
             double diff = fdGrad[ls] - gSum;
             if (fabs(diff) > maxFdCpuDiff) maxFdCpuDiff = fabs(diff);
+            maxFdMagnitude = std::max(maxFdMagnitude, fabs(gSum));
             fprintf(stdout, "  %2d  %12.6f  %12.6f  %+.3e\n", ls, fdGrad[ls], gSum, diff);
             fprintf(stdout, "  %2d  N/A (2nd-of-pair; folded into row %d above)\n", ls+1, ls);
             ls++;
         } else {
             double diff = fdGrad[ls] - cpuGrad17[ls*S+ls];
             if (fabs(diff) > maxFdCpuDiff) maxFdCpuDiff = fabs(diff);
+            maxFdMagnitude = std::max(maxFdMagnitude, fabs(cpuGrad17[ls*S+ls]));
             fprintf(stdout, "  %2d  %12.6f  %12.6f  %+.3e\n", ls, fdGrad[ls], cpuGrad17[ls*S+ls], diff);
         }
     }
-    fprintf(stdout, "  max|FD - CPU_G_diag| = %.3e\n", maxFdCpuDiff);
+    const double fdRelTol = 1e-5;
+    const double fdTolCpu = std::max(1e-2, fdRelTol * maxFdMagnitude);
+    bool fdOkCpu = maxFdCpuDiff <= fdTolCpu;
+    fprintf(stdout, "  max|FD - CPU_G_diag| = %.3e  threshold=%.3e  %s\n",
+            maxFdCpuDiff, fdTolCpu, fdOkCpu ? "PASS" : "FAIL");
 
-    if (gpuDevice < 0) return 0;
+    if (gpuDevice < 0) return fdOkCpu ? 0 : 1;
 
     fprintf(stdout, "\nCreating GPU (single) instance:\n");
     auto [gpuLogL17, gpuGrad17] = runOne(true, gpuDevice, true);
@@ -884,22 +953,31 @@ static int runTest17(int gpuDevice) {
     fprintf(stdout, "GPU log-likelihood: %.6f\n", gpuLogL17);
 
     fprintf(stdout, "  ls   FD_grad        G_diag(sum)    diff(FD-G)\n");
-    double maxFdGpuDiff = 0.0;
+    double maxFdGpuDiff = 0.0, maxFdMagnitudeGpu = 0.0;
     for (int ls = 0; ls < S; ls++) {
         if (eval17[S + ls] > 0.0) {
             double gSum = gpuGrad17[ls*S+ls] + gpuGrad17[(ls+1)*S+(ls+1)];
             double diff = fdGrad[ls] - gSum;
             if (fabs(diff) > maxFdGpuDiff) maxFdGpuDiff = fabs(diff);
+            maxFdMagnitudeGpu = std::max(maxFdMagnitudeGpu, fabs(gSum));
             fprintf(stdout, "  %2d  %12.6f  %12.6f  %+.3e\n", ls, fdGrad[ls], gSum, diff);
             fprintf(stdout, "  %2d  N/A (2nd-of-pair; folded into row %d above)\n", ls+1, ls);
             ls++;
         } else {
             double diff = fdGrad[ls] - gpuGrad17[ls*S+ls];
             if (fabs(diff) > maxFdGpuDiff) maxFdGpuDiff = fabs(diff);
+            maxFdMagnitudeGpu = std::max(maxFdMagnitudeGpu, fabs(gpuGrad17[ls*S+ls]));
             fprintf(stdout, "  %2d  %12.6f  %12.6f  %+.3e\n", ls, fdGrad[ls], gpuGrad17[ls*S+ls], diff);
         }
     }
-    fprintf(stdout, "  max|FD - GPU_G_diag| = %.3e\n", maxFdGpuDiff);
+    /* Single precision on top of FD truncation error: reuse this function's
+     * CPU-vs-GPU relative tolerance (relTol) as a reasonable, already-vetted
+     * scale for GPU noise at this state count. Not empirically re-verified
+     * against real GPU hardware in the session that added this gate. */
+    const double fdTolGpu = std::max(tol, relTol * maxFdMagnitudeGpu);
+    bool fdOkGpu = maxFdGpuDiff <= fdTolGpu;
+    fprintf(stdout, "  max|FD - GPU_G_diag| = %.3e  threshold=%.3e  %s\n",
+            maxFdGpuDiff, fdTolGpu, fdOkGpu ? "PASS" : "FAIL");
 
     fprintf(stdout, "\nGradient comparison 17-state (tol=%.0e abs / %.0e rel):\n", tol, relTol);
     fprintf(stdout, "Differences CPU-GPU (first 8x8 block):\n");
@@ -931,7 +1009,180 @@ static int runTest17(int gpuDevice) {
     }
     fprintf(stdout, "17-state gradient max|diff|=%.3e  threshold=%.3e (rel to max|value|=%.3e)  %s\n",
             maxDiff, threshold, maxMagnitude, gradOk ? "PASS" : "FAIL");
-    return gradOk ? 0 : 1;
+    return (fdOkCpu && fdOkGpu && gradOk) ? 0 : 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * 56-state test (generalized-JC, all off-diagonal rates equal)
+ * Real, (N-1)-fold degenerate eigenvalue; gradient diagonal is checked
+ * against a central-difference derivative of log-likelihood w.r.t. eigenvalue.
+ * ═══════════════════════════════════════════════════════════════════════*/
+
+static int runTest56(int gpuDevice) {
+    const int S = 56, nPat = 4, nCats = 2;
+    const double tol = 1e-3;   /* single vs double tolerance */
+    const double fdTol = 1e-3; /* central-difference vs CPU adjoint gradient */
+
+    fprintf(stdout, "\n=== 56-state generalized-JC test (all equal rates) ===\n");
+    fprintf(stdout, "    Q[i,i]=-1, Q[i,j]=1/55 (i!=j) -> eigenvalue -56/55, multiplicity 55\n");
+
+    std::vector<double> evec56, ivec56, eval56;
+    buildEqualRateN(S, evec56, ivec56, eval56);
+
+    std::vector<double> freqs56(S, 1.0 / S);
+    double rates56[2]    = { 0.5, 1.5 };
+    double catWts56[2]   = { 0.5, 0.5 };
+    double edgeLens56[4] = { 0.1, 0.1, 0.2, 0.5 };
+
+    int hSt56[4] = {  3,  0,  5,  7 };
+    int cSt56[4] = {  3,  0,  5, 55 };
+    int gSt56[4] = {  0,  0,  0, 40 };
+
+    auto runOne = [&](bool useGpu, int dev, bool singlePrec) -> std::pair<double, std::vector<double>> {
+        int inst = createInstance(useGpu, dev, singlePrec, S, nPat, nCats, /*complexEigen=*/false);
+        if (inst < 0) return { 0.0, {} };
+
+        beagleSetTipStates(inst, 0, hSt56);
+        beagleSetTipStates(inst, 1, cSt56);
+        beagleSetTipStates(inst, 2, gSt56);
+
+        beagleSetCategoryRates(inst, rates56);
+        std::vector<double> pw(nPat, 1.0);
+        beagleSetPatternWeights(inst, pw.data());
+        beagleSetStateFrequencies(inst, 0, freqs56.data());
+        beagleSetCategoryWeights(inst, 0, catWts56);
+        beagleSetEigenDecomposition(inst, 0, evec56.data(), ivec56.data(), eval56.data());
+
+        int nodeIdx[4] = { 0, 1, 2, 3 };
+        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens56, 4);
+
+        BeagleOperation postOps[2] = {
+            { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+            { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+        };
+        beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+
+        double logL = 0.0;
+        int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+        beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+
+        std::vector<double> rootPre((size_t)nCats * nPat * S);
+        for (int c = 0; c < nCats; c++)
+            for (int p = 0; p < nPat; p++)
+                for (int s = 0; s < S; s++)
+                    rootPre[(size_t)c * nPat * S + p * S + s] = freqs56[s];
+        beagleSetPartials(inst, 5, rootPre.data());
+
+        /* buf6/buf7's parent (5) is the literal root prior -> parentTransMatIndex=NONE.
+         * buf8/buf9's parent (6) is internal's own (non-root) pre-order buffer, so it
+         * must be propagated through internal's own branch (matrix 3) before combining
+         * with the sibling -> parentTransMatIndex=3, NOT NONE. */
+        BeagleOperation preOps[4] = {
+            { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
+            { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
+            { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+            { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
+        };
+        beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+
+        BeagleBranchOperation branchOps[4] = {
+            { 1, 8, 1, 0 },
+            { 0, 9, 0, 0 },
+            { 2, 7, 2, 0 },
+            { 3, 6, 3, 0 }
+        };
+        std::vector<double> grad(S * S, 0.0);
+        beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
+
+        beagleFinalizeInstance(inst);
+        return { logL, grad };
+    };
+
+    /* Independent CPU-double logL recompute (no adjoint code involved), used
+     * to validate G[ls,ls] via central finite differences on the eigenvalue
+     * eval[ls], keeping Evec/Ivec fixed. Since all off-diagonal eigenvalues
+     * start degenerate (equal rates), this also probes the coefficient
+     * formula's tie-breaking branch (|la-lb|*t < 1e-12) that the analytic
+     * adjoint kernel must special-case. */
+    auto computeLogLOnly = [&](const std::vector<double>& evalIn) -> double {
+        int inst = createInstance(false, -1, false, S, nPat, nCats, /*complexEigen=*/false);
+        if (inst < 0) return NAN;
+        beagleSetTipStates(inst, 0, hSt56);
+        beagleSetTipStates(inst, 1, cSt56);
+        beagleSetTipStates(inst, 2, gSt56);
+        beagleSetCategoryRates(inst, rates56);
+        std::vector<double> pw(nPat, 1.0);
+        beagleSetPatternWeights(inst, pw.data());
+        beagleSetStateFrequencies(inst, 0, freqs56.data());
+        beagleSetCategoryWeights(inst, 0, catWts56);
+        beagleSetEigenDecomposition(inst, 0, evec56.data(), ivec56.data(), evalIn.data());
+        int nodeIdx[4] = { 0, 1, 2, 3 };
+        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens56, 4);
+        BeagleOperation postOps[2] = {
+            { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+            { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+        };
+        beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+        double logL = 0.0;
+        int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+        beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+        beagleFinalizeInstance(inst);
+        return logL;
+    };
+
+    fprintf(stdout, "\nCreating CPU (double) instance:\n");
+    auto [cpuLogL56, cpuGrad56] = runOne(false, -1, false);
+    if (cpuGrad56.empty()) return 1;
+    fprintf(stdout, "CPU log-likelihood: %.6f\n", cpuLogL56);
+
+    fprintf(stdout, "\n--- Central-difference check on diagonal G[ls,ls] (56-state) ---\n");
+    const double fdEps = 1e-6;
+    std::vector<double> fdGrad(S, 0.0);
+    for (int ls = 0; ls < S; ls++) {
+        std::vector<double> evalPlus = eval56, evalMinus = eval56;
+        evalPlus[ls]  += fdEps;
+        evalMinus[ls] -= fdEps;
+        double logLp = computeLogLOnly(evalPlus);
+        double logLm = computeLogLOnly(evalMinus);
+        fdGrad[ls] = (logLp - logLm) / (2.0 * fdEps);
+    }
+    fprintf(stdout, "  ls   FD_grad        CPU_G_diag     diff(FD-G)\n");
+    double maxFdCpuDiff = 0.0;
+    for (int ls = 0; ls < S; ls++) {
+        double diff = fdGrad[ls] - cpuGrad56[ls * S + ls];
+        if (fabs(diff) > maxFdCpuDiff) maxFdCpuDiff = fabs(diff);
+        fprintf(stdout, "  %2d  %12.6f  %12.6f  %+.3e\n", ls, fdGrad[ls], cpuGrad56[ls * S + ls], diff);
+    }
+    fprintf(stdout, "  max|FD - CPU_G_diag| = %.3e  %s\n", maxFdCpuDiff,
+            maxFdCpuDiff <= fdTol ? "PASS" : "FAIL");
+
+    bool fdOk = maxFdCpuDiff <= fdTol;
+
+    if (gpuDevice < 0) return fdOk ? 0 : 1;
+
+    fprintf(stdout, "\nCreating GPU (single) instance:\n");
+    auto [gpuLogL56, gpuGrad56] = runOne(true, gpuDevice, true);
+    if (gpuGrad56.empty()) return 1;
+    fprintf(stdout, "GPU log-likelihood: %.6f\n", gpuLogL56);
+
+    fprintf(stdout, "\nGradient comparison 56-state (tol=%.0e):\n", tol);
+    fprintf(stdout, "Differences CPU-GPU (first 8x8 block):\n");
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++)
+            fprintf(stdout, " %+8.2e", cpuGrad56[i*S+j] - gpuGrad56[i*S+j]);
+        fprintf(stdout, "\n");
+    }
+
+    bool gradOk = true;
+    double maxDiff = 0.0;
+    for (int k = 0; k < S*S; k++) {
+        double d = fabs(cpuGrad56[k] - gpuGrad56[k]);
+        if (d > maxDiff || std::isnan(d)) maxDiff = d;
+        if (d > tol || std::isnan(d)) gradOk = false;
+    }
+    fprintf(stdout, "56-state gradient max|diff|=%.3e  %s\n", maxDiff, gradOk ? "PASS" : "FAIL");
+
+    return (fdOk && gradOk) ? 0 : 1;
 }
 
 /* ── main ────────────────────────────────────────────────────────────── */
@@ -944,6 +1195,7 @@ int main(int argc, const char *argv[]) {
     bool run4      = true;
     bool run16     = false;
     bool run17     = false;
+    bool run56     = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--gpu") == 0 && i+1 < argc) {
@@ -954,8 +1206,9 @@ int main(int argc, const char *argv[]) {
             run4  = (ns == 4);
             run16 = (ns == 16);
             run17 = (ns == 17);
+            run56 = (ns == 56);
         } else if (strcmp(argv[i], "--all") == 0) {
-            run4 = run16 = run17 = true;
+            run4 = run16 = run17 = run56 = true;
         }
     }
 
@@ -965,6 +1218,7 @@ int main(int argc, const char *argv[]) {
     if (run4)  result |= runTest4(gpuDev);
     if (run16) result |= runTest16(gpuDev);
     if (run17) result |= runTest17(gpuDev);
+    if (run56) result |= runTest56(gpuDev);
 
     return result;
 }

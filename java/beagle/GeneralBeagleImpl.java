@@ -506,7 +506,10 @@ public class GeneralBeagleImpl implements Beagle {
                                                           final int stateFrequenciesIndex,
                                            		          int count,
                                            		          double[] outSumDerivatives,
-                                           		          double[] outSumSquaredDerivatives) {
+                                           		          double[] outSumSquaredDerivatives,
+                                           		          final int[] postScaleIndices,
+                                           		          final int[] preScaleIndices,
+                                           		          final int cumulativeScaleIndex) {
 		throw new RuntimeException("Not yet implemented");
     }
 

@@ -1635,7 +1635,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      const int stateFrequenciesIndex,
                                                                      int count,
                                                                      double *outSumDerivatives,
-                                                                     double *outSumSquaredDerivatives) {
+                                                                     double *outSumSquaredDerivatives,
+                                                                     const int *postScaleIndices,
+                                                                     const int *preScaleIndices,
+                                                                     const int cumulativeScaleIndex) {
     return calcAdjointCrossProducts(
             postBufferIndices, preBufferIndices,
             transitionIndices,
@@ -1645,7 +1648,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
             stateFrequenciesIndex,
             count,
             outSumDerivatives,
-            outSumSquaredDerivatives);
+            outSumSquaredDerivatives,
+            postScaleIndices,
+            preScaleIndices,
+            cumulativeScaleIndex);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1668,7 +1674,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointDerivative(
             post.data(), pre.data(), eigen.data(),
             &categoryRatesIndex, &categoryWeightsIndex,
             rootPostOrderIndex, stateFrequenciesIndex,
-            operationCount, outSumDerivatives, outSumSquaredDerivatives);
+            operationCount, outSumDerivatives, outSumSquaredDerivatives,
+            NULL, NULL, BEAGLE_OP_NONE);
 }
 
 inline double proportionRepeated(const int* branchEigenIndices, const int start, const int end) {
@@ -1738,7 +1745,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
                                                                 const int stateFrequenciesIndex,
                                                                 int count,
                                                                 double *outSumDerivatives,
-                                                                double *outSumSquaredDerivatives) {
+                                                                double *outSumSquaredDerivatives,
+                                                                const int *postScaleIndices,
+                                                                const int *preScaleIndices,
+                                                                const int cumulativeScaleIndex) {
 
     int returnCode = BEAGLE_SUCCESS;
 
@@ -1772,17 +1782,26 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
         gOuterProductTmp.resize(outerProductSize);
     }
 
+    // Per-partition scratch for the (possibly branch-specific, rescaling-corrected)
+    // per-site likelihoods; sized generously so calcAdjointCrossProductsRange's
+    // currentPartition-indexed slice is always in-bounds.
+    const int correctedLkSize = kPartitionCount * kPatternCount;
+    if (static_cast<int>(gAdjointScaleCorrectedLk.size()) < correctedLkSize) {
+        gAdjointScaleCorrectedLk.resize(correctedLkSize);
+    }
+
     if (kAutoPartitioningEnabled && kPartitionCount > 1) {
         returnCode = calcAdjointCrossProductsByPartitionAsync(
             postBufferIndices, preBufferIndices, transitionIndices,
             categoryRates, categoryWeights, perSiteLikelihoods,
-            buffer, count);
+            buffer, count, postScaleIndices, preScaleIndices, cumulativeScaleIndex);
     } else {
         std::fill(buffer, buffer + kStateCount * kStateCount, REALTYPE(0));
         calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, transitionIndices,
                                       categoryRates, categoryWeights, perSiteLikelihoods,
                                       buffer,
-                                      0, count, 0, kPatternCount, 0);
+                                      0, count, 0, kPatternCount, 0,
+                                      postScaleIndices, preScaleIndices, cumulativeScaleIndex);
     }
 
     if constexpr (!std::is_same_v<REALTYPE, double>) {
@@ -1801,7 +1820,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
         const REALTYPE *categoryWeights,
         const REALTYPE *perSiteLikelihoods,
         REALTYPE *buffer,
-        int count) {
+        int count,
+        const int *postScaleIndices,
+        const int *preScaleIndices,
+        const int cumulativeScaleIndex) {
 
     const int gradSize = kStateCount * kStateCount;
 
@@ -1818,14 +1840,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
         auto b = [this, i, gradSize, buffer,
                   postBufferIndices, preBufferIndices, branchEigenIndices,
                   categoryRates, categoryWeights, perSiteLikelihoods,
-                  startNode, endNode]() {
+                  startNode, endNode,
+                  postScaleIndices, preScaleIndices, cumulativeScaleIndex]() {
             REALTYPE* partBuffer = (i == 0) ? buffer
                                             : gAdjointPartitionBuffers.data() + i * gradSize;
             if (startNode < endNode) {
                 calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
                                               categoryRates, categoryWeights, perSiteLikelihoods,
                                               partBuffer,
-                                              startNode, endNode, 0, kPatternCount, i);
+                                              startNode, endNode, 0, kPatternCount, i,
+                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1863,7 +1887,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
         const REALTYPE *categoryWeights,
         const REALTYPE *perSiteLikelihoods,
         REALTYPE *buffer,
-        int count) {
+        int count,
+        const int *postScaleIndices,
+        const int *preScaleIndices,
+        const int cumulativeScaleIndex) {
 
     const int gradSize = kStateCount * kStateCount;
     const double prop = proportionRepeated(branchEigenIndices, 0, count);
@@ -1883,7 +1910,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
     for (int i = 0; i < kNumThreads; ++i) {
         auto b = [this, i, count, gradSize, buffer, prop,
                   postBufferIndices, preBufferIndices, branchEigenIndices,
-                  categoryRates, categoryWeights, perSiteLikelihoods]() {
+                  categoryRates, categoryWeights, perSiteLikelihoods,
+                  postScaleIndices, preScaleIndices, cumulativeScaleIndex]() {
             for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
                 const int p = gThreadOperations[i][opIdx];
                 const int startPattern = gPatternPartitionsStartPatterns[p];
@@ -1893,7 +1921,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
                 calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
                                               categoryRates, categoryWeights, perSiteLikelihoods,
                                               partBuffer,
-                                              0, count, startPattern, endPattern, p);
+                                              0, count, startPattern, endPattern, p,
+                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1938,7 +1967,30 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
         int endNode,
         int startPattern,
         int endPattern,
-        int currentPartition) {
+        int currentPartition,
+        const int *postScaleIndices,
+        const int *preScaleIndices,
+        const int cumulativeScaleIndex) {
+
+    // If a branch's post-order and/or pre-order partials were independently
+    // rescaled (see beagleCalculateAdjointCrossProductDerivative doc), the
+    // "scale = categoryWeight / Lk" term below implicitly assumes UNSCALED
+    // post/pre partials -- using the raw (scaled) Lk without compensation
+    // would leave each branch's contribution off by that branch's own
+    // (post-order-scale * pre-order-cumulative-scale / root-cumulative-scale)
+    // factor. Correct for this by building a per-node "effective Lk" =
+    // Lk_measured * rootCumulativeScale / (nodeOwnPostScale * nodePreCumulativeScale),
+    // and using THAT (instead of the raw shared perSiteLikelihoods) for any
+    // node with a non-NONE scale index. postScaleIndices[node]/preScaleIndices[node]
+    // hold RAW/LOG-format buffer indices exactly as populated by the caller's
+    // post-order pass (postScaleIndices, one factor per node) and pre-order
+    // cumulative-scale bookkeeping (preScaleIndices, already log-summed via
+    // beagleAccumulateScaleFactors); cumulativeScaleIndex is the same root
+    // cumulative-scale buffer already used for the ordinary log-likelihood.
+    const bool applyScaleCorrection = (postScaleIndices != NULL) || (preScaleIndices != NULL);
+    REALTYPE* correctedLk = applyScaleCorrection
+            ? gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount
+            : NULL;
 
     const double prop = proportionRepeated(branchEigenIndices, startNode, endNode);
     const bool useMultiCollector = ((endPattern - startPattern) > 1 || prop > 0.1);
@@ -1979,17 +2031,58 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
                 const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
                 const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
 
+                const REALTYPE *nodeLikelihoods = perSiteLikelihoods;
+                if (applyScaleCorrection) {
+                    const int postIdx = postScaleIndices ? postScaleIndices[nodeNum] : BEAGLE_OP_NONE;
+                    const int preIdx  = preScaleIndices  ? preScaleIndices[nodeNum]  : BEAGLE_OP_NONE;
+                    if (postIdx == BEAGLE_OP_NONE && preIdx == BEAGLE_OP_NONE) {
+                        // Neither this branch's post-order nor pre-order partial was
+                        // independently rescaled (e.g. a tip feeding straight off the
+                        // root): no correction needed for this node.
+                        nodeLikelihoods = perSiteLikelihoods;
+                    } else {
+                        const REALTYPE* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : NULL;
+                        const REALTYPE* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : NULL;
+                        const REALTYPE* rootScaleBuffer = (cumulativeScaleIndex != BEAGLE_OP_NONE) ? gScaleBuffers[cumulativeScaleIndex] : NULL;
+                        for (int k = startPattern; k < endPattern; ++k) {
+                            // postScaleBuffer/preScaleBuffer/rootScaleBuffer are all
+                            // CUMULATIVE (always LOG, built by
+                            // beagleAccumulateScaleFactors) buffers -- NOT plain
+                            // individual scale-write buffers, whose RAW/LOG format
+                            // instead follows kFlags. A node's own post-order buffer
+                            // generally carries more than just its own scale-write:
+                            // it inherits every rescaled descendant's scale factor
+                            // too, so postScaleIndices[node] must be built the same
+                            // way as preScaleIndices (accumulateScaleFactors over
+                            // every rescaled node at-or-below it), not passed as a
+                            // single individual buffer index.
+                            REALTYPE logCorrection = REALTYPE(0);
+                            if (postScaleBuffer != NULL) {
+                                logCorrection += postScaleBuffer[k];
+                            }
+                            if (preScaleBuffer != NULL) {
+                                logCorrection += preScaleBuffer[k];
+                            }
+                            if (rootScaleBuffer != NULL) {
+                                logCorrection -= rootScaleBuffer[k];
+                            }
+                            correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
+                        }
+                        nodeLikelihoods = correctedLk;
+                    }
+                }
+
                 if (tipStates != nullptr) {
                     calcAdjointCrossProducts<States, WithRotation>(
                         nullptr, tipStates, preOrderPartial,
-                        branchEigenIndex, perSiteLikelihoods,
+                        branchEigenIndex, nodeLikelihoods,
                         category, categoryWeight,
                         collector, startPattern, endPattern, currentPartition);
                 } else {
                     const REALTYPE *postOrderPartial = gPartials[postBufferIndices[nodeNum]];
                     calcAdjointCrossProducts<Partials, WithRotation>(
                         postOrderPartial, nullptr, preOrderPartial,
-                        branchEigenIndex, perSiteLikelihoods,
+                        branchEigenIndex, nodeLikelihoods,
                         category, categoryWeight,
                         collector, startPattern, endPattern, currentPartition);
                 }
@@ -2079,7 +2172,11 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         const REALTYPE denominator = collector.getPlan()->branchLikelihoodInEigenBasis(lhs, rhs);
         const REALTYPE scale = gPatternWeights[k] * categoryWeight / denominator;
 #else
-        const REALTYPE scale = gPatternWeights[k] * categoryWeight / gPatternScaleTmp[k];
+        // perSiteLikelihoods is ordinarily gPatternScaleTmp itself (see caller), but
+        // calcAdjointCrossProductsRange may substitute a branch-specific,
+        // rescaling-corrected array here instead -- always use the parameter, not
+        // the member, so that substitution takes effect.
+        const REALTYPE scale = gPatternWeights[k] * categoryWeight / perSiteLikelihoods[k];
 #endif
 
         collector.accumulateScaledOuterProducts(lhs, rhs, scale);

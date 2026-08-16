@@ -148,6 +148,7 @@ void beagleLoadPlugins(void) {
         // this one should always work
         std::cerr << "Unable to load CPU plugin!\n";
         std::cerr << "Please check for proper libhmsbeagle installation.\n";
+        std::cerr << "Detail: " << sle.getError() << std::endl;
     }
 
     try{
@@ -2025,7 +2026,10 @@ int beagleCalculateAdjointCrossProductDerivative(int instance,
                                    const int stateFrequenciesIndex,
                                    int count,
                                    double *outSumDerivatives,
-                                   double *outSumSquaredDerivatives) {
+                                   double *outSumSquaredDerivatives,
+                                   const int *postScaleIndices,
+                                   const int *preScaleIndices,
+                                   const int cumulativeScaleIndex) {
     DEBUG_START_TIME();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
@@ -2042,7 +2046,10 @@ int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                                stateFrequenciesIndex,
                                                                count,
                                                                outSumDerivatives,
-                                                               outSumSquaredDerivatives);
+                                                               outSumSquaredDerivatives,
+                                                               postScaleIndices,
+                                                               preScaleIndices,
+                                                               cumulativeScaleIndex);
 
     DEBUG_END_TIME();
 

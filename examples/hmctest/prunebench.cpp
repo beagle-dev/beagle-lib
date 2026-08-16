@@ -227,14 +227,19 @@ int main(int argc, const char *argv[]) {
             int preTip1  = preBase + 4*r + 2;
             int preTip0  = preBase + 4*r + 3;
             /* Mirrors adjointtest4.cpp's runAdjoint4 preOps exactly (per
-             * replica): child1TransMatIndex = BEAGLE_OP_NONE throughout,
-             * matching that FD-verified test's convention (see STATUS.md
-             * findings 6/7 for why this, rather than a hand-derived general
-             * rule, is what's used here). */
+             * replica). preNode3/preTip2's parent (rootPriorBuf) is the
+             * literal root prior -> child1TransMatIndex=NONE. preTip1/
+             * preTip0's parent (preNode3) is node3's own (non-root)
+             * pre-order buffer, so it must be propagated through node3's
+             * own branch (m3) before combining with the sibling ->
+             * child1TransMatIndex=m3, NOT NONE (see BeagleOperation's doc
+             * in beagle.h and TODO.md's "Adjoint gradient mismatch..."
+             * entry for why the NONE-everywhere convention this used to
+             * follow was a correctness bug, not just an unverified one). */
             ops[4*r+0] = { preNode3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, rootPriorBuf, BEAGLE_OP_NONE, t2, m2 };
             ops[4*r+1] = { preTip2,  BEAGLE_OP_NONE, BEAGLE_OP_NONE, rootPriorBuf, BEAGLE_OP_NONE, node3, m3 };
-            ops[4*r+2] = { preTip1,  BEAGLE_OP_NONE, BEAGLE_OP_NONE, preNode3, BEAGLE_OP_NONE, t0, m0 };
-            ops[4*r+3] = { preTip0,  BEAGLE_OP_NONE, BEAGLE_OP_NONE, preNode3, BEAGLE_OP_NONE, t1, m1 };
+            ops[4*r+2] = { preTip1,  BEAGLE_OP_NONE, BEAGLE_OP_NONE, preNode3, m3, t0, m0 };
+            ops[4*r+3] = { preTip0,  BEAGLE_OP_NONE, BEAGLE_OP_NONE, preNode3, m3, t1, m1 };
         }
     };
 

@@ -587,6 +587,14 @@ public interface Beagle extends Serializable {
 	        double[] outSumDerivatives,
 	        double[] outSumSquaredDerivatives);
 
+    /**
+     * postScaleIndices/preScaleIndices/cumulativeScaleIndex are all CUMULATIVE
+     * (always-LOG, e.g. built via accumulateScaleFactors) scale buffers, needed
+     * only if the referenced post/pre-order partials were rescaled -- pass
+     * null / null / Beagle.NONE if none were. See
+     * beagleCalculateAdjointCrossProductDerivative in beagle.h for the full
+     * per-branch contract.
+     */
     void calculateAdjointCrossProductDifferentials(
     		final int[] postBufferIndices,
         	final int[] preBufferIndices,
@@ -597,7 +605,10 @@ public interface Beagle extends Serializable {
         	final int stateFrequenciesIndex,
         	int count,
 	        double[] outSumDerivatives,
-	        double[] outSumSquaredDerivatives);
+	        double[] outSumSquaredDerivatives,
+	        final int[] postScaleIndices,
+	        final int[] preScaleIndices,
+	        final int cumulativeScaleIndex);
 
     /**
      * Calculate or queue for calculation partials using a list of operations

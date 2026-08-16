@@ -592,7 +592,10 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProduct
 		jint stateFrequenciesIndex,
 		jint count,
 		jdoubleArray outSumDerivatives,
-		jdoubleArray outSumSquaredDerivatives) {
+		jdoubleArray outSumSquaredDerivatives,
+		jintArray postScaleIndices,
+		jintArray preScaleIndices,
+		jint cumulativeScaleIndex) {
 
     jdouble* jOutSumDerivatives = outSumDerivatives == NULL ?
             NULL : env->GetDoubleArrayElements(outSumDerivatives, NULL);
@@ -607,17 +610,31 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProduct
     jint *jCategoryRatesIndices = env->GetIntArrayElements(categoryRatesIndices, NULL);
     jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
 
+    jint *jPostScaleIndices = postScaleIndices == NULL ?
+            NULL : env->GetIntArrayElements(postScaleIndices, NULL);
+    jint *jPreScaleIndices = preScaleIndices == NULL ?
+            NULL : env->GetIntArrayElements(preScaleIndices, NULL);
+
     jint errCode = beagleCalculateAdjointCrossProductDerivative(instance, (int*)jPostBufferIndices, (int*)jPreBufferIndices,
                                                          (int*)jEigenIndices,
                                                          (int*)jCategoryRatesIndices, (int*)jCategoryWeightsIndices,
                                                          rootPostOrderIndex, stateFrequenciesIndex, count,
-                                                         jOutSumDerivatives, jOutSumSquaredDerivatives);
+                                                         jOutSumDerivatives, jOutSumSquaredDerivatives,
+                                                         (int*)jPostScaleIndices, (int*)jPreScaleIndices,
+                                                         cumulativeScaleIndex);
 
     env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(preBufferIndices, jPreBufferIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(eigenIndices, jEigenIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(categoryRatesIndices, jCategoryRatesIndices, JNI_ABORT);
     env->ReleaseIntArrayElements(categoryWeightsIndices, jCategoryWeightsIndices, JNI_ABORT);
+
+    if (postScaleIndices != NULL) {
+        env->ReleaseIntArrayElements(postScaleIndices, jPostScaleIndices, JNI_ABORT);
+    }
+    if (preScaleIndices != NULL) {
+        env->ReleaseIntArrayElements(preScaleIndices, jPreScaleIndices, JNI_ABORT);
+    }
 
     if (outSumDerivatives != NULL) {
         env->ReleaseDoubleArrayElements(outSumDerivatives, jOutSumDerivatives, 0);

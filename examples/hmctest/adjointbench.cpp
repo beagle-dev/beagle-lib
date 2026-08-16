@@ -205,11 +205,15 @@ int main(int argc, const char *argv[]) {
                 rootPre[(size_t)c * nPat * S + p * S + s] = freqs[s];
     beagleSetPartials(inst, 5, rootPre.data());
 
+    /* buf6/buf7's parent (5) is the literal root prior -> parentTransMatIndex=NONE.
+     * buf8/buf9's parent (6) is internal's own (non-root) pre-order buffer, so it
+     * must be propagated through internal's own branch (matrix 3) before combining
+     * with the sibling -> parentTransMatIndex=3, NOT NONE. */
     BeagleOperation preOps[4] = {
         { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
         { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
-        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 0, 0 },
-        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, BEAGLE_OP_NONE, 1, 1 }
+        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
     };
     beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
 

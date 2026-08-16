@@ -2310,7 +2310,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      const int stateFrequenciesIndex,
                                                                      int count,
                                                                      double *outSumDerivatives,
-                                                                     double *outSumSquaredDerivatives) {
+                                                                     double *outSumSquaredDerivatives,
+                                                                     const int *postScaleIndices,
+                                                                     const int *preScaleIndices,
+                                                                     const int cumulativeScaleIndex) {
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 

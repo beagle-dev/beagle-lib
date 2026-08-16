@@ -136,7 +136,10 @@ public:
                                       const int  stateFrequenciesIndex,
                                       int        count,
                                       double*    outSumDerivatives,
-                                      double*    outSumSquaredDerivatives) override;
+                                      double*    outSumSquaredDerivatives,
+                                      const int* postScaleIndices = nullptr,
+                                      const int* preScaleIndices = nullptr,
+                                      const int  cumulativeScaleIndex = BEAGLE_OP_NONE) override;
 
 protected:
     void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,

@@ -903,15 +903,45 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation.
+ *
+ * For beagleUpdatePartials_v5() (post-order), the two child slots are simply
+ * this node's two children: (child1Partials, child1TransitionMatrix) and
+ * (child2Partials, child2TransitionMatrix) each name a child buffer and the
+ * transition matrix along *that child's own branch*.
+ *
+ * For beagleUpdatePrePartials_v5() (pre-order), the same six fields are
+ * reused with different roles: "child1" names this node's *parent* buffer
+ * and the transition matrix to reach it, "child2" names this node's
+ * *sibling* buffer and the transition matrix along the *sibling's own
+ * branch*. Concretely: child1Partials = index of the parent's own pre-order
+ * ("TOP") buffer; child1TransitionMatrix = the transition matrix along the
+ * *parent's own branch* (NOT this node's branch) — pass BEAGLE_OP_NONE here
+ * ONLY if child1Partials is the literal tree-root prior buffer (no branch
+ * above it to propagate through). For every other (deeper) parent, passing
+ * BEAGLE_OP_NONE is a silent correctness bug: the library skips propagating
+ * the parent's TOP partial through the parent's own branch before combining
+ * it with the sibling, producing a plausible-looking but wrong partial (no
+ * crash, no NaN) that corrupts any downstream gradient computed from it.
+ * child2Partials/child2TransitionMatrix are always the sibling's own buffer
+ * and its own branch's transition matrix, with no such special case.
+ *
+ * Example: for a rooted tree ((A,B):C, D) with root R, pre-order buffers
+ * built via BEAGLE_PARTIALS_TOP need, among others:
+ *   { C, ..., R, BEAGLE_OP_NONE, D, matrix(D) }   // C's parent R IS the root
+ *   { A, ..., C, matrix(C),      B, matrix(B) }   // A's parent C is NOT the root
+ *   { B, ..., C, matrix(C),      A, matrix(A) }   // B's parent C is NOT the root
+ * (destinationPartials/destinationScaleWrite/destinationScaleRead omitted
+ * above for brevity.) See beagleUpdatePrePartials_v5() and, for a worked
+ * multi-level example, `examples/hmctest/adjointtest4.cpp`.
  */
 typedef struct {
     int destinationPartials;    /**< index of destination, or parent, partials buffer  */
     int destinationScaleWrite;  /**< index of scaling buffer to write to (if set to BEAGLE_OP_NONE then calculation of new scalers is disabled)  */
     int destinationScaleRead;   /**< index of scaling buffer to read from (if set to BEAGLE_OP_NONE then use of existing scale factors is disabled)  */
-    int child1Partials;         /**< index of first child partials buffer */
-    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
-    int child2Partials;         /**< index of second child partials buffer */
-    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int child1Partials;         /**< index of first child partials buffer (post-order) or parent partials buffer (pre-order) */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer (post-order) or of the PARENT's own branch (pre-order; BEAGLE_OP_NONE only if child1Partials is the literal root prior — see struct-level doc) */
+    int child2Partials;         /**< index of second child partials buffer (post-order) or sibling partials buffer (pre-order) */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer (post-order) or of the sibling's own branch (pre-order) */
 } BeagleOperation;
 
 /**
@@ -946,6 +976,17 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
  * ///TODO: consider > 3 degree nodes?
+ *
+ * IMPORTANT — see the BeagleOperation doc for the full field-reuse contract.
+ * Each operation's child1TransitionMatrix (reused here as "the transition
+ * matrix to the parent") must be BEAGLE_OP_NONE ONLY when child1Partials is
+ * the literal tree-root prior buffer. For any deeper parent (itself a
+ * previously-computed pre-order buffer from an earlier operation, in this
+ * call or an earlier one), child1TransitionMatrix must be that parent
+ * node's own transition-matrix index. Passing BEAGLE_OP_NONE for a
+ * non-root parent silently skips propagating the parent's partial through
+ * its own branch and produces an incorrect (but not obviously invalid)
+ * result with no error return — this is not caught by the implementation.
  *
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
@@ -1294,6 +1335,53 @@ typedef struct {
     int resultSegment;
 } BeagleBranchOperation;
 
+/**
+ * @brief Calculate the adjoint cross-product derivative, correcting for rescaling
+ *
+ * postScaleIndices/preScaleIndices/cumulativeScaleIndex let a caller that
+ * rescaled post-order and/or pre-order partials (destinationScaleWrite on
+ * beagleUpdatePartials_v5/beagleUpdatePrePartials_v5) get a correct gradient
+ * back instead of one silently corrupted by each branch's own rescaling.
+ * Omitting them (BEAGLE_OP_NONE / NULL) is only valid when NONE of the
+ * partials referenced by postBufferIndices/preBufferIndices were themselves
+ * independently rescaled.
+ *
+ * postScaleIndices/preScaleIndices/cumulativeScaleIndex are ALL cumulative
+ * (always-LOG) scale buffers — the same kind built by
+ * beagleAccumulateScaleFactors, NOT a plain individual destinationScaleWrite
+ * buffer (whose RAW/LOG format instead follows BEAGLE_FLAG_SCALERS_LOG/RAW).
+ * A node's own post-order buffer generally carries more scaling than just
+ * its own scale-write: it inherits every rescaled descendant's scale factor
+ * too (e.g. a node whose child was itself rescaled), so postScaleIndices[i]
+ * must be built the same way as preScaleIndices[i] — one
+ * beagleAccumulateScaleFactors call over every rescaled node at-or-below the
+ * relevant point in the tree — never passed as a single individual buffer
+ * index, and never built by chaining accumulate calls where one call's
+ * output buffer is fed back in as a later call's input (accumulate always
+ * re-applies log() to its inputs, so an already-cumulative input would be
+ * silently corrupted; use beagleCopyScaleFactors to reuse an existing
+ * cumulative buffer's value instead, never as an accumulate input).
+ *
+ * For branch i (0-indexed into the count-length arrays):
+ *   postScaleIndices[i]: cumulative scale buffer for THIS BRANCH'S OWN
+ *     post-order node — the sum of its own scale-write (if rescaled) and
+ *     every rescaled descendant's, or BEAGLE_OP_NONE if nothing under it
+ *     (including itself) was ever independently rescaled (e.g. a tip whose
+ *     whole subtree, i.e. itself, is unscaled).
+ *   preScaleIndices[i]: cumulative scale buffer for the rescaling already
+ *     baked into this branch's pre-order partial by the post-order scale
+ *     factors of every sibling subtree incorporated while constructing it —
+ *     pre-order partials are not independently rescaled themselves, but
+ *     inherit scaling from the (rescaled) post-order partials they are built
+ *     from. BEAGLE_OP_NONE if the pre-order partial carries no such scaling
+ *     (e.g. the root's own two children).
+ * cumulativeScaleIndex: the single cumulative scale buffer already used to
+ *   correct beagleCalculateRootLogLikelihoods for rootPostOrderIndex.
+ *   BEAGLE_OP_NONE if rootPostOrderIndex was never rescaled.
+ *
+ * See TODO.md ("Adjoint cross-product gradient ignores rescaling") for the
+ * derivation and a worked example.
+ */
 BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                   const int *postBufferIndices,
                                                   const int *preBufferIndices,
@@ -1304,7 +1392,10 @@ BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                   const int stateFrequenciesIndex,
                                                   int count,
                                                   double *outSumDerivatives,
-                                                  double *outSumSquaredDerivatives);
+                                                  double *outSumSquaredDerivatives,
+                                                  const int *postScaleIndices = nullptr,
+                                                  const int *preScaleIndices = nullptr,
+                                                  const int cumulativeScaleIndex = BEAGLE_OP_NONE);
 
 BEAGLE_DLLEXPORT int beagleCalculateAdjointDerivative(
         const int instance,
