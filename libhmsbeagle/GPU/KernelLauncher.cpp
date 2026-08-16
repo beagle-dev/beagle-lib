@@ -24,6 +24,7 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
+#include "libhmsbeagle/GPU/AdjointBlockSize.h"
 
 /**************CODE***********/
 
@@ -1176,7 +1177,7 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
                                                          unsigned int patternCount,
                                                          unsigned int categoryCount,
                                                          int branchCount) {
-    Dim3Int block(128);
+    Dim3Int block(ADJOINT_BLOCK_SP_N);
     Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
     gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 12,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
@@ -2758,6 +2759,5 @@ void KernelLauncher::SumSites3(GPUPtr dArray1,
 }
 
 }; // namespace
-
 
 

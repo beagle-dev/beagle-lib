@@ -893,7 +893,9 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 #endif
 
-#define ADJOINT_BLOCK_SP_N  128
+#ifndef ADJOINT_BLOCK_SP_N
+#error "ADJOINT_BLOCK_SP_N must be supplied by AdjointBlockSize.h"
+#endif
 
 /* CAS-retry float/double atomic add, in its own KW_DEVICE_FUNC-free OpenCL
  * helper function rather than inlined as a macro at the call site.

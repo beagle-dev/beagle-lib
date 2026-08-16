@@ -37,6 +37,7 @@ for s in $STATE_COUNT_LIST; do
     cat $srcdir/kernelsAll.cu           | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsX.cu             | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsXDerivatives.cu  | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
+    cat $srcdir/../AdjointBlockSize.h   | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsSpectralIfDef.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     echo "\"" >> BeagleOpenCLSpectral_kernels.h
 done
@@ -66,6 +67,7 @@ for s in $STATE_COUNT_LIST; do
     cat $srcdir/kernelsAll.cu           | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsX.cu             | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsXDerivatives.cu  | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
+    cat $srcdir/../AdjointBlockSize.h   | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     cat $srcdir/kernelsSpectralIfDef.cu | sed 's/\\/\\\\/g' | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleOpenCLSpectral_kernels.h
     echo "\"" >> BeagleOpenCLSpectral_kernels.h
 done

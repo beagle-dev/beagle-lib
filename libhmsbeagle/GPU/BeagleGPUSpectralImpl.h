@@ -91,6 +91,8 @@ private:
     GPUPtr  dGradientOrigin;
     GPUPtr* dGradient;
     bool*   hEigenDecompIsAllReal;
+    int*    hEigenDecompComplexPairLeaders;
+    int*    hEigenDecompSingletonRows;
 
     /* Per-eigendecomposition element/byte stride shared by dEvecTOrigin,
      * dIevcTOrigin, and dGradientOrigin, i.e. AlignMemOffset(S*S*sizeof(Real))

@@ -18,6 +18,59 @@
 #define __BeagleGPUSpectralImpl_hpp__
 
 #include "libhmsbeagle/beagle.h"
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+
+namespace {
+struct BeagleAdjointDetailStats {
+    long calls = 0;
+    double total = 0.0, integrate = 0.0, memset = 0.0, queueBuild = 0.0;
+    double queueH2D = 0.0, mergedLaunch = 0.0, gradientD2H = 0.0, hostCopy = 0.0;
+    ~BeagleAdjointDetailStats() {
+        if (!calls) return;
+        fprintf(stderr, "\n===== BEAGLE_PROFILE_ADJOINT_DETAIL =====\n");
+#define BEAGLE_ADJOINT_LINE(label, value) fprintf(stderr, "%-28s: calls=%-8ld total=%.6fs avg=%.3fus\n", label, calls, value, value * 1e6 / calls)
+        BEAGLE_ADJOINT_LINE("calculateAdjoint total", total);
+        BEAGLE_ADJOINT_LINE("IntegrateLikelihoods enqueue", integrate);
+        BEAGLE_ADJOINT_LINE("MemsetZero host wall", memset);
+        BEAGLE_ADJOINT_LINE("hAdjointQueue construction", queueBuild);
+        BEAGLE_ADJOINT_LINE("adjoint queue H2D", queueH2D);
+        BEAGLE_ADJOINT_LINE("merged adjoint enqueue", mergedLaunch);
+        BEAGLE_ADJOINT_LINE("gradient D2H", gradientD2H);
+        BEAGLE_ADJOINT_LINE("padded gradient host copy", hostCopy);
+#undef BEAGLE_ADJOINT_LINE
+        fprintf(stderr, "===== END BEAGLE_PROFILE_ADJOINT_DETAIL =====\n\n");
+    }
+};
+struct BeagleAdjointCompositionStats {
+    long calls = 0, branches = 0, statesBranches = 0, allRealBranches = 0;
+    long complexPairLeaders = 0, singletonRows = 0;
+    int paddedPatterns = 0, paddedStates = 0, categories = 0;
+    ~BeagleAdjointCompositionStats() {
+        if (!calls) return;
+        fprintf(stderr, "\n===== BEAGLE_PROFILE_ADJOINT_COMPOSITION =====\n");
+        fprintf(stderr, "calls=%ld branches=%ld isStates=%ld isAllReal=%ld "
+                        "complexPairLeaders=%ld singletonRows=%ld "
+                        "kPaddedPatternCount=%d kPaddedStateCount=%d kCategoryCount=%d\n",
+                calls, branches, statesBranches, allRealBranches,
+                complexPairLeaders, singletonRows,
+                paddedPatterns, paddedStates, categories);
+        fprintf(stderr, "===== END BEAGLE_PROFILE_ADJOINT_COMPOSITION =====\n\n");
+    }
+};
+inline BeagleAdjointCompositionStats& beagleAdjointCompositionStats() {
+    static BeagleAdjointCompositionStats stats;
+    return stats;
+}
+inline BeagleAdjointDetailStats& beagleAdjointDetailStats() {
+    static BeagleAdjointDetailStats stats;
+    return stats;
+}
+inline double beagleAdjointElapsed(std::chrono::high_resolution_clock::time_point t) {
+    return std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - t).count();
+}
+}
 
 namespace beagle {
 namespace gpu {
@@ -39,6 +92,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
       hSpectralPtrQueue(NULL), hSpectralDistanceQueue(NULL),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
+      hEigenDecompComplexPairLeaders(NULL), hEigenDecompSingletonRows(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
       kSpectralEigenDecompCount(0) {
 }
@@ -67,6 +121,8 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
     free(hPendingDenseEigenIndex);
     free(hPendingDenseEdgeLength);
     free(hEigenDecompIsAllReal);
+    free(hEigenDecompComplexPairLeaders);
+    free(hEigenDecompSingletonRows);
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -94,6 +150,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     kSpectralEigenDecompCount = eigenDecompositionCount;
 
     hEigenIndexForMatrix = (int*) calloc(this->kMatrixCount, sizeof(int));
+    hEigenDecompComplexPairLeaders = (int*) calloc(eigenDecompositionCount, sizeof(int));
+    hEigenDecompSingletonRows = (int*) calloc(eigenDecompositionCount, sizeof(int));
 
     hDenseMatrixValid        = (bool*)   calloc(this->kMatrixCount, sizeof(bool));   // false = stale/never built
     hPendingDenseEigenIndex   = (int*)    calloc(this->kMatrixCount, sizeof(int));
@@ -350,6 +408,11 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     for (int i = 0; i < SC && allReal; i++)
         if (inEigenValues[SC + i] != 0.0) allReal = false;
     hEigenDecompIsAllReal[eigenIndex] = allReal;
+    int pairLeaders = 0;
+    for (int i = 0; i < SC; i++)
+        if (inEigenValues[SC + i] > 0.0) pairLeaders++;
+    hEigenDecompComplexPairLeaders[eigenIndex] = pairLeaders;
+    hEigenDecompSingletonRows[eigenIndex] = S - 2 * pairLeaders;
 
     if (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
         for (int i = 0; i < SC; i++)
@@ -623,12 +686,18 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         double*    outSumDerivatives,
         double*    outSumSquaredDerivatives) {
 
+    const bool detail = (getenv("BEAGLE_PROFILE_ADJOINT_DETAIL") != NULL);
+    const bool composition = (getenv("BEAGLE_PROFILE_ADJOINT_COMPOSITION") != NULL);
+    BeagleAdjointDetailStats& detailStats = beagleAdjointDetailStats();
+    std::chrono::high_resolution_clock::time_point stageStart, callStart;
+    if (detail) callStart = std::chrono::high_resolution_clock::now();
     GPUInterface* gpuIf = this->gpu;
     const int S  = this->kPaddedStateCount;
     const int SS = S * S;
     const int cwIdx = categoryWeightsIndices[0];
 
     /* Compute per-site marginal likelihoods into dIntegrationTmp. */
+    if (detail) stageStart = std::chrono::high_resolution_clock::now();
     this->kernels->IntegrateLikelihoods(
         this->dIntegrationTmp,
         this->dPartials[rootPostOrderIndex],
@@ -636,6 +705,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         this->dFrequencies[stateFrequenciesIndex],
         this->kPaddedPatternCount,
         this->kCategoryCount);
+    if (detail) detailStats.integrate += beagleAdjointElapsed(stageStart);
 
     /* Zero the gradient accumulator on-device, in one fill over the whole
      * pooled origin buffer (covers every eigen decomposition, not just
@@ -649,11 +719,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
      * through the parent view (intermittent large garbage gradients,
      * OpenCL, Apple M1 Max) even on the in-order command queue — filling
      * through the same view the kernel uses avoids that hazard. */
+    if (detail) stageStart = std::chrono::high_resolution_clock::now();
     gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * kSpectralMatrixStrideBytes);
+    if (detail) detailStats.memset += beagleAdjointElapsed(stageStart);
 
     GPUPtr catW = this->dWeights[cwIdx];
 
     if (count > 0) {
+        if (detail) stageStart = std::chrono::high_resolution_clock::now();
         /* Merged single-launch path (both S=4 and generic-N): build one
          * offset-queue record per branch (single buffer, integer offsets
          * into pooled origins — never per-branch device pointers), then one
@@ -681,6 +754,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             const int ei      = hEigenIndexForMatrix[matIdx];
             const bool isStates  = (this->dStates[postIdx] != 0);
             const bool isAllReal = hEigenDecompIsAllReal[ei];
+            if (composition) {
+                BeagleAdjointCompositionStats& s = beagleAdjointCompositionStats();
+                s.branches++;
+                if (isStates) s.statesBranches++;
+                if (isAllReal) s.allRealBranches++;
+                s.complexPairLeaders += hEigenDecompComplexPairLeaders[ei];
+                s.singletonRows += hEigenDecompSingletonRows[ei];
+            }
             unsigned int* rec = hAdjointQueue + (size_t)i * kAdjointQueueFieldsPerBranch;
 
             rec[0] = this->getPartialsOffsetElements(preIdx);
@@ -694,10 +775,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             rec[7] = (unsigned int)ei * kSpectralMatrixStrideElements;
             rec[8] = isAllReal ? 1u : 0u;
         }
+        if (detail) detailStats.queueBuild += beagleAdjointElapsed(stageStart);
 
+        if (detail) stageStart = std::chrono::high_resolution_clock::now();
         gpuIf->MemcpyHostToDevice(dAdjointQueue, hAdjointQueue,
             sizeof(unsigned int) * count * kAdjointQueueFieldsPerBranch);
+        if (detail) detailStats.queueH2D += beagleAdjointElapsed(stageStart);
 
+        if (detail) stageStart = std::chrono::high_resolution_clock::now();
         if (S == 4) {
             this->kernels->AdjointCrossProductMergedSpectral4(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
@@ -713,6 +798,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
         }
+        if (detail) detailStats.mergedLaunch += beagleAdjointElapsed(stageStart);
     }
 
     /* Download gradient to host.  The first eigen decomp's gradient is the
@@ -730,11 +816,27 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         const int ei0 = hEigenIndexForMatrix[eigenIndices[0]];
         const int SC = this->kStateCount;
         Real* hGrad = (Real*) gpuIf->CallocHost(sizeof(Real), SS);
+        if (detail) stageStart = std::chrono::high_resolution_clock::now();
         gpuIf->MemcpyDeviceToHost(hGrad, dGradient[ei0], SS * sizeof(Real));
+        if (detail) detailStats.gradientD2H += beagleAdjointElapsed(stageStart);
+        if (detail) stageStart = std::chrono::high_resolution_clock::now();
         for (int i = 0; i < SC; i++)
             for (int j = 0; j < SC; j++)
                 outSumDerivatives[i * SC + j] = (double)hGrad[i * S + j];
+        if (detail) detailStats.hostCopy += beagleAdjointElapsed(stageStart);
         gpuIf->FreeHostMemory(hGrad);
+    }
+
+    if (detail) {
+        detailStats.calls++;
+        detailStats.total += beagleAdjointElapsed(callStart);
+    }
+    if (composition) {
+        BeagleAdjointCompositionStats& s = beagleAdjointCompositionStats();
+        s.calls++;
+        s.paddedPatterns = this->kPaddedPatternCount;
+        s.paddedStates = this->kPaddedStateCount;
+        s.categories = this->kCategoryCount;
     }
 
     return BEAGLE_SUCCESS;

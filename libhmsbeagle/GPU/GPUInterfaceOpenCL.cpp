@@ -22,6 +22,8 @@
 #include <cstdarg>
 #include <cmath>
 #include <map>
+#include <string>
+#include <vector>
 #include <chrono>
 
 #include "libhmsbeagle/beagle.h"
@@ -68,7 +70,110 @@ struct BeagleProfileStats {
     size_t memsetZeroBytes = 0;
 };
 
+struct BeagleOpenCLEventStat {
+    long calls = 0;
+    double seconds = 0.0;
+};
+
+struct BeaglePendingEvent {
+    cl_event event;
+    std::string name;
+};
+
 BeagleProfileStats gBeagleProfile;
+bool gBeagleOpenCLEventsInitialized = false;
+bool gBeagleOpenCLEventsEnabled = false;
+std::vector<BeaglePendingEvent> gBeaglePendingEvents;
+std::map<std::string, BeagleOpenCLEventStat> gBeagleOpenCLEventStats;
+
+void beagleOpenCLEventPrintSummary() {
+    if (!gBeagleOpenCLEventsEnabled) return;
+    fprintf(stderr, "\n===== BEAGLE_PROFILE_OPENCL_EVENTS =====\n");
+    for (std::map<std::string, BeagleOpenCLEventStat>::const_iterator it =
+             gBeagleOpenCLEventStats.begin(); it != gBeagleOpenCLEventStats.end(); ++it) {
+        fprintf(stderr, "%-28s: calls=%-8ld device=%.6fs avg=%.3fus\n",
+                it->first.c_str(), it->second.calls, it->second.seconds,
+                it->second.calls ? it->second.seconds * 1e6 / it->second.calls : 0.0);
+    }
+    fprintf(stderr, "pending events not yet drained: %zu\n", gBeaglePendingEvents.size());
+    fprintf(stderr, "===== END BEAGLE_PROFILE_OPENCL_EVENTS =====\n\n");
+}
+
+inline bool beagleOpenCLEventsEnabled() {
+    if (!gBeagleOpenCLEventsInitialized) {
+        gBeagleOpenCLEventsEnabled = (getenv("BEAGLE_PROFILE_OPENCL_EVENTS") != NULL);
+        gBeagleOpenCLEventsInitialized = true;
+        if (gBeagleOpenCLEventsEnabled) atexit(beagleOpenCLEventPrintSummary);
+    }
+    return gBeagleOpenCLEventsEnabled;
+}
+
+void beagleRecordCompletedEvent(const char* name, cl_event event) {
+    cl_ulong start = 0, end = 0;
+    int error = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start), &start, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL event profiling start query failed: %d\n", error); exit(-1); }
+    error = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end), &end, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL event profiling end query failed: %d\n", error); exit(-1); }
+    BeagleOpenCLEventStat& s = gBeagleOpenCLEventStats[name];
+    s.calls++;
+    s.seconds += (double)(end - start) * 1e-9;
+    error = clReleaseEvent(event);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL event release failed: %d\n", error); exit(-1); }
+}
+
+void beagleDrainPendingEvents() {
+    for (size_t i = 0; i < gBeaglePendingEvents.size(); ++i)
+        beagleRecordCompletedEvent(gBeaglePendingEvents[i].name.c_str(),
+                                   gBeaglePendingEvents[i].event);
+    gBeaglePendingEvents.clear();
+}
+
+bool beagleTargetKernel(GPUFunction kernel, char* name, size_t size) {
+    if (!beagleOpenCLEventsEnabled()) return false;
+    int error = clGetKernelInfo(kernel, CL_KERNEL_FUNCTION_NAME, size, name, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL kernel-name query failed: %d\n", error); exit(-1); }
+    return strcmp(name, "kernelAdjointMergedN") == 0 ||
+           strcmp(name, "kernelAdjointMerged4") == 0 ||
+           strcmp(name, "kernelIntegrateLikelihoods") == 0;
+}
+
+void beagleReportAdjointKernelInfoOnce(GPUFunction kernel, cl_device_id device,
+                                       size_t requestedLocalSize) {
+    static bool reported = false;
+    if (reported || getenv("BEAGLE_PROFILE_ADJOINT_KERNEL_INFO") == NULL) return;
+    char name[256] = {0};
+    int error = clGetKernelInfo(kernel, CL_KERNEL_FUNCTION_NAME, sizeof(name), name, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL adjoint kernel-name query failed: %d\n", error); exit(-1); }
+    if (strcmp(name, "kernelAdjointMergedN") != 0) return;
+    size_t maxWorkGroup = 0, preferredMultiple = 0;
+    cl_ulong localMemory = 0, privateMemory = 0;
+    error = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
+                                     sizeof(maxWorkGroup), &maxWorkGroup, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL work-group-size query failed: %d\n", error); exit(-1); }
+    error = clGetKernelWorkGroupInfo(kernel, device,
+                                     CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+                                     sizeof(preferredMultiple), &preferredMultiple, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL preferred-multiple query failed: %d\n", error); exit(-1); }
+    error = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_LOCAL_MEM_SIZE,
+                                     sizeof(localMemory), &localMemory, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL local-memory query failed: %d\n", error); exit(-1); }
+    error = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_PRIVATE_MEM_SIZE,
+                                     sizeof(privateMemory), &privateMemory, NULL);
+    if (error != CL_SUCCESS) { fprintf(stderr, "OpenCL private-memory query failed: %d\n", error); exit(-1); }
+    fprintf(stderr, "\n===== BEAGLE_PROFILE_ADJOINT_KERNEL_INFO =====\n");
+    fprintf(stderr, "kernel=%s requestedLocalSize=%zu workGroupSize=%zu "
+                    "preferredMultiple=%zu localMemory=%llu privateMemory=%llu "
+                    "valid=%s\n",
+            name, requestedLocalSize, maxWorkGroup, preferredMultiple,
+            (unsigned long long)localMemory, (unsigned long long)privateMemory,
+            requestedLocalSize <= maxWorkGroup ? "YES" : "NO");
+    fprintf(stderr, "===== END BEAGLE_PROFILE_ADJOINT_KERNEL_INFO =====\n\n");
+    if (requestedLocalSize > maxWorkGroup) {
+        fprintf(stderr, "kernelAdjointMergedN local size exceeds CL_KERNEL_WORK_GROUP_SIZE\n");
+        exit(-1);
+    }
+    reported = true;
+}
 
 void beagleProfilePrintSummary() {
     if (!gBeagleProfile.enabled) return;
@@ -77,7 +182,8 @@ void beagleProfilePrintSummary() {
                              p.syncHostSeconds + p.memcpyH2DSeconds + p.memcpyD2HSeconds +
                              p.memsetZeroSeconds;
     fprintf(stderr, "\n===== BEAGLE_PROFILE_SUMMARY (GPUInterfaceOpenCL) =====\n");
-    fprintf(stderr, "warmup discarded: first %ld SynchronizeHost calls\n", BEAGLE_PROFILE_WARMUP_SYNC);
+    fprintf(stderr, "warmup discarded: %s\n", getenv("BEAGLE_PROFILE_NO_WARMUP")
+            ? "disabled by BEAGLE_PROFILE_NO_WARMUP" : "first 300 SynchronizeHost calls");
     fprintf(stderr, "LaunchKernel            : calls=%-8ld total=%.6fs avg=%.3fus\n",
             p.launchKernelCalls, p.launchKernelSeconds,
             p.launchKernelCalls ? p.launchKernelSeconds * 1e6 / p.launchKernelCalls : 0.0);
@@ -107,6 +213,10 @@ void beagleProfilePrintSummary() {
 inline bool beagleProfilingEnabled() {
     if (!gBeagleProfile.registered) {
         gBeagleProfile.enabled = (getenv("BEAGLE_PROFILE_SUMMARY") != NULL);
+        if (gBeagleProfile.enabled && getenv("BEAGLE_PROFILE_NO_WARMUP") != NULL) {
+            gBeagleProfile.warm = true;
+            gBeagleProfile.warmupRemaining = 0;
+        }
         gBeagleProfile.registered = true;
         if (gBeagleProfile.enabled) {
             atexit(beagleProfilePrintSummary);
@@ -413,7 +523,8 @@ void GPUInterface::SetDevice(int deviceNumber,
     openClCommandQueues = (cl_command_queue*) malloc(sizeof(cl_command_queue) * BEAGLE_STREAM_COUNT);
     openClEvents = (cl_event*) malloc(sizeof(cl_event) * BEAGLE_STREAM_COUNT);
 
-    cl_command_queue_properties queueProperties = 0;//CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    cl_command_queue_properties queueProperties = beagleOpenCLEventsEnabled()
+        ? CL_QUEUE_PROFILING_ENABLE : 0;//CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     for (int i=0; i < BEAGLE_STREAM_COUNT; i++) {
         openClCommandQueues[i] = clCreateCommandQueue(openClContext, openClDeviceId,
                                               queueProperties, &err);
@@ -730,16 +841,23 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
         fflush(stderr);
     }
 
+    beagleReportAdjointKernelInfoOnce(deviceFunction, openClDeviceId, localWorkSize[0]);
+    char eventKernelName[256] = {0};
+    const bool targetEvent = beagleTargetKernel(deviceFunction, eventKernelName,
+                                                 sizeof(eventKernelName));
+    cl_event kernelEvent = NULL;
+    cl_event* kernelEventPtr = targetEvent ? &kernelEvent : NULL;
     if (globalWorkSize[1] == 1 && globalWorkSize[2] == 1) {
         SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 1, NULL,
-                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+                                       globalWorkSize, localWorkSize, 0, NULL, kernelEventPtr));
     } else if (globalWorkSize[2] == 1) {
         SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 2, NULL,
-                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+                                       globalWorkSize, localWorkSize, 0, NULL, kernelEventPtr));
     } else {
         SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 3, NULL,
-                                       globalWorkSize, localWorkSize, 0, NULL, NULL));
+                                       globalWorkSize, localWorkSize, 0, NULL, kernelEventPtr));
     }
+    if (targetEvent) gBeaglePendingEvents.push_back(BeaglePendingEvent{kernelEvent, eventKernelName});
 
     if (prof && gBeagleProfile.warm) {
         double dt = std::chrono::duration<double>(
@@ -1153,8 +1271,13 @@ void GPUInterface::MemsetZero(GPUPtr dest,
      * clEnqueueWriteBuffer path MemcpyHostToDevice already uses elsewhere
      * in this file, which has no such issue.  */
     void* hZero = calloc(1, memSize);
+    cl_event event = NULL;
     SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, hZero, 0,
-                                 NULL, NULL));
+                                 NULL, beagleOpenCLEventsEnabled() ? &event : NULL));
+    if (event) {
+        beagleDrainPendingEvents();
+        beagleRecordCompletedEvent("MemsetZero", event);
+    }
     free(hZero);
 
     if (prof && gBeagleProfile.warm) {
@@ -1184,8 +1307,13 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
 
     // CL_TRUE => blocking write: this call does not return until the transfer
     // completes, regardless of payload size.
+    cl_event event = NULL;
     SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, src, 0,
-                                 NULL, NULL));
+                                 NULL, beagleOpenCLEventsEnabled() ? &event : NULL));
+    if (event) {
+        beagleDrainPendingEvents();
+        beagleRecordCompletedEvent("MemcpyHostToDevice", event);
+    }
 
     if (prof && gBeagleProfile.warm) {
         double dt = std::chrono::duration<double>(
@@ -1213,8 +1341,13 @@ void GPUInterface::MemcpyDeviceToHost(void* dest,
 
     // CL_TRUE => blocking read: this call does not return until the transfer
     // completes, regardless of payload size.
+    cl_event event = NULL;
     SAFE_CL(clEnqueueReadBuffer(openClCommandQueues[0], src, CL_TRUE, 0, memSize, dest, 0,
-                                NULL, NULL));
+                                NULL, beagleOpenCLEventsEnabled() ? &event : NULL));
+    if (event) {
+        beagleDrainPendingEvents();
+        beagleRecordCompletedEvent("MemcpyDeviceToHost", event);
+    }
 
     if (prof && gBeagleProfile.warm) {
         double dt = std::chrono::duration<double>(
@@ -1612,4 +1745,3 @@ void GPUInterface::ReleaseDevice(int deviceNumber) {
 
 
 }; // namespace
-

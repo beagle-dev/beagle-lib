@@ -22,6 +22,7 @@ add_custom_command(
             "../kernels/kernelsXDerivatives.cu"
             "../kernels/kernelsAll.cu"
             "../kernels/kernelsSpectralIfDef.cu"
+            "../AdjointBlockSize.h"
             "../kernels/kernelsSpectralIfDef4.cu"
         COMMENT "Building OpenCL spectral kernels"
         VERBATIM)
