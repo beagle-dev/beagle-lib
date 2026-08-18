@@ -77,6 +77,15 @@
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
 #include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 
+// When defined, calcAdjointCrossProducts (below) recomputes each branch's own
+// per-site likelihood locally, via AdjointIntegralPlan::branchLikelihoodInEigenBasis,
+// instead of reusing the shared root-based perSiteLikelihoods. This used to be
+// (mis)placed in BeagleCPUSpectralImpl.hpp, past the point where BeagleCPUImpl.hpp
+// (the actual owner of both #ifdef sites below) had already been preprocessed via
+// BeagleCPUImpl.h's own #include of this file -- so it never took effect. Toggle it
+// here instead, where it's actually reachable.
+// #define USE_BRANCH_LIKELIHOOD
+
 namespace beagle {
 namespace cpu {
 
@@ -1790,18 +1799,37 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
         gAdjointScaleCorrectedLk.resize(correctedLkSize);
     }
 
+#ifdef USE_BRANCH_LIKELIHOOD
+    // [node][pattern], absolute indices -- see calcAdjointBranchMarginalLikelihoods.
+    const int branchLkSize = count * kPatternCount;
+    if (static_cast<int>(gAdjointBranchLikelihoodTmp.size()) < branchLkSize) {
+        gAdjointBranchLikelihoodTmp.resize(branchLkSize);
+    }
+    REALTYPE* branchMarginalLk = gAdjointBranchLikelihoodTmp.data();
+    // Precomputed once, single-threaded, covering every node/pattern -- see
+    // calcAdjointBranchMarginalLikelihoods for why this can't be folded into the
+    // (possibly multi-threaded) main loop below.
+    calcAdjointBranchMarginalLikelihoods(postBufferIndices, preBufferIndices, transitionIndices,
+                                         categoryRates, categoryWeights, branchMarginalLk,
+                                         0, count, 0, kPatternCount, 0);
+#else
+    REALTYPE* branchMarginalLk = nullptr;
+#endif
+
     if (kAutoPartitioningEnabled && kPartitionCount > 1) {
         returnCode = calcAdjointCrossProductsByPartitionAsync(
             postBufferIndices, preBufferIndices, transitionIndices,
             categoryRates, categoryWeights, perSiteLikelihoods,
-            buffer, count, postScaleIndices, preScaleIndices, cumulativeScaleIndex);
+            buffer, count, postScaleIndices, preScaleIndices, cumulativeScaleIndex,
+            branchMarginalLk);
     } else {
         std::fill(buffer, buffer + kStateCount * kStateCount, REALTYPE(0));
         calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, transitionIndices,
                                       categoryRates, categoryWeights, perSiteLikelihoods,
                                       buffer,
                                       0, count, 0, kPatternCount, 0,
-                                      postScaleIndices, preScaleIndices, cumulativeScaleIndex);
+                                      postScaleIndices, preScaleIndices, cumulativeScaleIndex,
+                                      branchMarginalLk);
     }
 
     if constexpr (!std::is_same_v<REALTYPE, double>) {
@@ -1823,7 +1851,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
         int count,
         const int *postScaleIndices,
         const int *preScaleIndices,
-        const int cumulativeScaleIndex) {
+        const int cumulativeScaleIndex,
+        REALTYPE *branchMarginalLk) {
 
     const int gradSize = kStateCount * kStateCount;
 
@@ -1841,7 +1870,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
                   postBufferIndices, preBufferIndices, branchEigenIndices,
                   categoryRates, categoryWeights, perSiteLikelihoods,
                   startNode, endNode,
-                  postScaleIndices, preScaleIndices, cumulativeScaleIndex]() {
+                  postScaleIndices, preScaleIndices, cumulativeScaleIndex, branchMarginalLk]() {
             REALTYPE* partBuffer = (i == 0) ? buffer
                                             : gAdjointPartitionBuffers.data() + i * gradSize;
             if (startNode < endNode) {
@@ -1849,7 +1878,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByNodeAsync(
                                               categoryRates, categoryWeights, perSiteLikelihoods,
                                               partBuffer,
                                               startNode, endNode, 0, kPatternCount, i,
-                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex);
+                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex,
+                                              branchMarginalLk);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1890,7 +1920,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
         int count,
         const int *postScaleIndices,
         const int *preScaleIndices,
-        const int cumulativeScaleIndex) {
+        const int cumulativeScaleIndex,
+        REALTYPE *branchMarginalLk) {
 
     const int gradSize = kStateCount * kStateCount;
     const double prop = proportionRepeated(branchEigenIndices, 0, count);
@@ -1911,7 +1942,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
         auto b = [this, i, count, gradSize, buffer, prop,
                   postBufferIndices, preBufferIndices, branchEigenIndices,
                   categoryRates, categoryWeights, perSiteLikelihoods,
-                  postScaleIndices, preScaleIndices, cumulativeScaleIndex]() {
+                  postScaleIndices, preScaleIndices, cumulativeScaleIndex, branchMarginalLk]() {
             for (int opIdx = 0; opIdx < gThreadOpCounts[i]; ++opIdx) {
                 const int p = gThreadOperations[i][opIdx];
                 const int startPattern = gPatternPartitionsStartPatterns[p];
@@ -1922,7 +1953,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
                                               categoryRates, categoryWeights, perSiteLikelihoods,
                                               partBuffer,
                                               0, count, startPattern, endPattern, p,
-                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex);
+                                              postScaleIndices, preScaleIndices, cumulativeScaleIndex,
+                                              branchMarginalLk);
             }
         };
         std::packaged_task<void()> threadTask(std::move(b));
@@ -1970,8 +2002,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
         int currentPartition,
         const int *postScaleIndices,
         const int *preScaleIndices,
-        const int cumulativeScaleIndex) {
+        const int cumulativeScaleIndex,
+        REALTYPE *branchMarginalLk) {
 
+#ifndef USE_BRANCH_LIKELIHOOD
     // If a branch's post-order and/or pre-order partials were independently
     // rescaled (see beagleCalculateAdjointCrossProductDerivative doc), the
     // "scale = categoryWeight / Lk" term below implicitly assumes UNSCALED
@@ -1987,10 +2021,15 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
     // cumulative-scale bookkeeping (preScaleIndices, already log-summed via
     // beagleAccumulateScaleFactors); cumulativeScaleIndex is the same root
     // cumulative-scale buffer already used for the ordinary log-likelihood.
+    // (Under USE_BRANCH_LIKELIHOOD this is moot: branchMarginalLk is recomputed
+    // directly from each branch's own -- already rescaled -- partials, so it
+    // self-corrects for rescaling with no separate bookkeeping needed; see
+    // calcAdjointBranchMarginalLikelihoods.)
     const bool applyScaleCorrection = (postScaleIndices != NULL) || (preScaleIndices != NULL);
     REALTYPE* correctedLk = applyScaleCorrection
             ? gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount
             : NULL;
+#endif
 
     const double prop = proportionRepeated(branchEigenIndices, startNode, endNode);
     const bool useMultiCollector = ((endPattern - startPattern) > 1 || prop > 0.1);
@@ -2031,6 +2070,9 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
                 const REALTYPE *preOrderPartial = gPartials[preBufferIndices[nodeNum]];
                 const int *tipStates = gTipStates[postBufferIndices[nodeNum]];
 
+#ifdef USE_BRANCH_LIKELIHOOD
+                const REALTYPE *nodeLikelihoods = branchMarginalLk + nodeNum * kPatternCount;
+#else
                 const REALTYPE *nodeLikelihoods = perSiteLikelihoods;
                 if (applyScaleCorrection) {
                     const int postIdx = postScaleIndices ? postScaleIndices[nodeNum] : BEAGLE_OP_NONE;
@@ -2066,11 +2108,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
                             if (rootScaleBuffer != NULL) {
                                 logCorrection -= rootScaleBuffer[k];
                             }
+                            // TODO Simplify scale-factors here
                             correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
                         }
                         nodeLikelihoods = correctedLk;
                     }
                 }
+#endif
 
                 if (tipStates != nullptr) {
                     calcAdjointCrossProducts<States, WithRotation>(
@@ -2168,16 +2212,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
             static_assert(always_false<V>::value, "Unsupported lack of rotation");
         }
 
-#ifdef USE_BRANCH_LIKELIHOOD
-        const REALTYPE denominator = collector.getPlan()->branchLikelihoodInEigenBasis(lhs, rhs);
-        const REALTYPE scale = gPatternWeights[k] * categoryWeight / denominator;
-#else
         // perSiteLikelihoods is ordinarily gPatternScaleTmp itself (see caller), but
-        // calcAdjointCrossProductsRange may substitute a branch-specific,
-        // rescaling-corrected array here instead -- always use the parameter, not
-        // the member, so that substitution takes effect.
+        // calcAdjointCrossProductsRange may substitute a branch-specific array here
+        // instead -- either rescaling-corrected (default path) or freshly recomputed
+        // from this branch's own partials (USE_BRANCH_LIKELIHOOD, via
+        // calcAdjointBranchMarginalLikelihoods) -- always use the parameter, not the
+        // member, so that substitution takes effect.
         const REALTYPE scale = gPatternWeights[k] * categoryWeight / perSiteLikelihoods[k];
-#endif
 
         collector.accumulateScaledOuterProducts(lhs, rhs, scale);
 
@@ -2185,6 +2226,97 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(
         postOrderPartials += kPartialsPaddedStateCount;
     }
 
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointBranchMarginalLikelihoods(
+        const int *postBufferIndices,
+        const int *preBufferIndices,
+        const int *branchEigenIndices,
+        const double *categoryRates,
+        const REALTYPE *categoryWeights,
+        REALTYPE *branchMarginalLk,
+        int startNode,
+        int endNode,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    // USE_BRANCH_LIKELIHOOD's per-branch normalizer must be the branch's MARGINAL
+    // (category-weighted) site likelihood -- matching what the default path's
+    // perSiteLikelihoods already holds -- not any single category's own conditional
+    // likelihood. calcAdjointCrossProductsRange's main loop is category-outer/
+    // node-inner (to group consecutive same-branchEigenIndex nodes), so a given
+    // node's marginal sum isn't complete until every category has been visited;
+    // precompute it here, once per node, before that loop runs.
+    for (int nodeNum = startNode; nodeNum < endNode; ++nodeNum) {
+        std::fill(branchMarginalLk + nodeNum * kPatternCount + startPattern,
+                  branchMarginalLk + nodeNum * kPatternCount + endPattern,
+                  REALTYPE(0));
+    }
+
+    const int matrixIncr = kStateCount + T_PAD;
+
+    REALTYPE* lhs = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+    REALTYPE* rhs = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+
+    CollectorBase<REALTYPE> collector(nullptr, kStateCount, kStateCount);
+
+    for (int category = 0; category < kCategoryCount; ++category) {
+
+        const REALTYPE categoryRate   = static_cast<REALTYPE>(categoryRates[category]);
+        const int      infoOffset     = category * kPartialsPaddedStateCount;
+        const REALTYPE categoryWeight = categoryWeights[category];
+        const int      v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        for (int nodeNum = startNode; nodeNum < endNode; ++nodeNum) {
+
+            const BranchEigenInfo& info = gBranchEigenInfo[branchEigenIndices[nodeNum]];
+            collector.setTime(categoryRate * info.branchLength,
+                info.expat + infoOffset, info.cosbt + infoOffset, info.sinbt + infoOffset,
+                info.expatcosbt + infoOffset, info.expatsinbt + infoOffset);
+            collector.setPlan(gEigenDecomposition->getAdjointMethodsPtr(info.eigenIndex));
+
+            const REALTYPE* ievc  = gEigenDecomposition->getInverseEigenVectorsPtr(info.eigenIndex);
+            const REALTYPE* tievc = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(info.eigenIndex);
+
+            const REALTYPE* preOrderPartials  = &gPartials[preBufferIndices[nodeNum]][v];
+            const int* tipStates = gTipStates[postBufferIndices[nodeNum]];
+            const REALTYPE* postOrderPartials = (tipStates != nullptr) ? nullptr : &gPartials[postBufferIndices[nodeNum]][v];
+
+            REALTYPE* outRow = branchMarginalLk + nodeNum * kPatternCount;
+
+            for (int k = startPattern; k < endPattern; ++k) {
+
+                if (tipStates != nullptr) {
+                    const int state2 = tipStates[k];
+                    matVecDual<Partials, States>(
+                        tievc, preOrderPartials, 0,
+                        ievc, nullptr, state2,
+                        matrixIncr,
+                        [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                            lhs[i] = s1;
+                            rhs[i] = s2;
+                        });
+                } else {
+                    matVecDual<Partials, Partials>(
+                        tievc, preOrderPartials, 0,
+                        ievc, postOrderPartials, 0,
+                        matrixIncr,
+                        [lhs, rhs](int i, REALTYPE s1, REALTYPE s2) {
+                            lhs[i] = s1;
+                            rhs[i] = s2;
+                        });
+                    postOrderPartials += kPartialsPaddedStateCount;
+                }
+
+                const REALTYPE branchLk = collector.plan->branchLikelihoodInEigenBasis(collector, lhs, rhs);
+                outRow[k] += categoryWeight * branchLk;
+
+                preOrderPartials += kPartialsPaddedStateCount;
+            }
+        }
+    }
 }
 
 BEAGLE_CPU_TEMPLATE template <typename First, typename Second, typename Body>

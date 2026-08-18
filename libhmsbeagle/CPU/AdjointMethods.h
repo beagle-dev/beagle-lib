@@ -54,7 +54,9 @@ public:
 #endif
     }
 
+    template <typename C>
     inline REALTYPE branchLikelihoodInEigenBasis(
+            const C& collector,
             const REALTYPE* lhs,
             const REALTYPE* rhs);
 

@@ -13,9 +13,10 @@
 namespace beagle {
 namespace cpu {
 
-// branchLikelihoodInEigenBasis: uses expcosbt/expsinbt instead of per-call multiply
 BEAGLE_CPU_ADJOINT3_TEMPLATE
+template <typename C>
 REALTYPE AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEigenBasis(
+        const C& collector,
         const REALTYPE* lhs,
         const REALTYPE* rhs) {
 
@@ -23,16 +24,16 @@ REALTYPE AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::branchLikelihoodInEig
     if (allReal) {
         #pragma clang loop vectorize(enable)
         for (int i = 0; i < stateCount; ++i) {
-            sum += lhs[i] * expat[i] * rhs[i];
+            sum += lhs[i] * collector.expat[i] * rhs[i];
         }
     } else {
         for (int i = 0; i < stateCount; ++i) {
             const REALTYPE imag = eval[stateCount + i];
             if (isReal(imag)) {
-                sum += lhs[i] * expat[i] * rhs[i];
+                sum += lhs[i] * collector.expat[i] * rhs[i];
             } else {
-                const REALTYPE c = expatcosbt[i];  // opt 3: was expat[i] * cosbt[i]
-                const REALTYPE s = expatsinbt[i];  // opt 3: was expat[i] * sinbt[i]
+                const REALTYPE c = collector.expatcosbt[i];  // opt 3: was expat[i] * cosbt[i]
+                const REALTYPE s = collector.expatsinbt[i];  // opt 3: was expat[i] * sinbt[i]
 
                 const REALTYPE x = rhs[i];
                 const REALTYPE y = rhs[i + 1];

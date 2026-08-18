@@ -36,7 +36,6 @@
 #include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 #include "libhmsbeagle/CPU/AdjointMethods.h"
 
-// #define USE_BRANCH_LIKELIHOOD
 namespace beagle {
 namespace cpu {
 

@@ -145,6 +145,12 @@ protected:
     // requesting branch's rescaling (post-order + pre-order cumulative, minus
     // the root's cumulative scale) divided back out; see calcAdjointCrossProductsRange.
     std::vector<REALTYPE> gAdjointScaleCorrectedLk;
+    // USE_BRANCH_LIKELIHOOD only: [node][pattern] (absolute node/pattern indices,
+    // sized count * kPatternCount), holding each branch's own category-marginal
+    // (weighted-summed) site likelihood, recomputed directly from that branch's
+    // (possibly independently rescaled) partials -- see
+    // calcAdjointBranchMarginalLikelihoods and calcAdjointCrossProductsRange.
+    std::vector<REALTYPE> gAdjointBranchLikelihoodTmp;
 
     struct BranchEigenInfo {
         REALTYPE branchLength;
@@ -644,7 +650,24 @@ protected:
                                                int currentPartition,
                                                const int *postScaleIndices,
                                                const int *preScaleIndices,
-                                               const int cumulativeScaleIndex);
+                                               const int cumulativeScaleIndex,
+                                               REALTYPE *branchMarginalLk);
+
+    // USE_BRANCH_LIKELIHOOD only: fills branchMarginalLk[nodeNum * kPatternCount + k]
+    // (absolute node/pattern indices) with each branch's own category-marginal site
+    // likelihood, recomputed directly from that branch's own (possibly independently
+    // rescaled) pre-/post-order partials -- see calcAdjointCrossProductsRange for why.
+    void calcAdjointBranchMarginalLikelihoods(const int *postBufferIndices,
+                                              const int *preBufferIndices,
+                                              const int *branchEigenIndices,
+                                              const double *categoryRates,
+                                              const REALTYPE *categoryWeights,
+                                              REALTYPE *branchMarginalLk,
+                                              int startNode,
+                                              int endNode,
+                                              int startPattern,
+                                              int endPattern,
+                                              int currentPartition);
 
     template <typename T, typename V, typename COLLECTOR>
     void calcAdjointCrossProducts(const REALTYPE* partialsPost,
@@ -676,7 +699,8 @@ protected:
                                                  int count,
                                                  const int *postScaleIndices,
                                                  const int *preScaleIndices,
-                                                 const int cumulativeScaleIndex);
+                                                 const int cumulativeScaleIndex,
+                                                 REALTYPE *branchMarginalLk);
 
     int calcAdjointCrossProductsByNodeAsync(const int *postBufferIndices,
                                             const int *preBufferIndices,
@@ -688,7 +712,8 @@ protected:
                                             int count,
                                             const int *postScaleIndices,
                                             const int *preScaleIndices,
-                                            const int cumulativeScaleIndex);
+                                            const int cumulativeScaleIndex,
+                                            REALTYPE *branchMarginalLk);
 
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,
