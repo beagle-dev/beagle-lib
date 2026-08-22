@@ -5,6 +5,8 @@ if(BUILD_OPENCL)
 		message(STATUS "OpenCL Includes: ${OpenCL_INCLUDE_DIRS}")
 		message(STATUS "OpenCL Libraries: ${OpenCL_LIBRARIES}")
 		add_subdirectory("CMake_OpenCL")
+		add_subdirectory("${PROJECT_SOURCE_DIR}/tests/opencl"
+		                 "${PROJECT_BINARY_DIR}/tests/opencl")
 	endif(OpenCL_FOUND)
 endif(BUILD_OPENCL)
 
