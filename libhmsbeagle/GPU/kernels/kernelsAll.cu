@@ -2069,11 +2069,12 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
         	}
         }
         KW_LOCAL_FENCE;
-        REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
         for(int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
             FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
             if (isCoalescent) {
-                FMA(secondMatrix[j][state], sPartials2[i + j], sum2);
+                REAL secondMatrixElement = (sameTransIndex == 1) ? sMatrix1[j][state]
+                                                                 : sMatrix2[j][state];
+                FMA(secondMatrixElement, sPartials2[i + j], sum2);
             }
         }
         KW_LOCAL_FENCE;
