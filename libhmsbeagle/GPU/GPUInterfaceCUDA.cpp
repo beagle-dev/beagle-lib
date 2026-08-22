@@ -34,10 +34,7 @@
 #include <cmath>
 
 #ifdef CUDA_TENSOR_CORES
-#define LOAD_PATTERN_BLOCK_SIZE_SP(state)    PATTERN_BLOCK_SIZE_SP_##state
-// Tensor core kernels only for DP
-#define LOAD_PATTERN_BLOCK_SIZE_DP(state)    TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_##state
-#define LOAD_PATTERN_BLOCK_SIZE(state, prec) LOAD_PATTERN_BLOCK_SIZE_##prec(state)
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec) TENSOR_CORE_PATTERN_BLOCK_SIZE_##prec##_##state
 #else
 #define LOAD_PATTERN_BLOCK_SIZE(state, prec)  PATTERN_BLOCK_SIZE_##prec##_##state
 #endif
@@ -244,6 +241,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
         case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
         case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256); break;
+#ifndef CUDA_TENSOR_CORES
         case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
         case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
         case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
@@ -253,6 +251,7 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
         case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
         case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256); break;
+#endif
     }
 }
 
