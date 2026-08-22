@@ -34,7 +34,10 @@
 #include <cmath>
 
 #ifdef CUDA_TENSOR_CORES
-#define LOAD_PATTERN_BLOCK_SIZE(state, prec) TENSOR_CORE_PATTERN_BLOCK_SIZE_##prec##_##state
+#define LOAD_PATTERN_BLOCK_SIZE_SP(state)    PATTERN_BLOCK_SIZE_SP_##state
+// Tensor core kernels only for DP
+#define LOAD_PATTERN_BLOCK_SIZE_DP(state)    TENSOR_CORE_PATTERN_BLOCK_SIZE_DP_##state
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec) LOAD_PATTERN_BLOCK_SIZE_##prec(state)
 #else
 #define LOAD_PATTERN_BLOCK_SIZE(state, prec)  PATTERN_BLOCK_SIZE_##prec##_##state
 #endif
