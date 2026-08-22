@@ -253,10 +253,17 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         free(hPartialsOffsets);
         free(hStatesOffsets);
 
-        gpu->FreeMemory(dBastaMemory);
-        gpu->FreeMemory(dBastaLogL);
-        gpu->FreeMemory(dBastaDistance);
-        gpu->FreeMemory(dBastaOperationQueue);
+        // Allocated only for BASTA, so they may still be NULL
+        if (dBastaMemory != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaMemory);
+        if (dBastaLogL != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaLogL);
+        if (dBastaDistance != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaDistance);
+        if (dBastaOperationQueue != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaOperationQueue);
+        if (dCoalescentBuffers != (GPUPtr)NULL)
+            gpu->FreeMemory(dCoalescentBuffers);
 
         gpu->FreeHostMemory(hPtrQueue);
 
