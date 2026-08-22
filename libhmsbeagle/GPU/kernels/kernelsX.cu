@@ -16,7 +16,6 @@
     #include "libhmsbeagle/GPU/GPUImplDefs.h"
     #include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
 #ifdef CUDA_TENSOR_CORES
-    #include <mma.h>
     #include "libhmsbeagle/GPU/kernels/kernelsTensorCoreMacros.h"
 #endif
     extern "C" {

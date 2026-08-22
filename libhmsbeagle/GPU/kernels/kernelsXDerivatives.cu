@@ -1,11 +1,3 @@
-}
-
-#ifdef CUDA_TENSOR_CORES
-#include <mma.h>
-#endif
-
-extern "C" {
-
 KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
                                                         const KW_GLOBAL_VAR int*  KW_RESTRICT states0,
                                                         const KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,

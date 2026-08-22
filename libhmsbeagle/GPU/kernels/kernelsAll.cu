@@ -70,6 +70,7 @@
         return as_double(old);
     }
 #else
+    // TODO: Needs to be tested via BASTA kernels at single precision
     float atomicAdd(__global float* address, float val) {
         __global int* address_as_int = (__global int*)address;
         int old = *address_as_int;
