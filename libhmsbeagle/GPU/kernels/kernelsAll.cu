@@ -53,30 +53,38 @@
     }
 #endif
 
-#if (defined FW_OPENCL) && (defined DOUBLE_PRECISION)
+#if defined(FW_OPENCL)
+#ifdef DOUBLE_PRECISION
     double atomicAdd(__global double* address, double val) {
-    __global long* address_as_ull =
-        (__global long*)address;
-    long old = *address_as_ull;
-    long assumed;
+        __global long* address_as_ull =
+            (__global long*)address;
+        long old = *address_as_ull;
+        long assumed;
 
-    do {
-        assumed = old;
-        old = atom_cmpxchg(address_as_ull, assumed,
-            as_long(val + as_double(assumed)));
-    } while (assumed != old);
+        do {
+            assumed = old;
+            old = atom_cmpxchg(address_as_ull, assumed,
+                as_long(val + as_double(assumed)));
+        } while (assumed != old);
 
-    return as_double(old);
-}
+        return as_double(old);
+    }
+#else
+    float atomicAdd(__global float* address, float val) {
+        __global int* address_as_int = (__global int*)address;
+        int old = *address_as_int;
+        int assumed;
 
-//void atomicAdd(volatile global float* addr, const float val) {
-//    private float old, sum;
-//    do {
-//        old = *addr;
-//        sum = old+val;
-//    } while(atomic_cmpxchg((volatile global int*)addr, as_int(old), as_int(sum))!=as_int(old));
-//}
-#endif
+        do {
+            assumed = old;
+            old = atomic_cmpxchg(address_as_int, assumed,
+                as_int(val + as_float(assumed)));
+        } while (assumed != old);
+
+        return as_float(old);
+    }
+#endif //DOUBLE_PRECISION
+#endif //FW_OPENCL
 ///////////////////////////////////////////////////////////////////////////////
 
 KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*             dPartials,
