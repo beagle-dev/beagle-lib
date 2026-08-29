@@ -6,22 +6,16 @@ include_directories(
 add_definitions(-DFW_OPENCL)
 #include_directories(${OpenCL_INCLUDE_DIRS})
 
-# For OpenCL, we need to generate the file `BeagleOpenCL_kernels.h` using the commands (and dependencies) below
-if(WIN32)
-    set(CMD_NAME createOpenCLHeader.bat)
-else(WIN32)
-    set(CMD_NAME make_opencl_kernels.sh)
-endif(WIN32)
-
-add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCL_kernels.h
-        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-        DEPENDS "../kernels/kernels4.cu" "../kernels/kernels4Derivatives.cu" "../kernels/kernelsXDerivatives.cu" "../kernels/kernelsAll.cu"
-        COMMENT "Building OpenCL kernels"
-        VERBATIM)
-
-add_custom_target(OpenKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCL_kernels.h)
+# BeagleOpenCL_kernels.h's own generation rule (add_custom_command) lives in
+# the parent libhmsbeagle/GPU/CMakeLists.txt (shared with CMake_HIP's AMD
+# path, which compiles the same generated text via HIP instead of OpenCL --
+# see that file's comment) since a given output file can only have one
+# generating rule. This target wraps _BeagleOpenCLKernelsFile (also defined
+# there, in the same directory as the generating rule -- required for the
+# Makefile generator to actually re-run it, not just DEPENDS on the file
+# directly here) under a name specific to this backend.
+add_custom_target(OpenCLKernels)
+add_dependencies(OpenCLKernels _BeagleOpenCLKernelsFile)
 
 add_library(hmsbeagle-opencl SHARED
         ../BeagleGPUImpl.h
@@ -39,7 +33,7 @@ add_library(hmsbeagle-opencl SHARED
         ../Precision.h
         )
 
-add_dependencies(hmsbeagle-opencl OpenKernels)
+add_dependencies(hmsbeagle-opencl OpenCLKernels)
 
 target_link_libraries(hmsbeagle-opencl ${OpenCL_LIBRARIES})
 

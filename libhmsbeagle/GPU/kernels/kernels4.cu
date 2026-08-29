@@ -419,6 +419,27 @@
     int x2 = multBy16(matrix);\
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
+#ifdef FW_TINYGPU
+// FW_TINYGPU: branchless rewrite of the if/else below. Same result, but the
+// if/else's real branch (store loaded value) vs. store-literal-0 paths made
+// ptxas 12.8 emit actual branch divergence (BSSY.RECONVERGENT/BSYNC.RECONVERGENT)
+// for this guard, which this backend's from-scratch driver stack can't run
+// correctly (deterministic fault; see STATUS.md/TODO.md on the usb branch,
+// "branch-vs-predication", kernelPartialsPartialsNoScale). Here the load
+// address is clamped to 0 (always in-bounds) instead of skipped when
+// pattern >= endPattern, and the loaded value is masked out with a select
+// afterward -- no conditional control flow at all, so there's nothing for
+// ptxas to branch on.
+#define LOAD_PARTIALS_PARTIALS_4_GPU()\
+    int y = deltaPartialsByState + deltaPartialsByMatrix;\
+    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+    int yClamped = (pattern < endPattern) ? (y | tx) : 0;\
+    REAL vPartial1 = partials1[yClamped]; /*All coalesced memory; always in-bounds*/\
+    REAL vPartial2 = partials2[yClamped];\
+    sPartials1[multBy16(patIdx) | tx] = (pattern < endPattern) ? vPartial1 : (REAL) 0;\
+    sPartials2[multBy16(patIdx) | tx] = (pattern < endPattern) ? vPartial2 : (REAL) 0;
+#else
 #define LOAD_PARTIALS_PARTIALS_4_GPU()\
     int y = deltaPartialsByState + deltaPartialsByMatrix;\
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
@@ -431,6 +452,7 @@
         sPartials1[multBy16(patIdx) | tx] = 0;\
         sPartials2[multBy16(patIdx) | tx] = 0;\
     }
+#endif
 
 #define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU()\
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\

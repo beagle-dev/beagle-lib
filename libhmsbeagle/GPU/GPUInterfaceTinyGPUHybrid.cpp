@@ -22,6 +22,9 @@
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridSocket.h"
+#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
+#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
 
 #include <cassert>
 #include <cerrno>
@@ -44,13 +47,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-// ── TinyGPU socket commands (matches tinygrad RemoteCmd enum) ────────────────
-enum TGCmd : uint8_t {
-    TGC_PROBE=0, TGC_MAP_BAR, TGC_MAP_SYSMEM_FD, TGC_CFG_READ, TGC_CFG_WRITE,
-    TGC_RESET, TGC_MMIO_READ, TGC_MMIO_WRITE, TGC_MAP_SYSMEM,
-    TGC_SYSMEM_READ, TGC_SYSMEM_WRITE, TGC_RESIZE_BAR, TGC_PING
-};
-
 // ── State ────────────────────────────────────────────────────────────────────
 struct NVHybridState {
     int      sock;
@@ -64,8 +60,19 @@ struct NVHybridState {
     uint64_t cmdq_vram,  cmdq_gpu_va;  uint32_t cmdq_sz,  cmdq_ptr;
     uint64_t code_vram,  code_gpu_va;  uint32_t code_sz,  code_ptr;
     uint64_t data_vram,  data_gpu_va;  uint32_t data_sz,  data_ptr;
+    // Shader local memory (register-spill/stack backing store) — never
+    // host-accessed directly (gpu_va only), pointed to via
+    // SET_SHADER_LOCAL_MEMORY_A in send_channel_setup(). See nv_init_helper.py
+    // "RM 3b" for how local_mem_tpc_bytes is derived from real GR topology.
+    uint64_t local_mem_gpu_va; uint32_t local_mem_tpc_bytes;
     uint32_t compute_class, dma_class;
     uint8_t  sass_version;
+    // ptxas --gpu-name for this real chip, derived by nv_init_helper.py from
+    // the actual NV2080_CTRL_GR_INFO_INDEX_SM_VERSION hardware register (see
+    // nv_init_helper.py's _sass_version_and_arch(), STATUS.md §62/TODO.md
+    // Phase 27) -- not a chip-name guess. Passed through to
+    // nv_compile_helper.py via the SetDevice() handoff below.
+    std::string gpu_arch;
     bool     is_blackwell;
     uint64_t bar1_pa;
     uint32_t gsp_sysmem_handle;  // TinyGPU sysmem handle for GSP cmd_q/stat_q allocation
@@ -91,42 +98,12 @@ struct NVKernelEntry {
 };
 
 // ── Socket helpers ────────────────────────────────────────────────────────────
-
-static void send_all(int fd, const void* buf, size_t n) {
-    const uint8_t* p = (const uint8_t*)buf;
-    while (n) { ssize_t r = ::send(fd, p, n, 0); if (r <= 0) return; p += r; n -= (size_t)r; }
-}
-static void recv_all(int fd, void* buf, size_t n) {
-    uint8_t* p = (uint8_t*)buf;
-    while (n) { ssize_t r = ::recv(fd, p, n, MSG_WAITALL); if (r <= 0) return; p += r; n -= (size_t)r; }
-}
-
-// Build the 33-byte RPC request header (tinygrad '<BIIQQQ' format).
-static void pack_hdr(uint8_t* h, uint8_t cmd, uint32_t dev, uint32_t bar,
-                     uint64_t a0, uint64_t a1, uint64_t a2) {
-    h[0] = cmd;
-    memcpy(h+1,  &dev, 4);  memcpy(h+5, &bar, 4);
-    memcpy(h+9,  &a0,  8);  memcpy(h+17, &a1, 8);  memcpy(h+25, &a2, 8);
-}
-
-// Fire-and-forget MMIO write (tinygrad _bulk_write).
-// Header: {cmd, dev_id, bar, offset, len, 0} then payload bytes.
-static void tg_bulk_write(int sock, uint32_t dev, uint32_t bar,
-                          uint64_t off, const void* data, uint64_t len) {
-    uint8_t h[33]; pack_hdr(h, TGC_MMIO_WRITE, dev, bar, off, len, 0);
-    send_all(sock, h, 33);
-    send_all(sock, data, (size_t)len);
-}
-
-// Read with response (tinygrad _bulk_read).
-// Header: {cmd, dev_id, bar, offset, size, 0}, recv 17-byte resp + size bytes.
-static void tg_bulk_read(int sock, uint32_t dev, uint32_t bar,
-                         uint64_t off, void* data, uint64_t len) {
-    uint8_t h[33]; pack_hdr(h, TGC_MMIO_READ, dev, bar, off, len, 0);
-    send_all(sock, h, 33);
-    uint8_t resp[17]; recv_all(sock, resp, 17); // status + resp0 + resp1
-    recv_all(sock, data, (size_t)len);
-}
+// TGCmd enum + tg_send_all/tg_recv_all/tg_pack_hdr/tg_bulk_write/tg_bulk_read/
+// tg_cfg_read now live in TinyGPUHybridSocket.h, shared with
+// GPUInterfaceTinyGPUHybridAMD.cpp — this wire protocol turned out to be
+// genuinely vendor-agnostic (plain PCI BAR/config access; TGC_CFG_READ is
+// what let Initialize() identify an AMD device over this exact socket with
+// zero protocol changes), so it no longer needs to be NV-local.
 
 // BAR0 NV MMIO register write / read (fire-and-forget write, blocking read).
 static void nv_wr32(int s, uint32_t d, uint32_t addr, uint32_t val) {
@@ -149,19 +126,38 @@ static std::map<std::string, NVKernelEntry*> g_kernels;
 static NVHybridState* g_state = nullptr;
 static int            g_tgSock = -1;
 static uint32_t       g_tgDevId = 0;
+static uint16_t       g_tgVendorId = 0;
+static uint16_t       g_tgDeviceId = 0;
 static char           g_handoff[256] = {};
+
+// PCI vendor IDs this backend recognizes.
+static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
+static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
+
+// Opt-in switch to the new daemon-architecture NV path (STATUS.md §73/§75,
+// GPUInterfaceTinyGPUHybridNV.cpp) instead of this file's original
+// hand-rolled GPFIFO/QMD dispatch. Off by default: the hand-rolled path is
+// the only one hardware-verified for full BEAGLE likelihood evaluation so
+// far (the daemon path's premise was validated in isolation, §74, but the
+// daemon path itself has not yet been run on hardware) -- flipping the
+// default would risk regressing currently-working NV usage. Set
+// BEAGLE_NV_USE_DAEMON=1 to try the new path.
+static bool nv_use_daemon() {
+    static const bool v = (getenv("BEAGLE_NV_USE_DAEMON") != nullptr);
+    return v;
+}
 
 // System memory (host RAM, managed by TinyGPU MAP_SYSMEM) write / read.
 static void nv_sysmem_wr(int s, uint32_t d, uint32_t handle, uint64_t off, const void* buf, size_t sz) {
-    uint8_t h[33]; pack_hdr(h, TGC_SYSMEM_WRITE, d, handle, off, sz, 0);
-    send_all(s, h, 33);
-    send_all(s, buf, sz);
+    uint8_t h[33]; tg_pack_hdr(h, TGC_SYSMEM_WRITE, d, handle, off, sz, 0);
+    tg_send_all(s, h, 33);
+    tg_send_all(s, buf, sz);
 }
 static void nv_sysmem_rd(int s, uint32_t d, uint32_t handle, uint64_t off, void* buf, size_t sz) {
-    uint8_t h[33]; pack_hdr(h, TGC_SYSMEM_READ, d, handle, off, sz, 0);
-    send_all(s, h, 33);
-    uint8_t resp[17]; recv_all(s, resp, 17);
-    recv_all(s, buf, sz);
+    uint8_t h[33]; tg_pack_hdr(h, TGC_SYSMEM_READ, d, handle, off, sz, 0);
+    tg_send_all(s, h, 33);
+    uint8_t resp[17]; tg_recv_all(s, resp, 17);
+    tg_recv_all(s, buf, sz);
 }
 
 // ── GSP RPC: rpc_unloading_guest_driver ──────────────────────────────────────
@@ -698,9 +694,17 @@ static void send_channel_setup(NVHybridState* g) {
     //   nvm(1, SET_OBJECT, compute_class)
     //   nvm(1, SET_SHADER_LOCAL_MEMORY_WINDOW_A,  *data64(local_mem_window))   data64=(hi,lo)
     //   nvm(1, SET_SHADER_SHARED_MEMORY_WINDOW_A, *data64(shared_mem_window))
+    //   nvm(1, SET_SHADER_LOCAL_MEMORY_A, *data64(local_mem_gpu_va))
+    //   nvm(1, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A, *data64(local_mem_tpc_bytes), 0xff)
+    // (tinygrad issues the last two via a *separate* setup() call from
+    // NVDevice._ensure_has_local_memory(), called lazily whenever a compiled
+    // kernel's local-memory need exceeds what's currently allocated. We
+    // precompile every kernel upfront and size local_mem_area for all of
+    // them before any kernel ever launches, so folding these into the same
+    // one-time channel-setup packet is equivalent and simpler.)
     // Then a GPFIFO channel SEM_EXECUTE RELEASE so we can poll channel readiness.
     // Note: tinygrad does NOT send NON_STALL_INTERRUPT on the compute channel.
-    uint32_t pkt[14];
+    uint32_t pkt[21];
     uint32_t n = 0;
 
     // nvm(1, SET_OBJECT=0x0000, compute_class)
@@ -718,6 +722,22 @@ static void send_channel_setup(NVHybridState* g) {
     pkt[n++] = (uint32_t)(NV_SHARED_MEM_WIN >> 32);
     pkt[n++] = (uint32_t)(NV_SHARED_MEM_WIN & 0xFFFFFFFFu);
 
+    // nvm(1, SET_SHADER_LOCAL_MEMORY_A=0x0790, hi32(local_mem_gpu_va), lo32(...))
+    // Backing VRAM for local_mem_window's translation — see nv_init_helper.py
+    // "RM 3b" for how local_mem_gpu_va/local_mem_tpc_bytes are derived from
+    // real GR topology. Never set before this session; see STATUS.md "usb".
+    pkt[n++] = nvm_hdr(1, 0x0790, 2);
+    pkt[n++] = (uint32_t)(g->local_mem_gpu_va >> 32);
+    pkt[n++] = (uint32_t)(g->local_mem_gpu_va & 0xFFFFFFFFu);
+
+    // nvm(1, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A=0x02e4, hi32(tpc_bytes), lo32(tpc_bytes), 0xff)
+    // Trailing 0xff is a literal constant in tinygrad's own reference, not
+    // derived from anything — replicated as-is.
+    pkt[n++] = nvm_hdr(1, 0x02e4, 3);
+    pkt[n++] = (uint32_t)((uint64_t)g->local_mem_tpc_bytes >> 32);
+    pkt[n++] = g->local_mem_tpc_bytes;
+    pkt[n++] = 0xffu;
+
     // GPFIFO channel SEM_EXECUTE RELEASE — lets C++ poll that the setup flushed.
     // 5-word packet at NVC56F_SEM_ADDR_LO=0x005C:
     //   [SEM_ADDR_LO, SEM_ADDR_HI, SEM_PAYLOAD_LO, SEM_PAYLOAD_HI, SEM_EXECUTE]
@@ -731,7 +751,7 @@ static void send_channel_setup(NVHybridState* g) {
     pkt[n++] = (uint32_t)(eop_val >> 32);
     pkt[n++] = 0x03100001u;
 
-    assert(n == 14);
+    assert(n == 21);
     uint32_t off = g->cmdq_ptr;
     nv_vram_wr(g->sock, g->dev_id, g->cmdq_vram + off, pkt, n * 4);
     submit_gpfifo(g, off, n);
@@ -886,9 +906,12 @@ static NVHybridState* nvHybridSetup(int sock, uint32_t dev_id) {
     g->data_gpu_va     = json_u64(js, "data_gpu_va");
     g->data_sz         = (uint32_t)json_u64(js, "data_sz");
     g->data_ptr        = 0;
+    g->local_mem_gpu_va    = json_u64(js, "local_mem_gpu_va");
+    g->local_mem_tpc_bytes = (uint32_t)json_u64(js, "local_mem_tpc_bytes");
     g->compute_class   = (uint32_t)json_u64(js, "compute_class");
     g->dma_class       = (uint32_t)json_u64(js, "dma_class");
     g->sass_version    = (uint8_t)json_u64(js, "sass_version");
+    g->gpu_arch        = json_str(js, "gpu_arch");
     g->bar1_pa            = json_u64(js, "mm_vram_pa_base");
     g->is_blackwell       = (g->compute_class >= 0x0000cec0u);
     g->gsp_sysmem_handle  = (uint32_t)json_u64(js, "gsp_sysmem_handle");
@@ -1113,6 +1136,16 @@ GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
 {}
 
 GPUInterface::~GPUInterface() {
+    if (!isNVIDIA) {
+        AmdFini();  // sends SIGTERM to amd_init_helper.py and waits for it to exit + adev.fini()
+        if (tgpuSock >= 0) { close(tgpuSock); tgpuSock = -1; }
+        return;
+    }
+    if (nv_use_daemon()) {
+        NvFini();
+        if (tgpuSock >= 0) { close(tgpuSock); tgpuSock = -1; }
+        return;
+    }
     bool was_initialized = (g_state != nullptr);
     bool clean = false;
     if (g_state) {
@@ -1146,14 +1179,38 @@ GPUInterface::~GPUInterface() {
 }
 
 int GPUInterface::Initialize() {
+    fprintf(stderr, "TinyGPU: build stamp — GPUInterfaceTinyGPUHybrid.cpp compiled %s %s\n",
+            __DATE__, __TIME__);
+#ifdef TINYGPU_KERNELS_STAMP
+    fprintf(stderr, "TinyGPU: build stamp — kernels/BeagleTinyGPU_kernels.h: %s\n",
+            TINYGPU_KERNELS_STAMP);
+#else
+    fprintf(stderr, "TinyGPU: build stamp — TINYGPU_KERNELS_STAMP not defined "
+                     "(BeagleTinyGPU_kernels.h missing or stale — this should not happen)\n");
+#endif
+    fflush(stderr);
     g_tgSock = tg_open_socket();
     if (g_tgSock < 0) return BEAGLE_ERROR_GENERAL;
     // Enumerate devices: just probe device 0 for now.
     // A full probe would use TGC_PROBE; we keep it simple.
     g_tgDevId = 0;
+
+    // Identify the vendor from real PCI config space (offset 0 = vendor ID
+    // in the low 16 bits, device ID in the high 16 bits of the first
+    // config dword) rather than assuming NVIDIA.
+    uint32_t id01 = (uint32_t)tg_cfg_read(g_tgSock, g_tgDevId, /*offset=*/0, /*size=*/4);
+    g_tgVendorId = (uint16_t)(id01 & 0xffff);
+    g_tgDeviceId = (uint16_t)(id01 >> 16);
+    const char* vendorName = (g_tgVendorId == PCI_VENDOR_NVIDIA) ? "NVIDIA"
+                            : (g_tgVendorId == PCI_VENDOR_AMD)    ? "AMD"
+                            : "unknown";
+    fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (%s)\n",
+            g_tgVendorId, g_tgDeviceId, vendorName);
+    fflush(stderr);
+
     tgpuSock  = g_tgSock;
     tgpuDevId = g_tgDevId;
-    isNVIDIA  = true;
+    isNVIDIA  = (g_tgVendorId != PCI_VENDOR_AMD);   // default to the NV path unless AMD is positively identified
     return BEAGLE_SUCCESS;
 }
 
@@ -1162,6 +1219,16 @@ int GPUInterface::GetDeviceCount() { return (g_tgSock >= 0) ? 1 : 0; }
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
                               int categoryCount, int patternCount,
                               int unpaddedPatternCount, int tipCount, long flags) {
+    if (!isNVIDIA) {
+        AmdSetDevice(this, paddedStateCount, categoryCount, patternCount,
+                     unpaddedPatternCount, tipCount, flags);
+        return;
+    }
+    if (nv_use_daemon()) {
+        NvSetDevice(this, paddedStateCount, categoryCount, patternCount,
+                    unpaddedPatternCount, tipCount, flags);
+        return;
+    }
     g_state = nvHybridSetup(g_tgSock, g_tgDevId);
     if (!g_state) { fprintf(stderr, "TinyGPU: nvHybridSetup failed\n"); safe_exit(1); }
 
@@ -1170,9 +1237,15 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
     snprintf(g_handoff, sizeof(g_handoff), "/tmp/beagle_nv_handoff_%d_static.json", getpid());
     FILE* f = fopen(g_handoff, "w");
     if (f) {
-        fprintf(f, "{\"chip_name\": \"%s\", \"compute_class\": %u, \"sass_version\": %u}\n",
+        // gpu_arch: the real ptxas --gpu-name for this chip, derived by
+        // nv_init_helper.py from the actual SM_VERSION hardware register
+        // (STATUS.md §62/TODO.md Phase 27) -- nv_compile_helper.py's
+        // _arch_from_handoff() prefers this over any chip-name guess.
+        fprintf(f, "{\"chip_name\": \"%s\", \"compute_class\": %u, \"sass_version\": %u, "
+                   "\"gpu_arch\": \"%s\"}\n",
                 g_state->is_blackwell ? "GB202" : "GA102",
-                g_state->compute_class, g_state->sass_version);
+                g_state->compute_class, g_state->sass_version,
+                g_state->gpu_arch.c_str());
         fclose(f);
     }
 
@@ -1220,6 +1293,8 @@ void GPUInterface::InitializeKernelResource(int n, bool dp) {
 // ── Synchronization ───────────────────────────────────────────────────────────
 
 void GPUInterface::SynchronizeHost() {
+    if (!isNVIDIA) { AmdSynchronizeHost(); return; }
+    if (nv_use_daemon()) { NvSynchronizeHost(); return; }
     if (!g_state) return;
     uint64_t expected = g_state->eop_signal_val;
     uint64_t sig = 0;
@@ -1250,6 +1325,8 @@ void GPUInterface::SynchronizeDeviceWithIndex(int, int) { SynchronizeHost(); }
 // This function is now a pure cache lookup.
 
 GPUFunction GPUInterface::GetFunction(const char* name) {
+    if (!isNVIDIA) return AmdGetFunction(name);
+    if (nv_use_daemon()) return NvGetFunction(name);
     if (!g_state) return nullptr;
     auto it = g_kernels.find(name);
     if (it != g_kernels.end()) return it->second;
@@ -1373,6 +1450,8 @@ GPUFunction GPUInterface::GetFunction(const char* name) {
 
 void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                      int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
+    if (!isNVIDIA) { AmdLaunchKernelImpl(fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
+    if (nv_use_daemon()) { NvLaunchKernelImpl(fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
     if (!g_state || !fn) return;
     NVKernelEntry* ke = (NVKernelEntry*)fn;
 
@@ -1438,29 +1517,68 @@ void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
     memcpy(kernargs_buf.data() + ke->qmd_off, qmd,  qmd_size);
     nv_vram_wr(g_state->sock, g_state->dev_id, ke->kernargs_vram, kernargs_buf.data(), total_sz);
 
-    // Build launch method packet (6 dwords):
+    // Build launch method packet (12 dwords):
+    //   [GPU-side wait for the *previous* launch's own EOP value]
     //   nvm(1, INVALIDATE_SHADER_CACHES_NO_WFI=0x1698, 0x1011)
     //   nvm(1, SEND_PCAS_A=0x02b4, qmd_va>>8)
     //   nvm(1, SEND_SIGNALING_PCAS2_B=0x02c0, 9)  // PREFETCH_SCHEDULE
     // Reference: NVComputeQueue.memory_barrier() + exec() in ops_nv.py
-    uint32_t pkt[6];
-    pkt[0] = nvm_hdr(1, 0x1698, 1);
-    pkt[1] = 0x00001011u;                   // instruction|global_data|constant = true
-    pkt[2] = nvm_hdr(1, 0x02b4, 1);
-    pkt[3] = (uint32_t)(qmd_va >> 8);      // QMD address shifted right 8
-    pkt[4] = nvm_hdr(1, 0x02c0, 1);
-    pkt[5] = 9;                              // PCAS_ACTION_PREFETCH_SCHEDULE
+    //
+    // The leading wait mirrors tinygrad's HCQProgram.__call__, which issues
+    // `q.wait(dev.timeline_signal, dev.timeline_value-1)` before *every*
+    // exec() (hcq.py:373), even back-to-back launches with no host-side
+    // synchronization between them. Previously missing here (STATUS.md
+    // §33/§59/§60) — this backend only ever host-polled the *last* kernel's
+    // EOP (SynchronizeHost), relying purely on GPFIFO submission order for
+    // inter-kernel memory visibility, with no GPU-side guarantee that
+    // kernel N's writes are actually complete before kernel N+1 begins.
+    // Traced (§60) to *not* explain the specific `kernelMatrixMulADB`-
+    // internal bug this session has been chasing (that kernel is always
+    // the first dispatch, nothing prior to wait on) — added regardless,
+    // on its own merits, for the rest of the pipeline (e.g. between
+    // `kernelMatrixMulADB` and `kernelPartialsPartialsNoScale`, or between
+    // that kernel's own two launches).
+    //   [SEM_ADDR_LO, SEM_ADDR_HI, SEM_PAYLOAD_LO, SEM_PAYLOAD_HI, SEM_EXECUTE]
+    // flags: OPERATION_ACQ_CIRC_GEQ(3) | PAYLOAD_SIZE_64BIT(1<<24)
+    // (nv_570.py: NVC56F_SEM_EXECUTE_OPERATION_ACQ_CIRC_GEQ=3 at bits[2:0],
+    //  NVC56F_SEM_EXECUTE_PAYLOAD_SIZE_64BIT=1 at bit[24] — matches
+    //  tinygrad's own `nv_flags("NVC56F_SEM_EXECUTE", operation=
+    //  "acq_circ_geq", payload_size="64bit")` exactly.)
+    uint64_t prev_eop = eop_val - 1;   // the target the *previous* launch (or channel setup) posted
+    uint32_t pkt[12];
+    pkt[0]  = nvm_hdr(0, 0x005c, 5);
+    pkt[1]  = (uint32_t)(g_state->eop_gpu_va & 0xFFFFFFFFu);
+    pkt[2]  = (uint32_t)(g_state->eop_gpu_va >> 32);
+    pkt[3]  = (uint32_t)(prev_eop & 0xFFFFFFFFu);
+    pkt[4]  = (uint32_t)(prev_eop >> 32);
+    pkt[5]  = 0x01000003u;                  // ACQ_CIRC_GEQ | PAYLOAD_SIZE_64BIT
+    pkt[6]  = nvm_hdr(1, 0x1698, 1);
+    pkt[7]  = 0x00001011u;                   // instruction|global_data|constant = true
+    pkt[8]  = nvm_hdr(1, 0x02b4, 1);
+    pkt[9]  = (uint32_t)(qmd_va >> 8);      // QMD address shifted right 8
+    pkt[10] = nvm_hdr(1, 0x02c0, 1);
+    pkt[11] = 9;                              // PCAS_ACTION_PREFETCH_SCHEDULE
 
     uint32_t off = g_state->cmdq_ptr;
-    nv_vram_wr(g_state->sock, g_state->dev_id, g_state->cmdq_vram + off, pkt, 24);
-    submit_gpfifo(g_state, off, 6);
+    nv_vram_wr(g_state->sock, g_state->dev_id, g_state->cmdq_vram + off, pkt, 48);
+    submit_gpfifo(g_state, off, 12);
 }
 
 // ── LaunchKernel (variadic) ───────────────────────────────────────────────────
 
 void GPUInterface::LaunchKernel(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                  int nPtr, int nTotal, ...) {
-    if (!fn || !g_state) return;
+    // g_state is the *hand-rolled* NV path's state only; don't gate the AMD
+    // path or the daemon-architecture NV path on it here -- LaunchKernelImpl
+    // itself already checks the right path's own state. This bug already
+    // happened once for AMD (this comment used to only mention that case:
+    // LaunchKernel returned before ever reaching LaunchKernelImpl's isNVIDIA
+    // branch, silently no-op'ing every AMD kernel launch) and bit the NV
+    // daemon path (STATUS.md §77) the same way for the same reason -- g_state
+    // stays null under nv_use_daemon() (that path tracks its own g_nv
+    // instead), so this guard alone was enough to silently skip every kernel
+    // launch before LaunchKernelImpl was ever called.
+    if (!fn || (isNVIDIA && !nv_use_daemon() && !g_state)) return;
     va_list args; va_start(args, nTotal);
     std::vector<GPUPtr>        ptrs(nPtr);
     std::vector<unsigned int>  ints(nTotal - nPtr);
@@ -1472,7 +1590,8 @@ void GPUInterface::LaunchKernel(GPUFunction fn, Dim3Int block, Dim3Int grid,
 
 void GPUInterface::LaunchKernelConcurrent(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                            int, int, int nPtr, int nTotal, ...) {
-    if (!fn || !g_state) return;
+    // Same g_state-gates-out-the-daemon-path pitfall as LaunchKernel above.
+    if (!fn || (isNVIDIA && !nv_use_daemon() && !g_state)) return;
     va_list args; va_start(args, nTotal);
     std::vector<GPUPtr>       ptrs(nPtr);
     std::vector<unsigned int> ints(nTotal - nPtr);
@@ -1485,6 +1604,8 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction fn, Dim3Int block, Dim3Int
 // ── Memory ────────────────────────────────────────────────────────────────────
 
 GPUPtr GPUInterface::AllocateMemory(size_t sz) {
+    if (!isNVIDIA) return AmdAllocateMemory(sz);
+    if (nv_use_daemon()) return NvAllocateMemory(sz);
     if (!g_state) return 0;
     uint32_t aligned = (g_state->data_ptr + 255) & ~255u;
     if (aligned + (uint32_t)sz > g_state->data_sz) {
@@ -1515,6 +1636,8 @@ static uint64_t gpu_va_to_vram(NVHybridState* g, uint64_t va) {
 }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
+    if (!isNVIDIA) { AmdMemcpyHostToDevice(dst, src, sz); return; }
+    if (nv_use_daemon()) { NvMemcpyHostToDevice(dst, src, sz); return; }
     if (!g_state || !src || !sz) return;
     uint64_t off = gpu_va_to_vram(g_state, (uint64_t)dst);
     if (off) {
@@ -1526,7 +1649,13 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
+    if (!isNVIDIA) { AmdMemcpyDeviceToHost(dst, src, sz); return; }
+    if (nv_use_daemon()) { NvMemcpyDeviceToHost(dst, src, sz); return; }
     if (!g_state || !dst || !sz) return;
+    // Unlike cudaMemcpy/blocking clEnqueueReadBuffer, nv_vram_rd is a raw
+    // BAR1/socket read with no implicit ordering against the async GPU
+    // command queue — wait for the GPU to actually finish first.
+    SynchronizeHost();
     uint64_t off = gpu_va_to_vram(g_state, (uint64_t)src);
     if (off) {
         if (sz >= 1024)
@@ -1537,7 +1666,10 @@ void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
 }
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dst, GPUPtr src, size_t sz) {
-    if (!g_state || !sz) return;
+    // Same g_state-is-NV-only pitfall as LaunchKernel/LaunchKernelConcurrent
+    // above -- MemcpyDeviceToHost/MemcpyHostToDevice below already branch
+    // correctly per-vendor, this outer guard must not block AMD first.
+    if (!sz || (isNVIDIA && !g_state)) return;
     std::vector<uint8_t> tmp(sz);
     MemcpyDeviceToHost(tmp.data(), src, sz);
     MemcpyHostToDevice(dst, tmp.data(), sz);
@@ -1562,17 +1694,21 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* p) { return (GPUPtr)(uintptr_t)p
 // ── Device info ───────────────────────────────────────────────────────────────
 
 void GPUInterface::GetDeviceName(int, char* name, int len) {
-    snprintf(name, len, "TinyGPU-NV-Hybrid");
+    if (isNVIDIA) snprintf(name, len, "TinyGPU-NV-Hybrid");
+    else          snprintf(name, len, "TinyGPU-AMD-Hybrid (%04x:%04x)", g_tgVendorId, g_tgDeviceId);
 }
 void GPUInterface::GetDeviceDescription(int, char* desc) {
-    snprintf(desc, 128, "BEAGLE hybrid NV backend via tinygrad + TinyGPU socket");
+    if (isNVIDIA) snprintf(desc, 128, "BEAGLE hybrid NV backend via tinygrad + TinyGPU socket");
+    else          snprintf(desc, 128, "BEAGLE hybrid AMD backend via tinygrad + TinyGPU socket");
 }
 long GPUInterface::GetDeviceTypeFlag(int) { return BEAGLE_FLAG_PROCESSOR_GPU; }
 BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
-    return BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU;
+    return isNVIDIA ? BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU : BEAGLE_TINYGPU_DEVICE_AMD_GPU;
 }
 bool GPUInterface::GetSupportsDoublePrecision(int) { return false; }
 size_t GPUInterface::GetAvailableMemory() {
+    if (!isNVIDIA) return AmdGetAvailableMemory();
+    if (nv_use_daemon()) return NvGetAvailableMemory();
     return g_state ? (size_t)(g_state->data_sz - g_state->data_ptr) : 0;
 }
 

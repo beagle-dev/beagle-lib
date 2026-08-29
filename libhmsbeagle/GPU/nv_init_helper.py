@@ -145,12 +145,27 @@ class InheritedFDPCIDevice(APLRemotePCIDevice):
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _sass_version(chip_name: str) -> int:
-    """QMD SASS_VERSION byte = (SM_major << 4) | SM_minor.
-    GA102 = SM 8.6 → 0x86, AD102 = SM 8.9 → 0x89, GB2xx = SM 10.0 → 0xa0.
+def _sass_version_and_arch(sm_version: int) -> tuple:
+    """Derive (QMD SASS_VERSION byte, ptxas --gpu-name) from the real
+    NV2080_CTRL_GR_INFO_INDEX_SM_VERSION register value (queried at "RM 3b"
+    below, the same RM_CONTROL call that already provides
+    num_gpcs/num_tpc_per_gpc/num_sm_per_tpc/max_warps_per_sm) -- not a
+    chip-name guess. Formula verbatim from tinygrad's own real-hardware
+    reference (ops_nv.py NVDevice.__init__, its own comment: "FIXME: no
+    idea how to convert this for blackwells" -- kept as-is rather than
+    "improved", since it's the actual validated logic, not a guess):
+        arch = "sm_120" if sm_version == 0xa04 else
+               f"sm_{(sm_version>>8)&0xff}{...}"
+        sass_version = ((sm_version & 0xf00) >> 4) | (sm_version & 0xf)
+    See STATUS.md §62/TODO.md Phase 27 for why this driver's old
+    chip-name-prefix table (mapping every "GB2"-prefixed chip, including
+    this real one, to a single hardcoded compute capability 10.0) was
+    wrong specifically for this consumer Blackwell chip.
     """
-    major, minor = {'GA1': (8, 6), 'AD1': (8, 9), 'GB2': (10, 0)}.get(chip_name[:3], (8, 6))
-    return (major << 4) | minor
+    arch = "sm_120" if sm_version == 0xa04 else \
+        f"sm_{(sm_version >> 8) & 0xff}{(v >> 4) if (v := sm_version & 0xff) > 0xf else v}"
+    sass_version = ((sm_version & 0xf00) >> 4) | (sm_version & 0xf)
+    return sass_version, arch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -308,6 +323,81 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
         user_device, nv_gpu.NV20_SUBDEVICE_0,
         nv_gpu.NV2080_ALLOC_PARAMETERS(), USER_ROOT)
 
+    # ── 2b. Query real GR topology, allocate + program shader local memory ────
+    #
+    # Shader local memory (SLM) is per-thread stack/register-spill storage --
+    # a completely separate physical region from shared memory. It's addressed
+    # through a window (SET_SHADER_LOCAL_MEMORY_WINDOW_A, already programmed
+    # above) that translates generic addresses into a backing VRAM region --
+    # but that backing region must itself be allocated and pointed to via
+    # SET_SHADER_LOCAL_MEMORY_A. This driver never did that (grep confirmed
+    # zero hits for SET_SHADER_LOCAL_MEMORY_A anywhere in the C++ side) even
+    # though kernelPartialsPartialsNoScale's own compiled SASS genuinely needs
+    # 576 bytes/thread of it (register spills, confirmed via ELF metadata,
+    # see STATUS.md "usb" branch). Reference: NVDevice._query_gpu_info() +
+    # NVDevice._ensure_has_local_memory() in ops_nv.py.
+    #
+    # is_nvd() (isinstance(iface, PCIIface)) is true for this real-PCIe-GPU
+    # setup, so tinygrad's own reference always takes the pointer-free
+    # NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_INFO path here (a fixed-size,
+    # fully self-contained struct -- no embedded pointers), not the sibling
+    # NV2080_CTRL_CMD_GR_GET_INFO (which takes a raw host pointer as one of
+    # its fields and is never exercised over GSP RPC for this device class).
+    _step("RM 3b — query GR topology (NUM_GPCS/NUM_TPC_PER_GPC/NUM_SM_PER_TPC/MAX_WARPS_PER_SM)")
+    gr_info = gsp.rpc_rm_control(
+        user_subdev, nv_gpu.NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_INFO,
+        nv_gpu.NV2080_CTRL_INTERNAL_STATIC_GR_GET_INFO_PARAMS(), USER_ROOT)
+    def _gr_info(idx_name):
+        # NOTE: the inner getattr's own `None` default is required -- it's
+        # an argument expression, evaluated eagerly regardless of whether
+        # the outer name resolves, so omitting it throws AttributeError on
+        # any idx_name whose LITTER_-prefixed variant doesn't exist (e.g.
+        # MAX_WARPS_PER_SM, which only has the non-LITTER name) even when
+        # the outer lookup would have succeeded.
+        idx = getattr(nv_gpu, 'NV2080_CTRL_GR_INFO_INDEX_' + idx_name,
+               getattr(nv_gpu, 'NV2080_CTRL_GR_INFO_INDEX_LITTER_' + idx_name, None))
+        assert idx is not None, f"unknown GR info index name: {idx_name}"
+        return gr_info.engineInfo[0].infoList[idx].data
+    topo_num_gpcs         = _gr_info('NUM_GPCS')
+    topo_num_tpc_per_gpc  = _gr_info('NUM_TPC_PER_GPC')
+    topo_num_sm_per_tpc   = _gr_info('NUM_SM_PER_TPC')
+    topo_max_warps_per_sm = _gr_info('MAX_WARPS_PER_SM')
+    topo_sm_version       = _gr_info('SM_VERSION')
+    _step(f"  num_gpcs={topo_num_gpcs} num_tpc_per_gpc={topo_num_tpc_per_gpc} "
+          f"num_sm_per_tpc={topo_num_sm_per_tpc} max_warps_per_sm={topo_max_warps_per_sm} "
+          f"sm_version=0x{topo_sm_version:x}")
+
+    # Real compute capability / ptxas target, derived from the sm_version
+    # register just queried above -- not the chip-name-prefix guess
+    # (_sass_version) this driver used before. See STATUS.md §62/TODO.md
+    # Phase 27: that guess mapped every "GB2"-prefixed chip to compute
+    # capability 10.0 (correct for datacenter GB100/GB200, wrong for this
+    # real consumer chip, which public specs and this same real register
+    # both indicate is compute capability 12.0 / sm_120).
+    sass_version, gpu_arch = _sass_version_and_arch(topo_sm_version)
+    _step(f"  derived sass_version=0x{sass_version:x} gpu_arch={gpu_arch}")
+
+    # Per-thread SLM bound: generous static ceiling (BEAGLE's kernels are
+    # compiled once at startup and their real requirement, e.g. 576 B/thread
+    # for kernelPartialsPartialsNoScale, is known only later in the C++ side
+    # -- see STATUS.md/TODO.md "usb" branch for why this can't easily be
+    # queried lazily the way tinygrad does per-kernel). 4096 B/thread is a
+    # wide margin over every kernel measured so far; override with
+    # BEAGLE_NV_SLM_PER_THREAD if a future kernel ever needs more (a real,
+    # observable failure -- not silent -- if this bound is ever too small,
+    # since GetFunction() would then be building a QMD declaring more
+    # per-thread SLM than this pool was sized for).
+    slm_per_thread = int(os.environ.get("BEAGLE_NV_SLM_PER_THREAD", "4096"))
+
+    def _round_up(x, n): return (x + n - 1) & ~(n - 1)
+    LOCAL_MEM_TPC_BYTES = _round_up(_round_up(slm_per_thread * 32, 0x200) *
+                                     topo_max_warps_per_sm * topo_num_sm_per_tpc, 0x8000)
+    LOCAL_MEM_SZ = _round_up(LOCAL_MEM_TPC_BYTES * topo_num_tpc_per_gpc * topo_num_gpcs, 0x20000)
+    _step(f"valloc local_mem_area ({LOCAL_MEM_SZ >> 20} MB contiguous, "
+          f"tpc_bytes=0x{LOCAL_MEM_TPC_BYTES:x})")
+    local_mem_area = nvdev.mm.valloc(LOCAL_MEM_SZ, contiguous=True)
+    local_mem_vram = local_mem_area.paddrs[0][0]
+
     _step("RM 4 — FERMI_VASPACE_A (auto rpc_set_page_directory)")
     # IS_EXTERNALLY_OWNED: page tables managed by us (nvdev.mm).
     # ENABLE_PAGE_FAULTING: required for externally-owned vaspaces.
@@ -397,13 +487,21 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
         "data_vram":        data_vram,
         "data_gpu_va":      data_area.va_addr,
         "data_sz":          DATA_POOL_SZ,
+        # Shader local memory (register-spill/stack backing store) — pointed
+        # to via SET_SHADER_LOCAL_MEMORY_A in send_channel_setup(); never
+        # host-accessed directly, so gpu_va is what C++ actually needs.
+        "local_mem_vram":      local_mem_vram,
+        "local_mem_gpu_va":    local_mem_area.va_addr,
+        "local_mem_sz":        LOCAL_MEM_SZ,
+        "local_mem_tpc_bytes": LOCAL_MEM_TPC_BYTES,
         # Memory manager
         "mm_vram_pa_base":  bar1_paddr,
         "vram_size":        nvdev.vram_size,
         # Architecture
         "compute_class":    gsp.compute_class,
         "dma_class":        gsp.dma_class,
-        "sass_version":     _sass_version(nvdev.chip_name),
+        "sass_version":     sass_version,
+        "gpu_arch":         gpu_arch,
         "chip_name":        nvdev.chip_name,
         # GSP RPC queue — needed by C++ gsp_unloading_guest_driver() at shutdown.
         # On macOS/TinyGPU, alloc_sysmem uses MAP_SYSMEM_FD (mmap path), so
@@ -427,14 +525,21 @@ def _main_impl(sock_fd: int, dev_id: int, out_path: str) -> None:
           f"data_pool={DATA_POOL_SZ>>20} MB", file=sys.stderr)
 
     # Stay alive until C++ destructor signals us via SIGTERM.
+    # Also treat SIGINT (Ctrl-C on the foreground process group, which
+    # reaches this subprocess too) the same way: without this, SIGINT's
+    # default KeyboardInterrupt is a BaseException that skips both the
+    # `except Exception` wrapper in main() and nvdev.fini() below, dropping
+    # the socket to a possibly-wedged GPU without a clean reset — fatal on
+    # macOS eGPU (see InheritedFDPCIDevice.reset()).
     import signal as _signal
     _done = [False]
     def _sigterm(sig, frame): _done[0] = True
     _signal.signal(_signal.SIGTERM, _sigterm)
+    _signal.signal(_signal.SIGINT, _sigterm)
     while not _done[0]:
         time.sleep(0.5)
 
-    print("nv_init_helper: SIGTERM received — calling nvdev.fini()", file=sys.stderr, flush=True)
+    print("nv_init_helper: signal received — calling nvdev.fini()", file=sys.stderr, flush=True)
     nvdev.fini()
     print("nv_init_helper: fini complete — exiting cleanly", file=sys.stderr, flush=True)
 

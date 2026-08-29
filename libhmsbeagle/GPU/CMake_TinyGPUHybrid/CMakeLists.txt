@@ -21,6 +21,11 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
         ../GPUImplHelper.cpp
         ../GPUImplHelper.h
         ../GPUInterfaceTinyGPUHybrid.cpp
+        ../GPUInterfaceTinyGPUHybridAMD.cpp
+        ../GPUInterfaceTinyGPUHybridAMD.h
+        ../GPUInterfaceTinyGPUHybridNV.cpp
+        ../GPUInterfaceTinyGPUHybridNV.h
+        ../TinyGPUHybridSocket.h
         ../KernelLauncher.cpp
         ../KernelLauncher.h
         ../KernelResource.cpp
@@ -29,6 +34,14 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
         ../TinyGPUHybridPlugin.h
         ../Precision.h
         )
+
+add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUKernels)
+# AMD path (GPUInterfaceTinyGPUHybridAMD.cpp) compiles BEAGLE's existing
+# kernel source via comgr's HIP language (STATUS.md AMD §18-19) -- see
+# CMake_HIP/CMakeLists.txt and libhmsbeagle/GPU/CMakeLists.txt's
+# BeagleOpenCL_kernels.h comment for why this depends on that target rather
+# than defining its own generation rule.
+add_dependencies(hmsbeagle-tinygpu-hybrid HIPKernels)
 
 install(TARGETS hmsbeagle-tinygpu-hybrid
     DESTINATION ${BEAGLE_INSTALL_DIR}

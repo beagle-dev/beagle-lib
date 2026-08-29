@@ -58,11 +58,15 @@
 
     namespace opencl_device {
 #elif defined(FW_TINYGPU)
-    // Reuse pre-compiled CUDA PTX strings as the kernel source for TinyGPU.
+    // TinyGPU-specific PTX (compiled with -DCUDA -DFW_TINYGPU; see
+    // kernels/make_tinygpu_kernels.sh). Same kernels as the CUDA backend
+    // except for the handful of #if defined(...) && defined(FW_TINYGPU)
+    // spots in the .cu sources that need to differ for this backend's
+    // driver (see kernelMatrixMulADB in kernelsAll.cu).
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
 #   else
-        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
+        #include "libhmsbeagle/GPU/kernels/BeagleTinyGPU_kernels.h"
 #   endif
     // GPUPtr: byte offset into VRAM (BAR2 offset used in MMIO_READ/WRITE).
     typedef uint64_t GPUPtr;
@@ -91,6 +95,17 @@ private:
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
 #elif defined(FW_TINYGPU)
+    // AMD dispatch (GPUInterfaceTinyGPUHybridAMD.cpp) lives in free functions,
+    // not GPUInterface methods -- GPUInterface::SetDevice/LaunchKernelImpl/etc.
+    // (defined once, in GPUInterfaceTinyGPUHybrid.cpp) branch on isNVIDIA and
+    // call out to them. They need private/protected member access the same
+    // way GPUInterfaceTinyGPUHybrid.cpp's own method bodies already do.
+    friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
+    // Same for the NV daemon-architecture path (STATUS.md §73/§75,
+    // GPUInterfaceTinyGPUHybridNV.cpp) -- opt-in via BEAGLE_NV_USE_DAEMON=1,
+    // see nv_use_daemon() in GPUInterfaceTinyGPUHybrid.cpp.
+    friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
+
     // ── TinyGPU socket ──────────────────────────────────────────────────────
     int      tgpuSock;
     uint32_t tgpuDevId;

@@ -26,6 +26,8 @@ add_library(hmsbeagle-tinygpu SHARED
         ../Precision.h
         )
 
+add_dependencies(hmsbeagle-tinygpu TinyGPUKernels)
+
 install(TARGETS hmsbeagle-tinygpu
     DESTINATION ${BEAGLE_INSTALL_DIR}
     COMPONENT tinygpu
