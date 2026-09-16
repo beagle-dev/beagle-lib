@@ -131,6 +131,9 @@ namespace beagle {
                                          const double* edgeLengths,
                                          int count) override;
 
+            int getTransitionMatrix(int matrixIndex,
+                                    double* outMatrix) override;
+
             int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,

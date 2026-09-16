@@ -98,6 +98,59 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eige
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(int matrixIndex,
+                                                                    double* outMatrix) {
+    const BranchEigenInfo& info = gBranchEigenInfo[matrixIndex];
+    const int eigenIndex = info.eigenIndex;
+
+    const REALTYPE* Evec = gEigenDecomposition->getEigenVectorsPtr(eigenIndex);
+    const REALTYPE* Ievc = gEigenDecomposition->getInverseEigenVectorsPtr(eigenIndex);
+    const REALTYPE* EvalImag = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? (info.eval + kStateCount) : NULL;
+
+    const int stride = kStateCount + T_PAD;
+
+    std::vector<REALTYPE> matrixTmp(kStateCount * kStateCount);
+
+    double* offsetOutMatrix = outMatrix;
+    for (int l = 0; l < kCategoryCount; l++) {
+        // Reuse the exp(eval*t)/cos(bt)/sin(bt) products already computed per branch
+        // in updateBranchEigenInfo() rather than recomputing exp/cos/sin here.
+        const REALTYPE* expat      = &info.expat[l * kPartialsPaddedStateCount];
+        const REALTYPE* expatcosbt = &info.expatcosbt[l * kPartialsPaddedStateCount];
+        const REALTYPE* expatsinbt = &info.expatsinbt[l * kPartialsPaddedStateCount];
+
+        for (int i = 0; i < kStateCount; i++) {
+            if (EvalImag == NULL || EvalImag[i] == REALTYPE(0)) {
+                for (int j = 0; j < kStateCount; j++) {
+                    matrixTmp[i * kStateCount + j] = Ievc[i * stride + j] * expat[i];
+                }
+            } else {
+                const int i2 = i + 1;
+                for (int j = 0; j < kStateCount; j++) {
+                    matrixTmp[i * kStateCount + j]  = expatcosbt[i]  * Ievc[i * stride + j] +
+                                                       expatsinbt[i] * Ievc[i2 * stride + j];
+                    matrixTmp[i2 * kStateCount + j] = expatsinbt[i2] * Ievc[i * stride + j] +
+                                                       expatcosbt[i2] * Ievc[i2 * stride + j];
+                }
+                i++; // processed two conjugate rows
+            }
+        }
+
+        for (int i = 0; i < kStateCount; i++) {
+            for (int j = 0; j < kStateCount; j++) {
+                REALTYPE sum = 0;
+                for (int k = 0; k < kStateCount; k++) {
+                    sum += Evec[i * stride + k] * matrixTmp[k * kStateCount + j];
+                }
+                *offsetOutMatrix++ = (sum > 0) ? (double) sum : 0.0;
+            }
+        }
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                                                   const int* operations,
                                                   int count,
