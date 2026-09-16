@@ -1183,6 +1183,9 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
 
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, sizeof(cl_uint), &supportsDouble, NULL));
 
+    if (supportsDouble && GetDeviceImplementationCode(deviceNumber) == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU)
+        return false;
+
     return supportsDouble;
 }
 
