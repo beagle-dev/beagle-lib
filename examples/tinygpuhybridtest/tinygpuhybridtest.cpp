@@ -22,8 +22,16 @@
  *           --diag-compare-cpu (auto-enabled for --state-count != 4)
  *
  * Usage:
- *   tinygpuhybridtest [--resource N] [--state-count N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]
+ *   tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]
  *   --resource N          Force BEAGLE resource index N (skips auto-detect)
+ *   --reps N              After the checked evaluation, repeat the whole
+ *                         evaluation (transition matrices, peeling, root
+ *                         logL) N more times and report the steady-state
+ *                         wall time per evaluation (min/median/mean/max).
+ *                         Every repeat must reproduce the first logL
+ *                         exactly. Not combinable with the --diag-inject-
+ *                         matrices, --diag-reorder-partials-first or
+ *                         --diag-matmul-ground-truth pipelines.
  *   --state-count N       Use a synthetic generalized-JC model with N states
  *                         instead of the default 4-state DNA/JC69 dataset.
  *                         Any N >= 2 works; the values BEAGLE has a
@@ -59,6 +67,7 @@
  *                         --state-count 4 (the default).
  */
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -287,12 +296,15 @@ int main(int argc, char** argv) {
     // wrong value. Requires a kernel header built with
     // -DTINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH.
     bool diagMatmulGroundTruth = false;
+    int reps = 0;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "--resource" && i + 1 < argc)
             forceResource = atoi(argv[++i]);
         else if (a == "--state-count" && i + 1 < argc)
             stateCount = atoi(argv[++i]);
+        else if (a == "--reps" && i + 1 < argc)
+            reps = atoi(argv[++i]);
         else if (a == "--diag-reorder-partials-first")
             diagReorderPartialsFirst = true;
         else if (a == "--diag-compare-cpu")
@@ -302,12 +314,17 @@ int main(int argc, char** argv) {
         else if (a == "--diag-matmul-ground-truth")
             diagMatmulGroundTruth = true;
         else {
-            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
+            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
             return 1;
         }
     }
     if (stateCount < 2) {
         fprintf(stderr, "--state-count must be >= 2 (got %d)\n", stateCount);
+        return 1;
+    }
+    if (reps < 0 || (reps > 0 && (diagInjectMatrices || diagReorderPartialsFirst || diagMatmulGroundTruth))) {
+        fprintf(stderr, "--reps needs N >= 0 and repeats the default pipeline, so it can't be combined with "
+                         "--diag-inject-matrices, --diag-reorder-partials-first or --diag-matmul-ground-truth\n");
         return 1;
     }
     if (diagMatmulGroundTruth && (stateCount != 4 || diagInjectMatrices)) {
@@ -378,7 +395,9 @@ int main(int argc, char** argv) {
         &resourceIdx, 1,
         BEAGLE_FLAG_PRECISION_DOUBLE  |
         BEAGLE_FLAG_PROCESSOR_GPU,
-        BEAGLE_FLAG_FRAMEWORK_TINYGPU,              // reqFlags
+        // reqFlags: a forced --resource may be any backend (e.g. the CPU,
+        // as a --reps baseline); auto-detect insists on TinyGPU
+        forceResource >= 0 ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU,
         &det);
 
     if (instance < 0) {
@@ -723,7 +742,54 @@ int main(int argc, char** argv) {
         }
     }
 
-    bool overallOk = useDnaModel ? (logLOk && delta < kTol) : (logLOk && diagCompareCpuOk);
+    // ── Step 11 (optional): steady-state benchmark ───────────────────────────
+    // The checked evaluation above paid the one-time costs (daemon boot,
+    // kernel loads, first dispatch); these repeats don't, so their wall time
+    // per evaluation is what an MCMC run sees. Same inputs and kernels every
+    // time, so every repeat must reproduce the first logL exactly.
+    bool repsOk = true;
+    if (reps > 0 && logLOk) {
+        std::vector<double> ms(reps);
+        int nDiffer = 0;
+        double maxDiff = 0.0;
+        for (int r = 0; r < reps; ++r) {
+            double repLogL = 0.0;
+            auto s0 = std::chrono::steady_clock::now();
+            int rr = doUpdateTransitionMatrices();
+            if (rr >= 0) rr = doUpdatePartials();
+            if (rr >= 0) rr = beagleCalculateRootLogLikelihoods(instance, &rootBuf, &wBuf, &fBuf, &sBuf, 1, &repLogL);
+            auto s1 = std::chrono::steady_clock::now();
+            if (rr < 0) {
+                fprintf(stderr, "--reps: evaluation %d failed: %d\n", r, rr);
+                repsOk = false;
+                break;
+            }
+            ms[r] = std::chrono::duration<double, std::milli>(s1 - s0).count();
+            if (repLogL != logL) {
+                ++nDiffer;
+                maxDiff = std::max(maxDiff, std::fabs(repLogL - logL));
+            }
+        }
+        if (repsOk) {
+            std::vector<double> sorted(ms);
+            std::sort(sorted.begin(), sorted.end());
+            double sum = 0.0;
+            for (double v : ms) sum += v;
+            printf("\n=== --reps %d: steady-state evaluations (updateTransitionMatrices + updatePartials + "
+                   "calculateRootLogLikelihoods) ===\n", reps);
+            printf("per evaluation: min %.3f ms  median %.3f ms  mean %.3f ms  max %.3f ms\n",
+                   sorted.front(), sorted[reps / 2], sum / reps, sorted.back());
+            if (nDiffer == 0) {
+                printf("logL: all %d repeats equal the first evaluation exactly\n", reps);
+            } else {
+                printf("logL: %d of %d repeats differ from the first evaluation (max |diff| %.3g) -- FAIL\n",
+                       nDiffer, reps, maxDiff);
+                repsOk = false;
+            }
+        }
+    }
+
+    bool overallOk = (useDnaModel ? (logLOk && delta < kTol) : (logLOk && diagCompareCpuOk)) && repsOk;
     if (!useDnaModel) printf("\n%s\n", overallOk ? "PASS" : "FAIL");
 
     if (cpuRefInstance >= 0) beagleFinalizeInstance(cpuRefInstance);

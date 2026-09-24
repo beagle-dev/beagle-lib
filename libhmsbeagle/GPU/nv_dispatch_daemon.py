@@ -25,19 +25,25 @@ surfaces that gap for real — see BeagleNVProgram below (found via a real
 hardware run coming back `logL=0.0` with no crash, STATUS.md §76) for the
 one-line fix, same technique as BeagleAMDProgram.
 
-Protocol: identical wire format to amd_dispatch_daemon.py — newline-
-terminated JSON command lines on a dedicated socketpair (not the TinyGPU
+Protocol: JSON command messages, each preceded by its byte length as a
+4-byte little-endian uint32, on a dedicated socketpair (not the TinyGPU
 socket: NVDevice("NV:0") makes its own connection internally, exactly like
-STATUS.md §74's hardware-verified boot). Commands carrying bulk data
-(h2d/d2h) are followed immediately by that many raw bytes on the same
-stream. Kernel launches are batched from the start this time (cmd_launch_batch
+STATUS.md §74's hardware-verified boot). amd_dispatch_daemon.py still uses
+newline-terminated JSON. Commands carrying bulk data (h2d/d2h) are followed
+immediately by that many raw bytes on the same stream. Kernel launches are batched from the start this time (cmd_launch_batch
 only, no per-launch cmd_launch) — AMD's own profiling (STATUS.md AMD §26)
 already found steady-state per-launch RPC overhead comparable to or larger
 than the GPU dispatch work itself, no need to re-discover that here.
 
-    python3 nv_dispatch_daemon.py <cmd_sock_fd>
+C++ dispatch (BEAGLE_NV_CPP_DISPATCH=1, TODO.md "Runtime roadmap", Step 3):
+the plugin passes its own TinyGPU.app connection as a second argument, and
+after compile_all sends "handoff". The daemon prepares every program, then
+hands the C++ side what it needs to build QMDs and pushbuffers and submit
+both GPFIFOs itself (build_handoff). From then on it only allocates.
+
+    python3 nv_dispatch_daemon.py <cmd_sock_fd> [<tinygpu_sock_fd>]
 """
-import sys, os, json, struct, pathlib
+import sys, os, json, struct, pathlib, time, socket
 
 # Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
 # (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
@@ -229,11 +235,11 @@ class BeagleNVProgram(ops_nv.NVProgram):
         super(ops_nv.NVProgram, self).__init__(ops_nv.NVArgsState, self.dev, obj, kernargs_alloc_size=round_up(self.constbufs[0][1], 1 << 8) + (8 << 8))
         _weakref.finalize(self, self._fini, self.dev, self.lib_gpu, buf_spec)
 
-    def __call__(self, *bufs, global_size=(1,1,1), local_size=(1,1,1), vals=(), wait=False, timeout=None):
-        # HCQProgram.__call__ copies self.cbuf_0 into a fresh kernargs slot
-        # synchronously (fill_kernargs), so rewriting it per launch is safe
-        # even with wait=False. Zeroed (upstream's value) when the fill is
-        # off, so toggling fill_launch_dims within one process stays exact.
+    def set_launch_dims(self, global_size, local_size):
+        # fill_kernargs copies self.cbuf_0 into a fresh kernargs slot
+        # synchronously, so rewriting it per launch is safe even with
+        # wait=False. Zeroed (upstream's value) when the fill is off, so
+        # toggling fill_launch_dims within one process stays exact.
         if self._dims_idx is not None:
             b, g = self._dims_idx
             if self.fill_launch_dims:
@@ -241,11 +247,65 @@ class BeagleNVProgram(ops_nv.NVProgram):
                 self.cbuf_0[g:g+3] = list(global_size) + [1] * (3 - len(global_size))
             else:
                 self.cbuf_0[b:b+3] = self.cbuf_0[g:g+3] = [0, 0, 0]
+
+    def check_launch(self, global_size, local_size):
+        # NVProgram.__call__'s launch checks (ops_nv.py), for the chained path
+        # in Daemon.cmd_launch_batch, which bypasses __call__.
+        from tinygrad.helpers import prod
+        if prod(local_size) > 1024 or self.max_threads < prod(local_size) or self.lcmem_usage > self.dev.slm_per_thread:
+            raise RuntimeError(f"Too many resources requested for launch, {prod(local_size)=}, {self.max_threads=}")
+        if any(cur > mx for cur, mx in zip(global_size, [2147483647, 65535, 65535])) or \
+           any(cur > mx for cur, mx in zip(local_size, [1024, 1024, 64])):
+            raise RuntimeError(f"Invalid global/local dims {global_size=}, {local_size=}")
+
+    def __call__(self, *bufs, global_size=(1,1,1), local_size=(1,1,1), vals=(), wait=False, timeout=None):
+        self.set_launch_dims(global_size, local_size)
         return super().__call__(*bufs, global_size=global_size, local_size=local_size, vals=vals, wait=wait, timeout=timeout)
 
 
 def log(msg):
     print(f"[nv_dispatch_daemon] {msg}", file=sys.stderr, flush=True)
+
+
+# Opt-in timing (BEAGLE_NV_PROFILE=1), the daemon half of the C++ side's
+# RPC round-trip profiling (GPUInterfaceTinyGPUHybridNV.cpp). Aggregated per
+# label and logged at fini: "cmd.*" is each command handler, "launch.*" each
+# kernel launch inside launch_batch (plus one submit per batch when
+# chained), "wire.*" the framing (reading a message, measured from its first
+# bytes; json.loads).
+_PROFILE = bool(os.environ.get("BEAGLE_NV_PROFILE"))
+_prof = {}  # label -> [count, total_s, min_s, max_s]
+
+# One chained compute queue per launch_batch (default); see cmd_launch_batch.
+_CHAIN_LAUNCHES = os.environ.get("BEAGLE_NV_CHAIN_LAUNCHES", "1") != "0"
+
+
+def _prof_add(label, dt):
+    s = _prof.get(label)
+    if s is None:
+        _prof[label] = [1, dt, dt, dt]
+    else:
+        s[0] += 1; s[1] += dt; s[2] = min(s[2], dt); s[3] = max(s[3], dt)
+
+
+def _prof_report():
+    log("[profile] daemon side:")
+    for label, (n, tot, lo, hi) in sorted(_prof.items()):
+        log(f"[profile]   {label:20s} n={n:7d}  mean={tot / n * 1e6:9.1f} us  min={lo * 1e6:9.1f}  "
+            f"max={hi * 1e6:10.1f}  total={tot * 1e3:9.1f} ms")
+
+
+class _Profiled:
+    __slots__ = ("label", "t0")
+    def __init__(self, label):
+        self.label = label
+    def __enter__(self):
+        if _PROFILE:
+            self.t0 = time.perf_counter()
+        return self
+    def __exit__(self, *exc):
+        if _PROFILE:
+            _prof_add(self.label, time.perf_counter() - self.t0)
 
 
 def _apply_boot_safety_patches():
@@ -265,24 +325,141 @@ def _apply_boot_safety_patches():
     APLRemotePCIDevice.reset = _safe_reset
 
 
+def _install_inherited_tinygpu(tgpu_fd):
+    """
+    C++ dispatch: run tinygrad over the plugin's own TinyGPU.app connection
+    (inherited as tgpu_fd) instead of opening a second one. TinyGPU.app
+    serves one client at a time, and after cmd_handoff the C++ side writes
+    GPFIFO entries and doorbells on this same connection. The two sides never
+    use it at once, because every daemon command is synchronous. Also keeps a
+    dup of each MAP_SYSMEM_FD fd, which hcq1's alloc_sysmem closes right
+    after mapping it, so cmd_handoff can pass buffers to the C++ side.
+    """
+    import mmap, itertools
+    from tinygrad.helpers import ceildiv
+    from tinygrad.runtime.support import system
+    from tinygrad.runtime.support.hcq import FileIOInterface, MMIOInterface
+
+    class BeagleTinyGPUDevice(system.APLRemotePCIDevice):
+        def __init__(self, devpref, pcibus):
+            # No new connection and no lock file (APLRemotePCIDevice/RemotePCIDevice.__init__).
+            self.sock = socket.socket(fileno=os.dup(tgpu_fd))
+            for buft in (socket.SO_SNDBUF, socket.SO_RCVBUF): self.sock.setsockopt(socket.SOL_SOCKET, buft, 64 << 20)  # as RemotePCIDevice
+            self.pcibus, self.dev_id, self.peer_group, self.lock_fd = "usb4", 0, "usb4", None
+            self.sysmem_fds = {}  # host address of a sysmem mapping -> dup of its fd
+
+        def alloc_sysmem(self, size, vaddr=0, contiguous=False):
+            # APLRemotePCIDevice.alloc_sysmem, plus the fd dup.
+            mapped_size, _, _, fd = self._rpc(self.sock, self.dev_id, system.RemoteCmd.MAP_SYSMEM_FD, size, int(contiguous), has_fd=True)
+            keep = os.dup(fd)
+            memview = MMIOInterface(FileIOInterface(fd=fd).mmap(0, mapped_size, mmap.PROT_READ | mmap.PROT_WRITE, mmap.MAP_SHARED, 0),
+                                    mapped_size, fmt='B')
+            self.sysmem_fds[memview.addr] = keep
+            paddrs_raw = list(itertools.takewhile(lambda p: p[1] != 0, zip(memview.view(fmt='Q')[0::2], memview.view(fmt='Q')[1::2])))
+            return memview, [p + i for p, sz in paddrs_raw for i in range(0, sz, 0x1000)][:ceildiv(size, 0x1000)]
+
+    system.APLRemotePCIDevice = BeagleTinyGPUDevice  # System.list_devices looks the name up at call time
+
+
+# ── C++ dispatch handoff (TODO.md "Runtime roadmap", Step 3). After
+# cmd_handoff the C++ side builds QMDs and pushbuffers itself and submits both
+# GPFIFOs over the shared TinyGPU.app connection. build_handoff describes
+# everything its encoder (TinyGPUHybridNVDispatch.h) needs, taken from the
+# same tinygrad objects and tables hcq1 would have used, so the two cannot
+# drift apart: QMD field positions, method and flag words, GPFIFO/doorbell
+# BAR offsets, the C++ side's buffers, and per kernel the QMD template and
+# cbuf0 prefix. ─────────────────────────────────────────────────────────────
+_NO_DIMS = 0xffffffff
+
+
+def build_handoff(dev, progs, bufs):
+    from tinygrad.helpers import round_up
+    nv_gpu, nv_flags = ops_nv.nv_gpu, ops_nv.nv_flags
+    qmd = ops_nv.QMD(dev)
+    fields, v5 = ops_nv.QMD.fields[qmd.pref], qmd.ver >= 4
+    def bits(name): return fields[name.upper()]           # (hi, lo), for QMD._rw_bits
+    def byte(name): return fields[name.upper()][1] // 8   # QMD.field_offset
+    info = {"qmd_ver": qmd.ver, "qmd_bytes": qmd.sz * 4,
+            # NVComputeQueue.exec/.signal write these as plain stores at byte offsets...
+            "q_grid": byte("grid_width" if v5 else "cta_raster_width"),
+            "q_block01": byte("cta_thread_dimension0"), "q_block2": byte("cta_thread_dimension2"),
+            "q_rel_addr": byte("release_semaphore0_addr_lower" if v5 else "release0_address_lower"),
+            "q_rel_payload": byte("release_semaphore0_payload_lower" if v5 else "release0_payload_lower"),
+            "q_cb_shift": 6 if v5 else 0}
+    # ...and these as bitfields
+    for key, name in (("cb_hi", "constant_buffer_addr_upper_shifted6_0" if v5 else "constant_buffer_addr_upper_0"),
+                      ("cb_lo", "constant_buffer_addr_lower_shifted6_0" if v5 else "constant_buffer_addr_lower_0"),
+                      ("rel_en", "release0_enable"), ("dep_ptr", "dependent_qmd0_pointer"),
+                      ("dep_action", "dependent_qmd0_action"), ("dep_prefetch", "dependent_qmd0_prefetch"),
+                      ("dep_enable", "dependent_qmd0_enable")):
+        info[f"q_{key}_hi"], info[f"q_{key}_lo"] = bits(name)
+    # method and flag words: NVCommandQueue.wait, NVComputeQueue.memory_barrier/exec, NVCopyQueue.copy/signal
+    info.update(m_sem_addr_lo=nv_gpu.NVC56F_SEM_ADDR_LO,
+                f_sem_acquire=nv_flags("NVC56F_SEM_EXECUTE", operation="acq_circ_geq", payload_size="64bit"),
+                m_invalidate=nv_gpu.NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI,
+                f_invalidate=nv_flags("NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI", instruction="true", global_data="true", constant="true"),
+                m_pcas_a=nv_gpu.NVC6C0_SEND_PCAS_A, m_pcas2_b=nv_gpu.NVC6C0_SEND_SIGNALING_PCAS2_B,
+                m_dma_offset_in_upper=nv_gpu.NVC6B5_OFFSET_IN_UPPER, m_dma_line_length_in=nv_gpu.NVC6B5_LINE_LENGTH_IN,
+                m_dma_launch=nv_gpu.NVC6B5_LAUNCH_DMA, m_dma_sem_a=nv_gpu.NVC6B5_SET_SEMAPHORE_A,
+                f_dma_copy=nv_flags("NVC6B5_LAUNCH_DMA", data_transfer_type="non_pipelined", src_memory_layout="pitch",
+                                    dst_memory_layout="pitch"),
+                f_dma_sem=nv_flags("NVC6B5_LAUNCH_DMA", flush_enable="true", semaphore_type="release_four_word_semaphore"))
+    # GPFIFOs and doorbell as TinyGPU.app BAR offsets (NVCommandQueue._submit_to_gpfifo)
+    for key, fifo in (("c", dev.compute_gpfifo), ("d", dev.dma_gpfifo)):
+        info.update({f"{key}_ring_bar": fifo.ring.residx, f"{key}_ring_off": fifo.ring.off, f"{key}_gpput_bar": fifo.gpput.residx,
+                     f"{key}_gpput_off": fifo.gpput.off, f"{key}_entries": fifo.entries_count, f"{key}_put": fifo.put_value,
+                     f"{key}_token": fifo.token})
+    info.update(db_bar=dev.gpu_mmio.residx, db_off=dev.gpu_mmio.off + 0x90)
+    for name, b in bufs.items():
+        info[f"{name}_va"], info[f"{name}_size"] = b.va_addr, b.size
+    # per kernel: 7 x u32 header, name, QMD template, cbuf0 prefix (launch-dims words zeroed: C++ fills them per launch)
+    blob = bytearray()
+    for p in progs:
+        if p.qmd.read("release0_enable"): raise RuntimeError(f"{p.name}: QMD template already uses release0")
+        if p.lcmem_usage > dev.slm_per_thread: raise RuntimeError(f"{p.name}: needs more local memory than was set up")
+        prefix = list(p.cbuf_0)
+        if p._dims_idx is not None:
+            for i in range(3): prefix[p._dims_idx[0] + i] = prefix[p._dims_idx[1] + i] = 0
+        dims = p._dims_idx if p._dims_idx is not None and p.fill_launch_dims else (_NO_DIMS, _NO_DIMS)
+        name = p.name.encode()
+        blob += struct.pack("<7I", len(name), round_up(p.constbufs[0][1], 1 << 8), p.kernargs_alloc_size, len(prefix),
+                            dims[0], dims[1], p.max_threads)
+        blob += name + bytes(p.qmd.mv) + struct.pack(f"<{len(prefix)}I", *prefix)
+    info["nkernels"] = len(progs)
+    return info, bytes(blob)
+
+
 class Daemon:
-    def __init__(self, sock):
+    def __init__(self, sock, tgpu_fd=None):
         self.sock = sock
+        self.tgpu_fd = tgpu_fd    # the C++ side's TinyGPU.app connection (C++ dispatch only)
+        self.handed_off = False   # set by cmd_handoff: the C++ side owns both GPFIFOs from then on
         self.dev = None
         self.elf_bytes = None     # last-compiled multi-kernel ELF (real ptxas cubin)
         self.kernel_names = set() # names found in elf_bytes, for GetFunction-style validation
         self.programs = {}        # (name, n_int_args) -> NVProgram
         self._allocs = {}
 
-    # ── wire I/O (identical to amd_dispatch_daemon.py) ──────────────────────
-    def recv_line(self):
-        buf = b""
-        while not buf.endswith(b"\n"):
-            chunk = self.sock.recv(1)
-            if not chunk:
-                return None
-            buf += chunk
-        return buf.decode()
+    def _check_queues_owned(self):
+        # After cmd_handoff, submitting from here too would corrupt the C++ side's GPFIFO and timeline state.
+        if self.handed_off:
+            raise RuntimeError("the GPU queues belong to the C++ side after handoff")
+
+    # ── wire I/O: each JSON message is preceded by its length as a 4-byte
+    # little-endian uint32, so a message is two reads instead of one recv()
+    # per byte (the newline framing amd_dispatch_daemon.py still uses cost
+    # ~88 us per message, TODO.md "Runtime roadmap", Step 2) ────────────────
+    def recv_msg(self):
+        hdr = self.sock.recv(4)
+        if not hdr:
+            return None
+        t0 = time.perf_counter() if _PROFILE else None  # after the first bytes: excludes waiting for the next command
+        if len(hdr) < 4:
+            hdr += self.recv_exact(4 - len(hdr))
+        body = self.recv_exact(struct.unpack("<I", hdr)[0])
+        if _PROFILE:
+            _prof_add("wire.recv_msg", time.perf_counter() - t0)
+        return body
 
     def recv_exact(self, n):
         buf = bytearray()
@@ -294,15 +471,19 @@ class Daemon:
         return bytes(buf)
 
     def send_json(self, obj):
-        self.sock.sendall((json.dumps(obj) + "\n").encode())
+        body = json.dumps(obj).encode()
+        self.sock.sendall(struct.pack("<I", len(body)) + body)
 
     # ── commands ──────────────────────────────────────────────────────────
     def cmd_boot(self, req):
         _apply_boot_safety_patches()
+        if self.tgpu_fd is not None:
+            _install_inherited_tinygpu(self.tgpu_fd)
         DEV.value = "NV"
         from tinygrad import Device
         self.dev = Device["NV:0"]
         log(f"booted — {self.dev}, arch={self.dev.arch}")
+        log(f"launch_batch: {'one chained queue per batch' if _CHAIN_LAUNCHES else 'one queue per launch (BEAGLE_NV_CHAIN_LAUNCHES=0)'}")
 
         # Real per-kernel ELFs below come from ptxas, never tinygrad's NAK
         # (Mesa/Rust) compiler backend — NVProgram.__init__ branches on
@@ -357,23 +538,53 @@ class Daemon:
             self.programs[key] = BeagleNVProgram(self.dev, obj)  # see class docstring: fixes constbuf0's kernel-name filtering
         return self.programs[key]
 
+    def cmd_handoff(self, req):
+        if self.tgpu_fd is None:
+            raise RuntimeError("handoff needs the C++ side's TinyGPU.app connection (second argument)")
+        dev = self.dev
+        # Every program is prepared now, while this daemon still owns the
+        # queues: program uploads and local-memory setup both submit GPU work.
+        progs = [self._get_program(name, 0) for name in sorted(self.kernel_names)]
+        dev.synchronize()
+        from tinygrad.device import BufferSpec
+        self._handoff_bufs = bufs = {  # C++ gets their fds in this order
+            "cmdq": dev.allocator.alloc(2 << 20, BufferSpec(cpu_access=True)),      # pushbuffers of both queues
+            "kargs": dev.allocator.alloc(16 << 20, BufferSpec(cpu_access=True)),    # kernargs slots: cbuf0 + args, then the QMD
+            "staging": dev.allocator.alloc(16 << 20, BufferSpec(cpu_access=True)),  # h2d/d2h bounce buffer
+            "signal": dev.allocator.alloc(0x1000, BufferSpec(host=True, uncached=True, cpu_access=True))}  # C++ timeline
+        bufs["signal"].cpu_view().view(0, 16, 'B')[:] = bytes(16)  # TinyGPU.app leaves the DMA segment list here
+        fds = [dev.iface.pci_dev.sysmem_fds[b.cpu_view().addr] for b in bufs.values()]
+        info, blob = build_handoff(dev, progs, bufs)
+        info.update(ok=True, blob_size=len(blob), nfds=len(fds))
+        self.send_json(info)
+        self.sock.sendall(blob)
+        socket.send_fds(self.sock, [b"F"], fds)
+        self.handed_off = True
+        log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}, " +
+            ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()))
+
     def cmd_alloc(self, req):
         buf = self.dev.allocator.alloc(req["size"])
         self.send_json({"ok": True, "addr": buf.va_addr})
         self._allocs[buf.va_addr] = buf  # keep alive, prevent GC/free
 
     def cmd_h2d(self, req):
+        self._check_queues_owned()
         n = req["size"]
-        data = self.recv_exact(n)
+        with _Profiled("h2d.recv_payload"):
+            data = self.recv_exact(n)
         buf = HCQBuffer(req["addr"], n)
-        self.dev.allocator._copyin(buf, memoryview(bytearray(data)))
+        with _Profiled("h2d._copyin"):
+            self.dev.allocator._copyin(buf, memoryview(bytearray(data)))
         self.send_json({"ok": True})
 
     def cmd_d2h(self, req):
+        self._check_queues_owned()
         n = req["size"]
         buf = HCQBuffer(req["addr"], n)
         out = memoryview(bytearray(n))
-        self.dev.allocator._copyout(out, buf)
+        with _Profiled("d2h._copyout"):
+            self.dev.allocator._copyout(out, buf)
         self.send_json({"ok": True, "size": n})
         self.sock.sendall(bytes(out))
 
@@ -387,38 +598,68 @@ class Daemon:
         # here always uses wait=False, and tinygrad's own
         # _copyin/_copyout/synchronize already call self.dev.synchronize()
         # internally before touching memory).
+        #
+        # By default the whole batch is one compute queue: one timeline wait
+        # and shader-cache invalidate, then each kernel's exec, which chains
+        # its QMD onto the previous one (NVComputeQueue.exec's dependent_qmd0;
+        # hcq1's HCQGraph relies on the same in-queue ordering between
+        # dependent kernels), then one signal and one submit. That is
+        # HCQProgram.__call__ with N execs instead of one, and one GPFIFO
+        # entry and doorbell per batch instead of per launch (TODO.md
+        # "Runtime roadmap", Step 2). BEAGLE_NV_CHAIN_LAUNCHES=0 submits each
+        # launch on its own queue, as before.
+        self._check_queues_owned()
         launches = req["launches"]
+        q = None
+        if _CHAIN_LAUNCHES and launches:
+            q = self.dev.hw_compute_queue_t().wait(self.dev.timeline_signal, self.dev.timeline_value - 1).memory_barrier()
         for i, item in enumerate(launches):
             kernel_name = item["kernel"]
             ptrs = item["ptrs"]
             ints = item["ints"]
-            grid = item["grid"]
-            block = item["block"]
+            grid = tuple(item["grid"])
+            block = tuple(item["block"])
             try:
-                prg = self._get_program(kernel_name, len(ints))
+                with _Profiled("launch.get_program"):
+                    prg = self._get_program(kernel_name, len(ints))
                 bufs = tuple(HCQBuffer(addr, 0) for addr in ptrs)
-                prg(*bufs, global_size=tuple(grid), local_size=tuple(block), vals=tuple(ints), wait=False)
+                if q is None:
+                    with _Profiled("launch.prg"):
+                        prg(*bufs, global_size=grid, local_size=block, vals=tuple(ints), wait=False)
+                else:
+                    with _Profiled("launch.exec"):
+                        prg.check_launch(grid, block)
+                        prg.set_launch_dims(grid, block)
+                        q.exec(prg, prg.fill_kernargs(bufs, tuple(ints)), grid, block)
             except Exception as e:
                 self.send_json({"ok": False, "error": f"launch_batch[{i}] {kernel_name}: {e}"})
                 return
+        if q is not None:
+            with _Profiled("launch.submit"):
+                q.signal(self.dev.timeline_signal, self.dev.next_timeline()).submit(self.dev)
         self.send_json({"ok": True, "count": len(launches)})
 
     def cmd_sync(self, req):
+        self._check_queues_owned()
         self.dev.synchronize()
         self.send_json({"ok": True})
 
     def cmd_fini(self, req):
+        if _PROFILE:
+            _prof_report()
         self.send_json({"ok": True})
 
     def run(self):
         while True:
-            line = self.recv_line()
-            if line is None:
+            msg = self.recv_msg()
+            if msg is None:
                 break
-            req = json.loads(line)
+            with _Profiled("wire.json_loads"):
+                req = json.loads(msg)
             cmd = req.get("cmd")
             try:
-                getattr(self, f"cmd_{cmd}")(req)
+                with _Profiled(f"cmd.{cmd}"):
+                    getattr(self, f"cmd_{cmd}")(req)
             except Exception as e:
                 import traceback
                 traceback.print_exc(file=sys.stderr)
@@ -429,20 +670,20 @@ class Daemon:
 
 def main():
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <cmd_sock_fd>", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <cmd_sock_fd> [<tinygpu_sock_fd>]", file=sys.stderr)
         sys.exit(1)
-    import socket
     cmd_fd = int(sys.argv[1])
+    tgpu_fd = int(sys.argv[2]) if len(sys.argv) > 2 else None
     sock = socket.socket(fileno=cmd_fd)
 
     os.makedirs(os.path.expanduser("~/Library/Logs"), exist_ok=True)
     log_path = os.path.expanduser("~/Library/Logs/nv_dispatch_daemon.log")
     fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_SYNC, 0o644)
     sys.stderr = os.fdopen(fd, 'w', buffering=1)
-    log(f"starting, cmd_fd={cmd_fd}")
+    log(f"starting, cmd_fd={cmd_fd}" + (f", tinygpu_fd={tgpu_fd} (C++ dispatch)" if tgpu_fd is not None else ""))
 
     try:
-        Daemon(sock).run()
+        Daemon(sock, tgpu_fd).run()
     except Exception:
         import traceback
         traceback.print_exc(file=sys.stderr)
