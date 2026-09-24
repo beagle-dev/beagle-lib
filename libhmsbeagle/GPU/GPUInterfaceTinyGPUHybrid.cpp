@@ -69,13 +69,20 @@ static int tg_open_socket() {
 
     // Mirror tinygrad's APLRemotePCIDevice.__init__: try connect; on first
     // failure launch "TinyGPU server <path>" in background, then retry.
+    // BEAGLE_TINYGPU_NO_LAUNCH=1 (offline tests against a fake TinyGPU.app,
+    // libhmsbeagle/GPU/tinygpu_tests): never start the real app; fail instead.
     static const char* kAppPath = "/Applications/TinyGPU.app/Contents/MacOS/TinyGPU";
+    const char* no_launch = getenv("BEAGLE_TINYGPU_NO_LAUNCH");
     for (int i = 0; i < 100; ++i) {
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) { perror("TinyGPU socket"); return -1; }
         if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0)
             return fd;
         close(fd);
+        if (no_launch && no_launch[0] && strcmp(no_launch, "0") != 0) {
+            fprintf(stderr, "TinyGPU: nothing is listening at %s and BEAGLE_TINYGPU_NO_LAUNCH is set; not starting TinyGPU.app\n", path);
+            return -1;
+        }
         if (i == 0) {
             // Spawn TinyGPU in server mode (detached child).
             pid_t pid = fork();

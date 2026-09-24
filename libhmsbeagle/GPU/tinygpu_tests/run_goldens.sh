@@ -1,0 +1,15 @@
+#!/bin/bash
+# Offline golden tests: each C++ port against the tinygrad (hcq1) code it follows, byte for byte, plus the daemon's
+# wire protocol. No GPU, no socket to TinyGPU.app. Needs the generated kernels header (TinyGPUKernels build target),
+# the pinned tinygrad at $TINYGRAD_PATH, and cached cubins in $BEAGLE_TINYGPU_DATA/cubins (compiled once with
+# ptxas through nv_compile_helper.compile_ptx if missing).
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+fail=0
+for t in golden_encode golden_runtime golden_program test_daemon_wire; do
+    echo "== $t"
+    "$BEAGLE_PYTHON" "$TG_TESTS/$t.py" > "$TINYGPU_TEST_WORK/$t.log" 2>&1
+    rc=$?
+    grep -vE "launch-dims fill|\[profile\]" "$TINYGPU_TEST_WORK/$t.log" | tail -8
+    [ $rc -eq 0 ] || { echo "   FAILED (exit $rc; log: $TINYGPU_TEST_WORK/$t.log)"; fail=1; }
+done
+exit $fail
