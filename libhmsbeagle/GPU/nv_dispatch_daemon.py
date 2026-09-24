@@ -3,17 +3,15 @@
 nv_dispatch_daemon.py — BEAGLE NV hybrid backend, daemon architecture
 (STATUS.md §73/§75).
 
-Three individually-clean SASS/PTX-level probes (STATUS.md §65-72) failed to
-reproduce the wrong-answer bug in GPUInterfaceTinyGPUHybrid.cpp's hand-rolled
-GPFIFO/QMD dispatch — "the defect must depend on something these probes
-structurally cannot reproduce." STATUS.md §74's `nv_reference_test.py`
-confirmed (hardware-verified PASS) that tinygrad's own real NVDevice/
-NVProgram/HCQProgram.__call__ stack works correctly end to end on this exact
-hardware/transport. This is the same architecture class that resolved the
-AMD hybrid backend's own crash-class bugs (amd_dispatch_daemon.py) — real
-GPU operations (boot, compile, alloc, memcpy, launch, sync) move entirely
-into a resident Python daemon driving tinygrad's proven code, and
-GPUInterfaceTinyGPUHybridNV.cpp becomes a thin RPC client.
+Replaces GPUInterfaceTinyGPUHybrid.cpp's hand-rolled GPFIFO/QMD dispatch
+(now the legacy path, BEAGLE_NV_USE_DAEMON=0) and is the default NV path.
+Real GPU operations (boot, compile, alloc, memcpy, launch, sync) run in this
+resident daemon on tinygrad's NVDevice/NVProgram/HCQProgram.__call__, the
+same architecture as amd_dispatch_daemon.py, and
+GPUInterfaceTinyGPUHybridNV.cpp is a thin RPC client. The wrong-answer bug
+that motivated the move was not dispatch-specific: no path, tinygrad's
+NVProgram included, wrote the cbuf0 launch-dims words, and
+BeagleNVProgram.__call__ now does (TODO.md Phase 140, STATUS.md §203).
 
 Smaller gap than the AMD port in one real way, but not zero: AMDProgram
 assumes one kernel per compiled ELF (BeagleAMDProgram patches around that,
@@ -30,7 +28,7 @@ one-line fix, same technique as BeagleAMDProgram.
 Protocol: identical wire format to amd_dispatch_daemon.py — newline-
 terminated JSON command lines on a dedicated socketpair (not the TinyGPU
 socket: NVDevice("NV:0") makes its own connection internally, exactly like
-nv_reference_test.py's hardware-verified boot). Commands carrying bulk data
+STATUS.md §74's hardware-verified boot). Commands carrying bulk data
 (h2d/d2h) are followed immediately by that many raw bytes on the same
 stream. Kernel launches are batched from the start this time (cmd_launch_batch
 only, no per-launch cmd_launch) — AMD's own profiling (STATUS.md AMD §26)
@@ -228,27 +226,6 @@ class BeagleNVProgram(ops_nv.NVProgram):
 
         self.max_threads = ((65536 // round_up(max(1, self.regs_usage) * 32, 256)) // 4) * 4 * 32
 
-        # DIAGNOSTIC (TODO.md "PICK UP HERE" -> NV Phase 50, user-directed
-        # driver/queue-layer instrumentation, read-only half): log the QMD's
-        # own occupancy/CTA-scheduling-adjacent fields exactly as
-        # constructed, before this program ever launches anything. Purely
-        # observational -- .read() only, no .write() -- so this can never
-        # change real behavior; the point is to see whether fields like
-        # free_cta_slots_empty_sm (plausibly governs whether a freed CTA
-        # slot on an SM gets refilled once part of a grid's already
-        # running) are left at their zero/unset default (upstream
-        # NVProgram.__init__ never sets any of them) versus something
-        # unexpected. Wrapped in try/except: these field names are shared
-        # across QMD versions in nv_gpu's own autogen tables, but this must
-        # never be allowed to break a real launch if that ever isn't true.
-        try:
-            occ_fields = ['free_cta_slots_empty_sm', 'occupancy_max_register', 'occupancy_max_shared_mem',
-                          'occupancy_max_warp', 'pre_exit_at_last_cta_launch', 'enable_program_pre_exit', 'cta_launch_queue']
-            occ_vals = {f: self.qmd.read(f) for f in occ_fields}
-            log(f"QMD-occupancy-fields[{self.name}]: {occ_vals}")
-        except Exception as e:
-            log(f"QMD-occupancy-fields[{self.name}]: read failed: {e}")
-
         super(ops_nv.NVProgram, self).__init__(ops_nv.NVArgsState, self.dev, obj, kernargs_alloc_size=round_up(self.constbufs[0][1], 1 << 8) + (8 << 8))
         _weakref.finalize(self, self._fini, self.dev, self.lib_gpu, buf_spec)
 
@@ -267,50 +244,17 @@ class BeagleNVProgram(ops_nv.NVProgram):
         return super().__call__(*bufs, global_size=global_size, local_size=local_size, vals=vals, wait=wait, timeout=timeout)
 
 
-class BeagleNVComputeQueue(ops_nv.NVComputeQueue):
-    """
-    DIAGNOSTIC (TODO.md "PICK UP HERE" -> NV Phase 49, candidate (1)):
-    real, unmodified NVComputeQueue.exec, with one addition -- after the
-    real code encodes global_size/local_size into the just-submitted,
-    per-launch QMD buffer (ops_nv.py:135-157), read those exact fields
-    straight back out of that same buffer and log them. Confirms the real,
-    about-to-reach-hardware bytes for kernelMatrixMulADB's own launch
-    specifically carry grid=(16,1,1) -- not just that 16 was passed into
-    prg(...) (already logged elsewhere, cmd_launch_batch below) or that a
-    trivial probe kernel's dispatch of this same shape works (Phase 46,
-    nv_grid_test.py) -- closing the one remaining link in that chain this
-    investigation hadn't directly observed for the real, heavier kernel.
-    Installed via a plain instance-attribute monkeypatch on `dev` in
-    cmd_boot (`dev.hw_compute_queue_t = BeagleNVComputeQueue`) -- HCQProgram
-    .__call__ reads that attribute fresh on every launch (hcq.py:373), so
-    this takes effect for every kernel, not just kernelMatrixMulADB; logging
-    is unconditional (cheap, one line per launch) rather than name-gated, so
-    a hardware run can also see whether *other* kernels' encoded grids ever
-    diverge from what was requested -- new information either way.
-    """
-    def exec(self, prg, args_state, global_size, local_size):
-        super().exec(prg, args_state, global_size, local_size)
-        q = self.active_qmd
-        gw = q.read('grid_width' if q.ver >= 4 else 'cta_raster_width')
-        gh = q.read('grid_height' if q.ver >= 4 else 'cta_raster_height')
-        gd = q.read('grid_depth' if q.ver >= 4 else 'cta_raster_depth')
-        log(f"QMD[{prg.name}]: encoded grid=({gw},{gh},{gd}) (requested global_size={tuple(global_size)})")
-        return self
-
-
 def log(msg):
     print(f"[nv_dispatch_daemon] {msg}", file=sys.stderr, flush=True)
 
 
 def _apply_boot_safety_patches():
     """
-    Same two fixes nv_reference_test.py already verified on hardware
-    (STATUS.md §74, PASS) — see that file's header for the full rationale of
-    each. Duplicated here (not imported from there) because
-    nv_reference_test.py is a standalone diagnostic script, not a shared
-    module other scripts import from; both call sites are short and this
-    project's convention (amd_2d_test.py, amd_math_test.py, ...) is for each
-    standalone script to be self-contained.
+    Boot-safety patches for the macOS TinyGPU eGPU, hardware-verified in
+    STATUS.md §74: importing nv_init_helper applies its GSP/RM boot patches
+    as a module side effect, and APLRemotePCIDevice.reset (a PCIe FLR, which
+    panics macOS over USB4) becomes a no-op. Rationale: nv_init_helper.py's
+    InheritedFDPCIDevice.reset().
     """
     import nv_init_helper  # noqa: F401 — GSP/RM boot patches (WPR2-reset-loop
     # suppression, palloc zero-size limit, GC6 BSI sleep) applied as a module-
@@ -359,23 +303,6 @@ class Daemon:
         from tinygrad import Device
         self.dev = Device["NV:0"]
         log(f"booted — {self.dev}, arch={self.dev.arch}")
-        # DIAGNOSTIC (TODO.md "PICK UP HERE" -> NV Phase 51): read-only,
-        # interprets Phase 50's SMID=0-for-every-running-block finding.
-        # num_gpcs/num_tpc_per_gpc/num_sm_per_tpc are real values NVDevice
-        # itself already queries live from this exact chip at boot
-        # (ops_nv.py:628) -- their product is the chip's own reported total
-        # SM count. If that's well above 1 (expected for any real discrete
-        # Blackwell GPU) but every observed CTA still lands on SM 0, that
-        # argues for a CTA-routing/enablement gap specific to this
-        # from-scratch driver stack, not "this GPU genuinely has ~1 SM".
-        log(f"GPU topology: num_gpcs={self.dev.num_gpcs} num_tpc_per_gpc={self.dev.num_tpc_per_gpc} "
-            f"num_sm_per_tpc={self.dev.num_sm_per_tpc} max_warps_per_sm={self.dev.max_warps_per_sm} "
-            f"total_sms={self.dev.num_gpcs * self.dev.num_tpc_per_gpc * self.dev.num_sm_per_tpc}")
-        # DIAGNOSTIC (see BeagleNVComputeQueue's own docstring above):
-        # HCQProgram.__call__ reads dev.hw_compute_queue_t fresh on every
-        # launch (hcq.py:373), so this plain instance-attribute monkeypatch
-        # is enough -- no need to touch NVDevice's own construction.
-        self.dev.hw_compute_queue_t = BeagleNVComputeQueue
 
         # Real per-kernel ELFs below come from ptxas, never tinygrad's NAK
         # (Mesa/Rust) compiler backend — NVProgram.__init__ branches on
@@ -428,14 +355,6 @@ class Daemon:
             signature = tuple((None, i, dtypes.uint32, ()) for i in range(n_int_args))
             obj = TinyELF(lib=self.elf_bytes, name=name, target=Target(), signature=signature)
             self.programs[key] = BeagleNVProgram(self.dev, obj)  # see class docstring: fixes constbuf0's kernel-name filtering
-            # DIAGNOSTIC (TODO.md Phase 48/STATUS.md §85): confirm what the
-            # regs_usage/lcmem_usage fix above actually resolves to for this
-            # kernel, on this run -- print unconditionally (cheap, one line
-            # per distinct kernel/n_int_args the whole run ever launches) so
-            # a hardware run's own output settles "did the fix take effect"
-            # and "what did it resolve to" without guessing.
-            p = self.programs[key]
-            log(f"BeagleNVProgram[{name}]: regs_usage={p.regs_usage} shmem_usage={p.shmem_usage} lcmem_usage={p.lcmem_usage}")
         return self.programs[key]
 
     def cmd_alloc(self, req):
@@ -446,19 +365,6 @@ class Daemon:
     def cmd_h2d(self, req):
         n = req["size"]
         data = self.recv_exact(n)
-        # Diagnostic (STATUS.md §80/TODO.md Phase 44 follow-up): log every
-        # h2d target address/size, and for small buffers (<=256 bytes --
-        # covers e.g. kernelMatrixMulADB's listC/distanceQueue, not the much
-        # larger partials/matrix buffers) the actual uploaded uint32 values
-        # too. Lets the next hardware run show directly whether a small
-        # metadata buffer like listC really got its full, correct content
-        # uploaded, without guessing from kernel behavior alone.
-        if n <= 256 and n % 4 == 0:
-            import struct as _struct
-            vals = _struct.unpack(f"<{n // 4}I", data)
-            log(f"h2d addr={req['addr']:#x} size={n} values={vals}")
-        else:
-            log(f"h2d addr={req['addr']:#x} size={n}")
         buf = HCQBuffer(req["addr"], n)
         self.dev.allocator._copyin(buf, memoryview(bytearray(data)))
         self.send_json({"ok": True})
@@ -488,12 +394,6 @@ class Daemon:
             ints = item["ints"]
             grid = item["grid"]
             block = item["block"]
-            # Diagnostic (STATUS.md §79/TODO.md Phase 43): log exactly what
-            # reached prg(...) after the JSON round-trip, so a C++-side log
-            # line and this one can be compared directly to rule out (or
-            # confirm) a serialization-layer mismatch, not just assume the
-            # C++ send is the ground truth.
-            log(f"launch {kernel_name} global_size={tuple(grid)} local_size={tuple(block)} vals={tuple(ints)}")
             try:
                 prg = self._get_program(kernel_name, len(ints))
                 bufs = tuple(HCQBuffer(addr, 0) for addr in ptrs)
@@ -501,19 +401,6 @@ class Daemon:
             except Exception as e:
                 self.send_json({"ok": False, "error": f"launch_batch[{i}] {kernel_name}: {e}"})
                 return
-            # Opt-in diagnostic (TODO.md "PICK UP HERE" -> NV Phase 70):
-            # Phase 69 already ruled out multi-kernel wait=False batching
-            # as sufficient on its own (a from-scratch probe reproducing
-            # this exact 5-kernel queuing pattern stayed clean) -- this
-            # tests the same question from the *other* direction, inside
-            # the real pipeline itself: does forcing kernelMatrixMulADB to
-            # finish (a real dev.synchronize()) before anything else is
-            # queued behind it change the real run's own result? Opt-in,
-            # env-gated, reversible; unconditional wait=False (the
-            # established default) whenever the env var is unset.
-            if kernel_name == "kernelMatrixMulADB" and os.environ.get("BEAGLE_NV_SYNC_AFTER_MATMUL"):
-                log("BEAGLE_NV_SYNC_AFTER_MATMUL set -- synchronizing immediately after kernelMatrixMulADB")
-                self.dev.synchronize()
         self.send_json({"ok": True, "count": len(launches)})
 
     def cmd_sync(self, req):

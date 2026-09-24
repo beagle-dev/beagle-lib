@@ -1,25 +1,11 @@
 #!/usr/bin/env python3
 """
-nv_real_kernel_probe.py -- TODO.md "PICK UP HERE" -> NV Phase 68.
-
-Every synthetic reconstruction attempted since Phase 47 (broadcast probe,
-footprint sweep, combo probe, SFU probe, dist+exp probe -- Phases 49-67,
-nv_broadcast_probe.py through nv_distexp_probe.py) has failed to reproduce
-the real kernel's `Ds[2]` residual, even variants matching its resource
-footprint, branch shape, broadcast+barrier+burst structure, SFU
-instructions, and an all-256-threads data-dependent global load, alone and
-combined. This replaces "reconstruct pieces of the real kernel
-synthetically" with "compile and dispatch the actual real kernel source,
-just faster": `kernels4.cu` (the real, unmodified production file,
-`#include`-ing `kernelsAll.cu`) compiled directly via the real `nvcc`
-shim, dispatched via the same `BeagleNVProgram` class the daemon uses,
-with real input buffers matching `tinygpuhybridtest --diag-matmul-ground-
-truth`'s exact setup -- bypassing BEAGLE's C++/daemon RPC pipeline
-entirely. No C++ rebuild, no `sudo cmake --install`, no daemon spawn per
-experiment: a new bisection is just a different macro list (and, for
-source-level experiments, an edit to one of kernelsAll.cu's existing
-opt-in `FW_TINYGPU`-gated blocks, exactly as before) and a re-run of this
-one script.
+nv_real_kernel_probe.py -- compiles the real kernels4.cu (+kernelsAll.cu) with
+nvcc -DCUDA -DFW_TINYGPU, exactly as make_tinygpu_kernels.sh does, and
+dispatches kernelMatrixMulADB, alone or with the other four pipeline
+kernels, through nv_dispatch_daemon.BeagleNVProgram on a tinygrad NVDevice
+-- no C++ build, no daemon RPC. History: TODO.md Phases 68-140; root cause
+of the NV bug (unpopulated cbuf0 launch dims) in STATUS.md §203.
 
 Real inputs, verified against the actual source (not guessed):
   - A (dEvec), B (dIevc), D (dEigenValues): the *same* small buffers for
@@ -45,125 +31,25 @@ Real inputs, verified against the actual source (not guessed):
     launch log (`ints=[4,4,16]`), not guessed.
   - grid=(16,1,1) block=(16,16,1) -- the real launch shape.
 
-Default macros (`TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH` +
-`TINYGPU_BISECT_NO_EXP`) reproduce the exact known baseline: wMatrix 0-2
-all-zero, wMatrix>=3's Ds[2] stuck at -999, everything else correct.
-Running this once with no arguments and confirming that exact pattern is
-the acceptance test for the probe itself before trusting any new
-macro combination's result.
+Default macro: `TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH` (a per-block dbg[]
+scratch dump past the real matrices). A no-argument (solo) run reports
+`RESULT: PASS -- no sentinels remain` when every block ran.
 
-Ran (Phase 68, solo mode): the real kernel, dispatched alone, came back
-completely clean -- no reproduction. Traced the daemon's real dispatch
-path (`nv_dispatch_daemon.py`'s `cmd_launch_batch`) and found the one
-axis no probe has ever varied: the real pipeline queues *five* real
-kernels (`kernelMatrixMulADB`, two `kernelPartialsPartialsNoScale`,
-`kernelIntegrateLikelihoods`, `kernelSumSites1`) back-to-back with
-`wait=False` on the same hardware queue, synchronizing only once at the
-very end -- every probe including this one's solo mode launches exactly
-one kernel and syncs immediately after. `--batch` (Phase 69) reproduces
-that exact queuing pattern directly: real signatures, real grid/block
-shapes (read off a real hardware launch log, not guessed), correctly-
-sized-but-otherwise-arbitrary buffers for the four filler kernels (their
-own numerical correctness is irrelevant to this test -- only
-kernelMatrixMulADB's ground-truth dump is read back).
-
-Ran `--batch` (Phase 69): still completely clean -- rules out multi-kernel
-batching too. Compared (user's own direct instruction) exactly how real
-BEAGLE allocates and accesses transition matrices/eigendecompositions vs.
-this probe (`BeagleGPUImpl.hpp`'s constructor, line by line): `CreateSub-
-Pointer(base,off,_)` is pure `base+off` arithmetic on the NV/TinyGPU
-backend (`GPUInterfaceTinyGPUHybrid.cpp`) -- no separate allocation, no
-distinct descriptor, ruled out as a mechanism. `dMatricesOrigin`'s real
-size/scratch-region math turns out to match this probe's own `dmat`
-buffer exactly, byte for byte -- not a bug. What's real and never
-replicated: `beagleCreateInstance` allocates a *specific, ordered set* of
-~15 separate buffers (eigenvectors, eigenvalues, weights, frequencies,
-integration scratch, pattern weights, the *big* combined tip+internal+
-root partials origin -- ~295KB, by far the largest single real allocation
-this pipeline makes --, branch lengths, distance queue, pointer queue,
-derivative queue) *before* `kernelMatrixMulADB` ever launches, each sized
-via `AlignMemOffset` (256-byte-rounded stride). `--realloc` (Phase 70)
-replicates this exact set, in this exact order, with real (`AlignMemOffset`-
-matching) sizes -- and threads the filler kernels' own arguments through
-these real buffers the same way real BEAGLE actually chains them (e.g.
-`kernelIntegrateLikelihoods`' `dResult` really does feed `kernelSumSites1`'s
-`dArray` in the real pipeline; this probe now does the same), rather than
-disconnected ad-hoc buffers.
-
-Ran `--realloc` alone and `--batch --realloc` (Phase 70): both clean --
-memory allocation history, alone or combined with batching, is also ruled
-out. Every mechanically-identifiable dispatch-context/allocation
-difference this investigation could name has now been tested and found
-insufficient.
-
-Phase 71: user asked to double-check compilation/execution/argument
-parity against the real, installed library before trusting any of the
-above -- found and fixed one real, previously-unflagged discrepancy
-(`BASE_MACROS` was missing `TINYGPU_BISECT_NO_LISTC`, which the currently
--installed library carries from Phase 65's build); with it added, this
-probe's live `nvcc` compile is now byte-for-byte identical to the real,
-installed `KERNELS_STRING_SP_4` -- diffed directly, all 20101 PTX lines,
-not just kernelMatrixMulADB's. Execution (`BeagleNVProgram`'s
-construction, `_use_nvjitlink()`'s tool selection) and argument order/
-roles were independently re-verified against the real source and found
-identical (the real `compile_ptx_split`/per-kernel-tool-selection path is
-dead code for this test -- `cmd_launch_batch` never calls it).
-
-Also added `--logl` (Phase 71): computes an actual, real 3-taxon log-
-likelihood -- kernelMatrixMulADB's real transition matrices feed two
-real, correctly-chained `kernelPartialsPartialsNoScale` calls
-((Human,Chimp)->node3, (Gorilla,node3)->root, exactly BEAGLE's own real
-topology/argument mapping, read from `updatePartials`'s actual
-`dMatrices[child1TransMatIndex]`/`dPartials[child1Index]` source, not
-guessed), then real `kernelIntegrateLikelihoods` + `kernelSumSites1`,
-summed on the host -- comparable directly against `tinygpuhybridtest`'s
-own CPU reference (`-1498.89812`). A real correctness check, not another
-dispatch-context bisection.
-
-Ran `--logl` (real kernel) 4 times: every run FAILs (`logL=-inf`), but
-each run's own ground-truth dump (thread (0,0)'s view only) comes back
-completely clean -- exposing a real blind spot in every ground-truth
-probe since Phase 47 (it only ever samples one of 256 threads' stores).
-Reading the *real* `C[]` matrix directly (all 16 entries, not just
-thread (0,0)'s) across those 4 runs found two layered phenomena: which
-`wMatrix` blocks write *anything* is non-deterministic run to run, but
-`wMatrix` 4-11 (the middle half of `blockIdx.x` space) have never once
-produced data in any run -- only the two *ends* (0-3, 12-15) ever
-succeed. `--sweep [N]` (default `N=20`, Phase 71) automates this: one
-boot, one compile, then `N` fresh dispatches of just `kernelMatrixMulADB`
-in a tight in-process loop, tabulating per-`wMatrix` success rate and the
-distinct populated-sets seen, to test whether that "middle never runs"
-pattern is truly unconditional or just unlucky in a small sample.
-
-    python3 nv_real_kernel_probe.py [--batch] [--realloc] [--logl] [--logl-sweep [N]] [--sweep [N]] [--swap-cat01] [--wide-grid [N]] [--maxrregcount N] [--per-thread-ds | --per-thread-ds-w0 | --dummy-third-block | --per-thread-dummy-w0 | --per-thread-ds-min-w0 | --local-mem-w0 | --shared-spill-w0 | --local-mem-flat-w0 | --shared-broadcast-flat-w0 | --flat-dispatch] [EXTRA_MACRO ...]
+    python3 nv_real_kernel_probe.py [--dims-probe] [--batch] [--realloc] [--logl] [--logl-sweep [N]] [--sweep [N]] [--wide-grid [N]] [--chain-sweep N [--sync-each]] [--downstream-sweep [N]] [--maxrregcount N] [EXTRA_MACRO ...]
 
 Examples:
-    python3 nv_real_kernel_probe.py                                  # solo (Phase 68 baseline -- came back clean)
-    python3 nv_real_kernel_probe.py --batch                          # queued with 4 other real kernels, matching cmd_launch_batch (Phase 69 -- also clean)
-    python3 nv_real_kernel_probe.py --realloc                        # solo dispatch, but preceded by BEAGLE's real ~15-buffer allocation set/order (Phase 70 -- also clean)
-    python3 nv_real_kernel_probe.py --batch --realloc                # the closest real-pipeline replication this investigation has built (Phase 70 -- also clean)
-    python3 nv_real_kernel_probe.py --logl                           # real 3-taxon logL, compared against the CPU reference (Phase 71)
-    python3 nv_real_kernel_probe.py --sweep                          # 20 fresh kernelMatrixMulADB dispatches, per-wMatrix success-rate table (Phase 71)
-    python3 nv_real_kernel_probe.py --sweep 50                       # same, 50 iterations
-    python3 nv_real_kernel_probe.py --sweep --swap-cat01             # Phase 75/76: swaps which *value* wMatrix 4/8/12 vs 5/9/13 (cat=0 vs cat=1) get, wMatrix/SMID unchanged -- does the rare-extra-success pattern follow the value or stay pinned to the slot? (Phase 77: it's the slot.)
-    python3 nv_real_kernel_probe.py --sweep --wide-grid              # Phase 78: real kernel, 32 blocks instead of 16 (totalMatrix=32 too, stays in the same safe bx=0 path) -- does elevated reliability follow the SMID a wide-grid block lands on, or stay with its wMatrix-mod-16 identity? (Phase 79: it's the SMID -- 0/16 identical-data pairs matched.)
-    python3 nv_real_kernel_probe.py --sweep --wide-grid 64           # Phase 79's follow-up: a grid=32 launch used exactly SMID 0-31, no repeats -- 64 is 2 clean waves of 32 (if that's really the whole SM pool) rather than 48's uneven half-wave, the cleanest way to test whether a *repeated* visit to the same physical SM in a later wave reproduces that SM's known reliability
-    python3 nv_real_kernel_probe.py --sweep --maxrregcount 20        # Phase 85: real, unmodified kernel, ptxas capped to 20 registers (naturally 40 uncapped) -- forces local-memory spill, tests the register-pressure hypothesis Phase 84's trivial-kernel dial couldn't reach directly
-    python3 nv_real_kernel_probe.py --logl-sweep --maxrregcount 24   # Phase 88: a single --logl draw has no statistical power -- repeats the real 5-kernel chain 20x, reports a real PASS/FAIL/NaN rate instead of one draw's verdict
-    python3 nv_real_kernel_probe.py --sweep --maxrregcount 24        # Phase 90: --sweep now checks real CORRECTNESS (vs. the closed-form reference transition matrix), not just "wrote nonzero" -- every prior --sweep run only checked the latter, a real blind spot Phase 89's dead end exposed
-    python3 nv_real_kernel_probe.py --sweep 1 --per-thread-ds        # Phase 93: Phase 91/92 found row ty=0 (Ds[]'s writers) exactly correct, rows ty>0 (Ds[]'s readers) wrong -- this has every one of the 16 real threads write its own observed Ds[0..3], settling directly whether ty>0 threads see the same barrier-published Ds[] ty=0 wrote (Phase 94/95: faulted the real GPU, 100% reproducibly; buffer size suspected)
-    python3 nv_real_kernel_probe.py --sweep 1 --per-thread-ds-w0     # Phase 96: same diagnostic, wMatrix 0 only (dmat only 2304 bytes, close to the already-proven-safe baseline, vs. --per-thread-ds's 6144) -- tests whether buffer size was the operative variable behind Phase 94/95's fault before ever retrying the full version
-    python3 nv_real_kernel_probe.py --downstream-sweep               # Phase 99: kernelMatrixMulADB has faulted the real GPU three times (Phase 94-98) -- this substitutes KNOWN-CORRECT reference transition matrices directly into dMatrices and dispatches only PPNS/IL/SS (kernelMatrixMulADB is NEVER dispatched), isolating whether those three downstream kernels are themselves reliable given guaranteed-correct inputs, with zero risk from kernelMatrixMulADB's own fault-prone code path (Phase 99 result: 20/20 PASS, fully deterministic -- PPNS/IL/SS confirmed reliable, the bug is isolated to kernelMatrixMulADB itself)
-    python3 nv_real_kernel_probe.py --sweep 1 --dummy-third-block    # Phase 100: keeps TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH active and adds a brand-new, content-unrelated third post-barrier write (one thread/block writes a hardcoded constant, 4 bytes/block -- far smaller than Phase 96's already-small w0-only version) -- tests whether ANY third write block faults this kernel, independent of size, content, or combining with the per-thread-Ds diagnostics specifically (Phase 100 result: no fault, 16/16 correct -- rules out that broad hypothesis, points back toward the specific G+D combination or per-thread-Ds's own write granularity)
-    python3 nv_real_kernel_probe.py --sweep 1 --per-thread-dummy-w0  # Phase 101: isolates granularity from content -- all 16 real threads in wMatrix 0's block (matching --per-thread-ds's exact per-thread address pattern) each write a trivial, per-thread-identifiable value (their own (ty*EDGE+tx) index, not read from Ds[]/shared memory), same total footprint as Phase 100's dummy-third-block -- tests whether the many-threads-each-writing-their-own-slot pattern itself is what breaks this kernel, independent of shared-memory content (Phase 101 result: no fault, 16/16 correct -- rules out granularity too, narrows the live explanation to reading Ds[]/shared memory specifically)
-    python3 nv_real_kernel_probe.py --sweep 1 --per-thread-ds-min-w0 # Phase 102: the last single-variable swap -- same footprint/granularity as Phase 101 (16 real threads, wMatrix 0 only), but each thread now writes a real Ds[tx] shared-memory readback instead of a trivial local value -- isolates whether reading Ds[]/shared memory in this third, post-barrier context is what breaks this kernel (Phase 102 result: no fault -- but only 7/16 correct, not 16/16: the first direct, non-inferred hardware confirmation of the Ds[] broadcast-visibility hypothesis)
-    python3 nv_real_kernel_probe.py --sweep 20 --per-thread-ds-min-w0 # Phase 103: follows up on Phase 102's 7/16 finding with real statistical power (not just sweep=1) and a full per-(ty,tx)-slot breakdown, not just an aggregate rate -- directly tests whether ty=0 (Ds[]'s writer row) is consistently correct while ty>0 (readers) are consistently/inconsistently wrong, the same question Phase 91/92 could only answer indirectly from downstream C[] output (Phase 104 result under CUDA 13: byte-identical to v12.8, ruling out ptxas codegen)
-    python3 nv_real_kernel_probe.py --sweep 20 --local-mem-w0          # Phase 106: tests register-spilled LOCAL memory correctness, independent of Ds[]/shared memory (never tested before) -- each of the 16 real threads in wMatrix 0's block writes a per-thread-identifiable value into a genuinely-spilled 4-element local array (forced via a runtime-varying index, verified necessary), then reads it back; unlike Ds[], local memory is per-thread-private, so "correct" means each thread sees its own write, not another thread's (Phase 106 result: every ty>0 thread reads back precisely thread (0, tx+4ty)'s own value -- a genuine cross-thread local-memory aliasing pattern, arithmetic proven correct via SASS decode)
-    python3 nv_real_kernel_probe.py --sweep 20 --shared-spill-w0        # Phase 108: user's direct proposal -- use EXPLICIT shared memory instead of local memory for the same spill-and-reload pattern (source-controlled array indexing, not the driver's opaque per-thread stack pointer). Tests genuinely new territory: a ty>0 thread writing to its own uniquely-indexed shared slot and reading it back itself (same-thread round-trip) vs. Ds[]'s already-tested cross-thread (written-by-ty=0, read-by-ty>0) pattern (Phase 108 result: NO -- ty=0 20/20, every ty>0 slot 0/20, same shape as both Ds[] and local memory; the defect is triggered by ty>0 itself, not the storage class)
-    python3 nv_real_kernel_probe.py --sweep 20 --local-mem-flat-w0     # Phase 109: does the tx+4ty local-memory aliasing depend on the real 2D (16,16,1) block dispatch, or does it persist under a flat (256,1,1) block? Dispatches with local_size=(256,1,1); the kernel derives its own logical tx=flat%16 (fast/warp-local, matching tx's native role in As[ty][tx]), ty=flat/16 (slow) from the single flat threadIdx.x, then early-returns before the kernel's own "Last block" guard (which would otherwise do a genuine out-of-bounds As[ty][tx] write under this dispatch shape) -- confirmed via SASS that the dangerous code is fully dead-code-eliminated, not just skipped at runtime (Phase 109 result: 320/320 (100%) correct -- the biggest finding this investigation has produced; the defect is triggered by the real 2D blockDim.y>1 dispatch, not by ty>0 in the abstract)
-    python3 nv_real_kernel_probe.py --sweep 20 --shared-broadcast-flat-w0 # Phase 110: does Ds[]'s own broadcast-collapse bug (ty>0 readers see Ds[0]'s value regardless of index, Phase 90-103) ALSO disappear under a flat dispatch, the same way local memory's aliasing did? Same flat (256,1,1) dispatch and safety design as --local-mem-flat-w0, but tests the write-by-subset(logicalTy==0)/read-by-all shared-memory pattern via a dedicated sDs[16] array using the real Ds[]=exp(D[tx]*distance) formula (Phase 110 result: 320/320 (100%) correct, confirming both known defects share a common root cause tied to blockDim.y>1)
-    python3 nv_real_kernel_probe.py --sweep 20 --flat-dispatch          # Phase 111: the real fix, not another isolated diagnostic -- kernelMatrixMulADB now has a real rewrite gated behind FW_TINYGPU_HYBRID_NV (tx,ty derived from a single flat KW_LOCAL_ID_0, everything else in the kernel untouched). This flag compiles with that macro and dispatches with the matching flat (256,1,1) block, verified via --sweep's own existing real_matrices-vs-reference_matrices correctness check -- does the REAL kernel's real output become correct for the first time in this whole investigation?
-    python3 nv_real_kernel_probe.py --dims-probe                        # Phase 140: are the cbuf0 blockDim/gridDim words ever populated? Standalone kernel dispatched twice in one boot, launch-dims fill OFF then ON (BeagleNVProgram; everywhere else the fill is on by default, BEAGLE_NV_FILL_LAUNCH_DIMS=0 disables it)
+    python3 nv_real_kernel_probe.py                                  # solo: kernelMatrixMulADB alone, dbg[] sentinel check (Phase 68)
+    python3 nv_real_kernel_probe.py --batch                          # queued with the 4 other pipeline kernels, as cmd_launch_batch does (Phase 69)
+    python3 nv_real_kernel_probe.py --realloc                        # solo, after BEAGLE's real ~15-buffer allocation set/order (Phase 70)
+    python3 nv_real_kernel_probe.py --batch --realloc                # both (Phase 70)
+    python3 nv_real_kernel_probe.py --logl                           # real 3-taxon logL vs the CPU reference (Phase 71)
+    python3 nv_real_kernel_probe.py --logl-sweep 20                  # the 5-kernel logL chain 20x: PASS/FAIL/NaN rate (Phase 88)
+    python3 nv_real_kernel_probe.py --sweep 20                       # 20 dispatches: per-wMatrix correctness vs the closed-form matrix, per-SM tables (Phases 71/90)
+    python3 nv_real_kernel_probe.py --sweep --wide-grid 64           # --sweep with 64 blocks instead of 16 (default N=32; Phase 78)
+    python3 nv_real_kernel_probe.py --sweep --maxrregcount 20        # --sweep with ptxas capped at 20 registers (Phase 85)
+    python3 nv_real_kernel_probe.py --chain-sweep 2 --sync-each      # first N (1-5) pipeline stages 20x, drift check, sync after each stage (Phases 134/136)
+    python3 nv_real_kernel_probe.py --downstream-sweep               # PPNS/IL/SS only, fed reference matrices; kernelMatrixMulADB never dispatched (Phase 99)
+    python3 nv_real_kernel_probe.py --dims-probe                     # are the cbuf0 blockDim/gridDim words populated? fill OFF, then ON (Phase 140)
 """
 import sys, os, pathlib, struct, subprocess, time, math
 from collections import Counter, defaultdict
@@ -193,18 +79,11 @@ SENTINEL = -999.0
 # (possibly empty) message that exception carried be the only record.
 _dev_for_diagnostics = None
 
-# Default macros: matches the *currently-installed* real library exactly
-# (Phase 71 double-check: diffed this probe's own live nvcc compile
-# against the real, installed BeagleTinyGPU_kernels.h's embedded
-# KERNELS_STRING_SP_4 byte-for-byte -- kernelMatrixMulADB differed by 313
-# lines with TINYGPU_BISECT_NO_LISTC omitted, confirming the installed
-# library still carries it from Phase 65's build; with it included, the
-# *entire* compiled PTX file -- all kernels, 20101 lines -- is identical).
-# TINYGPU_BISECT_NO_LISTC was already proven functionally inert for the
-# Ds[2] residual (Phase 65 hardware result), so this doesn't change any
-# prior finding's validity -- it just makes future comparisons exact.
-# Extra macros from argv are appended.
-BASE_MACROS = ["TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH", "TINYGPU_BISECT_NO_EXP", "TINYGPU_BISECT_NO_LISTC"]
+# Default macro: TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH (kernelsAll.cu) writes
+# a per-block dbg[] slot (csub0, As/Bs row/col 0, Ds[0..3], %smid) past the
+# real matrices -- read by --sweep's SMID tables, --logl's failure dump and
+# the solo/--batch/--realloc sentinel check. Extra macros from argv are appended.
+BASE_MACROS = ["TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH"]
 
 # ---- Real JC69 + 4-category discrete Gamma model, byte-for-byte from
 # ---- tinygpuhybridtest.cpp's useDnaModel branch. ----
@@ -251,53 +130,6 @@ def reference_transition_matrix(distance):
             P[STATE_COUNT * ty + tx] = sum(EVEC[STATE_COUNT * ty + k] * ds[k] * IVEC[STATE_COUNT * k + tx]
                                             for k in range(STATE_COUNT))
     return P
-
-
-def local_mem_expected(ty, tx, total_matrix):
-    """TODO.md Phase 106: replicates kernelsAll.cu's TINYGPU_DEBUG_DUMP_
-    LOCAL_MEM_W0 index recurrence exactly (idx = tx%4, then 16 iterations
-    of idx = (idx+totalMatrix+i)%4) to determine which of spillTest[]'s 4
-    slots is read back after the loop, and what value that thread itself
-    wrote there (1000+ty*100+tx*10+idx -- the value formula only depends
-    on the slot index, not which iteration wrote it, so knowing the final
-    idx is sufficient)."""
-    idx = tx % STATE_COUNT
-    for i in range(16):
-        idx = (idx + total_matrix + i) % STATE_COUNT
-    return 1000 + ty * 100 + tx * 10 + idx
-
-
-def ab_pattern_expected(a, b):
-    """TODO.md Phase 113: the value thread (a,b) itself wrote to its own
-    slot in --ab-pattern-2d-w0/--ab-pattern-flat-w0's private sAs/sBs
-    arrays (kernelsAll.cu's TINYGPU_DEBUG_DUMP_AB_PATTERN_2D_W0/_FLAT_W0),
-    for whichever (a,b) pair the *writer* of a given read actually is --
-    e.g. reading As[ty][k] means the writer is thread (ty,k), so the
-    expected value is ab_pattern_expected(ty, k). Injective over a,b in
-    [0,16) since b<16 never carries into a's *16 term."""
-    return 1000 + a * 16 + b
-
-
-def combined_val(a, b):
-    """TODO.md Phase 116: the value thread (a,b) wrote to its own slot in
-    --combined-flat-w0's private sAs/sBs (kernelsAll.cu's TINYGPU_DEBUG_
-    DUMP_COMBINED_FLAT_W0) -- deliberately small (a,b in [0,4) only, the
-    only range ever actually read) so every intermediate product/sum in
-    the Csub-analog reduction stays far under float32's 2^24 exact-
-    integer bound."""
-    return 10 + a * 4 + b
-
-
-def combined_ds(k):
-    """TODO.md Phase 116: the value thread (ty=0,k) wrote to sDs[k]."""
-    return 1 + k
-
-
-def combined_csub_expected(ty, tx):
-    """TODO.md Phase 116: the exact (no float32 rounding, by construction)
-    Csub-analog value --combined-flat-w0's own reduction should produce,
-    mirroring the real kernel's `Csub += As[ty][k]*Ds[k]*Bs[k][tx]`."""
-    return sum(combined_val(ty, k) * combined_ds(k) * combined_val(k, tx) for k in range(STATE_COUNT))
 
 
 # ---- --logl mode: real 3-taxon likelihood, byte-for-byte from
@@ -441,8 +273,8 @@ def compile_real_kernel(nch, dev, nvcc, macros, maxrregcount=None):
     memory spill/reload if the real, unmodified kernel naturally needs
     more (it does -- regs_usage=40 uncapped, established throughout this
     investigation). Pure ptxas-flag bisection: zero kernelsAll.cu source
-    changes, tests the register-pressure hypothesis Phase 84's trivial-
-    kernel dial couldn't reach directly."""
+    changes, tests the register-pressure hypothesis TODO.md Phase 84
+    left open."""
     kernels4_cu = _KERNELS_DIR / "kernels4.cu"
     out_ptx = _KERNELS_DIR / "tmp_real_kernel_probe.ptx"
     cmd = [nvcc, "-o", str(out_ptx), "--default-stream", "per-thread", "-ptx",
@@ -632,31 +464,12 @@ def main():
     chain_sweep = None
     sync_each = False
     sweep = None
-    swap_cat01 = False
     wide_grid = None
     maxrregcount = None
-    per_thread_ds = False
-    per_thread_ds_w0 = False
     downstream_sweep = None
-    dummy_third_block = False
-    per_thread_dummy_w0 = False
-    per_thread_ds_min_w0 = False
-    local_mem_w0 = False
-    shared_spill_w0 = False
-    local_mem_flat_w0 = False
-    shared_broadcast_flat_w0 = False
-    flat_dispatch = False
-    ab_pattern_2d_w0 = False
-    ab_pattern_flat_w0 = False
-    final_abcd_w0 = False
-    combined_flat_w0 = False
-    combined_ldg_flat_w0 = False
-    combined_exp_flat_w0 = False
-    combined_write_direct_w0 = False
-    combined_write_listc_w0 = False
     dims_probe = False
     argv = sys.argv[1:]
-    while argv and (argv[0] in ("--batch", "--realloc", "--logl", "--logl-sweep", "--chain-sweep", "--sync-each", "--sweep", "--swap-cat01", "--wide-grid", "--maxrregcount", "--per-thread-ds", "--per-thread-ds-w0", "--downstream-sweep", "--dummy-third-block", "--per-thread-dummy-w0", "--per-thread-ds-min-w0", "--local-mem-w0", "--shared-spill-w0", "--local-mem-flat-w0", "--shared-broadcast-flat-w0", "--flat-dispatch", "--ab-pattern-2d-w0", "--ab-pattern-flat-w0", "--final-abcd-w0", "--combined-flat-w0", "--combined-ldg-flat-w0", "--combined-exp-flat-w0", "--combined-write-direct-w0", "--combined-write-listc-w0", "--dims-probe")):
+    while argv and (argv[0] in ("--batch", "--realloc", "--logl", "--logl-sweep", "--chain-sweep", "--sync-each", "--sweep", "--wide-grid", "--maxrregcount", "--downstream-sweep", "--dims-probe")):
         if argv[0] == "--batch":
             batch = True
         elif argv[0] == "--realloc":
@@ -736,240 +549,6 @@ def main():
                 downstream_sweep = int(argv[0])
                 argv = argv[1:]
             continue
-        elif argv[0] == "--swap-cat01":
-            swap_cat01 = True
-        elif argv[0] == "--per-thread-ds":
-            # TODO.md Phase 93: directly tests Phase 91/92's shared-
-            # memory Ds[] broadcast-visibility hypothesis -- --sweep-only,
-            # adds TINYGPU_DEBUG_DUMP_PER_THREAD_DS to the compile and a
-            # third dmat region so every one of the 16 real threads'
-            # (not just thread (0,0)'s) own view of Ds[0..3] can be
-            # compared against the writer row (ty=0)'s.
-            per_thread_ds = True
-        elif argv[0] == "--per-thread-ds-w0":
-            # TODO.md Phase 96: the full --per-thread-ds (1024 extra
-            # floats, dmat grown to 6144 bytes -- 3x the largest buffer
-            # any probe here had used) triggered a real, 100%-reproducible
-            # GPU fault (Phase 94/95) of unknown cause (the address math
-            # itself was verified correct at the SASS level). This is the
-            # same diagnostic restricted to wMatrix 0 only (64 extra
-            # floats, dmat only 2304 bytes -- close to the already-proven-
-            # safe baseline) -- tests whether buffer *size* was the
-            # operative variable before ever re-attempting the full
-            # version.
-            per_thread_ds_w0 = True
-        elif argv[0] == "--dummy-third-block":
-            # TODO.md Phase 100: Phase 94/95/98 found that adding a THIRD
-            # post-barrier write block (TINYGPU_DEBUG_DUMP_PER_THREAD_DS(_W0),
-            # alongside the real matrix write and TINYGPU_DEBUG_DUMP_MATMUL_
-            # GROUND_TRUTH) faults the real GPU 100% reproducibly, at both
-            # full size and a much smaller w0-only size -- ruling out buffer
-            # size. Two hypotheses remained: (1) it's specifically *this*
-            # combination of diagnostics; (2) it's fundamentally about
-            # adding *any* third post-barrier write block, independent of
-            # size, content, or which diagnostics are combined. User's
-            # direction: test (2). Keeps TINYGPU_DEBUG_DUMP_MATMUL_GROUND_
-            # TRUTH active and adds a brand-new, content-unrelated third
-            # write -- one thread per block writes a hardcoded constant
-            # (kernelsAll.cu's TINYGPU_DEBUG_DUMP_DUMMY_THIRD_BLOCK) to a
-            # dedicated scratch region far smaller (4 bytes/block) than
-            # even Phase 96's already-small w0-only version.
-            dummy_third_block = True
-        elif argv[0] == "--per-thread-dummy-w0":
-            # TODO.md Phase 101: Phase 100's --dummy-third-block (1
-            # thread/block writes a hardcoded constant) ran clean --
-            # ruling out hypothesis (2) in its broadest form. That probe
-            # differed from --per-thread-ds(-w0) in two ways at once:
-            # content (constant vs. real Ds[] shared-memory read) and
-            # granularity (1 thread/block vs. 16 real threads each
-            # writing their own slot). This isolates granularity alone:
-            # all 16 threads in wMatrix 0's block write a trivial,
-            # per-thread-identifiable value (their own (ty*EDGE+tx)
-            # index, not read from Ds[]/shared memory at all) -- same
-            # total footprint as --dummy-third-block (16 floats), same
-            # G-active setup, only the number of writing threads differs.
-            per_thread_dummy_w0 = True
-        elif argv[0] == "--per-thread-ds-min-w0":
-            # TODO.md Phase 102: Phase 100 (content swap) and Phase 101
-            # (granularity swap) both ran clean -- the only variable left
-            # distinguishing those two safe probes from the two real
-            # faults is that the real --per-thread-ds(-w0) reads actual
-            # Ds[] shared-memory values as its write content. This
-            # isolates that last variable directly, at Phase 101's exact
-            # same footprint/granularity: all 16 real threads in wMatrix
-            # 0's block, each now writing Ds[tx] (a single real shared-
-            # memory read) instead of a trivial local value.
-            per_thread_ds_min_w0 = True
-        elif argv[0] == "--local-mem-w0":
-            # TODO.md Phase 106: register-spilled LOCAL memory has never
-            # been tested for correctness, independent of Ds[]/shared
-            # memory -- kernelMatrixMulADB genuinely spills registers
-            # (lcmem_usage=576 bytes/thread). Local memory is per-thread-
-            # private (no broadcast semantics like Ds[]), so this tests a
-            # different question: does each thread's own spilled-and-
-            # reloaded value survive a roundtrip correctly, or does
-            # something (e.g. a local-memory-window/backing-store
-            # addressing bug) corrupt or cross-alias it?
-            local_mem_w0 = True
-        elif argv[0] == "--shared-spill-w0":
-            # TODO.md Phase 108: user's direct proposal -- since local
-            # memory's per-thread addressing is corrupted (Phase 106),
-            # what if EXPLICIT shared memory were used instead (a normal
-            # source-level array index, not an opaque driver-provided
-            # per-thread stack pointer)? Reuses --local-mem-w0's exact
-            # write-then-read-back pattern, only the storage swapped to a
-            # __shared__ array sized for the full 256-thread block,
-            # indexed by each thread's own true linear position
-            # (ty*16+tx). Tests genuinely new territory: a ty>0 thread
-            # writing to its own uniquely-indexed shared slot and reading
-            # it back itself (a same-thread round-trip), vs. Ds[]'s
-            # tested cross-thread (written-by-ty=0, read-by-ty>0) pattern.
-            shared_spill_w0 = True
-        elif argv[0] == "--local-mem-flat-w0":
-            # TODO.md Phase 109: user's direct question -- does the
-            # tx+4ty local-memory aliasing (Phase 106) depend on the
-            # kernel's real 2D (16,16,1) block dispatch, or does it
-            # persist even when every thread's row/column identity is
-            # linearized onto a single flat dimension? Dispatches
-            # kernelMatrixMulADB with local_size=(256,1,1) instead of the
-            # normal (16,16,1) -- the kernel computes its own logical
-            # tx=flat/16 (slow), ty=flat%16 (fast, warp-contiguous) from
-            # the single flat threadIdx.x, then runs the exact same
-            # write-then-read-back local-memory test as --local-mem-w0.
-            # Must return before the kernel's own "Last block" guard
-            # (which writes As[ty][tx]/Bs[ty][tx] unconditionally, out of
-            # bounds for tx>=16 under this dispatch) -- kernelsAll.cu
-            # handles this via an early return, following the same
-            # established-safe pattern TINYGPU_DEBUG_BROADCAST_PROBE uses.
-            local_mem_flat_w0 = True
-        elif argv[0] == "--shared-broadcast-flat-w0":
-            # TODO.md Phase 110: user's direct follow-up to Phase 109's
-            # 320/320 result -- does Ds[]'s own broadcast-collapse bug
-            # (Phase 90-103: ty>0 readers see Ds[0]'s value regardless of
-            # requested index) ALSO disappear under a flat (256,1,1)
-            # dispatch, the same way local memory's tx+4ty aliasing did?
-            # Mirrors --local-mem-flat-w0's exact dispatch/safety design,
-            # but tests the write-by-subset/read-by-all shared-memory
-            # broadcast pattern (a dedicated sDs[16] array, written only
-            # by logicalTy==0 threads with the real Ds[]=exp(D[tx]*
-            # distance) formula) instead of local memory.
-            shared_broadcast_flat_w0 = True
-        elif argv[0] == "--flat-dispatch":
-            # TODO.md Phase 111: the real fix, not another isolated
-            # diagnostic -- Phase 109/110 proved BOTH known defects
-            # (local-memory tx+4ty aliasing, Ds[] broadcast collapse)
-            # vanish completely under a flat block. kernelsAll.cu's
-            # kernelMatrixMulADB now has a real (non-early-return)
-            # rewrite gated behind FW_TINYGPU_HYBRID_NV: tx,ty derived
-            # from a single flat KW_LOCAL_ID_0 instead of the native
-            # KW_LOCAL_ID_0/KW_LOCAL_ID_1 pair, with every other line of
-            # the kernel (As/Bs/Ds loading, the Csub reduction, the
-            # boundary EDGE guard, the final write) completely untouched.
-            # This flag adds that macro and dispatches with the matching
-            # flat (256,1,1) block -- no diagnostic-region machinery
-            # needed at all, since --sweep's own existing correctness
-            # check (real_matrices vs. reference_matrices) already tells
-            # us directly whether the REAL kernel output is now correct.
-            flat_dispatch = True
-        elif argv[0] == "--ab-pattern-2d-w0":
-            # TODO.md Phase 113, user: "probe As[ty][k] etc." -- direct,
-            # per-thread ground truth of the real kernel's own As[]/Bs[]
-            # access pattern (own-slot write by EVERY thread including
-            # ty>0, then cross-thread row/column read during the Csub
-            # reduction), never directly isolated before -- Phase 112
-            # inferred a likely defect here from downstream Csub output
-            # alone. Uses the kernel's real REAL[16][16] shared-array shape
-            # (private sAs/sBs copies, not the real As/Bs) under a flat
-            # (256,1,1) dispatch, same early-return safety pattern as
-            # --local-mem-flat-w0/--shared-broadcast-flat-w0.
-            ab_pattern_2d_w0 = True
-        elif argv[0] == "--ab-pattern-flat-w0":
-            # TODO.md Phase 113, user: "also try linearizing the shared
-            # memory into As[tid.x] and As[tx*16+k] etc." -- same ground
-            # truth as --ab-pattern-2d-w0, but the shared array is a flat
-            # REAL[256] with hand-computed addresses instead of a 2D
-            # REAL[16][16] -- tests whether 2D-array codegen itself matters,
-            # and additionally captures a "swapped" read (tx*16+k instead
-            # of ty*16+k, the user's own suggested alternate indexing) in
-            # the same pass.
-            ab_pattern_flat_w0 = True
-        elif argv[0] == "--final-abcd-w0":
-            # TODO.md Phase 115, user: "please instrument the As / Bs / Ds
-            # / Csub right before their final write" -- Phase 113/114:
-            # every individual mechanism (Ds[] broadcast, local memory,
-            # As[]/Bs[]'s own cross-thread pattern) is now proven correct
-            # under flat dispatch in isolation, yet Phase 111's real,
-            # combined kernel rewrite still failed identically to the
-            # original bug. Unlike every probe since Phase 90, this one
-            # uses no private storage and no early return -- it captures
-            # the REAL As/Bs/Ds/Csub, for the REAL "Last block" case,
-            # right after the real Csub reduction finishes and right
-            # before the real barrier/C[] write, then lets the kernel
-            # proceed completely unmodified (the real C[] output for
-            # every wMatrix is still produced, so --sweep's own
-            # correctness check still reports on it normally). Always
-            # paired with FW_TINYGPU_HYBRID_NV + flat dispatch -- the
-            # specific configuration under investigation is Phase 111's
-            # real-kernel rewrite, not the native 2D path.
-            final_abcd_w0 = True
-        elif argv[0] == "--combined-flat-w0":
-            # TODO.md Phase 116, user: "go back to the other candidate
-            # from Phase 114 (a combined-mechanisms early-return probe,
-            # which has consistently been the safe pattern all session)"
-            # -- Phase 113 tested Ds[] and As[]/Bs[] SEPARATELY (each its
-            # own private storage, its own barrier), both 100% clean
-            # under flat dispatch. This tests them TOGETHER, under ONE
-            # shared barrier, exactly mirroring the real "Last block"
-            # guard's combined write/barrier/read structure -- private
-            # sAs/sBs/sDs (not the real arrays), early return before the
-            # real "Last block" guard, same established safety pattern
-            # as every flat-dispatch probe since Phase 109.
-            combined_flat_w0 = True
-        elif argv[0] == "--combined-ldg-flat-w0":
-            # TODO.md Phase 118, user: "a combined probe like this one,
-            # but sourcing its written values from real LDGs of A/B/D
-            # instead of register constants -- still safe, still early-
-            # return" -- same combined write/single-barrier/reduce
-            # structure as --combined-flat-w0, but As/Bs/Ds source their
-            # values from the real A[]/B[]/D[] buffers via genuine global-
-            # memory loads (the exact real a=b=d=0 offsets this test's
-            # wMatrix-0 block uses), without exp()/distance yet (Ds[tx]=
-            # D[tx] raw, matching TINYGPU_BISECT_NO_EXP's established
-            # convention -- one variable at a time).
-            combined_ldg_flat_w0 = True
-        elif argv[0] == "--combined-exp-flat-w0":
-            # TODO.md Phase 118, user: "reintroducing the real exp()/
-            # distance computation specifically into a synthetic probe"
-            # -- identical to --combined-ldg-flat-w0, except Ds[] uses the
-            # real, full formula exp(D[tx]*distance). With real A/B/D and
-            # real exp()/distance, a correct result here should exactly
-            # equal reference_transition_matrix()'s real answer -- the
-            # strongest synthetic test this investigation can build
-            # without touching the real, non-early-return kernel path.
-            combined_exp_flat_w0 = True
-        elif argv[0] == "--combined-write-direct-w0":
-            # TODO.md Phase 120, user: "let's try the final write now.
-            # but write to dMatrices[figure out indices] first before
-            # trying dMatrix + listC[wMatrix]" -- identical combined real-
-            # A/B/D/exp() mechanism as --combined-exp-flat-w0, but now
-            # performs the REAL final write for real -- into wMatrix 0's
-            # actual matrix-output slot in dMatrices, at a direct, closed-
-            # form index (matching TINYGPU_BISECT_NO_LISTC's own
-            # established closed form), not through listC[]'s
-            # indirection. No new diagnostic region -- the write lands
-            # directly in wMatrix 0's real slot, so --sweep's own
-            # existing correctness check already answers it.
-            combined_write_direct_w0 = True
-        elif argv[0] == "--combined-write-listc-w0":
-            # TODO.md Phase 120, user's own "before trying dMatrix +
-            # listC[wMatrix]" follow-up -- identical to
-            # --combined-write-direct-w0, except the write address comes
-            # from the real `dMatrices + listC[wMatrix]` indirection
-            # (a genuine data-dependent load), matching the real kernel's
-            # own mechanism exactly. For this test's real listC values,
-            # resolves to the same address as the direct probe -- isolates
-            # the extra indirect load itself as the only variable.
-            combined_write_listc_w0 = True
         elif argv[0] == "--dims-probe":
             # TODO.md Phase 140: does anything populate the cbuf0 words
             # ptxas reads blockDim/gridDim from? No dispatch path writes
@@ -982,7 +561,7 @@ def main():
             # real, unmodified register allocation (naturally 40,
             # uncapped) at N, inducing local-memory spill if N is below
             # that -- pure compiler-flag bisection, tests the register-
-            # pressure hypothesis Phase 84's trivial-kernel dial left
+            # pressure hypothesis TODO.md Phase 84 left
             # open. Mandatory value, no sensible default cap.
             maxrregcount = int(argv[1])
             argv = argv[2:]
@@ -995,76 +574,27 @@ def main():
                 argv = argv[1:]
             continue
         else:
-            wide_grid = 32  # default block count (Phase 76's approach 1: real grid, cat=0-vs-cat=1 slot-vs-value question resolved to "slot" -- next, does a wMatrix landing on a *different* SMID in a bigger grid still show its old reliability, or does reliability follow the SMID?)
+            wide_grid = 32  # --wide-grid [N]: default block count
             argv = argv[1:]
             if argv and argv[0].isdigit():
                 wide_grid = int(argv[0])
                 argv = argv[1:]
             continue
         argv = argv[1:]
-    # --logl/--sweep need the *real*, unbisected kernel: TINYGPU_BISECT_NO_EXP
-    # replaces Ds[tx]=exp(D[d+tx]*distance) with Ds[tx]=D[d+tx] (raw
-    # eigenvalues, no exponential) -- essential for the ground-truth-dump
-    # tests (it's what lets wMatrix>=4 execute at all) but it means the
-    # "transition matrix" computed under it is A*diag(eigenvalues)*B --
-    # the JC69 rate matrix Q itself (row sums exactly 0, negative entries:
-    # verified directly, see STATUS.md), not a valid probability matrix.
-    # Feeding that into a real likelihood computation legitimately
-    # produces sum(pattern)=0 -> log(0)=-inf for every pattern -- correct
-    # arithmetic on deliberately-wrong inputs, not a new finding. Default
-    # to the true production kernel (no bisect macros at all) here so the
-    # result is actually meaningful; explicit macros in argv still apply
-    # (e.g. `--logl TINYGPU_BISECT_NO_EXP` to deliberately test the
-    # bisected variant's effect on logL, if ever wanted for comparison).
-    # TODO.md Phase 134: chain_sweep added here -- without it, --chain-
-    # sweep alone (no --logl/--logl-sweep/--sweep) would have silently
-    # fallen through to BASE_MACROS, which includes TINYGPU_BISECT_NO_EXP
-    # and TINYGPU_BISECT_NO_LISTC -- a *bisected*, not the real, kernel.
-    # Caught before ever running this on hardware.
-    macros = (["TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH"] if (logl or logl_sweep or chain_sweep or sweep) else BASE_MACROS) + argv
-    if per_thread_ds:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_PER_THREAD_DS"]
-    if per_thread_ds_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_PER_THREAD_DS_W0"]
-    if dummy_third_block:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_DUMMY_THIRD_BLOCK"]
-    if per_thread_dummy_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_PER_THREAD_DUMMY_W0"]
-    if per_thread_ds_min_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_PER_THREAD_DS_MIN_W0"]
-    if local_mem_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_LOCAL_MEM_W0"]
-    if shared_spill_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_SHARED_SPILL_W0"]
-    if local_mem_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_LOCAL_MEM_FLAT_W0"]
-    if shared_broadcast_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_SHARED_BROADCAST_FLAT_W0"]
-    if flat_dispatch:
-        macros = macros + ["FW_TINYGPU_HYBRID_NV"]
-    if ab_pattern_2d_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_AB_PATTERN_2D_W0"]
-    if ab_pattern_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_AB_PATTERN_FLAT_W0"]
-    if final_abcd_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_FINAL_ABCD_CSUB_W0", "FW_TINYGPU_HYBRID_NV"]
-    if combined_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_FLAT_W0"]
-    if combined_ldg_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_LDG_FLAT_W0"]
-    if combined_exp_flat_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_EXP_FLAT_W0"]
-    if combined_write_direct_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_WRITE_DIRECT_W0"]
-    if combined_write_listc_w0:
-        macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_WRITE_LISTC_W0"]
+    macros = BASE_MACROS + argv
+    # The loop above stops at the first token it does not know and passes that
+    # token and everything after it to nvcc as -D macros. Reject flags here,
+    # before the GPU boots.
+    bad = [a for a in argv if a.startswith("-")]
+    if bad:
+        sys.exit(f"unknown or removed flag(s), or flags after the first macro: {bad}")
 
     os.makedirs(os.path.expanduser("~/Library/Logs"), exist_ok=True)
     fd = os.open(os.path.expanduser("~/Library/Logs/nv_real_kernel_probe.log"),
                  os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_SYNC, 0o644)
     sys.stderr = os.fdopen(fd, 'w', buffering=1)
 
-    log(f"starting -- batch={batch} realloc={realloc} logl={logl} logl_sweep={logl_sweep} chain_sweep={chain_sweep} sync_each={sync_each} downstream_sweep={downstream_sweep} sweep={sweep} swap_cat01={swap_cat01} wide_grid={wide_grid} maxrregcount={maxrregcount} per_thread_ds={per_thread_ds} per_thread_ds_w0={per_thread_ds_w0} dummy_third_block={dummy_third_block} per_thread_dummy_w0={per_thread_dummy_w0} per_thread_ds_min_w0={per_thread_ds_min_w0} local_mem_w0={local_mem_w0} shared_spill_w0={shared_spill_w0} local_mem_flat_w0={local_mem_flat_w0} shared_broadcast_flat_w0={shared_broadcast_flat_w0} flat_dispatch={flat_dispatch} ab_pattern_2d_w0={ab_pattern_2d_w0} ab_pattern_flat_w0={ab_pattern_flat_w0} final_abcd_w0={final_abcd_w0} combined_flat_w0={combined_flat_w0} combined_ldg_flat_w0={combined_ldg_flat_w0} combined_exp_flat_w0={combined_exp_flat_w0} combined_write_direct_w0={combined_write_direct_w0} combined_write_listc_w0={combined_write_listc_w0} dims_probe={dims_probe} macros={macros}")
+    log(f"starting -- batch={batch} realloc={realloc} logl={logl} logl_sweep={logl_sweep} chain_sweep={chain_sweep} sync_each={sync_each} downstream_sweep={downstream_sweep} sweep={sweep} wide_grid={wide_grid} maxrregcount={maxrregcount} dims_probe={dims_probe} macros={macros}")
     import nv_init_helper  # noqa: F401 -- GSP/RM boot safety patches (module-level side effects)
     from tinygrad.runtime.support.system import APLRemotePCIDevice
     def _safe_reset(self):
@@ -1132,200 +662,31 @@ def main():
     prg = BeagleNVProgram(dev, obj)
     log(f"regs_usage={prg.regs_usage} shmem_usage={prg.shmem_usage} lcmem_usage={prg.lcmem_usage}")
 
-    # TODO.md Phase 109-128: the real kernel's own dispatch shape --
-    # (256,1,1) flat for every FW_TINYGPU_HYBRID_NV-family macro
-    # (Phase 111's --flat-dispatch and every w0-only flat probe since),
-    # else the native (16,16,1) BLOCK. (Phase 126's --single-tile-dispatch
-    # (S2,1,1) was removed in Phase 140 -- an EDGE=20 workaround, not a
-    # fix.) Computed here, unconditionally, right after the one compile
-    # step -- not inside `if sweep:` -- so every dispatch mode (--sweep,
-    # --logl-sweep, --logl, --batch, --realloc) that goes on to actually
-    # launch kernelMatrixMulADB sees the same, correct local_size for
-    # whichever macros were just compiled in. (Phase 128 bug: --logl-
-    # sweep's own kernelMatrixMulADB dispatch previously hardcoded
-    # local_size=BLOCK regardless of these flags, since this computation
-    # used to live only inside the --sweep branch below.)
-    if (local_mem_flat_w0 or shared_broadcast_flat_w0 or flat_dispatch or ab_pattern_2d_w0 or ab_pattern_flat_w0 or final_abcd_w0 or combined_flat_w0 or combined_ldg_flat_w0 or combined_exp_flat_w0 or combined_write_direct_w0 or combined_write_listc_w0):
-        dispatch_local_size = (256, 1, 1)
-    else:
-        dispatch_local_size = BLOCK
+    dispatch_local_size = BLOCK
 
     if sweep:
         # ---- Phase 71 (sweep): one boot, one compile, then `sweep` fresh
-        # dispatches of the real, unbisected kernelMatrixMulADB -- fresh
-        # buffers every iteration, matching the real content --logl uses
-        # -- tabulating per-wMatrix success rate directly, to test
-        # whether "the middle of blockIdx.x space never runs" (observed
-        # in 4 separate process-level --logl runs) is unconditional or
-        # just unlucky in a small sample. Only kernelMatrixMulADB itself
-        # is dispatched -- the question is which blocks write anything at
-        # all, not the downstream likelihood chain.
+        # dispatches of the real kernelMatrixMulADB alone (no downstream
+        # kernels), fresh buffers every iteration, each checked per wMatrix
+        # against the closed-form reference matrix and tabulated per SM.
         distance_vals = [EDGE_LENS[i] * CATEGORY_RATES[j] for i in range(4) for j in range(4)]
-        if swap_cat01:
-            # TODO.md Phase 75/76: separates "it's the actual exp() argument
-            # value" from "it's the wMatrix/SMID slot" for the cat=0-vs-
-            # cat=1 asymmetry found within TPC1/2/3 (wMatrix 4/8/12 get rare
-            # extra successes, wMatrix 5/9/13 never do). Swaps only which
-            # *value* each of those two positions gets, per edge --
-            # wMatrix stays fixed (so its SMID assignment, per the
-            # mechanically-confirmed fixed mapping, is unchanged), only
-            # distance_vals[edge*4+0] and distance_vals[edge*4+1] trade
-            # places. If the success pattern follows the value (moves to
-            # wMatrix 5/9/13), it's the number; if it stays with wMatrix
-            # 4/8/12 regardless, it's the slot.
-            for edge in range(4):
-                i0, i1 = edge * 4 + 0, edge * 4 + 1
-                distance_vals[i0], distance_vals[i1] = distance_vals[i1], distance_vals[i0]
-            log(f"--swap-cat01: distance_vals[edge*4+0] <-> distance_vals[edge*4+1] for every edge -- "
-                f"distance_vals={distance_vals}")
 
-        # TODO.md Phase 76/77: Phase 77's swap-cat01 result showed the
-        # cat=0-vs-cat=1 asymmetry tracks the wMatrix/SMID *slot*, not the
-        # value. Phase 78's `--wide-grid [N]` (default N=32) follows up:
-        # launches N blocks instead of 16 -- the real kernel's own
-        # `wMatrix = blockIdx.x % totalMatrix` (kernelsAll.cu) means
-        # passing `totalMatrix=n_blocks` alongside an N-block grid keeps
-        # every block's `bx = blockIdx.x / totalMatrix` at 0, the same
-        # safe, already-exercised BLOCKS==1 path every other --sweep run
-        # uses -- no kernelsAll.cu changes needed. distance_vals/listC are
-        # extended cyclically (block 16 is a structural copy of block 0's
-        # setup, 17 of 1, etc.) so every block still gets a valid, unique
-        # output slot; A/B/D stay the same shared buffers regardless of
-        # block count. Whatever physical SM(s) the extra blocks land on
-        # (unknown ahead of time -- that's what this run's own SMID table
-        # answers), the question is whether elevated reliability follows
-        # the SMID (e.g. a wide-grid block that lands on SMID 4 behaves
-        # like wMatrix 8 always has) or stays with the original
-        # wMatrix-mod-16 identity regardless of which SMID it lands on.
+        # TODO.md Phase 78: `--wide-grid [N]` (default N=32) launches N
+        # blocks instead of 16. The kernel's `wMatrix = blockIdx.x %
+        # totalMatrix`, so passing `totalMatrix=n_blocks` with an N-block
+        # grid keeps every block's `bx = blockIdx.x / totalMatrix` at 0 and
+        # needs no kernelsAll.cu change. distance_vals/listC are extended
+        # cyclically (block 16 copies block 0's setup, 17 copies 1, etc.) so
+        # every block gets a valid, unique output slot; A/B/D stay the same
+        # shared buffers.
         n_blocks = wide_grid if wide_grid else TOTAL_MATRIX
         if wide_grid:
             distance_vals = [distance_vals[w % TOTAL_MATRIX] for w in range(n_blocks)]
             log(f"--wide-grid {n_blocks}: grid=({n_blocks},1,1), totalMatrix={n_blocks}, "
                 f"distance_vals cyclically extended (block w uses block w%{TOTAL_MATRIX}'s value)")
         listc_vals = [w * S2 for w in range(n_blocks)]
-        # TODO.md Phase 93: --per-thread-ds adds a third dmat region past
-        # the real matrices and the existing ground-truth scratch --
-        # STATE_COUNT**3 (64) floats per block, one 4-float Ds[0..3] view
-        # per each of the 16 real threads (tx,ty in [0,EDGE)), matching
-        # kernelsAll.cu's own TINYGPU_DEBUG_DUMP_PER_THREAD_DS layout
-        # exactly (KW_GROUP_ID_0*STATE_COUNT**3 + (ty*EDGE+tx)*STATE_COUNT).
-        per_thread_ds_size = STATE_COUNT ** 3
         n_dmat_floats = 2 * n_blocks * S2
         dmat_init = [0.0] * (n_blocks * S2) + [SENTINEL] * (n_blocks * S2)
-        if per_thread_ds:
-            n_dmat_floats += n_blocks * per_thread_ds_size
-            dmat_init += [SENTINEL] * (n_blocks * per_thread_ds_size)
-        elif per_thread_ds_w0:
-            # TODO.md Phase 96: only wMatrix 0's block writes (kernelsAll.cu's
-            # TINYGPU_DEBUG_DUMP_PER_THREAD_DS_W0 guards on KW_GROUP_ID_0==0),
-            # so only one block's worth of the third region is ever touched --
-            # sized/seeded for exactly that, not n_blocks*per_thread_ds_size.
-            n_dmat_floats += per_thread_ds_size
-            dmat_init += [SENTINEL] * per_thread_ds_size
-        # TODO.md Phase 100: --dummy-third-block adds its own third dmat
-        # region, at the *same* base offset D would use (2*n_blocks*S2) --
-        # not tested combined with --per-thread-ds(-w0) in this experiment,
-        # so no collision in practice -- but only n_blocks floats (one
-        # hardcoded-constant write per block, matching kernelsAll.cu's
-        # TINYGPU_DEBUG_DUMP_DUMMY_THIRD_BLOCK), far smaller than even
-        # per_thread_ds_size (64 floats/block).
-        if dummy_third_block:
-            n_dmat_floats += n_blocks
-            dmat_init += [SENTINEL] * n_blocks
-        # TODO.md Phase 101: --per-thread-dummy-w0 adds its own third dmat
-        # region, same base offset as the other third-region probes --
-        # STATE_COUNT**2 (16) floats, one per real thread in wMatrix 0's
-        # block only, matching kernelsAll.cu's TINYGPU_DEBUG_DUMP_PER_
-        # THREAD_DUMMY_W0 layout exactly. Same total size as --dummy-
-        # third-block's own region (16 floats) -- deliberate, for a
-        # single-variable (granularity-only) comparison.
-        per_thread_dummy_size = STATE_COUNT ** 2
-        if per_thread_dummy_w0:
-            n_dmat_floats += per_thread_dummy_size
-            dmat_init += [SENTINEL] * per_thread_dummy_size
-        # TODO.md Phase 102: --per-thread-ds-min-w0 adds its own third
-        # dmat region, same base offset and same size (STATE_COUNT**2,
-        # 16 floats) as --per-thread-dummy-w0's own region -- deliberate,
-        # for a single-variable (content-only, real Ds[] read vs. a
-        # trivial local value) comparison at identical footprint.
-        per_thread_ds_min_size = STATE_COUNT ** 2
-        if per_thread_ds_min_w0:
-            n_dmat_floats += per_thread_ds_min_size
-            dmat_init += [SENTINEL] * per_thread_ds_min_size
-        # TODO.md Phase 106: --local-mem-w0 adds its own third dmat
-        # region, same base offset and size (STATE_COUNT**2, 16 floats)
-        # as the other w0-only per-thread probes -- tests LOCAL memory
-        # (register spill) correctness instead of shared memory.
-        local_mem_size = STATE_COUNT ** 2
-        if local_mem_w0:
-            n_dmat_floats += local_mem_size
-            dmat_init += [SENTINEL] * local_mem_size
-        # TODO.md Phase 108: --shared-spill-w0 adds its own third dmat
-        # region, same base offset and size as --local-mem-w0 -- tests
-        # explicit shared-memory storage instead of the driver's local-
-        # memory-window mechanism, otherwise an identical diagnostic.
-        shared_spill_size = STATE_COUNT ** 2
-        if shared_spill_w0:
-            n_dmat_floats += shared_spill_size
-            dmat_init += [SENTINEL] * shared_spill_size
-        # TODO.md Phase 109: --local-mem-flat-w0 adds its own third dmat
-        # region, same base offset and size as --local-mem-w0 -- tests
-        # the same local-memory mechanism under a flat (256,1,1) block
-        # dispatch instead of the kernel's normal (16,16,1).
-        local_mem_flat_size = STATE_COUNT ** 2
-        if local_mem_flat_w0:
-            n_dmat_floats += local_mem_flat_size
-            dmat_init += [SENTINEL] * local_mem_flat_size
-        # TODO.md Phase 110: --shared-broadcast-flat-w0 adds its own
-        # third dmat region, same base offset and size -- tests Ds[]'s
-        # broadcast mechanism under a flat (256,1,1) block dispatch.
-        shared_broadcast_flat_size = STATE_COUNT ** 2
-        if shared_broadcast_flat_w0:
-            n_dmat_floats += shared_broadcast_flat_size
-            dmat_init += [SENTINEL] * shared_broadcast_flat_size
-        # TODO.md Phase 113: --ab-pattern-2d-w0 adds its own third dmat
-        # region, same base offset as the other w0-only probes -- 16
-        # threads * (4 As[ty][k] + 4 Bs[k][tx]) values = 128 floats,
-        # matching kernelsAll.cu's TINYGPU_DEBUG_DUMP_AB_PATTERN_2D_W0
-        # layout exactly.
-        ab_pattern_2d_size = STATE_COUNT * STATE_COUNT * 2 * STATE_COUNT
-        if ab_pattern_2d_w0:
-            n_dmat_floats += ab_pattern_2d_size
-            dmat_init += [SENTINEL] * ab_pattern_2d_size
-        # TODO.md Phase 113: --ab-pattern-flat-w0 adds its own third dmat
-        # region, same base offset -- 16 threads * (4 matching-As +
-        # 4 matching-Bs + 4 swapped-As + 4 swapped-Bs) values = 256
-        # floats, matching TINYGPU_DEBUG_DUMP_AB_PATTERN_FLAT_W0's layout.
-        ab_pattern_flat_size = STATE_COUNT * STATE_COUNT * 4 * STATE_COUNT
-        if ab_pattern_flat_w0:
-            n_dmat_floats += ab_pattern_flat_size
-            dmat_init += [SENTINEL] * ab_pattern_flat_size
-        # TODO.md Phase 115: --final-abcd-w0 adds its own third dmat
-        # region, same base offset -- 16 threads * (4 As[ty][k] + 4
-        # Bs[k][tx] + 4 Ds[k] + 1 Csub) = 16*13 = 208 floats, matching
-        # kernelsAll.cu's TINYGPU_DEBUG_DUMP_FINAL_ABCD_CSUB_W0 layout.
-        final_abcd_size = STATE_COUNT * STATE_COUNT * (3 * STATE_COUNT + 1)
-        if final_abcd_w0:
-            n_dmat_floats += final_abcd_size
-            dmat_init += [SENTINEL] * final_abcd_size
-        # TODO.md Phase 116: --combined-flat-w0 adds its own third dmat
-        # region, same base offset and layout size as --final-abcd-w0
-        # (16 threads * (4 As + 4 Bs + 4 Ds + 1 Csub) = 208 floats).
-        combined_flat_size = STATE_COUNT * STATE_COUNT * (3 * STATE_COUNT + 1)
-        if combined_flat_w0:
-            n_dmat_floats += combined_flat_size
-            dmat_init += [SENTINEL] * combined_flat_size
-        # TODO.md Phase 118: --combined-ldg-flat-w0/--combined-exp-flat-w0
-        # each add their own third dmat region, same base offset and
-        # layout size as --combined-flat-w0.
-        combined_ldg_flat_size = STATE_COUNT * STATE_COUNT * (3 * STATE_COUNT + 1)
-        if combined_ldg_flat_w0:
-            n_dmat_floats += combined_ldg_flat_size
-            dmat_init += [SENTINEL] * combined_ldg_flat_size
-        combined_exp_flat_size = STATE_COUNT * STATE_COUNT * (3 * STATE_COUNT + 1)
-        if combined_exp_flat_w0:
-            n_dmat_floats += combined_exp_flat_size
-            dmat_init += [SENTINEL] * combined_exp_flat_size
 
         # TODO.md Phase 90: every prior --sweep run only ever checked
         # "wrote anything nonzero" -- never whether the value written was
@@ -1334,135 +695,11 @@ def main():
         # real C[] readback can be checked against the real answer, not
         # just against zero.
         reference_matrices = [reference_transition_matrix(distance_vals[w]) for w in range(n_blocks)]
-        # TODO.md Phase 102: reference Ds[tx] = exp(EVAL[tx]*distance) for
-        # wMatrix 0 -- the same per-element formula reference_transition_
-        # matrix() uses internally, exposed here since --per-thread-ds-
-        # min-w0 checks Ds[] readback directly, not the downstream matrix.
-        ds_reference_w0 = [math.exp(EVAL[k] * distance_vals[0]) for k in range(STATE_COUNT)]
 
         success_count = [0] * n_blocks     # any of the 16 entries nonzero (the old, weaker metric -- kept for comparability)
         correct_count = [0] * n_blocks     # all 16 entries match the real reference matrix within CORRECTNESS_TOL
         wrong_count = [0] * n_blocks       # wrote nonzero but does NOT match the reference -- a *real* failure, not a proxy
         full_row0_count = [0] * n_blocks   # row ty=0 (entries 0-3) all nonzero (the old, weaker per-row metric)
-        # TODO.md Phase 93: per-thread Ds[] broadcast-visibility check --
-        # ds_broadcast_ok_count[w] counts iterations where every one of
-        # the 12 non-writer threads (ty=1/2/3, tx=0..3) saw *exactly* the
-        # same Ds[0..3] as the writer row (ty=0) did; ds_broadcast_
-        # checked_count[w] counts iterations where the writer row itself
-        # was captured (dbg[0]!=SENTINEL there) so a comparison was even
-        # possible.
-        ds_broadcast_ok_count = [0] * n_blocks
-        ds_broadcast_checked_count = [0] * n_blocks
-        # TODO.md Phase 100: dummy_ok_count[w] counts iterations where
-        # wMatrix w's dummy-third-block slot read back exactly the
-        # hardcoded constant; dummy_checked_count[w] counts iterations
-        # where that slot was written at all (!= SENTINEL).
-        dummy_ok_count = [0] * n_blocks
-        dummy_checked_count = [0] * n_blocks
-        # TODO.md Phase 101: per_thread_dummy_ok_count/checked_count track,
-        # per wMatrix (only wMatrix 0 ever populated -- w0-only probe),
-        # how many of the 16 real threads' own per-thread-identifiable
-        # slots read back the correct (ty*EDGE+tx) value.
-        per_thread_dummy_ok_count = [0] * n_blocks
-        per_thread_dummy_checked_count = [0] * n_blocks
-        # TODO.md Phase 103: per_thread_ds_min_ok_count/checked_count now
-        # track PER-SLOT (one counter per (ty,tx), 16 total, wMatrix 0
-        # only) -- Phase 102's 7/16 aggregate result directly confirmed
-        # the long-standing Ds[] broadcast-visibility hypothesis for the
-        # first time without inferring it from downstream C[] output, but
-        # gave no indication of *which* threads are reliably right/wrong.
-        # Per-slot tracking (plus running this with real sweep count, not
-        # just sweep=1) gives that resolution with statistical power.
-        per_thread_ds_min_ok_count = [0] * S2
-        per_thread_ds_min_checked_count = [0] * S2
-        # TODO.md Phase 106: local_mem_ok_count/checked_count track,
-        # per-slot (16 total, wMatrix 0 only), how many of the 16 real
-        # threads' own spilled-and-reloaded local-memory values matched
-        # what that same thread itself wrote.
-        local_mem_ok_count = [0] * S2
-        local_mem_checked_count = [0] * S2
-        # TODO.md Phase 108: shared_spill_ok_count/checked_count track
-        # the same thing as local_mem_*, but for --shared-spill-w0's
-        # explicit-shared-memory storage instead of local memory.
-        shared_spill_ok_count = [0] * S2
-        shared_spill_checked_count = [0] * S2
-        # TODO.md Phase 109: local_mem_flat_ok_count/checked_count track
-        # the same thing as local_mem_*, but under a flat (256,1,1)
-        # dispatch instead of the kernel's normal (16,16,1).
-        local_mem_flat_ok_count = [0] * S2
-        local_mem_flat_checked_count = [0] * S2
-        # TODO.md Phase 110: shared_broadcast_flat_ok_count/checked_count
-        # track Ds[]'s own broadcast mechanism under a flat dispatch.
-        shared_broadcast_flat_ok_count = [0] * S2
-        shared_broadcast_flat_checked_count = [0] * S2
-        # TODO.md Phase 113: ab_pattern_2d_*_ok_count/checked_count track,
-        # per-slot (16 total, wMatrix 0 only), the real kernel's own
-        # As[ty][k] (row-wise) / Bs[k][tx] (column-wise) access patterns
-        # directly -- kept as separate as/bs tables since these are
-        # mechanistically distinct reads (same-ty-different-writer-tx vs.
-        # same-tx-different-writer-ty) that could fail independently.
-        ab_pattern_2d_as_ok_count = [0] * S2
-        ab_pattern_2d_as_checked_count = [0] * S2
-        ab_pattern_2d_bs_ok_count = [0] * S2
-        ab_pattern_2d_bs_checked_count = [0] * S2
-        # TODO.md Phase 113: ab_pattern_flat_*_ok_count/checked_count track
-        # the same two patterns under a flat REAL[256] array with
-        # hand-computed addresses (match_* mirrors ab_pattern_2d_*'s own
-        # read exactly; swap_* is the user-suggested tx*16+k alternate
-        # indexing, a genuinely different set of physical slots).
-        ab_pattern_flat_as_match_ok_count = [0] * S2
-        ab_pattern_flat_as_match_checked_count = [0] * S2
-        ab_pattern_flat_bs_match_ok_count = [0] * S2
-        ab_pattern_flat_bs_match_checked_count = [0] * S2
-        ab_pattern_flat_as_swap_ok_count = [0] * S2
-        ab_pattern_flat_as_swap_checked_count = [0] * S2
-        ab_pattern_flat_bs_swap_ok_count = [0] * S2
-        ab_pattern_flat_bs_swap_checked_count = [0] * S2
-        # TODO.md Phase 115: final_abcd_*_ok_count/checked_count track,
-        # per-slot (16 total, wMatrix 0 only), the REAL As[ty][k]/
-        # Bs[k][tx]/Ds[k] (this thread's own view)/Csub, captured right
-        # before the real barrier/C[] write in Phase 111's real,
-        # combined, non-early-return kernel path.
-        final_abcd_as_ok_count = [0] * S2
-        final_abcd_as_checked_count = [0] * S2
-        final_abcd_bs_ok_count = [0] * S2
-        final_abcd_bs_checked_count = [0] * S2
-        final_abcd_ds_ok_count = [0] * S2
-        final_abcd_ds_checked_count = [0] * S2
-        final_abcd_csub_ok_count = [0] * S2
-        final_abcd_csub_checked_count = [0] * S2
-        # TODO.md Phase 116: combined_flat_*_ok_count/checked_count track,
-        # per-slot (16 total, wMatrix 0 only), --combined-flat-w0's
-        # private As/Bs/Ds/Csub-analog, written/synced/read together
-        # exactly mirroring the real kernel's own combined structure.
-        combined_flat_as_ok_count = [0] * S2
-        combined_flat_as_checked_count = [0] * S2
-        combined_flat_bs_ok_count = [0] * S2
-        combined_flat_bs_checked_count = [0] * S2
-        combined_flat_ds_ok_count = [0] * S2
-        combined_flat_ds_checked_count = [0] * S2
-        combined_flat_csub_ok_count = [0] * S2
-        combined_flat_csub_checked_count = [0] * S2
-        # TODO.md Phase 118: combined_ldg_flat_*/combined_exp_flat_*
-        # ok_count/checked_count track the same As/Bs/Ds/Csub-analog
-        # per-slot correctness, but for the real-LDG-sourced and real-
-        # exp()/distance-sourced combined probes respectively.
-        combined_ldg_flat_as_ok_count = [0] * S2
-        combined_ldg_flat_as_checked_count = [0] * S2
-        combined_ldg_flat_bs_ok_count = [0] * S2
-        combined_ldg_flat_bs_checked_count = [0] * S2
-        combined_ldg_flat_ds_ok_count = [0] * S2
-        combined_ldg_flat_ds_checked_count = [0] * S2
-        combined_ldg_flat_csub_ok_count = [0] * S2
-        combined_ldg_flat_csub_checked_count = [0] * S2
-        combined_exp_flat_as_ok_count = [0] * S2
-        combined_exp_flat_as_checked_count = [0] * S2
-        combined_exp_flat_bs_ok_count = [0] * S2
-        combined_exp_flat_bs_checked_count = [0] * S2
-        combined_exp_flat_ds_ok_count = [0] * S2
-        combined_exp_flat_ds_checked_count = [0] * S2
-        combined_exp_flat_csub_ok_count = [0] * S2
-        combined_exp_flat_csub_checked_count = [0] * S2
         all_populated = []  # per-iteration set of populated wMatrix, for exact-pattern comparison
         iter_times = []     # wall-clock seconds for dispatch+synchronize, per iteration -- a real,
                              # independent signal of GPU clock/DVFS warm-up state, to test directly
@@ -1472,7 +709,7 @@ def main():
         # STATUS.md #135: a claimed wMatrix->SMID->TPC pattern was assembled
         # from memory of earlier pasted output, not re-extracted from logs
         # mechanically -- flagged as unverified. dbg[13] (the ground-truth
-        # scratch region's %smid capture, kernelsAll.cu ~line 572) is
+        # scratch region's %smid capture in kernelsAll.cu's GROUND_TRUTH block) is
         # already inside dmat's second half, which this loop already reads
         # back every iteration (n_dmat_floats covers both halves) -- it was
         # just never extracted. Capturing it here, per wMatrix per
@@ -1516,92 +753,6 @@ def main():
             # actually executes), dbg[13]=%smid -- already inside the
             # dmat this loop already reads back, just never extracted.
             scratch = dmat_vals[n_blocks * S2:2 * n_blocks * S2]
-            # TODO.md Phase 93: third region, only present when
-            # --per-thread-ds is set -- per wMatrix, 16 threads' own
-            # 4-float Ds[0..3] views, laid out (ty*EDGE+tx)*STATE_COUNT
-            # exactly matching kernelsAll.cu's TINYGPU_DEBUG_DUMP_PER_
-            # THREAD_DS. EDGE==STATE_COUNT==4 for this BLOCKS==1 config.
-            per_thread_region = None
-            if per_thread_ds:
-                per_thread_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + n_blocks * per_thread_ds_size]
-            elif per_thread_ds_w0:
-                # TODO.md Phase 96: only wMatrix 0's block ever writes here.
-                per_thread_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + per_thread_ds_size]
-            # TODO.md Phase 100: third region, only present when
-            # --dummy-third-block is set -- one hardcoded-constant float
-            # per block, at the same base offset as per_thread_region above
-            # (not combined with --per-thread-ds(-w0) in this experiment).
-            dummy_region = None
-            if dummy_third_block:
-                dummy_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + n_blocks]
-            # TODO.md Phase 101: third region, only present when
-            # --per-thread-dummy-w0 is set -- one per-thread-identifiable
-            # float per real thread in wMatrix 0's block, same base
-            # offset as the other third-region probes above.
-            per_thread_dummy_region = None
-            if per_thread_dummy_w0:
-                per_thread_dummy_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + per_thread_dummy_size]
-            # TODO.md Phase 102: third region, only present when
-            # --per-thread-ds-min-w0 is set -- one real Ds[tx] readback
-            # per real thread in wMatrix 0's block, same base offset and
-            # size as per_thread_dummy_region above.
-            per_thread_ds_min_region = None
-            if per_thread_ds_min_w0:
-                per_thread_ds_min_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + per_thread_ds_min_size]
-            # TODO.md Phase 106: third region, only present when
-            # --local-mem-w0 is set -- one real spilled-local-memory
-            # readback per real thread in wMatrix 0's block, same base
-            # offset and size as the other w0-only per-thread probes.
-            local_mem_region = None
-            if local_mem_w0:
-                local_mem_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + local_mem_size]
-            # TODO.md Phase 108: third region, only present when
-            # --shared-spill-w0 is set -- same layout as local_mem_region.
-            shared_spill_region = None
-            if shared_spill_w0:
-                shared_spill_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + shared_spill_size]
-            # TODO.md Phase 109: third region, only present when
-            # --local-mem-flat-w0 is set -- same layout as local_mem_region.
-            local_mem_flat_region = None
-            if local_mem_flat_w0:
-                local_mem_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + local_mem_flat_size]
-            # TODO.md Phase 110: third region, only present when
-            # --shared-broadcast-flat-w0 is set -- same layout.
-            shared_broadcast_flat_region = None
-            if shared_broadcast_flat_w0:
-                shared_broadcast_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + shared_broadcast_flat_size]
-            # TODO.md Phase 113: third region, only present when
-            # --ab-pattern-2d-w0 is set -- 128 floats, 16 threads x
-            # (4 As[ty][k] + 4 Bs[k][tx]).
-            ab_pattern_2d_region = None
-            if ab_pattern_2d_w0:
-                ab_pattern_2d_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + ab_pattern_2d_size]
-            # TODO.md Phase 113: third region, only present when
-            # --ab-pattern-flat-w0 is set -- 256 floats, 16 threads x
-            # (4 matching-As + 4 matching-Bs + 4 swapped-As + 4 swapped-Bs).
-            ab_pattern_flat_region = None
-            if ab_pattern_flat_w0:
-                ab_pattern_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + ab_pattern_flat_size]
-            # TODO.md Phase 115: third region, only present when
-            # --final-abcd-w0 is set -- 208 floats, 16 threads x
-            # (4 As + 4 Bs + 4 Ds + 1 Csub).
-            final_abcd_region = None
-            if final_abcd_w0:
-                final_abcd_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + final_abcd_size]
-            # TODO.md Phase 116: third region, only present when
-            # --combined-flat-w0 is set -- same layout as final_abcd_region.
-            combined_flat_region = None
-            if combined_flat_w0:
-                combined_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + combined_flat_size]
-            # TODO.md Phase 118: third region, only present when
-            # --combined-ldg-flat-w0/--combined-exp-flat-w0 is set --
-            # same layout as combined_flat_region.
-            combined_ldg_flat_region = None
-            if combined_ldg_flat_w0:
-                combined_ldg_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + combined_ldg_flat_size]
-            combined_exp_flat_region = None
-            if combined_exp_flat_w0:
-                combined_exp_flat_region = dmat_vals[2 * n_blocks * S2:2 * n_blocks * S2 + combined_exp_flat_size]
 
             populated_this_iter = []
             for w in range(n_blocks):
@@ -1631,316 +782,6 @@ def main():
                             stats[1] += 1
                         if is_correct:
                             stats[2] += 1
-                if per_thread_ds or (per_thread_ds_w0 and w == 0):
-                    # Compare every one of the 16 threads' own captured
-                    # Ds[0..3] against the writer row's (ty=0, tx=0's
-                    # slot -- all 4 ty=0 threads should already agree
-                    # with each other, they wrote the array together).
-                    pt = (per_thread_region[w * per_thread_ds_size:(w + 1) * per_thread_ds_size] if per_thread_ds
-                          else per_thread_region[0:per_thread_ds_size])
-                    writer_ds = pt[0:STATE_COUNT]
-                    if writer_ds[0] != SENTINEL:
-                        ds_broadcast_checked_count[w] += 1
-                        all_match = True
-                        for ty in range(STATE_COUNT):
-                            for tx in range(STATE_COUNT):
-                                idx = (ty * STATE_COUNT + tx) * STATE_COUNT
-                                reader_ds = pt[idx:idx + STATE_COUNT]
-                                if reader_ds[0] == SENTINEL or any(abs(a - b) > 1e-9 for a, b in zip(reader_ds, writer_ds)):
-                                    all_match = False
-                        if all_match:
-                            ds_broadcast_ok_count[w] += 1
-                if dummy_third_block:
-                    # TODO.md Phase 100: kernelsAll.cu's TINYGPU_DEBUG_DUMP_
-                    # DUMMY_THIRD_BLOCK writes the literal constant 42 --
-                    # any other value (or SENTINEL, meaning never written)
-                    # is a real failure of this trivial, content-unrelated
-                    # third write, not something ambiguous to interpret.
-                    val = dummy_region[w]
-                    if val != SENTINEL:
-                        dummy_checked_count[w] += 1
-                        if val == 42.0:
-                            dummy_ok_count[w] += 1
-                if per_thread_dummy_w0 and w == 0:
-                    # TODO.md Phase 101: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_PER_THREAD_DUMMY_W0 writes each of the 16 real
-                    # threads' own (ty*EDGE+tx) index to its own slot --
-                    # checked per-slot (not per-iteration, unlike the
-                    # other tables above) since there are 16 independent
-                    # writers within this one block.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = per_thread_dummy_region[idx]
-                            if val != SENTINEL:
-                                per_thread_dummy_checked_count[w] += 1
-                                if val == float(idx):
-                                    per_thread_dummy_ok_count[w] += 1
-                if per_thread_ds_min_w0 and w == 0:
-                    # TODO.md Phase 102/103: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_PER_THREAD_DS_MIN_W0 writes each of the 16 real
-                    # threads' own Ds[tx] readback to its own slot --
-                    # checked per-slot (not aggregated across slots, since
-                    # Phase 102 showed the result is NOT uniform) against
-                    # the reference exp(EVAL[tx]*distance).
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = per_thread_ds_min_region[idx]
-                            if val != SENTINEL:
-                                per_thread_ds_min_checked_count[idx] += 1
-                                if abs(val - ds_reference_w0[tx]) < CORRECTNESS_TOL:
-                                    per_thread_ds_min_ok_count[idx] += 1
-                if local_mem_w0 and w == 0:
-                    # TODO.md Phase 106: kernelsAll.cu's TINYGPU_DEBUG_DUMP_
-                    # LOCAL_MEM_W0 writes each of the 16 real threads' own
-                    # spilled-and-reloaded local-memory value (the slot its
-                    # own 16-step index recurrence lands on, matching
-                    # kernelsAll.cu's TINYGPU_DEBUG_DUMP_LOCAL_MEM_W0
-                    # exactly -- see local_mem_expected()) to its own slot.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = local_mem_region[idx]
-                            if val != SENTINEL:
-                                local_mem_checked_count[idx] += 1
-                                expected = local_mem_expected(ty, tx, n_blocks)
-                                if abs(val - expected) < CORRECTNESS_TOL:
-                                    local_mem_ok_count[idx] += 1
-                if shared_spill_w0 and w == 0:
-                    # TODO.md Phase 108: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_SHARED_SPILL_W0 writes each of the 16 real
-                    # threads' own explicit-shared-memory readback --
-                    # same recurrence/formula as local_mem_expected(),
-                    # just a different storage class.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = shared_spill_region[idx]
-                            if val != SENTINEL:
-                                shared_spill_checked_count[idx] += 1
-                                expected = local_mem_expected(ty, tx, n_blocks)
-                                if abs(val - expected) < CORRECTNESS_TOL:
-                                    shared_spill_ok_count[idx] += 1
-                if local_mem_flat_w0 and w == 0:
-                    # TODO.md Phase 109: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_LOCAL_MEM_FLAT_W0 writes each of the 16
-                    # logical (ty,tx) threads' own local-memory readback,
-                    # under a flat (256,1,1) dispatch -- same recurrence/
-                    # formula as local_mem_expected().
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = local_mem_flat_region[idx]
-                            if val != SENTINEL:
-                                local_mem_flat_checked_count[idx] += 1
-                                expected = local_mem_expected(ty, tx, n_blocks)
-                                if abs(val - expected) < CORRECTNESS_TOL:
-                                    local_mem_flat_ok_count[idx] += 1
-                if shared_broadcast_flat_w0 and w == 0:
-                    # TODO.md Phase 110: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_SHARED_BROADCAST_FLAT_W0 writes each of the 16
-                    # logical (ty,tx) threads' own sDs[logicalTx]
-                    # readback, under a flat (256,1,1) dispatch -- checked
-                    # against ds_reference_w0[tx] (Ds[]'s own reference,
-                    # already computed unconditionally above), same as
-                    # --per-thread-ds-min-w0's own check.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = shared_broadcast_flat_region[idx]
-                            if val != SENTINEL:
-                                shared_broadcast_flat_checked_count[idx] += 1
-                                if abs(val - ds_reference_w0[tx]) < CORRECTNESS_TOL:
-                                    shared_broadcast_flat_ok_count[idx] += 1
-                if ab_pattern_2d_w0 and w == 0:
-                    # TODO.md Phase 113: kernelsAll.cu's TINYGPU_DEBUG_DUMP_
-                    # AB_PATTERN_2D_W0 writes each of the 16 logical (ty,tx)
-                    # threads' own As[ty][0..3]/Bs[0..3][tx] readback --
-                    # a slot's "ok" requires all 4 As k-values (and,
-                    # separately, all 4 Bs k-values) to match what the
-                    # actual writer thread wrote (ab_pattern_expected).
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * 2 * STATE_COUNT
-                            as_vals = ab_pattern_2d_region[base:base + STATE_COUNT]
-                            bs_vals = ab_pattern_2d_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            if as_vals[0] != SENTINEL:
-                                ab_pattern_2d_as_checked_count[idx] += 1
-                                if all(abs(as_vals[k] - ab_pattern_expected(ty, k)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_2d_as_ok_count[idx] += 1
-                            if bs_vals[0] != SENTINEL:
-                                ab_pattern_2d_bs_checked_count[idx] += 1
-                                if all(abs(bs_vals[k] - ab_pattern_expected(k, tx)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_2d_bs_ok_count[idx] += 1
-                if ab_pattern_flat_w0 and w == 0:
-                    # TODO.md Phase 113: kernelsAll.cu's TINYGPU_DEBUG_DUMP_
-                    # AB_PATTERN_FLAT_W0 writes each of the 16 logical
-                    # (ty,tx) threads' own 4 readback groups (matching-As,
-                    # matching-Bs, swapped-As, swapped-Bs) -- same
-                    # all-4-k-match-per-slot convention as --ab-pattern-2d-
-                    # w0 above, one table per group.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * 4 * STATE_COUNT
-                            as_match = ab_pattern_flat_region[base:base + STATE_COUNT]
-                            bs_match = ab_pattern_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            as_swap = ab_pattern_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                            bs_swap = ab_pattern_flat_region[base + 3 * STATE_COUNT:base + 4 * STATE_COUNT]
-                            if as_match[0] != SENTINEL:
-                                ab_pattern_flat_as_match_checked_count[idx] += 1
-                                if all(abs(as_match[k] - ab_pattern_expected(ty, k)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_flat_as_match_ok_count[idx] += 1
-                            if bs_match[0] != SENTINEL:
-                                ab_pattern_flat_bs_match_checked_count[idx] += 1
-                                if all(abs(bs_match[k] - ab_pattern_expected(k, tx)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_flat_bs_match_ok_count[idx] += 1
-                            if as_swap[0] != SENTINEL:
-                                ab_pattern_flat_as_swap_checked_count[idx] += 1
-                                # swapped read = sAsFlat[tx*16+k] -> writer thread's own linear id = tx*16+k -> writer is (ty'=tx, tx'=k)
-                                if all(abs(as_swap[k] - ab_pattern_expected(tx, k)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_flat_as_swap_ok_count[idx] += 1
-                            if bs_swap[0] != SENTINEL:
-                                ab_pattern_flat_bs_swap_checked_count[idx] += 1
-                                # swapped read = sBsFlat[k*16+ty] -> writer thread's own linear id = k*16+ty -> writer is (ty'=k, tx'=ty)
-                                if all(abs(bs_swap[k] - ab_pattern_expected(k, ty)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    ab_pattern_flat_bs_swap_ok_count[idx] += 1
-                if final_abcd_w0 and w == 0:
-                    # TODO.md Phase 115: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_FINAL_ABCD_CSUB_W0 writes each of the 16 real
-                    # threads' own REAL As[ty][0..3]/Bs[0..3][tx]/
-                    # Ds[0..3]/Csub, captured right before the real
-                    # barrier/C[] write. As checked against EVEC (the
-                    # real A buffer), Bs against IVEC (the real B
-                    # buffer), Ds against ds_reference_w0 (this thread's
-                    # own view -- broadcast visibility is exactly what
-                    # Phase 90-103/110 found could differ per-reader),
-                    # Csub against reference_matrices[0] directly (JC69
-                    # entries are always in [0,1], so the pre-clamp
-                    # captured value should equal the reference exactly
-                    # whenever the real computation is correct).
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * (3 * STATE_COUNT + 1)
-                            as_vals = final_abcd_region[base:base + STATE_COUNT]
-                            bs_vals = final_abcd_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            ds_vals = final_abcd_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                            csub_val = final_abcd_region[base + 3 * STATE_COUNT]
-                            if as_vals[0] != SENTINEL:
-                                final_abcd_as_checked_count[idx] += 1
-                                if all(abs(as_vals[k] - EVEC[STATE_COUNT * ty + k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    final_abcd_as_ok_count[idx] += 1
-                            if bs_vals[0] != SENTINEL:
-                                final_abcd_bs_checked_count[idx] += 1
-                                if all(abs(bs_vals[k] - IVEC[STATE_COUNT * k + tx]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    final_abcd_bs_ok_count[idx] += 1
-                            if ds_vals[0] != SENTINEL:
-                                final_abcd_ds_checked_count[idx] += 1
-                                if all(abs(ds_vals[k] - ds_reference_w0[k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    final_abcd_ds_ok_count[idx] += 1
-                            if csub_val != SENTINEL:
-                                final_abcd_csub_checked_count[idx] += 1
-                                if abs(csub_val - reference_matrices[0][idx]) < CORRECTNESS_TOL:
-                                    final_abcd_csub_ok_count[idx] += 1
-                if combined_flat_w0 and w == 0:
-                    # TODO.md Phase 116: kernelsAll.cu's TINYGPU_DEBUG_
-                    # DUMP_COMBINED_FLAT_W0 writes each of the 16 logical
-                    # (ty,tx) threads' own private As[ty][0..3]/
-                    # Bs[0..3][tx]/Ds[0..3]/Csub-analog, all written/
-                    # synced/read together under ONE shared barrier,
-                    # exactly mirroring the real kernel's own combined
-                    # structure. Checked against combined_val()/
-                    # combined_ds()/combined_csub_expected().
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * (3 * STATE_COUNT + 1)
-                            as_vals = combined_flat_region[base:base + STATE_COUNT]
-                            bs_vals = combined_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            ds_vals = combined_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                            csub_val = combined_flat_region[base + 3 * STATE_COUNT]
-                            if as_vals[0] != SENTINEL:
-                                combined_flat_as_checked_count[idx] += 1
-                                if all(abs(as_vals[k] - combined_val(ty, k)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_flat_as_ok_count[idx] += 1
-                            if bs_vals[0] != SENTINEL:
-                                combined_flat_bs_checked_count[idx] += 1
-                                if all(abs(bs_vals[k] - combined_val(k, tx)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_flat_bs_ok_count[idx] += 1
-                            if ds_vals[0] != SENTINEL:
-                                combined_flat_ds_checked_count[idx] += 1
-                                if all(abs(ds_vals[k] - combined_ds(k)) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_flat_ds_ok_count[idx] += 1
-                            if csub_val != SENTINEL:
-                                combined_flat_csub_checked_count[idx] += 1
-                                if abs(csub_val - combined_csub_expected(ty, tx)) < CORRECTNESS_TOL:
-                                    combined_flat_csub_ok_count[idx] += 1
-                if combined_ldg_flat_w0 and w == 0:
-                    # TODO.md Phase 118: real-LDG-sourced combined probe --
-                    # As against EVEC[ty*4+k], Bs against IVEC[k*4+tx]
-                    # (same real references as --final-abcd-w0), Ds
-                    # against the RAW EVAL[k] (no exp() yet), Csub against
-                    # the raw (un-exponentiated) reduction.
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * (3 * STATE_COUNT + 1)
-                            as_vals = combined_ldg_flat_region[base:base + STATE_COUNT]
-                            bs_vals = combined_ldg_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            ds_vals = combined_ldg_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                            csub_val = combined_ldg_flat_region[base + 3 * STATE_COUNT]
-                            if as_vals[0] != SENTINEL:
-                                combined_ldg_flat_as_checked_count[idx] += 1
-                                if all(abs(as_vals[k] - EVEC[STATE_COUNT * ty + k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_ldg_flat_as_ok_count[idx] += 1
-                            if bs_vals[0] != SENTINEL:
-                                combined_ldg_flat_bs_checked_count[idx] += 1
-                                if all(abs(bs_vals[k] - IVEC[STATE_COUNT * k + tx]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_ldg_flat_bs_ok_count[idx] += 1
-                            if ds_vals[0] != SENTINEL:
-                                combined_ldg_flat_ds_checked_count[idx] += 1
-                                if all(abs(ds_vals[k] - EVAL[k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_ldg_flat_ds_ok_count[idx] += 1
-                            if csub_val != SENTINEL:
-                                combined_ldg_flat_csub_checked_count[idx] += 1
-                                csub_expected = sum(EVEC[STATE_COUNT * ty + k] * EVAL[k] * IVEC[STATE_COUNT * k + tx] for k in range(STATE_COUNT))
-                                if abs(csub_val - csub_expected) < CORRECTNESS_TOL:
-                                    combined_ldg_flat_csub_ok_count[idx] += 1
-                if combined_exp_flat_w0 and w == 0:
-                    # TODO.md Phase 118: real-exp()/distance combined
-                    # probe -- As/Bs same real references, Ds against
-                    # ds_reference_w0[k] (the real exp(EVAL[k]*distance)),
-                    # Csub against reference_matrices[0] directly (with
-                    # real A/B/D and real exp()/distance, this reduction
-                    # is mathematically identical to the real kernel's own
-                    # intended Csub).
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            base = idx * (3 * STATE_COUNT + 1)
-                            as_vals = combined_exp_flat_region[base:base + STATE_COUNT]
-                            bs_vals = combined_exp_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                            ds_vals = combined_exp_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                            csub_val = combined_exp_flat_region[base + 3 * STATE_COUNT]
-                            if as_vals[0] != SENTINEL:
-                                combined_exp_flat_as_checked_count[idx] += 1
-                                if all(abs(as_vals[k] - EVEC[STATE_COUNT * ty + k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_exp_flat_as_ok_count[idx] += 1
-                            if bs_vals[0] != SENTINEL:
-                                combined_exp_flat_bs_checked_count[idx] += 1
-                                if all(abs(bs_vals[k] - IVEC[STATE_COUNT * k + tx]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_exp_flat_bs_ok_count[idx] += 1
-                            if ds_vals[0] != SENTINEL:
-                                combined_exp_flat_ds_checked_count[idx] += 1
-                                if all(abs(ds_vals[k] - ds_reference_w0[k]) < CORRECTNESS_TOL for k in range(STATE_COUNT)):
-                                    combined_exp_flat_ds_ok_count[idx] += 1
-                            if csub_val != SENTINEL:
-                                combined_exp_flat_csub_checked_count[idx] += 1
-                                if abs(csub_val - reference_matrices[0][idx]) < CORRECTNESS_TOL:
-                                    combined_exp_flat_csub_ok_count[idx] += 1
             if it == 0 and populated_this_iter:
                 # TODO.md Phase 91: one-time (first iteration, first
                 # wrote-nonzero wMatrix only -- bounded, cheap), raw
@@ -1962,318 +803,6 @@ def main():
                     line = f"    row {row}: real={real_row}  ref={ref_row}  |delta|={delta_row}"
                     log(line)
                     print(line, file=sys.stdout, flush=True)
-                if per_thread_ds or (per_thread_ds_w0 and w0 == 0):
-                    # TODO.md Phase 93/96: the direct test -- every one of
-                    # the 16 real threads' own observed Ds[0..3], read
-                    # straight out of shared memory by that thread
-                    # itself, not inferred from the real C[] output.
-                    pt0 = (per_thread_region[w0 * per_thread_ds_size:(w0 + 1) * per_thread_ds_size] if per_thread_ds
-                           else per_thread_region[0:per_thread_ds_size])
-                    sub_header = f"  --- per-thread Ds[0..3] view, wMatrix {w0} (writer row is ty=0) ---"
-                    log(sub_header)
-                    print(sub_header, file=sys.stdout, flush=True)
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = (ty * STATE_COUNT + tx) * STATE_COUNT
-                            view = pt0[idx:idx + STATE_COUNT]
-                            desc = "(never wrote)" if view[0] == SENTINEL else f"{[f'{v:.6f}' for v in view]}"
-                            line = f"    (ty={ty},tx={tx}): Ds={desc}"
-                            log(line)
-                            print(line, file=sys.stdout, flush=True)
-                if per_thread_ds_min_w0 and w0 == 0:
-                    # TODO.md Phase 103: raw real-vs-reference view for
-                    # --per-thread-ds-min-w0, matching Phase 93/96's own
-                    # raw diagnostic style above -- shows, per thread,
-                    # whether it read the correct Ds[tx] straight out of
-                    # shared memory, not just the aggregate rate.
-                    sub_header = f"  --- per-thread Ds[tx] readback, wMatrix {w0} (writer row is ty=0) ---"
-                    log(sub_header)
-                    print(sub_header, file=sys.stdout, flush=True)
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = per_thread_ds_min_region[idx]
-                            if val == SENTINEL:
-                                desc = "(never wrote)"
-                            else:
-                                ref = ds_reference_w0[tx]
-                                ok = abs(val - ref) < CORRECTNESS_TOL
-                                desc = f"real={val:.6f} ref={ref:.6f} {'OK' if ok else 'WRONG'}"
-                            line = f"    (ty={ty},tx={tx}): {desc}"
-                            log(line)
-                            print(line, file=sys.stdout, flush=True)
-                if local_mem_w0 and w0 == 0:
-                    # TODO.md Phase 106: raw real-vs-reference view for
-                    # --local-mem-w0, matching the Ds[]-probes' own raw
-                    # diagnostic style -- shows, per thread, whether its
-                    # own spilled-and-reloaded local-memory value survived
-                    # the roundtrip correctly.
-                    sub_header = f"  --- per-thread local-memory (spill) readback, wMatrix {w0} ---"
-                    log(sub_header)
-                    print(sub_header, file=sys.stdout, flush=True)
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = local_mem_region[idx]
-                            if val == SENTINEL:
-                                desc = "(never wrote)"
-                            else:
-                                expected = local_mem_expected(ty, tx, n_blocks)
-                                ok = abs(val - expected) < CORRECTNESS_TOL
-                                desc = f"real={val:.6f} expected={expected} {'OK' if ok else 'WRONG'}"
-                            line = f"    (ty={ty},tx={tx}): {desc}"
-                            log(line)
-                            print(line, file=sys.stdout, flush=True)
-                if shared_spill_w0 and w0 == 0:
-                    # TODO.md Phase 108: raw real-vs-reference view for
-                    # --shared-spill-w0, matching --local-mem-w0's own
-                    # raw diagnostic style.
-                    sub_header = f"  --- per-thread explicit-shared-memory (spill) readback, wMatrix {w0} ---"
-                    log(sub_header)
-                    print(sub_header, file=sys.stdout, flush=True)
-                    for ty in range(STATE_COUNT):
-                        for tx in range(STATE_COUNT):
-                            idx = ty * STATE_COUNT + tx
-                            val = shared_spill_region[idx]
-                            if val == SENTINEL:
-                                desc = "(never wrote)"
-                            else:
-                                expected = local_mem_expected(ty, tx, n_blocks)
-                                ok = abs(val - expected) < CORRECTNESS_TOL
-                                desc = f"real={val:.6f} expected={expected} {'OK' if ok else 'WRONG'}"
-                            line = f"    (ty={ty},tx={tx}): {desc}"
-                            log(line)
-                            print(line, file=sys.stdout, flush=True)
-            if local_mem_flat_w0 and it == 0:
-                # TODO.md Phase 109: raw real-vs-reference view for
-                # --local-mem-flat-w0, matching --local-mem-w0's own raw
-                # diagnostic style. Deliberately NOT nested inside "if
-                # it==0 and populated_this_iter" above -- Phase 108's own
-                # run showed wMatrix 0's *real matrix* output can fail to
-                # populate on a given run (a first in this investigation,
-                # but real), which would silently skip this dump too if
-                # it depended on that same condition. This block checks
-                # `it==0` alone, independent of the real matrix's status,
-                # so the raw per-thread comparison is never silently lost.
-                sub_header = "  --- per-thread local-memory (spill) readback, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        val = local_mem_flat_region[idx]
-                        if val == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            expected = local_mem_expected(ty, tx, n_blocks)
-                            ok = abs(val - expected) < CORRECTNESS_TOL
-                            desc = f"real={val:.6f} expected={expected} {'OK' if ok else 'WRONG'}"
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if shared_broadcast_flat_w0 and it == 0:
-                # TODO.md Phase 110: raw real-vs-reference view for
-                # --shared-broadcast-flat-w0, matching --local-mem-flat-
-                # w0's own independent-of-populated_this_iter style.
-                sub_header = "  --- per-thread Ds[]-broadcast (sDs) readback, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        val = shared_broadcast_flat_region[idx]
-                        if val == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            ref = ds_reference_w0[tx]
-                            ok = abs(val - ref) < CORRECTNESS_TOL
-                            desc = f"real={val:.6f} ref={ref:.6f} {'OK' if ok else 'WRONG'}"
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if ab_pattern_2d_w0 and it == 0:
-                # TODO.md Phase 113: raw real-vs-reference view for
-                # --ab-pattern-2d-w0, matching --local-mem-flat-w0's own
-                # independent-of-populated_this_iter style.
-                sub_header = "  --- per-thread As[ty][k]/Bs[k][tx] readback, 2D shared array, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * 2 * STATE_COUNT
-                        as_vals = ab_pattern_2d_region[base:base + STATE_COUNT]
-                        bs_vals = ab_pattern_2d_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        if as_vals[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            as_desc = ", ".join(
-                                f"k{k}={as_vals[k]:.0f}({'OK' if abs(as_vals[k]-ab_pattern_expected(ty,k))<CORRECTNESS_TOL else 'WRONG,exp='+str(ab_pattern_expected(ty,k))})"
-                                for k in range(STATE_COUNT))
-                            bs_desc = ", ".join(
-                                f"k{k}={bs_vals[k]:.0f}({'OK' if abs(bs_vals[k]-ab_pattern_expected(k,tx))<CORRECTNESS_TOL else 'WRONG,exp='+str(ab_pattern_expected(k,tx))})"
-                                for k in range(STATE_COUNT))
-                            desc = f"As[{ty}][k]: {as_desc}  |  Bs[k][{tx}]: {bs_desc}"
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if ab_pattern_flat_w0 and it == 0:
-                # TODO.md Phase 113: raw real-vs-reference view for
-                # --ab-pattern-flat-w0 -- flat REAL[256] array, hand-
-                # computed addresses, both the matching and user-suggested
-                # swapped (tx*16+k) read variants.
-                sub_header = "  --- per-thread flat-array As/Bs readback (matching + swapped), FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * 4 * STATE_COUNT
-                        as_match = ab_pattern_flat_region[base:base + STATE_COUNT]
-                        bs_match = ab_pattern_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        as_swap = ab_pattern_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                        bs_swap = ab_pattern_flat_region[base + 3 * STATE_COUNT:base + 4 * STATE_COUNT]
-                        if as_match[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            def _fmt(vals, exp_fn):
-                                return ", ".join(
-                                    f"k{k}={vals[k]:.0f}({'OK' if abs(vals[k]-exp_fn(k))<CORRECTNESS_TOL else 'WRONG,exp='+str(exp_fn(k))})"
-                                    for k in range(STATE_COUNT))
-                            as_m = _fmt(as_match, lambda k: ab_pattern_expected(ty, k))
-                            bs_m = _fmt(bs_match, lambda k: ab_pattern_expected(k, tx))
-                            as_s = _fmt(as_swap, lambda k: ab_pattern_expected(tx, k))
-                            bs_s = _fmt(bs_swap, lambda k: ab_pattern_expected(k, ty))
-                            desc = f"As-match: {as_m}  |  Bs-match: {bs_m}  |  As-swap(tx*16+k): {as_s}  |  Bs-swap(k*16+ty): {bs_s}"
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if final_abcd_w0 and it == 0:
-                # TODO.md Phase 115: raw real-vs-reference view for
-                # --final-abcd-w0, matching --local-mem-flat-w0's own
-                # independent-of-populated_this_iter style.
-                sub_header = "  --- REAL As[ty][k]/Bs[k][tx]/Ds[k]/Csub, captured before the real barrier/C[] write, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * (3 * STATE_COUNT + 1)
-                        as_vals = final_abcd_region[base:base + STATE_COUNT]
-                        bs_vals = final_abcd_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        ds_vals = final_abcd_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                        csub_val = final_abcd_region[base + 3 * STATE_COUNT]
-                        if as_vals[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            def _fmt2(vals, exp_fn):
-                                return ", ".join(
-                                    f"k{k}={vals[k]:.6f}({'OK' if abs(vals[k]-exp_fn(k))<CORRECTNESS_TOL else 'WRONG,exp='+f'{exp_fn(k):.6f}'})"
-                                    for k in range(STATE_COUNT))
-                            as_d = _fmt2(as_vals, lambda k: EVEC[STATE_COUNT * ty + k])
-                            bs_d = _fmt2(bs_vals, lambda k: IVEC[STATE_COUNT * k + tx])
-                            ds_d = _fmt2(ds_vals, lambda k: ds_reference_w0[k])
-                            csub_ref = reference_matrices[0][idx]
-                            csub_ok = abs(csub_val - csub_ref) < CORRECTNESS_TOL
-                            desc = (f"As[{ty}][k]: {as_d}  |  Bs[k][{tx}]: {bs_d}  |  Ds[k] (this thread's view): {ds_d}  |  "
-                                    f"Csub={csub_val:.6f} ref={csub_ref:.6f} {'OK' if csub_ok else 'WRONG'}")
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if combined_flat_w0 and it == 0:
-                # TODO.md Phase 116: raw real-vs-reference view for
-                # --combined-flat-w0, matching --final-abcd-w0's own
-                # independent-of-populated_this_iter style.
-                sub_header = "  --- private combined As[ty][k]/Bs[k][tx]/Ds[k]/Csub-analog, single shared barrier, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * (3 * STATE_COUNT + 1)
-                        as_vals = combined_flat_region[base:base + STATE_COUNT]
-                        bs_vals = combined_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        ds_vals = combined_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                        csub_val = combined_flat_region[base + 3 * STATE_COUNT]
-                        if as_vals[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            def _fmt3(vals, exp_fn):
-                                return ", ".join(
-                                    f"k{k}={vals[k]:.0f}({'OK' if abs(vals[k]-exp_fn(k))<CORRECTNESS_TOL else 'WRONG,exp='+str(exp_fn(k))})"
-                                    for k in range(STATE_COUNT))
-                            as_d = _fmt3(as_vals, lambda k: combined_val(ty, k))
-                            bs_d = _fmt3(bs_vals, lambda k: combined_val(k, tx))
-                            ds_d = _fmt3(ds_vals, lambda k: combined_ds(k))
-                            csub_ref = combined_csub_expected(ty, tx)
-                            csub_ok = abs(csub_val - csub_ref) < CORRECTNESS_TOL
-                            desc = (f"As[{ty}][k]: {as_d}  |  Bs[k][{tx}]: {bs_d}  |  Ds[k]: {ds_d}  |  "
-                                    f"Csub={csub_val:.0f} exp={csub_ref} {'OK' if csub_ok else 'WRONG'}")
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if combined_ldg_flat_w0 and it == 0:
-                # TODO.md Phase 118: raw real-vs-reference view for
-                # --combined-ldg-flat-w0.
-                sub_header = "  --- real-LDG-sourced combined As[ty][k]/Bs[k][tx]/Ds[k](raw)/Csub-analog, single shared barrier, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * (3 * STATE_COUNT + 1)
-                        as_vals = combined_ldg_flat_region[base:base + STATE_COUNT]
-                        bs_vals = combined_ldg_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        ds_vals = combined_ldg_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                        csub_val = combined_ldg_flat_region[base + 3 * STATE_COUNT]
-                        if as_vals[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            def _fmt4(vals, exp_fn):
-                                return ", ".join(
-                                    f"k{k}={vals[k]:.6f}({'OK' if abs(vals[k]-exp_fn(k))<CORRECTNESS_TOL else 'WRONG,exp='+f'{exp_fn(k):.6f}'})"
-                                    for k in range(STATE_COUNT))
-                            as_d = _fmt4(as_vals, lambda k: EVEC[STATE_COUNT * ty + k])
-                            bs_d = _fmt4(bs_vals, lambda k: IVEC[STATE_COUNT * k + tx])
-                            ds_d = _fmt4(ds_vals, lambda k: EVAL[k])
-                            csub_ref = sum(EVEC[STATE_COUNT * ty + k] * EVAL[k] * IVEC[STATE_COUNT * k + tx] for k in range(STATE_COUNT))
-                            csub_ok = abs(csub_val - csub_ref) < CORRECTNESS_TOL
-                            desc = (f"As[{ty}][k]: {as_d}  |  Bs[k][{tx}]: {bs_d}  |  Ds[k] (raw): {ds_d}  |  "
-                                    f"Csub={csub_val:.6f} ref={csub_ref:.6f} {'OK' if csub_ok else 'WRONG'}")
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
-            if combined_exp_flat_w0 and it == 0:
-                # TODO.md Phase 118: raw real-vs-reference view for
-                # --combined-exp-flat-w0.
-                sub_header = "  --- real-exp()/distance combined As[ty][k]/Bs[k][tx]/Ds[k]/Csub-analog, single shared barrier, FLAT (256,1,1) dispatch, wMatrix 0 ---"
-                log(sub_header)
-                print(sub_header, file=sys.stdout, flush=True)
-                for ty in range(STATE_COUNT):
-                    for tx in range(STATE_COUNT):
-                        idx = ty * STATE_COUNT + tx
-                        base = idx * (3 * STATE_COUNT + 1)
-                        as_vals = combined_exp_flat_region[base:base + STATE_COUNT]
-                        bs_vals = combined_exp_flat_region[base + STATE_COUNT:base + 2 * STATE_COUNT]
-                        ds_vals = combined_exp_flat_region[base + 2 * STATE_COUNT:base + 3 * STATE_COUNT]
-                        csub_val = combined_exp_flat_region[base + 3 * STATE_COUNT]
-                        if as_vals[0] == SENTINEL:
-                            desc = "(never wrote)"
-                        else:
-                            def _fmt5(vals, exp_fn):
-                                return ", ".join(
-                                    f"k{k}={vals[k]:.6f}({'OK' if abs(vals[k]-exp_fn(k))<CORRECTNESS_TOL else 'WRONG,exp='+f'{exp_fn(k):.6f}'})"
-                                    for k in range(STATE_COUNT))
-                            as_d = _fmt5(as_vals, lambda k: EVEC[STATE_COUNT * ty + k])
-                            bs_d = _fmt5(bs_vals, lambda k: IVEC[STATE_COUNT * k + tx])
-                            ds_d = _fmt5(ds_vals, lambda k: ds_reference_w0[k])
-                            csub_ref = reference_matrices[0][idx]
-                            csub_ok = abs(csub_val - csub_ref) < CORRECTNESS_TOL
-                            desc = (f"As[{ty}][k]: {as_d}  |  Bs[k][{tx}]: {bs_d}  |  Ds[k]: {ds_d}  |  "
-                                    f"Csub={csub_val:.6f} ref={csub_ref:.6f} {'OK' if csub_ok else 'WRONG'}")
-                        line = f"    (ty={ty},tx={tx}): {desc}"
-                        log(line)
-                        print(line, file=sys.stdout, flush=True)
             all_populated.append(tuple(populated_this_iter))
             line = (f"  iter {it:2d}: {len(populated_this_iter):2d}/{n_blocks} populated "
                     f"({'FULL' if len(populated_this_iter) == n_blocks else 'partial'})  "
@@ -2323,252 +852,6 @@ def main():
             line = f"    {all_populated.count(pat):2d}x: {pat}"
             log(line)
             print(line, file=sys.stdout, flush=True)
-
-        if per_thread_ds or per_thread_ds_w0:
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: per-wMatrix Ds[] broadcast-visibility rate ===", file=sys.stdout, flush=True)
-            for w in range(n_blocks):
-                checked, ok = ds_broadcast_checked_count[w], ds_broadcast_ok_count[w]
-                rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                line = f"  wMatrix {w:2d}: {ok:2d}/{checked:2d} broadcast OK ({rate})"
-                log(line)
-                print(line, file=sys.stdout, flush=True)
-
-        if dummy_third_block:
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: per-wMatrix dummy-third-block write reliability ===", file=sys.stdout, flush=True)
-            for w in range(n_blocks):
-                checked, ok = dummy_checked_count[w], dummy_ok_count[w]
-                rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                line = f"  wMatrix {w:2d}: {ok:2d}/{checked:2d} correct constant ({rate})"
-                log(line)
-                print(line, file=sys.stdout, flush=True)
-
-        if per_thread_dummy_w0:
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread-dummy write reliability (16 slots/iteration) ===", file=sys.stdout, flush=True)
-            checked, ok = per_thread_dummy_checked_count[0], per_thread_dummy_ok_count[0]
-            rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-            line = f"  wMatrix  0: {ok:3d}/{checked:3d} correct per-thread slots ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if per_thread_ds_min_w0:
-            # TODO.md Phase 103: Phase 102's aggregate 7/16 result directly
-            # confirmed the Ds[] broadcast-visibility hypothesis for the
-            # first time without inferring it from downstream C[] output,
-            # but gave no indication of *which* threads are reliably
-            # right/wrong. Per-slot breakdown, across the full --sweep,
-            # tests directly whether ty=0 (the 4 threads that *write*
-            # Ds[]) is consistently correct while ty>0 (readers) are
-            # consistently/inconsistently wrong -- the same question
-            # Phase 91/92 could only answer indirectly, now answerable at
-            # the Ds[] source with real statistical power and zero fault
-            # risk (Phase 100-102 already cleared this diagnostic on
-            # hardware).
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread Ds[tx] readback reliability, per slot ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = per_thread_ds_min_checked_count[idx], per_thread_ds_min_ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    writer = " (writer row)" if ty == 0 else ""
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate}){writer}"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if local_mem_w0:
-            # TODO.md Phase 106: parallel to --per-thread-ds-min-w0's own
-            # per-slot table above, but for LOCAL memory (register spill)
-            # instead of shared memory. Local memory is per-thread-
-            # private -- no broadcast semantics -- so "correct" here means
-            # each thread's own spilled-and-reloaded value survived the
-            # roundtrip, not that it matches some other thread's write.
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread local-memory (spill) readback reliability, per slot ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = local_mem_checked_count[idx], local_mem_ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate})"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if shared_spill_w0:
-            # TODO.md Phase 108: parallel to --local-mem-w0's own per-slot
-            # table, but for explicit shared-memory storage. Same-thread
-            # write-then-read-back, never tested before this probe.
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread explicit-shared-memory (spill) readback reliability, per slot ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = shared_spill_checked_count[idx], shared_spill_ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate})"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if local_mem_flat_w0:
-            # TODO.md Phase 109: parallel to --local-mem-w0's own per-slot
-            # table, but under a flat (256,1,1) block dispatch instead of
-            # the kernel's normal (16,16,1) -- tests whether the tx+4ty
-            # aliasing depends on the real 2D block shape.
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread local-memory (spill) readback reliability, FLAT (256,1,1) dispatch, per slot ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = local_mem_flat_checked_count[idx], local_mem_flat_ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate})"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if shared_broadcast_flat_w0:
-            # TODO.md Phase 110: parallel to --local-mem-flat-w0's own
-            # per-slot table, but for Ds[]'s own broadcast mechanism.
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: wMatrix 0 per-thread Ds[]-broadcast readback reliability, FLAT (256,1,1) dispatch, per slot ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = shared_broadcast_flat_checked_count[idx], shared_broadcast_flat_ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate})"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        def _print_per_slot_table(title, ok_count, checked_count):
-            # TODO.md Phase 113: shared per-slot table printer, used by
-            # --ab-pattern-2d-w0/--ab-pattern-flat-w0's four/six tables --
-            # identical row/format to every other per-slot table above,
-            # factored out only because this probe has more of them.
-            print(f"\n=== nv_real_kernel_probe --sweep {sweep}: {title} ===", file=sys.stdout, flush=True)
-            total_checked = total_ok = 0
-            for ty in range(STATE_COUNT):
-                for tx in range(STATE_COUNT):
-                    idx = ty * STATE_COUNT + tx
-                    checked, ok = checked_count[idx], ok_count[idx]
-                    total_checked += checked
-                    total_ok += ok
-                    rate = f"{100*ok/checked:5.1f}%" if checked else "  n/a"
-                    line = f"  (ty={ty},tx={tx}): {ok:3d}/{checked:3d} correct ({rate})"
-                    log(line)
-                    print(line, file=sys.stdout, flush=True)
-            rate = f"{100*total_ok/total_checked:5.1f}%" if total_checked else "  n/a"
-            line = f"  TOTAL: {total_ok:3d}/{total_checked:3d} correct ({rate})"
-            log(line)
-            print(line, file=sys.stdout, flush=True)
-
-        if ab_pattern_2d_w0:
-            # TODO.md Phase 113: direct ground truth of the real kernel's
-            # own As[ty][k] (row-wise)/Bs[k][tx] (column-wise) access
-            # pattern, under a flat (256,1,1) dispatch, using the same 2D
-            # REAL[16][16] shared-array shape the real kernel uses.
-            _print_per_slot_table("wMatrix 0 per-thread As[ty][k] readback reliability, 2D shared array, FLAT dispatch, per slot",
-                                   ab_pattern_2d_as_ok_count, ab_pattern_2d_as_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread Bs[k][tx] readback reliability, 2D shared array, FLAT dispatch, per slot",
-                                   ab_pattern_2d_bs_ok_count, ab_pattern_2d_bs_checked_count)
-
-        if ab_pattern_flat_w0:
-            # TODO.md Phase 113: same ground truth, flat REAL[256] array
-            # with hand-computed addresses -- match_* mirrors ab-pattern-
-            # 2d-w0's own read exactly (tests whether 2D-array codegen
-            # itself matters); swap_* is the user-suggested tx*16+k
-            # alternate indexing (a genuinely different set of slots).
-            _print_per_slot_table("wMatrix 0 per-thread As[ty][k]-matching readback reliability, flat array, FLAT dispatch, per slot",
-                                   ab_pattern_flat_as_match_ok_count, ab_pattern_flat_as_match_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread Bs[k][tx]-matching readback reliability, flat array, FLAT dispatch, per slot",
-                                   ab_pattern_flat_bs_match_ok_count, ab_pattern_flat_bs_match_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread As-swapped (tx*16+k) readback reliability, flat array, FLAT dispatch, per slot",
-                                   ab_pattern_flat_as_swap_ok_count, ab_pattern_flat_as_swap_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread Bs-swapped (k*16+ty) readback reliability, flat array, FLAT dispatch, per slot",
-                                   ab_pattern_flat_bs_swap_ok_count, ab_pattern_flat_bs_swap_checked_count)
-
-        if final_abcd_w0:
-            # TODO.md Phase 115: direct ground truth of the REAL As/Bs/Ds/
-            # Csub, captured right before the real barrier/C[] write in
-            # Phase 111's real, combined, non-early-return kernel path.
-            _print_per_slot_table("wMatrix 0 per-thread REAL As[ty][k] reliability (captured pre-final-write), per slot",
-                                   final_abcd_as_ok_count, final_abcd_as_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread REAL Bs[k][tx] reliability (captured pre-final-write), per slot",
-                                   final_abcd_bs_ok_count, final_abcd_bs_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread REAL Ds[k] (this thread's own view) reliability (captured pre-final-write), per slot",
-                                   final_abcd_ds_ok_count, final_abcd_ds_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread REAL Csub reliability (captured pre-final-write), per slot",
-                                   final_abcd_csub_ok_count, final_abcd_csub_checked_count)
-
-        if combined_flat_w0:
-            # TODO.md Phase 116: direct ground truth of Ds[]/As[]/Bs[]
-            # tested TOGETHER under ONE shared barrier, exactly mirroring
-            # the real kernel's own combined write/barrier/read structure
-            # -- private storage, early return, same safe pattern as
-            # every flat-dispatch probe since Phase 109.
-            _print_per_slot_table("wMatrix 0 per-thread combined-probe As[ty][k] reliability, per slot",
-                                   combined_flat_as_ok_count, combined_flat_as_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread combined-probe Bs[k][tx] reliability, per slot",
-                                   combined_flat_bs_ok_count, combined_flat_bs_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread combined-probe Ds[k] reliability, per slot",
-                                   combined_flat_ds_ok_count, combined_flat_ds_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread combined-probe Csub-analog reliability, per slot",
-                                   combined_flat_csub_ok_count, combined_flat_csub_checked_count)
-
-        if combined_ldg_flat_w0:
-            # TODO.md Phase 118: same combined structure as
-            # --combined-flat-w0, but sourced from real A[]/B[]/D[] LDGs
-            # (no exp() yet).
-            _print_per_slot_table("wMatrix 0 per-thread real-LDG-sourced As[ty][k] reliability, per slot",
-                                   combined_ldg_flat_as_ok_count, combined_ldg_flat_as_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-LDG-sourced Bs[k][tx] reliability, per slot",
-                                   combined_ldg_flat_bs_ok_count, combined_ldg_flat_bs_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-LDG-sourced Ds[k] (raw, no exp) reliability, per slot",
-                                   combined_ldg_flat_ds_ok_count, combined_ldg_flat_ds_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-LDG-sourced Csub-analog (raw) reliability, per slot",
-                                   combined_ldg_flat_csub_ok_count, combined_ldg_flat_csub_checked_count)
-
-        if combined_exp_flat_w0:
-            # TODO.md Phase 118: same combined structure, real A[]/B[]/D[]
-            # LDGs plus the real exp()/distance formula for Ds[] -- a
-            # correct Csub-analog here should exactly equal
-            # reference_transition_matrix()'s real answer.
-            _print_per_slot_table("wMatrix 0 per-thread real-exp()-sourced As[ty][k] reliability, per slot",
-                                   combined_exp_flat_as_ok_count, combined_exp_flat_as_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-exp()-sourced Bs[k][tx] reliability, per slot",
-                                   combined_exp_flat_bs_ok_count, combined_exp_flat_bs_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-exp()-sourced Ds[k] reliability, per slot",
-                                   combined_exp_flat_ds_ok_count, combined_exp_flat_ds_checked_count)
-            _print_per_slot_table("wMatrix 0 per-thread real-exp()-sourced Csub-analog reliability (should equal the real reference matrix), per slot",
-                                   combined_exp_flat_csub_ok_count, combined_exp_flat_csub_checked_count)
 
         # STATUS.md #135's wMatrix->SMID->TPC claim, checked mechanically
         # against this run's own dbg[13] captures instead of memory of
@@ -3148,13 +1431,8 @@ def main():
         log(summary)
         print(summary, file=sys.stdout, flush=True)
 
-        # This is the *first* time this session's probe has ever compiled
-        # the true, unmodified kernel (every prior run -- Phase 68/69/70
-        # -- used TINYGPU_BISECT_NO_EXP by default). If computed_logl came
-        # back wrong, read kernelMatrixMulADB's own ground-truth dump back
-        # in this *same* run, from the *same* dispatch, to see concretely
-        # whether it's the familiar wMatrix>=4-never-executes pattern
-        # (Phase 57's original finding) or something new -- not guessed.
+        # If logL is wrong, read back kernelMatrixMulADB's ground-truth dump
+        # and the real C[] matrix from this same dispatch.
         if abs(computed_logl - K_REF) >= 0.5:
             dmat_out = memoryview(bytearray(n_dmat_floats * 4))
             dev.allocator._copyout(dmat_out, HCQBuffer(dmat.va_addr, n_dmat_floats * 4))

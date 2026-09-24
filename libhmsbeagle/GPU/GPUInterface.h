@@ -59,10 +59,9 @@
     namespace opencl_device {
 #elif defined(FW_TINYGPU)
     // TinyGPU-specific PTX (compiled with -DCUDA -DFW_TINYGPU; see
-    // kernels/make_tinygpu_kernels.sh). Same kernels as the CUDA backend
-    // except for the handful of #if defined(...) && defined(FW_TINYGPU)
-    // spots in the .cu sources that need to differ for this backend's
-    // driver (see kernelMatrixMulADB in kernelsAll.cu).
+    // kernels/make_tinygpu_kernels.sh). Same kernels as the CUDA backend;
+    // the default PTX is byte-identical to a plain -DCUDA build (TODO.md
+    // Phase 140).
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
 #   else

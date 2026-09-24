@@ -257,10 +257,7 @@ def _parse_elf_kernels(elf_bytes: bytes, is_blackwell: bool = False) -> tuple:
             cbuf0_size = 0
             for typ, param, data, sz in _parse_nv_info(bytes(sh.content)):
                 if param == EIATTR_PARAM_CBANK and typ == 0x4 and len(data) >= 6:
-                    cbuf0_base_raw = struct.unpack_from("I", data)[0]
                     cbuf0_size = struct.unpack_from("H", data, 4)[0]
-                    if kname in ("kernelMatrixMulADB", "kernelPartialsPartialsNoScale", "kernelSumSites1"):
-                        print(f"  DBG PARAM_CBANK {kname}: base=0x{cbuf0_base_raw:x} size=0x{cbuf0_size:x}", file=sys.stderr, flush=True)
                 elif param in (EIATTR_REGCOUNT, EIATTR_REGCOUNT_V2):
                     if typ == 0x4 and len(data) >= 4:
                         k["reg_count"] = struct.unpack_from("I", data)[0]
@@ -306,11 +303,11 @@ def compile_ptx_split(ptx_path: str, arch: str, is_blackwell: bool, ptxas_kernel
     compiles the same "_all" PTX module through BOTH ptxas and nvJitLink,
     then produces a merged image where each kernel in `ptxas_kernels` (by
     name) uses its ptxas-compiled code and every other kernel uses its
-    nvJitLink-compiled code, unchanged. Motivation: nvJitLink measurably
-    helps kernelPartialsPartialsNoScale but produces a confirmed runtime
-    defect in kernelMatrixMulADB (STATUS.md §41-51) -- this lets each kernel
-    use whichever compiler is actually correct for it, without needing to
-    fully root-cause nvJitLink's defect first.
+    nvJitLink-compiled code, unchanged. Motivation (historical): nvJitLink
+    helps kernelPartialsPartialsNoScale, and kernelMatrixMulADB looked
+    miscompiled under it (STATUS.md §41-51); STATUS.md §203 attributes
+    that to the EDGE=20 launch-dims defect, not the compiler. Opt-in tooling
+    only (BEAGLE_NV_USE_NVJITLINK=1 + BEAGLE_NV_PTXAS_KERNELS).
 
     Design (deliberately conservative, chosen after a first version was
     caught by its own safety check -- see STATUS.md §52): the merged image

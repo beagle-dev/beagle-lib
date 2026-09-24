@@ -3,10 +3,10 @@
 # Generates BeagleTinyGPU_kernels.h — the TinyGPU/TinyGPUHybrid-specific PTX
 # kernel header. Mirrors make_cuda_kernels.sh (same KERNELS_STRING_<PREC>_<N>
 # macro names, same source files, same state-count sweep) but compiles with
-# both -DCUDA and -DFW_TINYGPU (not -DCUDA alone) so the kernel source can
-# special-case the handful of spots that need to differ for this backend
-# (see kernelMatrixMulADB in kernelsAll.cu) while every other #ifdef CUDA
-# block in these files is completely unaffected (CUDA stays defined).
+# both -DCUDA and -DFW_TINYGPU. With no other -D flags the PTX is
+# byte-identical to a plain -DCUDA build (TODO.md Phase 140); FW_TINYGPU
+# only gates the opt-in TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH probe in
+# kernelMatrixMulADB (kernelsAll.cu).
 #
 # Uses absolute paths throughout: unlike a native nvcc, the nvcc this
 # project uses on macOS is a Docker-exec shim (~/.local/bin/nvcc ->

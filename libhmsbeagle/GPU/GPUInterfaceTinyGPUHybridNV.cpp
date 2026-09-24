@@ -4,15 +4,13 @@
  * BEAGLE NV hybrid backend, daemon architecture (STATUS.md §73/§75).
  *
  * GPUInterfaceTinyGPUHybrid.cpp's original NV path hand-rolls GPFIFO/QMD
- * command-queue construction and dispatch directly in C++. Three
- * individually-clean SASS/PTX-level probes (STATUS.md §65-72) failed to
- * reproduce this path's wrong-answer bug -- "the defect must depend on
- * something these probes structurally cannot reproduce", the same shape the
- * AMD hybrid backend hit before its own pivot away from hand-rolled
- * dispatch (STATUS.md AMD §1-11). STATUS.md §74's nv_reference_test.py
- * confirmed (hardware-verified PASS) that tinygrad's own real NVDevice/
- * NVProgram/HCQProgram.__call__ stack works correctly end to end on this
- * exact hardware/transport.
+ * command-queue construction and dispatch directly in C++; that is now the
+ * legacy path (BEAGLE_NV_USE_DAEMON=0). This daemon path was adopted when
+ * that path's wrong answers were blamed on hand-rolled dispatch. The
+ * kernelMatrixMulADB wrong answers were in fact unpopulated cbuf0
+ * launch-dims words, which neither path wrote; both paths now fill them
+ * (TODO.md Phase 140; STATUS.md §203 lists the legacy-path residues that
+ * stay open).
  *
  * This file is a thin RPC client, structurally identical to
  * GPUInterfaceTinyGPUHybridAMD.cpp: a live Python daemon
@@ -21,7 +19,7 @@
  * NVDevice/NVProgram/HCQProgram.__call__ code. This file sends
  * newline-terminated JSON commands over a dedicated socketpair (not the
  * TinyGPU socket -- NVDevice("NV:0") makes its own connection internally,
- * the same way nv_reference_test.py's hardware-verified boot did) and reads
+ * the same way STATUS.md §74's hardware-verified boot did) and reads
  * back replies.
  *
  * Compile backend unchanged: BEAGLE's existing PTX kernel source
@@ -310,7 +308,7 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
                   int patternCount, int unpaddedPatternCount, int tipCount, long flags) {
     // Close Initialize()'s TinyGPU.app connection before spawning the
     // dispatch daemon: NVDevice("NV:0") opens its own, fully independent
-    // connection (§74's nv_reference_test.py, hardware-verified), same as
+    // connection (STATUS.md §74, hardware-verified), same as
     // the AMD daemon does. Leaving this one open too risks the exact bug
     // AMD's own tgpuSock fix (STATUS.md AMD §21) found: TinyGPU.app doesn't
     // tolerate two simultaneous clients, and the daemon's own connection
@@ -421,21 +419,6 @@ void NvLaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
     if (!g_nv || !fn) return;
     NVKernelHandle* ke = (NVKernelHandle*)fn;
     int nInt = nTotal - nPtr;
-
-    // Diagnostic (STATUS.md §79/TODO.md Phase 43): kernelMatrixMulADB packs
-    // multiple logical matrix computations into one launch by scaling
-    // grid.x by totalMatrix (KernelLauncher.cpp) -- the observed symptom
-    // (3 of 4 matrices left completely unwritten) is consistent with either
-    // grid.x not actually reaching the daemon as scaled, or the kernel's
-    // own totalMatrix scalar arg not arriving correctly. This print shows
-    // exactly what this file sends for every launch, settling that question
-    // directly from the next hardware run's own terminal output.
-    fprintf(stderr, "TinyGPU/NV: queue %s grid=(%d,%d,%d) block=(%d,%d,%d) nPtr=%d nInt=%d ptrs=[",
-            ke->name.c_str(), grid.x, grid.y, grid.z, block.x, block.y, block.z, nPtr, nInt);
-    for (int i = 0; i < nPtr; ++i) fprintf(stderr, "%s0x%llx", i ? "," : "", (unsigned long long)ptrs[i]);
-    fprintf(stderr, "] ints=[");
-    for (int i = 0; i < nInt; ++i) fprintf(stderr, "%s%u", i ? "," : "", ints[i]);
-    fprintf(stderr, "]\n");
 
     // Queued, not sent (mirrors AMD's STATUS.md §26 batching) --
     // nvFlushLaunchQueue() sends the whole backlog as one RPC round-trip,

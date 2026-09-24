@@ -59,14 +59,9 @@ if(BUILD_TINYGPU OR BUILD_TINYGPU_HYBRID)
 	# Both backends #include kernels/BeagleTinyGPU_kernels.h (see GPUInterface.h,
 	# FW_TINYGPU branch) — generated once here (not per-subdirectory) so enabling
 	# both doesn't register two custom-command rules for the same output file.
-	# NOTE (usb branch): nvcc11 (CUDA 11.0, wrapped at ~/.local/bin/nvcc11)
-	# was tried here in preference to nvcc -- its PTX generation predicates
-	# kernelPartialsPartialsNoScale's guard where 12.8 branches, for
-	# identical C source (STATUS.md §22) -- but caused kernelMatrixMulADB
-	# (a *different*, unrelated-by-C-source kernel, with IDENTICAL SASS
-	# branch structure either way) to hang on real hardware (STATUS.md
-	# §23/24). Reverted to plain nvcc (12.8), the known-safe compiler.
-	# nvcc11/nvcc11shim left in place at ~/.local/bin, unused.
+	# Plain nvcc (12.8). An nvcc11 build once hung kernelMatrixMulADB
+	# (STATUS.md §24), before the launch-dims fix (STATUS.md §203); not
+	# re-tested since.
 	find_program(TINYGPU_NVCC NAMES nvcc HINTS "$ENV{HOME}/.local/bin" "/usr/local/cuda/bin")
 	if(NOT TINYGPU_NVCC)
 		message(FATAL_ERROR "nvcc not found (required to build kernels/BeagleTinyGPU_kernels.h "
