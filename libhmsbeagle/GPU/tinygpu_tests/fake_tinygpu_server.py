@@ -5,6 +5,8 @@ buffers fake_nv_daemon.py handed to the plugin. Kernels themselves are not emula
 After a C++ runtime handoff (the handoff carries "pool_va") it also runs the compute queue's local-memory setup
 and semaphore release, and checks every launched QMD with tinygrad's own QMD reader: local memory set up first,
 program address inside the uploaded image, every valid constant buffer mapped, and one local-memory size.
+With FAKE_NV_HANG=1 it plays a GPU that stopped making progress: it runs the work but never writes a semaphore release,
+so the plugin's timeline wait times out (the hung path, plan step P2).
     <tinygrad venv>/python fake_tinygpu_server.py <socket path> <memory dir>"""
 import os, sys, json, mmap, socket, struct, types
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -14,6 +16,7 @@ import nv_dispatch_daemon as d  # tinygrad's ops_nv (the hcq1 pin)
 
 sock_path, MEM = sys.argv[1], sys.argv[2]
 REQ, RESP = "<BIIQQQ", "<BQQ"
+HANG = os.environ.get("FAKE_NV_HANG", "0") not in ("", "0")
 CFG_READ, MMIO_WRITE = 3, 7
 errors, stats = [], {"batches": 0, "launches": 0, "copies": 0, "copy_bytes": 0, "releases": 0, "posted_writes": 0}
 runtime_seen = {"local_mem": None, "slm": set(), "programs": set(), "cbufs_checked": 0}
@@ -63,7 +66,7 @@ class GPU:
     def release(self, addr, value, what):
         if value != self.last_release + 1: errors.append(f"{what} released {value}, expected {self.last_release + 1}")
         self.last_release = value
-        self.write(addr, struct.pack("<Q", value))
+        if not HANG: self.write(addr, struct.pack("<Q", value))
         stats["releases"] += 1
 
     def check_runtime_qmd(self, qmd_va, qmd):

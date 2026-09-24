@@ -22,8 +22,13 @@
  *           --diag-compare-cpu (auto-enabled for --state-count != 4)
  *
  * Usage:
- *   tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]
+ *   tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--poison] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]
  *   --resource N          Force BEAGLE resource index N (skips auto-detect)
+ *   --poison              Before the checked evaluation, fill the internal and root
+ *                         partials buffers and the transition matrices with NaN
+ *                         through the BEAGLE API, so results left in GPU memory
+ *                         by an earlier run (VRAM survives a boot without a
+ *                         power cycle) cannot pass for this run's.
  *   --reps N              After the checked evaluation, repeat the whole
  *                         evaluation (transition matrices, peeling, root
  *                         logL) N more times and report the steady-state
@@ -296,6 +301,7 @@ int main(int argc, char** argv) {
     // wrong value. Requires a kernel header built with
     // -DTINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH.
     bool diagMatmulGroundTruth = false;
+    bool poison = false;
     int reps = 0;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -305,6 +311,8 @@ int main(int argc, char** argv) {
             stateCount = atoi(argv[++i]);
         else if (a == "--reps" && i + 1 < argc)
             reps = atoi(argv[++i]);
+        else if (a == "--poison")
+            poison = true;
         else if (a == "--diag-reorder-partials-first")
             diagReorderPartialsFirst = true;
         else if (a == "--diag-compare-cpu")
@@ -314,7 +322,7 @@ int main(int argc, char** argv) {
         else if (a == "--diag-matmul-ground-truth")
             diagMatmulGroundTruth = true;
         else {
-            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
+            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N] [--reps N] [--poison] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
             return 1;
         }
     }
@@ -604,6 +612,13 @@ int main(int argc, char** argv) {
         if (rc < 0) { beagleFinalizeInstance(instance); return 1; }
         if (diagMatmulGroundTruth) dumpMatmulGroundTruth();
     } else {
+        if (poison) {
+            std::vector<double> nanPartials((size_t) stateCount * nPatterns * 4, std::nan(""));
+            std::vector<double> nanMatrix((size_t) stateCount * stateCount * 4, std::nan(""));
+            for (int b = 3; b < 5; ++b) beagleSetPartials(instance, b, nanPartials.data());
+            for (int m = 0; m < 4; ++m) beagleSetTransitionMatrix(instance, m, nanMatrix.data(), 0.0);
+            printf("--poison: partials buffers 3-4 and transition matrices 0-3 set to NaN before the evaluation\n");
+        }
         rc = doUpdateTransitionMatrices();
         if (rc < 0) { beagleFinalizeInstance(instance); return 1; }
         if (diagMatmulGroundTruth) dumpMatmulGroundTruth();

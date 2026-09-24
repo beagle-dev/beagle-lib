@@ -497,7 +497,20 @@ class Daemon:
             # nv_init_helper refuses a GPU that still carries a previous boot (WPR2 up) before writing anything;
             # tinygrad wraps the per-interface errors in an ExceptionGroup, so dig the refusal out for the reply
             warm = _find_exception(e, _warm_error_type())
-            if warm is None: raise
+            if warm is None:
+                # failed after booter_load started GSP-RM: unload it, and close only once it confirms the suspend (plan step P2)
+                import nv_init_helper
+                fini = nv_init_helper.unload_after_failed_boot()
+                if fini is None: raise
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                reply = {**fini, "ok": False, "error": f"boot failed after GSP-RM started: {e}"}
+                if not reply.get("unload_ok"):
+                    reply.update(hold=True, pid=os.getpid())
+                self.send_json(reply)
+                if reply.get("hold"):
+                    self._hold()
+                return
             log(str(warm))
             self.send_json({"ok": False, "warm": True, "error": str(warm)})
             return
@@ -688,14 +701,21 @@ class Daemon:
         if self.dev is not None:
             from tinygrad import Device
             try:
-                self.dev.finalize()
-                for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
-                    Device._opened_devices.discard(name)   # atexit must not run NVDev.fini a second time
+                if req.get("hung"):   # the plugin saw the GPU stop making progress: the unload RPC only, no synchronize, no falcon step
+                    self.dev.iface.dev_impl.gsp.fini_hw()
+                    reply["hung"] = True
+                else:
+                    self.dev.finalize()   # with BEAGLE_NV_TEARDOWN=1 this also runs NVIDIA's teardown (nv_init_helper, plan step P2)
                 reply.update(getattr(self.dev.iface.dev_impl, "beagle_fini", {}))
             except Exception as e:
                 import traceback
                 traceback.print_exc(file=sys.stderr)
-                reply.update(ok=False, unload_ok=False, error=f"GPU teardown failed: {e}")
+                # what nv_init_helper recorded decides: a confirmed GSP suspend makes closing safe even if a later step failed
+                reply.update(getattr(self.dev.iface.dev_impl, "beagle_fini", {"unload_ok": False}))
+                reply.update(ok=False, error=f"GPU teardown failed: {e}")
+            finally:
+                for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
+                    Device._opened_devices.discard(name)   # atexit must not run NVDev.fini a second time
             if not reply.get("unload_ok"):
                 reply.update(hold=True, pid=os.getpid())
         self.send_json(reply)

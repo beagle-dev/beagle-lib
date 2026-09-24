@@ -1,6 +1,6 @@
 #!/bin/bash
 # Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
-# against the fakes in the three NV modes at 4 and 64 states, then the no-launch guard (nothing listening => the
+# against the fakes in the three NV modes at 4 and 64 states, then the hung path, then the no-launch guard (nothing listening => the
 # plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid and tinygpuhybridtest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
@@ -19,6 +19,21 @@ for states in 4 64; do
         results+=("fake $label: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/fake_$label.summary)")")
     done
 done
+
+# hung path (plan step P2): the fake GPU never writes a semaphore release, so the C++ runtime's 30 s timeline wait times
+# out during setup; the plugin must send fini{hung} to the daemon, print its unload report, and leave no daemon behind
+before=$(pgrep -f "fake_nv_daemon.py" | wc -l)
+FAKE_NV_HANG=1 FAKE_RUN_TIMEOUT=120 "$TG_TESTS/run_fake_runtime.sh" hung BEAGLE_NV_USE_DAEMON=0 -- --reps 1 \
+    > "$TINYGPU_TEST_WORK/fake_hung.summary" 2>&1
+sleep 0.5
+after=$(pgrep -f "fake_nv_daemon.py" | wc -l)
+out="$TINYGPU_TEST_WORK/run_fake_hung.txt"
+if grep -q "timeline wait timed out" "$out" && grep -q "GPU teardown: unload confirmed" "$out" \
+   && ! grep -q "keeps the TinyGPU.app connection open" "$out" && [ "$after" -le "$before" ]; then
+    results+=("fake hung: PASS")
+else
+    results+=("fake hung: FAIL (see $out)")
+fi
 
 # no-launch guard: point the plugin at a socket nobody listens on
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX")

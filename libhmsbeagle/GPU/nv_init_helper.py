@@ -123,11 +123,13 @@ _ORIG = {"early_ip_init": NVDev._early_ip_init, "gsp_fini_hw": NV_GSP.fini_hw, "
 _GSP_BASE, _WPR2_ADDR_HI = 0x00110000, 0x001FA828   # the GSP falcon; NV_PFB_PRI_MMU_WPR2_ADDR_HI (dev_fb.py)
 _SUSPEND_TIMEOUT_S = 2.0
 _in_unload = [False]
+_BOOTING = [None]   # the NVDev being booted
 
 def _p1log(msg: str) -> None:
     print(f"nv_init_helper: {msg}", file=sys.stderr, flush=True)
 
 def _guarded_early_ip_init(self):
+    _BOOTING[0] = self   # for unload_after_failed_boot (plan step P2)
     # tinygrad reads this register first too (nvdev.py:105); refuse before its bus-master CFG write
     wpr2_hi = self.mmio[_WPR2_ADDR_HI // 4]
     if wpr2_hi != 0:
@@ -142,8 +144,11 @@ def _gsp_fini_hw_with_suspend_wait(self):
     nvdev = self.nvdev
     diag = nvdev.beagle_fini = {"unload_ok": False}
     _in_unload[0] = True
+    # a LEVEL_0 unload (plan step P2) may post RUN_CPU_SEQUENCER, whose op 8 polls BSI right after starting SEC2:
+    # the same hang BEAGLE's 20 s sleep avoids during gsp.init_hw (patch 3), so that sleep covers the unload too
+    if _UNLOAD_LEVEL_0: _in_gsp_init[0] = True
     try: _ORIG["gsp_fini_hw"](self)
-    finally: _in_unload[0] = False
+    finally: _in_unload[0] = _in_gsp_init[0] = False
     deadline = time.monotonic() + _SUSPEND_TIMEOUT_S
     while (mailbox0 := nvdev.NV_PGSP_FALCON_MAILBOX0.read()) != 0x80000000 and time.monotonic() < deadline: time.sleep(0.01)
     diag.update(mailbox0=mailbox0, riscv_cpuctl=nvdev.NV_PRISCV_RISCV_CPUCTL.with_base(_GSP_BASE).read(),
@@ -183,6 +188,8 @@ def _execute_hs_with_frts_checks(self, base, img_paddr, *args, **kwargs):
         gfw = nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05[0].read() & 0xff
         _p1log(f"before FWSEC-FRTS: read_protection_level0={plm} (tinygrad waits for 1), SCRATCH_GROUP_05[0]&0xff=0x{gfw:02x} (waits for 0xff)")
     ret = _ORIG["execute_hs"](self, base, img_paddr, *args, **kwargs)
+    if img_paddr == getattr(self, "booter_image_paddr", None) and ret is not None and ret[0] == 0:
+        nvdev.beagle_gsp_started = True   # booter_load started GSP-RM, which runs from sysmem from here on (unload_after_failed_boot)
     if frts:   # NVIDIA's FRTS post-checks (570.144 kernel_gsp_frts_tu102.c:486-523), before tinygrad's WPR2_HI assert
         scratch = nvdev.NV_PBUS_VBIOS_SCRATCH[0x0e].read()
         wpr2_lo = nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read_bitfields()['val']
@@ -230,6 +237,207 @@ def _new_gpu_fifo_with_userd_baseline(self, gpfifo_area, ctxshare, channel_group
     _p1log(f"USERD baseline, {kind} GPFIFO (gpfifo_area+{offset:#x}, before any submission): GPGet=0x{get:x} GPPut=0x{put:x}")
     return fifo
 _ops_nv.NVDevice._new_gpu_fifo = _new_gpu_fifo_with_userd_baseline
+
+
+# ── 5. NVIDIA's driver-unload teardown (TODO.md plan step P2), only with
+# BEAGLE_NV_TEARDOWN=1. tinygrad's only teardown is the FAST_UNLOAD RPC,
+# NVIDIA's system-shutdown path, which leaves WPR2 up, so every boot needs a
+# power cycle (STATUS.md R14). At driver unload NVIDIA (570.144: kgspUnloadRm
+# -> kgspTeardown_TU102, kernel_gsp_tu102.c:579-623;
+# kgspExecuteBooterUnloadIfNeeded_TU102, kernel_gsp_booter_tu102.c:129-190)
+# and nouveau (tu102_gsp_fini) then reset the GSP falcon, run FWSEC-SB, reset
+# SEC2 and run Booter Unload, after which WPR2 is down. tinygrad has no such
+# code, so the sequence follows NVIDIA, on tinygrad's own falcon primitives
+# (reset, execute_hs), with the two images prepared statement by statement
+# the way tinygrad prepares FRTS and booter_load. With the variable unset
+# nothing below changes a single GPU access. ──────────────────────────────
+_TEARDOWN = os.environ.get("BEAGLE_NV_TEARDOWN", "0") not in ("", "0")
+_UNLOAD_LEVEL_0 = os.environ.get("BEAGLE_NV_UNLOAD_LEVEL", "") == "0"
+_BOOTER_UNLOAD_SHA = {"ad102": "975b85a14ded8e430d30f000c3c1afdd55c15dee04f35ff9dfd876acd7e67186",   # linux-firmware 0a6871b1
+                      "ga102": "8e63db5b78d7d3e349f20a2d11099c3d7109081393cb09ffc0a28133324ae009"}
+# 570.144 constants tinygrad's autogen lacks: FALCON_APPLICATION_INTERFACE_DMEM_MAPPER_V3_CMD_{FRTS,SB} and the
+# NV_VBIOS_FWSECLIC_SCRATCH_INDEX_{0E,15} scratch registers: FRTS's error code is bits 31:16 of 0x0E, SB's is bits
+# 15:0 of 0x15 (NV_VBIOS_FWSECLIC_{FRTS,SB}_ERR_CODE, kernel_gsp_frts_tu102.c:133-139)
+_FWSEC_CMD_FRTS, _FWSEC_CMD_SB = 0x15, 0x19
+_SCRATCH_FRTS_ERR, _SCRATCH_SB_ERR = 0x0e, 0x15
+_ORIG.update(prep_booter=NV_FLCN.prep_booter, rpc_unloading_guest_driver=NV_GSP.rpc_unloading_guest_driver)
+from tinygrad.helpers import round_up
+
+def _fwsec_ucode(vbios: bytes):
+    """prep_ucode's VBIOS walk (ip.py:110-145), statement by statement: the FWSEC descriptor, signature and image."""
+    vbios_bytes, vbios_off = memoryview(vbios), 0
+    while True:
+        pci_blck = vbios_bytes[vbios_off + _nv.OFFSETOF_PCI_EXP_ROM_PCI_DATA_STRUCT_PTR:].cast('H')[0]
+        imglen = vbios_bytes[vbios_off + pci_blck + _nv.OFFSETOF_PCI_DATA_STRUCT_IMAGE_LEN:].cast('H')[0] * _nv.PCI_ROM_IMAGE_BLOCK_SIZE
+        match vbios_bytes[vbios_off + pci_blck + _nv.OFFSETOF_PCI_DATA_STRUCT_CODE_TYPE]:
+            case _nv.NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE: block_size = imglen
+            case _nv.NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_EXT:
+                expansion_rom_off = vbios_off - block_size
+                break
+        vbios_off += imglen
+
+    bit_header = _nv.BIT_HEADER_V1_00.from_buffer_copy(vbios_bytes[(bit_addr := 0x1b0):bit_addr + ctypes.sizeof(_nv.BIT_HEADER_V1_00)])
+    assert bit_header.Signature == 0x00544942, f"Invalid BIT header signature {hex(bit_header.Signature)}"
+
+    for i in range(bit_header.TokenEntries):
+        bit = _nv.BIT_TOKEN_V1_00.from_buffer_copy(vbios_bytes[bit_addr + bit_header.HeaderSize + i * bit_header.TokenSize:])
+        if bit.TokenId != _nv.BIT_TOKEN_FALCON_DATA or bit.DataVersion != 2 or bit.DataSize < _nv.BIT_DATA_FALCON_DATA_V2_SIZE_4: continue
+
+        falcon_data = _nv.BIT_DATA_FALCON_DATA_V2.from_buffer_copy(vbios_bytes[bit.DataPtr & 0xffff:])
+        ucode_hdr = _nv.FALCON_UCODE_TABLE_HDR_V1.from_buffer_copy(vbios_bytes[(table_ptr := expansion_rom_off + falcon_data.FalconUcodeTablePtr):])
+        for j in range(ucode_hdr.EntryCount):
+            ucode_entry = _nv.FALCON_UCODE_TABLE_ENTRY_V1.from_buffer_copy(vbios_bytes[table_ptr + ucode_hdr.HeaderSize + j * ucode_hdr.EntrySize:])
+            if ucode_entry.ApplicationID != _nv.FALCON_UCODE_ENTRY_APPID_FWSEC_PROD: continue
+
+            ucode_desc_hdr = _nv.FALCON_UCODE_DESC_HEADER.from_buffer_copy(vbios_bytes[expansion_rom_off + ucode_entry.DescPtr:])
+            ucode_desc_off = expansion_rom_off + ucode_entry.DescPtr
+            ucode_desc_size = ucode_desc_hdr.vDesc >> 16
+
+    desc_v3 = _nv.FALCON_UCODE_DESC_V3.from_buffer_copy(vbios_bytes[ucode_desc_off:ucode_desc_off + ucode_desc_size])
+
+    sig_total_size = ucode_desc_size - _nv.FALCON_UCODE_DESC_V3_SIZE_44
+    signature = vbios_bytes[ucode_desc_off + _nv.FALCON_UCODE_DESC_V3_SIZE_44:][:sig_total_size]
+    image = vbios_bytes[ucode_desc_off + ucode_desc_size:][:round_up(desc_v3.StoredSize, 256)]
+    return desc_v3, signature, image
+
+def _fwsec_patch(desc_v3, image, signature, cmd_id: int, cmd: bytes) -> bytearray:
+    """prep_ucode's __patch (ip.py:147-164), statement by statement, without its allocation."""
+    patched_image = bytearray(image)
+
+    dmem_offset = 0
+    hdr = _nv.FALCON_APPLICATION_INTERFACE_HEADER_V1.from_buffer_copy(image[(app_hdr_off := desc_v3.IMEMLoadSize + desc_v3.InterfaceOffset):])
+    ents = (_nv.FALCON_APPLICATION_INTERFACE_ENTRY_V1 * hdr.entryCount).from_buffer_copy(image[app_hdr_off + ctypes.sizeof(hdr):])
+    for i in range(hdr.entryCount):
+        if ents[i].id == _nv.FALCON_APPLICATION_INTERFACE_ENTRY_ID_DMEMMAPPER: dmem_offset = ents[i].dmemOffset
+
+    # Patch image
+    dmem = _nv.FALCON_APPLICATION_INTERFACE_DMEM_MAPPER_V3.from_buffer_copy(image[(dmem_mapper_offset := desc_v3.IMEMLoadSize + dmem_offset):])
+    dmem.init_cmd = cmd_id
+    patched_image[dmem_mapper_offset:dmem_mapper_offset + len(bytes(dmem))] = bytes(dmem)
+    patched_image[(cmd_off := desc_v3.IMEMLoadSize + dmem.cmd_in_buffer_offset):cmd_off + len(cmd)] = cmd
+    patched_image[(sig_off := desc_v3.IMEMLoadSize + desc_v3.PKCDataOffset):sig_off + 0x180] = signature[-0x180:]
+    return patched_image
+
+def _booter_ucode(fw_name: str, fw_file: str, sha: str):
+    """prep_booter's body (ip.py:171-184), statement by statement: the signed booter image and its load parameters
+    (data offset, data size, code offset, code size)."""
+    from tinygrad.helpers import fetch_fw
+    h = _nv.struct_nvfw_bin_hdr.from_buffer_copy(b := fetch_fw(f"nvidia/{fw_name}/gsp", fw_file, sha))
+    lh = _nv.struct_nvfw_hs_load_header_v2.from_buffer_copy(b, (hs := _nv.struct_nvfw_hs_header_v2.from_buffer_copy(b, h.header_offset)).header_offset)
+    app = _nv.struct_nvfw_hs_load_header_v2_app.from_buffer_copy(b, hs.header_offset + ctypes.sizeof(_nv.struct_nvfw_hs_load_header_v2))
+
+    patch_loc, patch_sig = struct.unpack_from("<I", b, hs.patch_loc)[0], struct.unpack_from("<I", b, hs.patch_sig)[0]
+    sig = b[(sig_off := hs.sig_prod_offset + patch_sig):sig_off + (sig_len := hs.sig_prod_size // struct.unpack_from("<I", b, hs.num_sig)[0])]
+
+    (patched_image := bytearray(b[h.data_offset:h.data_offset + h.data_size]))[patch_loc:patch_loc + sig_len] = sig
+    return patched_image, lh.os_data_offset, lh.os_data_size, app.offset, app.size
+
+def _prep_booter_with_teardown_images(self):
+    # right after tinygrad's own images, so FRTS and booter_load keep the addresses they have without the teardown
+    _ORIG["prep_booter"](self)
+    nvdev = self.nvdev
+    if not _TEARDOWN or nvdev.fw_name not in _BOOTER_UNLOAD_SHA: return
+    vbios = getattr(nvdev, "beagle_vbios", None)   # this boot's VBIOS, from prep_ucode's capture wrapper
+    if vbios is None: raise RuntimeError("teardown: the VBIOS read by prep_ucode was not captured")
+    desc_v3, signature, image = _fwsec_ucode(vbios)
+    if bytes(desc_v3) != bytes(self.desc_v3): raise RuntimeError("teardown: the FWSEC descriptor differs from prep_ucode's")
+    read_vbios_desc = _nv.FWSECLIC_READ_VBIOS_DESC(version=0x1, size=ctypes.sizeof(_nv.FWSECLIC_READ_VBIOS_DESC), flags=2)
+    sb = _fwsec_patch(desc_v3, image, signature, _FWSEC_CMD_SB, bytes(read_vbios_desc))   # SB takes READ_VBIOS_DESC alone (frts_tu102.c:334-339)
+    _, self.beagle_sb_image_paddr, _ = nvdev._alloc_boot_mem(len(sb), data=sb, sysmem=False)
+    img, data_off, data_sz, code_off, code_sz = _booter_ucode(nvdev.fw_name, "booter_unload-570.144.bin", _BOOTER_UNLOAD_SHA[nvdev.fw_name])
+    _, self.beagle_unload_image_paddr, _ = nvdev._alloc_boot_mem(len(img), data=img, sysmem=False)
+    self.beagle_unload_params = (data_off, data_sz, code_off, code_sz)
+    _p1log(f"teardown images: FWSEC-SB {len(sb)} bytes at VRAM 0x{self.beagle_sb_image_paddr:x}, Booter Unload {len(img)} bytes "
+           f"at VRAM 0x{self.beagle_unload_image_paddr:x} (code 0x{code_off:x}+0x{code_sz:x}, data 0x{data_off:x}+0x{data_sz:x})")
+NV_FLCN.prep_booter = _prep_booter_with_teardown_images
+
+def _tolerant_reset(self, base: int, td: dict, name: str):
+    # tinygrad's reset; as in NVIDIA's kflcnReset_TU102 (kernel_falcon_tu102.c:175-189), a core-select (BCR) timeout does not
+    # stop the teardown and FALCON_RM is still written (tinygrad writes it only once the core select succeeds, ip.py:282-283)
+    try: self.reset(base)
+    except TimeoutError as e:
+        if "RISCV core not booted" not in str(e): raise
+        td[f"{name}_bcr_timeout"] = True
+        self.nvdev.NV_PFALCON_FALCON_RM.with_base(base).write(self.nvdev.chip_id)
+        _p1log(f"teardown: {name} reset: core select timed out ({e}); FALCON_RM written, continuing, as NVIDIA does")
+
+_FALCON_ERRORS = (TimeoutError, RuntimeError, AssertionError)   # tinygrad's wait_cond timeouts, and asserts
+
+def _flcn_fini_hw_teardown(self):
+    """kgspTeardown_TU102 after the GSP unload (NVDev.fini runs gsp.fini_hw first, nvdev.py:88-89, NVIDIA's order). As in
+    NVIDIA (kernel_gsp_tu102.c:597-620, kernel_gsp_booter_tu102.c:155) and nouveau (tu102_gsp_fini), a failed GSP reset,
+    FWSEC-SB or SEC2 reset is recorded and Booter Unload still runs; only Booter Unload and WPR2 decide the outcome."""
+    nvdev = self.nvdev
+    diag = getattr(nvdev, "beagle_fini", None)
+    if not _TEARDOWN or diag is None or not hasattr(self, "beagle_sb_image_paddr"): return
+    td = diag["teardown"] = {}
+    if not diag.get("unload_ok"):
+        td["result"] = "skipped: the GSP did not confirm its unload, so no falcon is touched"
+        _p1log(f"teardown {td['result']}")
+        return
+    falcon, sec2 = 0x00110000, 0x00840000   # as NV_FLCN.init_hw (ip.py:187)
+    try:
+        _tolerant_reset(self, falcon, td, "gsp")
+        # FWSEC-SB, with the arguments tinygrad runs FWSEC-FRTS with (ip.py:190-193)
+        self.execute_hs(falcon, self.beagle_sb_image_paddr, code_off=0x0, data_off=self.desc_v3.IMEMLoadSize,
+                        imemPa=self.desc_v3.IMEMPhysBase, imemVa=self.desc_v3.IMEMVirtBase, imemSz=self.desc_v3.IMEMLoadSize,
+                        dmemPa=self.desc_v3.DMEMPhysBase, dmemVa=0x0, dmemSz=self.desc_v3.DMEMLoadSize,
+                        pkc_off=self.desc_v3.PKCDataOffset, engid=self.desc_v3.EngineIdMask, ucodeid=self.desc_v3.UcodeId)
+        scratch = nvdev.NV_PBUS_VBIOS_SCRATCH[_SCRATCH_SB_ERR].read()
+        td.update(sb_error=scratch & 0xffff,   # logged, not fatal (NVIDIA: NV_ASSERT_FAILED and continue; nouveau: WARN_ON)
+                  plm=nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK.read_bitfields()['read_protection_level0'],
+                  gfw_progress=nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05[0].read() & 0xff)
+        _p1log(f"teardown: FWSEC-SB ran: VBIOS scratch 0x15=0x{scratch:08x} (SB error code 0x{scratch & 0xffff:x}, 0 = none), "
+               f"read_protection_level0={td['plm']}, GFW progress 0x{td['gfw_progress']:02x}")
+    except _FALCON_ERRORS as e:   # NVIDIA: NV_ASSERT_FAILED, then Booter Unload regardless (kernel_gsp_tu102.c:599-620)
+        td["sb_failed"] = f"{type(e).__name__}: {e}"
+        _p1log(f"teardown: GSP reset or FWSEC-SB failed ({td['sb_failed']}); continuing with Booter Unload, as NVIDIA does")
+    try:
+        if nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read() == 0:   # NVIDIA skips Booter Unload when WPR2 is already down
+            td["result"] = "done: WPR2 already down after FWSEC-SB"
+            return
+        try: _tolerant_reset(self, sec2, td, "sec2")
+        except _FALCON_ERRORS as e:   # NVIDIA: a non-fatal NV_ASSERT_OK (kernel_gsp_booter_tu102.c:155)
+            td["sec2_reset_failed"] = f"{type(e).__name__}: {e}"
+            _p1log(f"teardown: SEC2 reset failed ({td['sec2_reset_failed']}); running Booter Unload anyway, as NVIDIA does")
+        data_off, data_sz, code_off, code_sz = self.beagle_unload_params
+        mbx = self.execute_hs(sec2, self.beagle_unload_image_paddr, code_off=code_off, data_off=data_off, imemPa=0x0, imemVa=code_off,
+                              imemSz=code_sz, dmemPa=0x0, dmemVa=0x0, dmemSz=data_sz, pkc_off=0x10, engid=1, ucodeid=3,
+                              mailbox=(0xff << 32) | 0xff)   # booter_load's parameters (ip.py:202-205); mailboxes 0xFF for a normal unload
+        wpr2_hi = nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read()
+        td.update(booter_mailbox0=mbx[0], booter_mailbox1=mbx[1])
+        td["result"] = ("done: Booter Unload lowered WPR2" if mbx[0] == 0 and wpr2_hi == 0 else
+                        f"failed: Booter Unload returned mailbox0=0x{mbx[0]:x} and WPR2_HI=0x{wpr2_hi:x}")
+    except _FALCON_ERRORS as e:   # Booter Unload's DMA or halt timeout
+        td["result"] = f"failed: {type(e).__name__}: {e}"
+    finally:
+        diag.update(wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read())
+        diag["wpr2_down"] = diag["wpr2_hi"] == 0
+        # the next boot needs no power cycle only if WPR2 is down and Booter Unload was not needed or returned 0 (plan (b) 8)
+        diag["teardown_ok"] = diag["wpr2_down"] and td.get("result", "").startswith("done:")
+        _p1log(f"teardown {td.get('result', 'interrupted')}; WPR2_HI=0x{diag['wpr2_hi']:08x}: "
+               f"{'the next boot needs no power cycle' if diag['teardown_ok'] else 'power-cycle before the next boot'}")
+NV_FLCN.fini_hw = _flcn_fini_hw_teardown
+
+def unload_after_failed_boot():
+    """A boot that failed after booter_load started GSP-RM, which then runs from sysmem: tinygrad adds a device to
+    Device._opened_devices only once its constructor returns, so nothing would unload it, and closing the TinyGPU.app
+    connection could unmap memory the GSP still uses. Sends the unload RPC and waits for the suspend (NV_GSP.fini_hw) and
+    returns what it recorded; the caller holds the connection unless unload_ok. None if GSP-RM never started: closing is safe
+    (a failed booter_load leaves it unstarted; the recorded 0x29 failures closed without DART events, STATUS.md R14)."""
+    nvdev = _BOOTING[0]
+    if nvdev is None or not getattr(nvdev, "beagle_gsp_started", False): return None
+    try: nvdev.gsp.fini_hw()
+    except Exception as e: _p1log(f"unload after the failed boot: {type(e).__name__}: {e}")
+    return getattr(nvdev, "beagle_fini", {"unload_ok": False})
+
+def _rpc_unloading_guest_driver_level0(self):
+    # tinygrad's rpc_unloading_guest_driver with NVIDIA's driver-unload level (gpuStateDestroy -> kgspUnloadRm(NORMAL, LEVEL_0),
+    # gpu.c:3269-3273) instead of FAST_UNLOAD; the fallback if Booter Unload fails after FAST_UNLOAD
+    data = _nv.rpc_unloading_guest_driver_v(bInPMTransition=0, bGc6Entering=0, newLevel=0)
+    self.cmd_q.send_rpc(_nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER, bytes(data))
+    self.stat_q.wait_resp(_nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER)
+if _UNLOAD_LEVEL_0: NV_GSP.rpc_unloading_guest_driver = _rpc_unloading_guest_driver_level0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

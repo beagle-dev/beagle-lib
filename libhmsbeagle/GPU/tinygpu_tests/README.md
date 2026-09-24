@@ -3,7 +3,7 @@
 Tests for BEAGLE's TinyGPU-Hybrid NV backend that need no eGPU. Each C++ port of tinygrad code is compared byte for
 byte with the tinygrad function it follows (the pinned hcq1 tree plus BEAGLE's daemon patches are the oracle), and
 the real plugin runs end to end against a fake daemon and a fake TinyGPU.app. Not built or installed by default.
-Background and plan: TODO.md `## Runtime roadmap` and `## Plan (2026-09-24)`; STATUS.md R10-R14.
+Background and plan: TODO.md `## Runtime roadmap` and `## Plan (2026-09-24)`; STATUS.md R10-R18.
 
 ## Requirements
 
@@ -32,8 +32,10 @@ Outputs go to `.work/` (git-ignored; `TINYGPU_TEST_WORK` overrides).
 | `golden_encode.py/.cpp` | `TinyGPUHybridNVDispatch.h` launch and copy encoding against hcq1's `NVComputeQueue`/`NVCopyQueue` |
 | `check_firmware.py` | `booter_unload` for ad102/ga102 is in tinygrad's download cache (re-staged from `~/.beagle/tinygpu/fw` if purged) and tinygrad's `fetch_fw` returns it with the network off |
 | `test_daemon_wire.py` | `nv_dispatch_daemon.py`'s framing and both `launch_batch` paths on a fake device |
-| `run_fake_runtime.sh` | one plugin run against `fake_nv_daemon.py` and `fake_tinygpu_server.py`, which runs the pushbuffers like a GPU front end (acquires, QMD chains, releases, DMA) and, in the C++ runtime mode, checks every QMD with tinygrad's reader. PASS requires every stage of the selected mode (boot, compile, launches, evaluations, and the handoff or C++ program loading) and a clean fake server. Kernels are not emulated, so logL is wrong by design |
-| `mm_trace.py` | tinygrad's memory manager on a recording fake for BEAGLE's allocation sequence (`--mmu 2` Ada, `--mmu 3` Blackwell): the reference for porting memory management |
+| `test_p1_diagnostics.py` | plan step P1: the warm-GPU refusal end to end over a scripted fake TinyGPU socket, and each diagnostic wrapper in `nv_init_helper.py` on fakes |
+| `test_p2_teardown.py` | plan step P2 (`BEAGLE_NV_TEARDOWN=1`): the FWSEC-SB and Booter Unload images against tinygrad's own `prep_ucode`/`prep_booter` on the captured VBIOS, the VRAM layout gate (`mm_trace.trace`), the teardown on a scripted register fake (one scenario per failure mode, with the `execute_hs` arguments of both images), LEVEL_0 with an op-8 sequencer, and the daemon's fini/hung/failed-boot decisions |
+| `run_fake_runtime.sh` | one plugin run against `fake_nv_daemon.py` and `fake_tinygpu_server.py`, which runs the pushbuffers like a GPU front end (acquires, QMD chains, releases, DMA) and, in the C++ runtime mode, checks every QMD with tinygrad's reader. PASS requires every stage of the selected mode (boot, compile, launches, evaluations, and the handoff or C++ program loading) and a clean fake server. Kernels are not emulated, so logL is wrong by design. With `FAKE_NV_HANG=1` the fake GPU never writes a release, which `run_offline.sh` uses to check the hung path |
+| `mm_trace.py` | tinygrad's memory manager on a recording fake for BEAGLE's allocation sequence (`--mmu 2` Ada, `--mmu 3` Blackwell): the reference for porting memory management, and P2's layout gate |
 | `cubin_inspect.py` | ELF facts of the cached cubins (SM in e_flags, relocations, register-count records) |
 | `amd_compile_probe.py` | compiles the AMD kernels for gfx1100 with tinygrad's `compile_hip` (native comgr) and reports size, determinism, kernel descriptors |
 | `run_point.sh` | **hardware**: one real run (see below) |
@@ -47,8 +49,9 @@ Outputs go to `.work/` (git-ignored; `TINYGPU_TEST_WORK` overrides).
   bytes). `run_offline.sh` also checks at run time that the guard holds. `run_point.sh` is the hardware exception.
 - Tinygrad-side tests must never call tinygrad's `ensure_app` or open a real `APLRemotePCIDevice`; build fakes
   instead (`RemotePCIDevice` via `object.__new__` on a socketpair).
-- `run_point.sh` boots the real eGPU: power-cycle it (unplug and replug) first, never Ctrl-C or kill a run, and
-  unplug a hung GPU before killing anything. Its outputs go to `$BEAGLE_TINYGPU_DATA/runs/`.
+- `run_point.sh` (and `../nv_teardown_diag.py`) boot the real eGPU: power-cycle it (unplug and replug) first
+  unless the previous run's teardown reported WPR2 down (`BEAGLE_NV_TEARDOWN=1`, STATUS.md R18), never Ctrl-C or
+  kill a run, and unplug a hung or holding GPU before killing anything. Outputs go to `$BEAGLE_TINYGPU_DATA/runs/`.
 
 ## Data outside the repo (`~/.beagle/tinygpu/`)
 

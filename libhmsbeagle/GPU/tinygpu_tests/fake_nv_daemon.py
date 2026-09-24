@@ -47,7 +47,14 @@ class FakeDev:
     def __init__(self):
         self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 1
         self.iface = types.SimpleNamespace(dev_impl=types.SimpleNamespace())
-    def finalize(self): self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)   # a clean GSP unload (nv_init_helper's report)
+        self.iface.dev_impl.gsp = types.SimpleNamespace(fini_hw=self._gsp_fini_hw)
+    def _gsp_fini_hw(self):   # a hung fini's unload RPC only: a clean GSP unload, no teardown
+        self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
+    def finalize(self):   # a clean GSP unload (nv_init_helper's report); with BEAGLE_NV_TEARDOWN=1 also a successful teardown
+        self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
+        if os.environ.get("BEAGLE_NV_TEARDOWN", "0") not in ("", "0"):
+            self.iface.dev_impl.beagle_fini.update(teardown={"result": "done: Booter Unload lowered WPR2", "booter_mailbox0": 0},
+                                                   wpr2_lo=0, wpr2_hi=0, wpr2_down=True, teardown_ok=True)
     def hw_compute_queue_t(self): return FakeQueue()
     def next_timeline(self): self.timeline_value += 1; return self.timeline_value - 1
     def synchronize(self): pass
@@ -66,6 +73,9 @@ def handoff_dev():  # an Ada device as build_handoff sees it; the fake server re
                                  gpu_mmio=types.SimpleNamespace(residx=0, off=0xbb0000))
 
 class FakeDaemon(d.Daemon):
+    def _hold(self):   # the real daemon sleeps until it is killed; a fake GPU never needs that, so fail loudly instead
+        print("fake_nv_daemon: HOLD requested (the fake GPU did not confirm its unload); exiting 3", file=sys.stderr, flush=True)
+        os._exit(3)
     def cmd_boot(self, req):
         self.dev = FakeDev()
         self.vram_next = 0

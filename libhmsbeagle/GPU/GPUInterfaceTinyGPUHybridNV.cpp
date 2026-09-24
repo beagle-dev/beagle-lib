@@ -276,14 +276,38 @@ static void nvFlushLaunchQueue() {
         fprintf(stderr, "TinyGPU/NV: launch_batch(%zu kernels) failed: %s\n", n, resp.c_str());
 }
 
-[[noreturn]] static void nv_safe_exit(int code) {
+// What the daemon reports after it unloaded the GPU (fini, or a boot that failed after GSP-RM started): the unload,
+// NVIDIA's teardown if it ran (BEAGLE_NV_TEARDOWN=1, plan step P2), and whether the daemon keeps its copy of the
+// TinyGPU.app connection open because the GPU did not confirm the unload (closing it could unmap memory the GSP still
+// uses). Returns that last one.
+static bool nv_report_unload(const std::string& resp) {
+    uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
+    if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
+        nvd_json_u64(resp, "wpr2_lo", wlo) && nvd_json_u64(resp, "wpr2_hi", whi))
+        fprintf(stderr, "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
+                "WPR2_HI=0x%08llx)\n", nv_json_bool(resp, "unload_ok") ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
+                (unsigned long long)cpuctl, (unsigned long long)wlo, (unsigned long long)whi);
+    if (resp.find("\"teardown_ok\":") != std::string::npos)
+        fprintf(stderr, "TinyGPU/NV: teardown: %s; %s\n", nv_json_str(resp, "result").c_str(),
+                nv_json_bool(resp, "teardown_ok") ? "WPR2 is down, the next boot needs no power cycle"
+                                                  : "power-cycle the eGPU before the next boot");
+    bool hold = nv_json_bool(resp, "hold") && nvd_json_u64(resp, "pid", pid);
+    if (hold)
+        fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU did not confirm "
+                "its unload. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
+    return hold;
+}
+
+// hung: the GPU stopped making progress, so the daemon sends only the GSP unload RPC (no synchronize, no teardown).
+[[noreturn]] static void nv_safe_exit(int code, bool hung = false) {
     fflush(stderr);
     if (g_nv) {
+        bool hold = false;
         if (g_nv->cmd_sock >= 0) {
-            nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"fini\"}");
-            nv_recv_msg(g_nv->cmd_sock);  // best-effort ack, ignore content
+            nv_send_msg(g_nv->cmd_sock, hung ? "{\"cmd\":\"fini\",\"hung\":true}" : "{\"cmd\":\"fini\"}");
+            hold = nv_report_unload(nv_recv_msg(g_nv->cmd_sock));
         }
-        if (g_nv->daemon_pid > 0) {
+        if (g_nv->daemon_pid > 0 && !hold) {
             for (int i = 0; i < 100; ++i) {
                 int st = 0;
                 if (waitpid(g_nv->daemon_pid, &st, WNOHANG) > 0) break;
@@ -316,7 +340,7 @@ static void nvd_wait(uint64_t value) {
         if (waited > std::chrono::seconds(30)) {
             fprintf(stderr, "TinyGPU/NV: timeline wait timed out (want %llu, have %llu); GPU hung?\n",
                     (unsigned long long)value, (unsigned long long)__atomic_load_n(g_nvd->signal, __ATOMIC_ACQUIRE));
-            nv_safe_exit(1);
+            nv_safe_exit(1, true);
         }
         if (waited > std::chrono::milliseconds(2)) usleep(20);
     }
@@ -663,10 +687,12 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     if (resp.empty() || !nv_json_ok(resp)) {
         std::string err = nv_json_str(resp, "error");
         fprintf(stderr, "TinyGPU/NV: boot failed: %s\n", err.empty() ? resp.c_str() : err.c_str());
+        nv_report_unload(resp);   // a boot that failed after GSP-RM started: the daemon unloaded it, and may hold
         delete g;
         return nullptr;
     }
     fprintf(stderr, "TinyGPU/NV: daemon booted — arch=%s\n", nv_json_str(resp, "arch").c_str());
+    g_nv = g;   // from here on every exit, a GPU hang during setup included, tears the GPU down through the daemon
 
     if (kernel_code && kernel_code[0]) {
         char ptx_path[256];
@@ -684,8 +710,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
         unlink(ptx_path);
         if (resp.empty() || !nv_json_ok(resp)) {
             fprintf(stderr, "TinyGPU/NV: compile_all failed: %s\n", resp.c_str());
-            delete g;
-            return nullptr;
+            nv_safe_exit(1);
         }
         // Register a lightweight handle per kernel name found in the reply's
         // "kernels" array so GetFunction() has something to hand back.
@@ -712,11 +737,11 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     if (tg_fd >= 0) {
         std::vector<uint8_t> elf;
         g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime() ? &elf : nullptr);
-        if (!g_nvd) { delete g; return nullptr; }
+        if (!g_nvd) nv_safe_exit(1);
         if (g_nvd->runtime) {
             std::vector<std::string> names;
             for (auto& kv : g_nvKernels) names.push_back(kv.first);
-            if (!nvdLoadPrograms(elf, names)) { delete g; return nullptr; }
+            if (!nvdLoadPrograms(elf, names)) nv_safe_exit(1);
         }
         for (auto& kv : g_nvKernels) {
             auto it = g_nvd->h.kernels.find(kv.first);
@@ -868,18 +893,9 @@ void NvFini() {
         // TinyGPU.app connection open: closing it could unmap memory the GSP still uses.
         nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"fini\"}");
         std::string resp = nv_recv_msg(g_nv->cmd_sock);
-        uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
-        if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
-            nvd_json_u64(resp, "wpr2_lo", wlo) && nvd_json_u64(resp, "wpr2_hi", whi))
-            fprintf(stderr, "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
-                    "WPR2_HI=0x%08llx)\n", nv_json_bool(resp, "unload_ok") ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
-                    (unsigned long long)cpuctl, (unsigned long long)wlo, (unsigned long long)whi);
-        else if (!resp.empty() && !nv_json_ok(resp))
+        if (resp.find("\"mailbox0\":") == std::string::npos && !resp.empty() && !nv_json_ok(resp))
             fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", resp.c_str());
-        hold = nv_json_bool(resp, "hold") && nvd_json_u64(resp, "pid", pid);
-        if (hold)
-            fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU did not confirm "
-                    "its unload. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
+        hold = nv_report_unload(resp);
     }
     if (g_nv->daemon_pid > 0 && !hold) {
         for (int i = 0; i < 100; ++i) {
