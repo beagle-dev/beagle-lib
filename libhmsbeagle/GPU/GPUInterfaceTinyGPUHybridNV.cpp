@@ -87,13 +87,15 @@ static uint64_t nv_json_u64(const std::string& js, const char* key) {
     while (p < js.size() && (js[p]==' '||js[p]=='\n')) ++p;
     return (uint64_t)strtoull(js.c_str() + p, nullptr, 10);
 }
-static bool nv_json_ok(const std::string& js) {
-    auto p = js.find("\"ok\":");
+static bool nv_json_bool(const std::string& js, const char* key) {
+    std::string needle = std::string("\"") + key + "\":";
+    auto p = js.find(needle);
     if (p == std::string::npos) return false;
-    p += 5;
+    p += needle.size();
     while (p < js.size() && js[p]==' ') ++p;
     return js.compare(p, 4, "true") == 0;
 }
+static bool nv_json_ok(const std::string& js) { return nv_json_bool(js, "ok"); }
 static std::string nv_json_str(const std::string& js, const char* key) {
     char needle[128]; snprintf(needle, sizeof(needle), "\"%s\":", key);
     auto p = js.find(needle);
@@ -638,6 +640,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     }
     if (pid == 0) {
         close(sv[0]);
+        setsid();  // its own session: a terminal Ctrl-C or hangup must not reach a daemon that may hold a live GPU
         dup2(STDERR_FILENO, STDOUT_FILENO);
         char fd_str[16]; snprintf(fd_str, sizeof(fd_str), "%d", sv[1]);
         char tg_str[16]; snprintf(tg_str, sizeof(tg_str), "%d", tg_fd);
@@ -658,7 +661,8 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     std::string resp = nv_recv_msg(g->cmd_sock);
     nv_profile_end("boot", t0);
     if (resp.empty() || !nv_json_ok(resp)) {
-        fprintf(stderr, "TinyGPU/NV: boot failed: %s\n", resp.c_str());
+        std::string err = nv_json_str(resp, "error");
+        fprintf(stderr, "TinyGPU/NV: boot failed: %s\n", err.empty() ? resp.c_str() : err.c_str());
         delete g;
         return nullptr;
     }
@@ -857,11 +861,27 @@ void NvFini() {
     nv_profile_report();
     for (auto& kv : g_nvKernels) delete kv.second;
     g_nvKernels.clear();
+    bool hold = false;
     if (g_nv->cmd_sock >= 0) {
+        // The daemon tears the GPU down now (GSP unload, then a wait for the GSP to report itself suspended) and
+        // replies with what it saw. If the GPU did not confirm the unload, the daemon keeps its copy of the
+        // TinyGPU.app connection open: closing it could unmap memory the GSP still uses.
         nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"fini\"}");
-        nv_recv_msg(g_nv->cmd_sock);
+        std::string resp = nv_recv_msg(g_nv->cmd_sock);
+        uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
+        if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
+            nvd_json_u64(resp, "wpr2_lo", wlo) && nvd_json_u64(resp, "wpr2_hi", whi))
+            fprintf(stderr, "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
+                    "WPR2_HI=0x%08llx)\n", nv_json_bool(resp, "unload_ok") ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
+                    (unsigned long long)cpuctl, (unsigned long long)wlo, (unsigned long long)whi);
+        else if (!resp.empty() && !nv_json_ok(resp))
+            fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", resp.c_str());
+        hold = nv_json_bool(resp, "hold") && nvd_json_u64(resp, "pid", pid);
+        if (hold)
+            fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU did not confirm "
+                    "its unload. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
     }
-    if (g_nv->daemon_pid > 0) {
+    if (g_nv->daemon_pid > 0 && !hold) {
         for (int i = 0; i < 100; ++i) {
             int st = 0;
             if (waitpid(g_nv->daemon_pid, &st, WNOHANG) > 0) { g_nv->daemon_pid = 0; break; }

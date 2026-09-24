@@ -102,6 +102,136 @@ def _patched_start_cpu(self, base):
 NV_FLCN.start_cpu = _patched_start_cpu
 
 
+# ── 4. Warm-GPU refusal, unload diagnostics and boot baselines (TODO.md plan
+# step P1). Everything below only adds reads to what tinygrad does; the one
+# behaviour change is the refusal, which replaces tinygrad's WPR2-up branch
+# (a bus-master CFG write, then a PCIe reset that is a no-op on macOS 14 and
+# a doomed boot) with an error before any write. The originals are kept in
+# _ORIG so the offline tests (tinygpu_tests/test_p1_diagnostics.py) can
+# drive each wrapper on fakes. ────────────────────────────────────────────
+import array as _array, hashlib as _hashlib, pathlib as _pathlib
+from tinygrad.runtime.autogen import nv as _nv
+from tinygrad.runtime.support.nv.ip import NVRpcQueue
+from tinygrad.runtime import ops_nv as _ops_nv
+
+class WarmGPUError(RuntimeError):
+    """The GPU still carries a previous boot (WPR2 is up); only a power cycle clears it (STATUS.md R14)."""
+
+_ORIG = {"early_ip_init": NVDev._early_ip_init, "gsp_fini_hw": NV_GSP.fini_hw, "read_resp": NVRpcQueue.read_resp,
+         "run_cpu_seq": NV_GSP.run_cpu_seq, "execute_hs": NV_FLCN.execute_hs, "prep_ucode": NV_FLCN.prep_ucode,
+         "new_gpu_fifo": _ops_nv.NVDevice._new_gpu_fifo}
+_GSP_BASE, _WPR2_ADDR_HI = 0x00110000, 0x001FA828   # the GSP falcon; NV_PFB_PRI_MMU_WPR2_ADDR_HI (dev_fb.py)
+_SUSPEND_TIMEOUT_S = 2.0
+_in_unload = [False]
+
+def _p1log(msg: str) -> None:
+    print(f"nv_init_helper: {msg}", file=sys.stderr, flush=True)
+
+def _guarded_early_ip_init(self):
+    # tinygrad reads this register first too (nvdev.py:105); refuse before its bus-master CFG write
+    wpr2_hi = self.mmio[_WPR2_ADDR_HI // 4]
+    if wpr2_hi != 0:
+        raise WarmGPUError(f"WARM GPU: WPR2 is up (NV_PFB_PRI_MMU_WPR2_ADDR_HI=0x{wpr2_hi:08x}), so the previous boot was "
+                           "not torn down. Power-cycle the eGPU (unplug and replug it) and retry. Nothing was written to the GPU.")
+    return _ORIG["early_ip_init"](self)
+NVDev._early_ip_init = _guarded_early_ip_init
+
+def _gsp_fini_hw_with_suspend_wait(self):
+    # tinygrad's UNLOADING_GUEST_DRIVER RPC, then NVIDIA's wait for the GSP to report itself suspended
+    # (MAILBOX0 == 0x80000000; 570.144 kernel_gsp_tu102.c:1116-1139, nouveau r535 gsp.c:1772-1779)
+    nvdev = self.nvdev
+    diag = nvdev.beagle_fini = {"unload_ok": False}
+    _in_unload[0] = True
+    try: _ORIG["gsp_fini_hw"](self)
+    finally: _in_unload[0] = False
+    deadline = time.monotonic() + _SUSPEND_TIMEOUT_S
+    while (mailbox0 := nvdev.NV_PGSP_FALCON_MAILBOX0.read()) != 0x80000000 and time.monotonic() < deadline: time.sleep(0.01)
+    diag.update(mailbox0=mailbox0, riscv_cpuctl=nvdev.NV_PRISCV_RISCV_CPUCTL.with_base(_GSP_BASE).read(),
+                wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read(),
+                unload_ok=mailbox0 == 0x80000000)
+    _p1log(f"after the unload RPC: GSP MAILBOX0=0x{mailbox0:08x} ({'suspended' if diag['unload_ok'] else 'NOT SUSPENDED'}), "
+           f"RISCV_CPUCTL=0x{diag['riscv_cpuctl']:08x}, WPR2_LO=0x{diag['wpr2_lo']:08x}, WPR2_HI=0x{diag['wpr2_hi']:08x}")
+NV_GSP.fini_hw = _gsp_fini_hw_with_suspend_wait
+
+def _rpc_name(func: int) -> str:
+    return _nv.rpc_fns.get(func, _nv.rpc_events.get(func, f"0x{func:x}"))
+
+def _logged_read_resp(self):
+    for func, msg in _ORIG["read_resp"](self):   # same generator, same items; log the status-queue events of the unload
+        if _in_unload[0]: _p1log(f"status-queue event during unload: {_rpc_name(func)} ({func:#x})")
+        yield func, msg
+NVRpcQueue.read_resp = _logged_read_resp
+
+_SEQ_ARGS = {0x0: 2, 0x1: 3, 0x2: 5, 0x3: 1, 0x4: 2, 0x5: 0, 0x6: 0, 0x7: 0, 0x8: 0}   # run_cpu_seq's operand counts (ip.py:633-661)
+def _seq_ops(seq_buf: bytes) -> list:
+    hdr = _nv.rpc_run_cpu_sequencer_v17_00.from_buffer_copy(seq_buf[:(hdr_sz := ctypes.sizeof(_nv.rpc_run_cpu_sequencer_v17_00))])
+    words, ops, i = memoryview(seq_buf[hdr_sz:]).cast('I')[:hdr.cmdIndex], [], 0
+    while i < len(words):
+        if (n := _SEQ_ARGS.get(op := words[i])) is None: ops.append(f"unknown {op}"); break
+        ops.append(op); i += 1 + n
+    return ops
+
+def _logged_run_cpu_seq(self, seq_buf: bytes):
+    _p1log(f"CPU sequencer ({'during unload' if _in_unload[0] else 'boot'}): ops {_seq_ops(seq_buf)}")
+    return _ORIG["run_cpu_seq"](self, seq_buf)
+NV_GSP.run_cpu_seq = _logged_run_cpu_seq
+
+def _execute_hs_with_frts_checks(self, base, img_paddr, *args, **kwargs):
+    frts, nvdev = img_paddr == getattr(self, "frts_image_paddr", None), self.nvdev
+    if frts:   # the conditions tinygrad's (suppressed) wait_for_reset polls, ip.py:94-96
+        plm = nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK.read_bitfields()['read_protection_level0']
+        gfw = nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05[0].read() & 0xff
+        _p1log(f"before FWSEC-FRTS: read_protection_level0={plm} (tinygrad waits for 1), SCRATCH_GROUP_05[0]&0xff=0x{gfw:02x} (waits for 0xff)")
+    ret = _ORIG["execute_hs"](self, base, img_paddr, *args, **kwargs)
+    if frts:   # NVIDIA's FRTS post-checks (570.144 kernel_gsp_frts_tu102.c:486-523), before tinygrad's WPR2_HI assert
+        scratch = nvdev.NV_PBUS_VBIOS_SCRATCH[0x0e].read()
+        wpr2_lo = nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read_bitfields()['val']
+        expected = self.frts_offset >> 12
+        _p1log(f"after FWSEC-FRTS: VBIOS scratch 0x0E=0x{scratch:08x} (FRTS error code 0x{scratch >> 16:x}, 0 = none); "
+               f"WPR2_LO.val=0x{wpr2_lo:x}, frts_offset>>12=0x{expected:x} ({'match' if wpr2_lo == expected else 'MISMATCH'})")
+    return ret
+NV_FLCN.execute_hs = _execute_hs_with_frts_checks
+
+_VBIOS_SLICE = slice(0x00300000 // 4, (0x00300000 + 0x100000) // 4)   # the PROM window prep_ucode reads (ip.py:110)
+
+class _VbiosCapture:
+    """Pass-through for nvdev.mmio during prep_ucode that keeps a copy of the VBIOS slice it reads."""
+    def __init__(self, inner): self._inner, self.vbios = inner, None
+    def __getitem__(self, idx):
+        val = self._inner[idx]
+        if isinstance(idx, slice) and (idx.start, idx.stop) == (_VBIOS_SLICE.start, _VBIOS_SLICE.stop): self.vbios = _array.array('I', val).tobytes()
+        return val
+    def __setitem__(self, idx, val): self._inner[idx] = val
+    def __getattr__(self, name): return getattr(self._inner, name)
+
+def _prep_ucode_with_vbios_capture(self):
+    nvdev = self.nvdev
+    nvdev.mmio = capture = _VbiosCapture(nvdev.mmio)
+    try: _ORIG["prep_ucode"](self)
+    finally: nvdev.mmio = capture._inner
+    if capture.vbios is None: return
+    nvdev.beagle_vbios, digest = capture.vbios, _hashlib.sha256(capture.vbios).hexdigest()
+    try:
+        out = _pathlib.Path(os.environ.get("BEAGLE_TINYGPU_DATA", _pathlib.Path.home() / ".beagle/tinygpu")) / "vbios"
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / f"{nvdev.chip_name}_{digest[:16]}.rom"
+        if not path.exists(): path.write_bytes(capture.vbios)
+        _p1log(f"VBIOS captured: {len(capture.vbios)} bytes, sha256 {digest}, saved to {path}")
+    except OSError as e: _p1log(f"VBIOS captured (sha256 {digest}) but not saved: {e}")
+NV_FLCN.prep_ucode = _prep_ucode_with_vbios_capture
+
+def _new_gpu_fifo_with_userd_baseline(self, gpfifo_area, ctxshare, channel_group, offset=0, entries=0x400, compute=False, video=False):
+    fifo = _ORIG["new_gpu_fifo"](self, gpfifo_area, ctxshare, channel_group, offset=offset, entries=entries, compute=compute, video=video)
+    ctl = _ops_nv.nv_gpu.AmpereAControlGPFifo   # USERD follows the ring, as tinygrad lays it out (ops_nv.py:644-666)
+    userd = gpfifo_area.cpu_view().view(offset + entries * 8, fmt='I')
+    get, put = userd[getattr(ctl, 'GPGet').offset // 4], userd[getattr(ctl, 'GPPut').offset // 4]
+    kind = "compute" if compute else "video" if video else "copy"
+    self.__dict__.setdefault("beagle_userd", {})[kind] = (get, put)
+    _p1log(f"USERD baseline, {kind} GPFIFO (gpfifo_area+{offset:#x}, before any submission): GPGet=0x{get:x} GPPut=0x{put:x}")
+    return fifo
+_ops_nv.NVDevice._new_gpu_fifo = _new_gpu_fifo_with_userd_baseline
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Inherited-FD device: APLRemotePCIDevice without its own socket/lock setup.
 # ─────────────────────────────────────────────────────────────────────────────

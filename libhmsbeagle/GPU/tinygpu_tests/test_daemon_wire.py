@@ -24,7 +24,11 @@ class FakeAllocator:
     def _copyout(self, mv, buf): mv[:] = self.mem[buf.va_addr][:len(mv)]
 
 class FakeDev:
-    def __init__(self): self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 5
+    def __init__(self):
+        self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 5
+        self.iface = type("I", (), {})(); self.iface.dev_impl = type("D", (), {})()
+    def finalize(self):   # a clean GSP unload, as nv_init_helper reports it
+        calls.append(("finalize",)); self.iface.dev_impl.beagle_fini = {"unload_ok": True, "mailbox0": 0x80000000}
     def hw_compute_queue_t(self): return FakeQueue()
     def next_timeline(self): self.timeline_value += 1; return self.timeline_value - 1
     def synchronize(self): calls.append(("sync",))
@@ -63,7 +67,8 @@ def run(chain):
     dm.kernel_names = {"kA", "kB"}; dm._get_program = lambda name, n: (_ for _ in ()).throw(RuntimeError("unknown kernel")) if name == "nope" else FakePrg(name)
     r = client_recv(a); assert not r["ok"] and "unknown kernel" in r["error"], r
     client_send(a, {"cmd": "sync"}); assert client_recv(a)["ok"]
-    client_send(a, {"cmd": "fini"}); assert client_recv(a)["ok"]
+    client_send(a, {"cmd": "fini"}); r = client_recv(a)
+    assert r["ok"] and r["unload_ok"] and not r.get("hold") and calls[-1] == ("finalize",), r   # fini tears the GPU down, then replies
     t.join(5); assert not t.is_alive()
     return [c for c in calls if c[0] != "sync"]
 
@@ -72,10 +77,10 @@ expect = [("wait", 4), ("barrier",), ("check", "kA"), ("dims", "kA", (4, 1, 1), 
           ("exec", "kA", ("kargs", (0x1000,), (3,)), (4, 1, 1), (16, 16, 1)),
           ("check", "kB"), ("dims", "kB", (2, 2, 1), (32, 1, 1)),
           ("exec", "kB", ("kargs", (0x1000, 0x1000), (1, 2)), (2, 2, 1), (32, 1, 1)),
-          ("signal", 5), ("submit",), ("wait", 5), ("barrier",)]
+          ("signal", 5), ("submit",), ("wait", 5), ("barrier",), ("finalize",)]
 assert chained == expect, chained
 print("chained path: OK (one wait/barrier, 2 execs, one signal+submit; failed batch submits nothing)")
 
 unchained = run(False)
-assert unchained == [("call", "kA", (4, 1, 1), (16, 16, 1), (3,)), ("call", "kB", (2, 2, 1), (32, 1, 1), (1, 2))], unchained
+assert unchained == [("call", "kA", (4, 1, 1), (16, 16, 1), (3,)), ("call", "kB", (2, 2, 1), (32, 1, 1), (1, 2)), ("finalize",)], unchained
 print("per-launch path: OK")

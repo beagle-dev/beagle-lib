@@ -41,8 +41,13 @@ class FakeAllocator:
     def _copyin(self, buf, mv): mem, off = self._find(buf.va_addr, len(mv)); mem[off:off + len(mv)] = mv
     def _copyout(self, mv, buf): mem, off = self._find(buf.va_addr, len(mv)); mv[:] = mem[off:off + len(mv)]
 
+UNLOAD_DIAG = {"unload_ok": True, "mailbox0": 0x80000000, "riscv_cpuctl": 0, "wpr2_lo": 0x1ff00, "wpr2_hi": 0x1ff10}  # suspended, WPR2 still up
+
 class FakeDev:
-    def __init__(self): self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 1
+    def __init__(self):
+        self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 1
+        self.iface = types.SimpleNamespace(dev_impl=types.SimpleNamespace())
+    def finalize(self): self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)   # a clean GSP unload (nv_init_helper's report)
     def hw_compute_queue_t(self): return FakeQueue()
     def next_timeline(self): self.timeline_value += 1; return self.timeline_value - 1
     def synchronize(self): pass

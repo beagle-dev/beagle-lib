@@ -491,7 +491,16 @@ class Daemon:
             _install_inherited_tinygpu(self.tgpu_fd)
         DEV.value = "NV"
         from tinygrad import Device
-        self.dev = Device["NV:0"]
+        try:
+            self.dev = Device["NV:0"]
+        except Exception as e:
+            # nv_init_helper refuses a GPU that still carries a previous boot (WPR2 up) before writing anything;
+            # tinygrad wraps the per-interface errors in an ExceptionGroup, so dig the refusal out for the reply
+            warm = _find_exception(e, _warm_error_type())
+            if warm is None: raise
+            log(str(warm))
+            self.send_json({"ok": False, "warm": True, "error": str(warm)})
+            return
         log(f"booted — {self.dev}, arch={self.dev.arch}")
         log(f"launch_batch: {'one chained queue per batch' if _CHAIN_LAUNCHES else 'one queue per launch (BEAGLE_NV_CHAIN_LAUNCHES=0)'}")
 
@@ -668,9 +677,36 @@ class Daemon:
         self.send_json({"ok": True})
 
     def cmd_fini(self, req):
+        # Tear the GPU down now, while the plugin waits, instead of at interpreter exit: tinygrad's own chain
+        # (HCQCompiled.finalize: synchronize, then PCIIface.device_fini -> NVDev.fini -> the GSP unload RPC, which
+        # nv_init_helper follows with a wait for the GSP to report itself suspended). If the GPU does not confirm
+        # the unload, closing the TinyGPU.app connection could unmap memory the GSP still uses (a DART fault), so
+        # this process keeps its dup of the connection open and waits to be killed after the eGPU is unplugged.
         if _PROFILE:
             _prof_report()
-        self.send_json({"ok": True})
+        reply = {"ok": True}
+        if self.dev is not None:
+            from tinygrad import Device
+            try:
+                self.dev.finalize()
+                for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
+                    Device._opened_devices.discard(name)   # atexit must not run NVDev.fini a second time
+                reply.update(getattr(self.dev.iface.dev_impl, "beagle_fini", {}))
+            except Exception as e:
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                reply.update(ok=False, unload_ok=False, error=f"GPU teardown failed: {e}")
+            if not reply.get("unload_ok"):
+                reply.update(hold=True, pid=os.getpid())
+        self.send_json(reply)
+        if reply.get("hold"):
+            self._hold()
+
+    def _hold(self):
+        log(f"HOLDING the TinyGPU.app connection: the GPU did not confirm its unload. Unplug the eGPU first, then "
+            f"kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
+        while True:
+            time.sleep(3600)
 
     def run(self):
         while True:
@@ -691,7 +727,27 @@ class Daemon:
                 break
 
 
+def _warm_error_type():
+    import nv_init_helper
+    return nv_init_helper.WarmGPUError
+
+
+def _find_exception(e, typ):
+    """e itself or the first exception of type typ inside (nested) exception groups."""
+    if isinstance(e, typ):
+        return e
+    for sub in getattr(e, "exceptions", ()):
+        if (found := _find_exception(sub, typ)) is not None:
+            return found
+    return None
+
+
 def main():
+    # A terminal Ctrl-C or a hangup must not kill the daemon while it may hold a live GPU (TODO.md plan step P1);
+    # it exits on "fini" or when the plugin's end of the command socket closes.
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <cmd_sock_fd> [<tinygpu_sock_fd>]", file=sys.stderr)
         sys.exit(1)
