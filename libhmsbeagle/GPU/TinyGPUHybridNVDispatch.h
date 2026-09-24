@@ -53,6 +53,7 @@ struct NVDHandoff {
     // method and flag words
     uint32_t m_sem_addr_lo = 0, f_sem_acquire = 0, m_invalidate = 0, f_invalidate = 0, m_pcas_a = 0, m_pcas2_b = 0;
     uint32_t m_dma_offset_in_upper = 0, m_dma_line_length_in = 0, m_dma_launch = 0, m_dma_sem_a = 0, f_dma_copy = 0, f_dma_sem = 0;
+    uint32_t m_local_mem_a = 0, m_local_mem_nt_a = 0, f_sem_release = 0, m_non_stall_interrupt = 0;
     NVDFifo compute, copy;
     uint32_t db_bar = 0;
     uint64_t db_off = 0;
@@ -111,6 +112,8 @@ static inline std::string nvd_parse_handoff(const std::string& js, const std::ve
     h.m_dma_offset_in_upper = u32("m_dma_offset_in_upper");  h.m_dma_line_length_in = u32("m_dma_line_length_in");
     h.m_dma_launch = u32("m_dma_launch");    h.m_dma_sem_a = u32("m_dma_sem_a");
     h.f_dma_copy = u32("f_dma_copy");        h.f_dma_sem = u32("f_dma_sem");
+    h.m_local_mem_a = u32("m_local_mem_a");  h.m_local_mem_nt_a = u32("m_local_mem_nt_a");
+    h.f_sem_release = u32("f_sem_release");  h.m_non_stall_interrupt = u32("m_non_stall_interrupt");
     fifo("c", h.compute);  fifo("d", h.copy);
     h.db_bar = u32("db_bar");  h.db_off = u64("db_off");
     buffer("cmdq", h.cmdq);  buffer("kargs", h.kargs);  buffer("staging", h.staging);  buffer("signal", h.signal);
@@ -236,6 +239,21 @@ static inline void nvd_push_invalidate(std::vector<uint32_t>& pb, const NVDHando
 static inline void nvd_push_pcas(std::vector<uint32_t>& pb, const NVDHandoff& h, uint64_t qmd_va) {
     nvd_nvm(pb, 1, h.m_pcas_a, { (uint32_t)(qmd_va >> 8) });
     nvd_nvm(pb, 1, h.m_pcas2_b, { 9 });
+}
+
+// NVCommandQueue.setup(local_mem=..., local_mem_tpc_bytes=...), as
+// NVDevice._ensure_has_local_memory submits it (data64: high word first).
+static inline void nvd_push_setup_local_mem(std::vector<uint32_t>& pb, const NVDHandoff& h, uint64_t local_mem, uint64_t tpc_bytes) {
+    nvd_nvm(pb, 1, h.m_local_mem_a, { (uint32_t)(local_mem >> 32), (uint32_t)local_mem });
+    nvd_nvm(pb, 1, h.m_local_mem_nt_a, { (uint32_t)(tpc_bytes >> 32), (uint32_t)tpc_bytes, 0xff });
+}
+
+// NVComputeQueue.signal with no QMD to release from: a semaphore release,
+// then a non-stall interrupt.
+static inline void nvd_push_signal(std::vector<uint32_t>& pb, const NVDHandoff& h, uint64_t sig_va, uint64_t value) {
+    nvd_nvm(pb, 0, h.m_sem_addr_lo, { (uint32_t)sig_va, (uint32_t)(sig_va >> 32), (uint32_t)value, (uint32_t)(value >> 32),
+                                      h.f_sem_release });
+    nvd_nvm(pb, 0, h.m_non_stall_interrupt, { 0 });
 }
 
 // NVCopyQueue.copy (addresses as data64: high word first).

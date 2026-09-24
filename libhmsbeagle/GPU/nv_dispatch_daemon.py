@@ -3,9 +3,8 @@
 nv_dispatch_daemon.py — BEAGLE NV hybrid backend, daemon architecture
 (STATUS.md §73/§75).
 
-Replaces GPUInterfaceTinyGPUHybrid.cpp's hand-rolled GPFIFO/QMD dispatch
-(now the legacy path, BEAGLE_NV_USE_DAEMON=0) and is the default NV path.
-Real GPU operations (boot, compile, alloc, memcpy, launch, sync) run in this
+Replaced GPUInterfaceTinyGPUHybrid.cpp's hand-rolled GPFIFO/QMD dispatch
+and is the default NV path. Real GPU operations (boot, compile, alloc, memcpy, launch, sync) run in this
 resident daemon on tinygrad's NVDevice/NVProgram/HCQProgram.__call__, the
 same architecture as amd_dispatch_daemon.py, and
 GPUInterfaceTinyGPUHybridNV.cpp is a thin RPC client. The wrong-answer bug
@@ -40,6 +39,12 @@ the plugin passes its own TinyGPU.app connection as a second argument, and
 after compile_all sends "handoff". The daemon prepares every program, then
 hands the C++ side what it needs to build QMDs and pushbuffers and submit
 both GPFIFOs itself (build_handoff). From then on it only allocates.
+
+C++ runtime (BEAGLE_NV_USE_DAEMON=0, the revived legacy path): the same
+handoff with "programs": false, right after boot and compile_all. The
+daemon then also sends the compiled ELF, the device values program loading
+needs, and a VRAM pool; the C++ side loads the programs and allocates from
+the pool itself, so after the handoff this daemon only waits for "fini".
 
     python3 nv_dispatch_daemon.py <cmd_sock_fd> [<tinygpu_sock_fd>]
 """
@@ -393,7 +398,7 @@ def build_handoff(dev, progs, bufs):
                       ("dep_action", "dependent_qmd0_action"), ("dep_prefetch", "dependent_qmd0_prefetch"),
                       ("dep_enable", "dependent_qmd0_enable")):
         info[f"q_{key}_hi"], info[f"q_{key}_lo"] = bits(name)
-    # method and flag words: NVCommandQueue.wait, NVComputeQueue.memory_barrier/exec, NVCopyQueue.copy/signal
+    # method and flag words: NVCommandQueue.wait/setup, NVComputeQueue.memory_barrier/exec/signal, NVCopyQueue.copy/signal
     info.update(m_sem_addr_lo=nv_gpu.NVC56F_SEM_ADDR_LO,
                 f_sem_acquire=nv_flags("NVC56F_SEM_EXECUTE", operation="acq_circ_geq", payload_size="64bit"),
                 m_invalidate=nv_gpu.NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI,
@@ -403,7 +408,12 @@ def build_handoff(dev, progs, bufs):
                 m_dma_launch=nv_gpu.NVC6B5_LAUNCH_DMA, m_dma_sem_a=nv_gpu.NVC6B5_SET_SEMAPHORE_A,
                 f_dma_copy=nv_flags("NVC6B5_LAUNCH_DMA", data_transfer_type="non_pipelined", src_memory_layout="pitch",
                                     dst_memory_layout="pitch"),
-                f_dma_sem=nv_flags("NVC6B5_LAUNCH_DMA", flush_enable="true", semaphore_type="release_four_word_semaphore"))
+                f_dma_sem=nv_flags("NVC6B5_LAUNCH_DMA", flush_enable="true", semaphore_type="release_four_word_semaphore"),
+                m_local_mem_a=nv_gpu.NVC6C0_SET_SHADER_LOCAL_MEMORY_A,
+                m_local_mem_nt_a=nv_gpu.NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A,
+                f_sem_release=nv_flags("NVC56F_SEM_EXECUTE", operation="release", release_wfi="en", payload_size="64bit",
+                                       release_timestamp="en"),
+                m_non_stall_interrupt=nv_gpu.NVC56F_NON_STALL_INTERRUPT)
     # GPFIFOs and doorbell as TinyGPU.app BAR offsets (NVCommandQueue._submit_to_gpfifo)
     for key, fifo in (("c", dev.compute_gpfifo), ("d", dev.dma_gpfifo)):
         info.update({f"{key}_ring_bar": fifo.ring.residx, f"{key}_ring_off": fifo.ring.off, f"{key}_gpput_bar": fifo.gpput.residx,
@@ -542,9 +552,13 @@ class Daemon:
         if self.tgpu_fd is None:
             raise RuntimeError("handoff needs the C++ side's TinyGPU.app connection (second argument)")
         dev = self.dev
-        # Every program is prepared now, while this daemon still owns the
-        # queues: program uploads and local-memory setup both submit GPU work.
-        progs = [self._get_program(name, 0) for name in sorted(self.kernel_names)]
+        # C++ dispatch (BEAGLE_NV_CPP_DISPATCH=1): every program is prepared
+        # now, while this daemon still owns the queues (program uploads and
+        # local-memory setup both submit GPU work). The C++ runtime
+        # (BEAGLE_NV_USE_DAEMON=0) sends "programs": false and loads the ELF
+        # itself into a VRAM pool allocated here, then allocates from it too.
+        programs = req.get("programs", True)
+        progs = [self._get_program(name, 0) for name in sorted(self.kernel_names)] if programs else []
         dev.synchronize()
         from tinygrad.device import BufferSpec
         self._handoff_bufs = bufs = {  # C++ gets their fds in this order
@@ -555,13 +569,22 @@ class Daemon:
         bufs["signal"].cpu_view().view(0, 16, 'B')[:] = bytes(16)  # TinyGPU.app leaves the DMA segment list here
         fds = [dev.iface.pci_dev.sysmem_fds[b.cpu_view().addr] for b in bufs.values()]
         info, blob = build_handoff(dev, progs, bufs)
+        if not programs:  # what NVProgram.__init__ and _ensure_has_local_memory read from the device, the pool, the ELF
+            self._pool = dev.allocator.alloc(req.get("pool_size") or dev.iface.dev_impl.vram_size // 2)
+            info.update(compute_class=dev.iface.compute_class, sass_version=dev.sass_version,
+                        shared_mem_window=dev.shared_mem_window, local_mem_window=dev.local_mem_window,
+                        num_gpcs=dev.num_gpcs, num_tpc_per_gpc=dev.num_tpc_per_gpc, num_sm_per_tpc=dev.num_sm_per_tpc,
+                        max_warps_per_sm=dev.max_warps_per_sm, pool_va=self._pool.va_addr, pool_size=self._pool.size,
+                        elf_size=len(self.elf_bytes))
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
+        if not programs: self.sock.sendall(self.elf_bytes)
         socket.send_fds(self.sock, [b"F"], fds)
         self.handed_off = True
         log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}, " +
-            ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()))
+            ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()) +
+            ("" if programs else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}, ELF {len(self.elf_bytes)} bytes"))
 
     def cmd_alloc(self, req):
         buf = self.dev.allocator.alloc(req["size"])

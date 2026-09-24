@@ -100,9 +100,8 @@ private:
     // call out to them. They need private/protected member access the same
     // way GPUInterfaceTinyGPUHybrid.cpp's own method bodies already do.
     friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
-    // Same for the NV daemon-architecture path (STATUS.md §73/§75,
-    // GPUInterfaceTinyGPUHybridNV.cpp) -- the default; BEAGLE_NV_USE_DAEMON=0
-    // selects the legacy path, see nv_use_daemon() in GPUInterfaceTinyGPUHybrid.cpp.
+    // Same for the NV path (GPUInterfaceTinyGPUHybridNV.cpp: the daemon by
+    // default, C++ dispatch or the C++ runtime by environment variable).
     friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
 
     // ── TinyGPU socket ──────────────────────────────────────────────────────

@@ -31,6 +31,12 @@
  * only boots, compiles, prepares programs and allocates. After a "handoff"
  * this file encodes launches and copies itself and submits them over the
  * plugin's own TinyGPU.app connection (see "C++ dispatch" below).
+ *
+ * BEAGLE_NV_USE_DAEMON=0, the C++ runtime (the revived legacy path): the
+ * daemon only boots and compiles, and hands over right away. This file then
+ * also loads the programs (TinyGPUHybridNVProgram.h, a port of tinygrad's
+ * program loader) and allocates from a VRAM pool the daemon mapped, so
+ * Python does nothing after boot until "fini" (see "C++ runtime" below).
  */
 
 #ifdef FW_TINYGPU
@@ -63,6 +69,7 @@
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridSocket.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 
 namespace tinygpu_device {
 
@@ -203,11 +210,20 @@ struct NVDispatchState {
     uint64_t cmdq_pos = 0, kargs_pos = 0, staging_pos = 0;
     uint64_t timeline = 1;       // value the next submission signals; every earlier value is submitted
     uint64_t pending = 0;        // submissions since the GPU was last seen idle
+    bool runtime = false;        // the C++ runtime: programs loaded here, allocations from rt.pool
+    NVDRuntime rt;
+    uint64_t pool_pos = 0;       // rt.pool's fill level
 };
 static NVDispatchState* g_nvd = nullptr;
 
+// BEAGLE_NV_USE_DAEMON=0: the C++ runtime (see the top of this file).
+static bool nv_cpp_runtime() {
+    static const bool on = [] { const char* v = getenv("BEAGLE_NV_USE_DAEMON"); return v && strcmp(v, "0") == 0; }();
+    return on;
+}
+
 static bool nv_cpp_dispatch() {
-    static const bool on = [] { const char* v = getenv("BEAGLE_NV_CPP_DISPATCH"); return v && strcmp(v, "0") != 0; }();
+    static const bool on = [] { const char* v = getenv("BEAGLE_NV_CPP_DISPATCH"); return (v && strcmp(v, "0") != 0) || nv_cpp_runtime(); }();
     return on;
 }
 
@@ -457,25 +473,40 @@ static void nvd_unmap(NVDispatchState* d) {
 }
 
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
-// of the four shared buffers in NVDHandoff's order. The daemon stops using the
-// queues once it replies, so a failure here is fatal.
-static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock) {
+// of the four shared buffers in NVDHandoff's order. For the C++ runtime
+// (elf != nullptr) the handoff carries no programs; the compiled ELF follows
+// the blob instead. The daemon stops using the queues once it replies, so a
+// failure here is fatal.
+static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector<uint8_t>* elf) {
     auto t0 = nv_profile_start();
-    nv_send_msg(cmd_sock, "{\"cmd\":\"handoff\"}");
+    std::string req = "{\"cmd\":\"handoff\"}";
+    if (elf) {  // BEAGLE_NV_DATA_MB sizes the VRAM pool; the daemon's default is half the VRAM
+        const char* mb = getenv("BEAGLE_NV_DATA_MB");
+        req = "{\"cmd\":\"handoff\",\"programs\":false,\"pool_size\":" +
+              std::to_string(mb ? strtoull(mb, nullptr, 10) << 20 : 0) + "}";
+    }
+    nv_send_msg(cmd_sock, req);
     std::string js = nv_recv_msg(cmd_sock);
     uint64_t blob_size = 0, nfds = 0;
-    if (js.empty() || !nv_json_ok(js) || !nvd_json_u64(js, "blob_size", blob_size) || !nvd_json_u64(js, "nfds", nfds) || nfds != 4) {
-        fprintf(stderr, "TinyGPU/NV: handoff failed: %s\n", js.c_str());
+    NVDRuntime rt;
+    std::string err = elf ? nvd_parse_runtime(js, rt) : "";
+    if (js.empty() || !nv_json_ok(js) || !nvd_json_u64(js, "blob_size", blob_size) || !nvd_json_u64(js, "nfds", nfds) || nfds != 4 ||
+        !err.empty()) {
+        fprintf(stderr, "TinyGPU/NV: handoff failed: %s%s%s\n", js.c_str(), err.empty() ? "" : "; ", err.c_str());
         return nullptr;
     }
     std::vector<uint8_t> blob(blob_size);
     int fds[4] = { -1, -1, -1, -1 };
-    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || !nv_recv_fds(cmd_sock, fds, 4)) {
+    if (elf) elf->resize(rt.elf_size);
+    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || (elf && !nv_recv_all(cmd_sock, elf->data(), elf->size())) ||
+        !nv_recv_fds(cmd_sock, fds, 4)) {
         fprintf(stderr, "TinyGPU/NV: handoff: daemon connection lost\n");
         return nullptr;
     }
     NVDispatchState* d = new NVDispatchState;
-    std::string err = nvd_parse_handoff(js, blob, d->h);
+    d->runtime = elf != nullptr;
+    d->rt = rt;
+    err = nvd_parse_handoff(js, blob, d->h);
     const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
     for (int i = 0; i < 4; ++i) {
         if (err.empty()) {
@@ -496,8 +527,80 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock) {
     d->signal = (uint64_t*)d->maps[3];
     d->tg_sock = tg_sock;
     nv_profile_end("handoff", t0);
-    fprintf(stderr, "TinyGPU/NV: C++ dispatch: %zu kernels handed over (QMD v%u)\n", d->h.kernels.size(), d->h.qmd_ver);
+    if (d->runtime)
+        fprintf(stderr, "TinyGPU/NV: C++ runtime: handed over after boot (QMD v%u, VRAM pool %llu MiB, ELF %zu bytes)\n",
+                d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20), elf->size());
+    else
+        fprintf(stderr, "TinyGPU/NV: C++ dispatch: %zu kernels handed over (QMD v%u)\n", d->h.kernels.size(), d->h.qmd_ver);
     return d;
+}
+
+// ── C++ runtime (BEAGLE_NV_USE_DAEMON=0): program loading and allocation,
+// after a handoff without programs. ─────────────────────────────────────────
+
+// BeagleNVProgram's launch-dims fill; BEAGLE_NV_FILL_LAUNCH_DIMS=0 turns it off, for A/B runs only.
+static bool nv_fill_launch_dims() {
+    const char* v = getenv("BEAGLE_NV_FILL_LAUNCH_DIMS");
+    return !(v && strcmp(v, "0") == 0);
+}
+
+// NVProgram.__init__ for every kernel of the ELF (TinyGPUHybridNVProgram.h),
+// then the GPU work it submits, in tinygrad's order:
+// _ensure_has_local_memory's setup on the compute queue, the image upload,
+// and a synchronize. All kernels share one upload of the image, and local
+// memory is sized once for the largest need (tinygrad grows it program by
+// program to the same size).
+static bool nvdLoadPrograms(const std::vector<uint8_t>& elf_bytes, const std::vector<std::string>& names) {
+    auto t0 = nv_profile_start();
+    NVDispatchState& d = *g_nvd;
+    NVDHandoff& h = d.h;
+    NVDProgramParams p;
+    p.compute_class = d.rt.compute_class;
+    p.sass_version = d.rt.sass_version;
+    p.shared_mem_window = d.rt.shared_mem_window;
+    p.local_mem_window = d.rt.local_mem_window;
+    p.fill_launch_dims = nv_fill_launch_dims();
+
+    NVDElf elf;
+    std::string err = nvd_check_tables(h, d.rt.compute_class);
+    if (err.empty()) err = nvd_elf_load(elf_bytes.data(), elf_bytes.size(), 128, elf);  // NVProgram's force_section_align
+    std::vector<NVDProgramUsage> usage(names.size());
+    for (size_t i = 0; err.empty() && i < names.size(); ++i) {
+        err = nvd_program_usage(elf, names[i], usage[i]);
+        p.slm_per_thread = std::max<uint32_t>(p.slm_per_thread, (uint32_t)nvd_round_up(usage[i].lcmem, 32));
+    }
+    uint64_t local_mem = 0, tpc_bytes = 0, local_mem_size = 0;
+    if (err.empty()) {
+        p.lib_va = nvd_pool_alloc(d.rt.pool, d.pool_pos, nvd_round_up(elf.image.size(), 0x1000) + 0x1000);  // NVProgram's lib_gpu
+        local_mem_size = nvd_local_mem_size(d.rt, p.slm_per_thread, tpc_bytes);
+        local_mem = nvd_pool_alloc(d.rt.pool, d.pool_pos, local_mem_size);
+        if (!p.lib_va || !local_mem) err = "the VRAM pool cannot hold the program image and local memory";
+    }
+    std::vector<uint8_t> image;
+    if (err.empty()) err = nvd_relocate(elf, p.lib_va, image);
+    for (size_t i = 0; err.empty() && i < names.size(); ++i) {
+        NVDKernel k;
+        err = nvd_load_program(elf, names[i], p, usage[i], k);
+        if (err.empty()) h.kernels[names[i]] = std::move(k);
+    }
+    if (!err.empty()) {
+        fprintf(stderr, "TinyGPU/NV: C++ runtime: loading programs failed: %s\n", err.c_str());
+        return false;
+    }
+
+    std::vector<uint32_t> pb;
+    uint64_t value = d.timeline++;
+    nvd_push_wait(pb, h, h.signal.va, value - 1);
+    nvd_push_setup_local_mem(pb, h, local_mem, tpc_bytes);
+    nvd_push_signal(pb, h, h.signal.va, value);
+    nvd_submit(h.compute, pb);
+    nvdCopyIn(p.lib_va, image.data(), image.size());
+    nvd_idle();
+    nv_profile_end("load_programs", t0);
+    fprintf(stderr, "TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
+            "local memory %llu KiB at 0x%llx)\n", names.size(), image.size(), (unsigned long long)p.lib_va, p.slm_per_thread,
+            (unsigned long long)(local_mem_size >> 10), (unsigned long long)local_mem);
+    return true;
 }
 
 // ── nvDispatchDaemonSetup: spawn nv_dispatch_daemon.py over a dedicated
@@ -603,8 +706,14 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
         }
     }
     if (tg_fd >= 0) {
-        g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd);
+        std::vector<uint8_t> elf;
+        g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime() ? &elf : nullptr);
         if (!g_nvd) { delete g; return nullptr; }
+        if (g_nvd->runtime) {
+            std::vector<std::string> names;
+            for (auto& kv : g_nvKernels) names.push_back(kv.first);
+            if (!nvdLoadPrograms(elf, names)) { delete g; return nullptr; }
+        }
         for (auto& kv : g_nvKernels) {
             auto it = g_nvd->h.kernels.find(kv.first);
             kv.second->tmpl = (it != g_nvd->h.kernels.end()) ? &it->second : nullptr;
@@ -674,6 +783,13 @@ void NvSynchronizeHost() {
 
 GPUPtr NvAllocateMemory(size_t sz) {
     if (!g_nv) return 0;
+    if (g_nvd && g_nvd->runtime) {
+        uint64_t va = nvd_pool_alloc(g_nvd->rt.pool, g_nvd->pool_pos, sz);
+        if (!va)
+            fprintf(stderr, "TinyGPU/NV: alloc(%zu): VRAM pool exhausted (%llu MiB; set BEAGLE_NV_DATA_MB)\n", sz,
+                    (unsigned long long)(g_nvd->rt.pool.size >> 20));
+        return (GPUPtr)va;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"alloc\",\"size\":%zu}", sz);
     auto t0 = nv_profile_start();
@@ -720,6 +836,7 @@ void NvMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
 }
 
 size_t NvGetAvailableMemory() {
+    if (g_nvd && g_nvd->runtime) return (size_t)(g_nvd->rt.pool.size - g_nvd->pool_pos);
     // Python (via NVAllocator/HCQCompiled) owns allocation entirely now; this
     // backend has no independent view of remaining VRAM. Report a generous
     // constant rather than 0 (which some callers may treat as "out of
