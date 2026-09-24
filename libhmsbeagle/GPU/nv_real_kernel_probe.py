@@ -163,11 +163,15 @@ Examples:
     python3 nv_real_kernel_probe.py --sweep 20 --local-mem-flat-w0     # Phase 109: does the tx+4ty local-memory aliasing depend on the real 2D (16,16,1) block dispatch, or does it persist under a flat (256,1,1) block? Dispatches with local_size=(256,1,1); the kernel derives its own logical tx=flat%16 (fast/warp-local, matching tx's native role in As[ty][tx]), ty=flat/16 (slow) from the single flat threadIdx.x, then early-returns before the kernel's own "Last block" guard (which would otherwise do a genuine out-of-bounds As[ty][tx] write under this dispatch shape) -- confirmed via SASS that the dangerous code is fully dead-code-eliminated, not just skipped at runtime (Phase 109 result: 320/320 (100%) correct -- the biggest finding this investigation has produced; the defect is triggered by the real 2D blockDim.y>1 dispatch, not by ty>0 in the abstract)
     python3 nv_real_kernel_probe.py --sweep 20 --shared-broadcast-flat-w0 # Phase 110: does Ds[]'s own broadcast-collapse bug (ty>0 readers see Ds[0]'s value regardless of index, Phase 90-103) ALSO disappear under a flat dispatch, the same way local memory's aliasing did? Same flat (256,1,1) dispatch and safety design as --local-mem-flat-w0, but tests the write-by-subset(logicalTy==0)/read-by-all shared-memory pattern via a dedicated sDs[16] array using the real Ds[]=exp(D[tx]*distance) formula (Phase 110 result: 320/320 (100%) correct, confirming both known defects share a common root cause tied to blockDim.y>1)
     python3 nv_real_kernel_probe.py --sweep 20 --flat-dispatch          # Phase 111: the real fix, not another isolated diagnostic -- kernelMatrixMulADB now has a real rewrite gated behind FW_TINYGPU_HYBRID_NV (tx,ty derived from a single flat KW_LOCAL_ID_0, everything else in the kernel untouched). This flag compiles with that macro and dispatches with the matching flat (256,1,1) block, verified via --sweep's own existing real_matrices-vs-reference_matrices correctness check -- does the REAL kernel's real output become correct for the first time in this whole investigation?
+    python3 nv_real_kernel_probe.py --dims-probe                        # Phase 140: are the cbuf0 blockDim/gridDim words ever populated? Standalone kernel dispatched twice in one boot, launch-dims fill OFF then ON (BeagleNVProgram; everywhere else the fill is on by default, BEAGLE_NV_FILL_LAUNCH_DIMS=0 disables it)
 """
 import sys, os, pathlib, struct, subprocess, time, math
 from collections import Counter, defaultdict
 
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad"))
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -460,6 +464,100 @@ def compile_real_kernel(nch, dev, nvcc, macros, maxrregcount=None):
     return elf_bytes
 
 
+# TODO.md Phase 140 (--dims-probe): the block slot is computed from the
+# gx/gy *arguments*, not gridDim, so every block lands in its own slot even
+# if gridDim reads 0 -- all writes in bounds regardless of what the dims
+# words contain.
+DIMS_PROBE_SRC = r'''
+extern "C" __global__ void beagleDimsProbe(unsigned int* out, int gx, int gy) {
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+        unsigned int* o = out + 9 * (blockIdx.x + gx * (blockIdx.y + gy * blockIdx.z));
+        o[0] = blockDim.x; o[1] = blockDim.y; o[2] = blockDim.z;
+        o[3] = gridDim.x;  o[4] = gridDim.y;  o[5] = gridDim.z;
+        o[6] = blockIdx.x; o[7] = blockIdx.y; o[8] = blockIdx.z;
+    }
+}
+'''
+DIMS_PROBE_GRID = (3, 5, 7)
+DIMS_PROBE_BLOCK = (2, 4, 8)
+
+
+def compile_dims_probe(nch, nvcc, arch):
+    """Compiles DIMS_PROBE_SRC via the same nvcc shim + nch.compile_ptx path
+    compile_real_kernel uses (temp files in _KERNELS_DIR, visible to the
+    Docker-backed shims). Returns the ELF bytes."""
+    src = _KERNELS_DIR / "tmp_dims_probe.cu"
+    out_ptx = _KERNELS_DIR / "tmp_dims_probe.ptx"
+    try:
+        src.write_text(DIMS_PROBE_SRC)
+        cmd = [nvcc, "-o", str(out_ptx), "-ptx", str(src), "-O3", "-Wno-deprecated-gpu-targets"]
+        log(f"compiling: {' '.join(cmd)}")
+        r = subprocess.run(cmd, capture_output=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"nvcc failed: {r.stderr.decode(errors='replace')}")
+        return nch.compile_ptx(str(out_ptx), arch, kernel_name="beagleDimsProbe")
+    finally:
+        for f in (src, out_ptx):
+            if f.exists():
+                f.unlink()
+
+
+def run_dims_probe(dev, nch, nvcc, BeagleNVProgram, TinyELF, Target, dtypes, HCQBuffer):
+    """TODO.md Phase 140: tests the hypothesis that the cbuf0 words ptxas
+    reads %ntid/%nctaid (blockDim/gridDim) from are never populated on this
+    stack -- which would make kernelMatrixMulADB's BLOCKS=gridDim.y read 0
+    and EDGE=20. One boot, two dispatches of beagleDimsProbe with
+    grid=DIMS_PROBE_GRID, block=DIMS_PROBE_BLOCK: first with BeagleNVProgram's
+    launch-dims fill forced OFF (upstream behavior), then forced ON
+    (BEAGLE_NV_FILL_LAUNCH_DIMS is ignored here -- both states are always
+    run). Output pre-filled with 0xFFFFFFFF so unwritten slots show up."""
+    elf_bytes = compile_dims_probe(nch, nvcc, dev.arch)
+    log(f"compiled beagleDimsProbe -- {len(elf_bytes)} byte ELF")
+    prg = make_program(dev, TinyELF, Target, dtypes, BeagleNVProgram, elf_bytes, "beagleDimsProbe", 2)
+    gx, gy, gz = DIMS_PROBE_GRID
+    n_blocks = gx * gy * gz
+    n_bytes = 9 * n_blocks * 4
+    expected = (*DIMS_PROBE_BLOCK, *DIMS_PROBE_GRID)
+    zeros = (0,) * 6
+    verdicts = {}
+    for fill in (False, True):
+        prg.fill_launch_dims = fill
+        out = dev.allocator.alloc(n_bytes)
+        dev.allocator._copyin(HCQBuffer(out.va_addr, n_bytes), memoryview(bytearray(b"\xff" * n_bytes)))
+        prg(HCQBuffer(out.va_addr, n_bytes), global_size=DIMS_PROBE_GRID, local_size=DIMS_PROBE_BLOCK,
+            vals=(gx, gy), wait=False)
+        dev.synchronize()
+        raw = memoryview(bytearray(n_bytes))
+        dev.allocator._copyout(raw, HCQBuffer(out.va_addr, n_bytes))
+        words = struct.unpack(f"<{9 * n_blocks}I", bytes(raw))
+        seen = Counter()
+        n_unwritten = n_bad_idx = 0
+        for lin in range(n_blocks):
+            o = words[9 * lin:9 * lin + 9]
+            if all(w == 0xFFFFFFFF for w in o):
+                n_unwritten += 1
+                continue
+            if tuple(o[6:9]) != (lin % gx, (lin // gx) % gy, lin // (gx * gy)):
+                n_bad_idx += 1
+            seen[tuple(o[0:6])] += 1
+        state = "ON" if fill else "OFF"
+        log(f"dims-probe fill={state}: grid={DIMS_PROBE_GRID} block={DIMS_PROBE_BLOCK} -- "
+            f"{n_blocks - n_unwritten}/{n_blocks} blocks wrote, {n_bad_idx} with wrong blockIdx; "
+            f"(blockDim.xyz, gridDim.xyz) seen: {dict(seen)}")
+        if n_unwritten or n_bad_idx or len(seen) != 1:
+            verdicts[state] = f"ANOMALOUS ({n_unwritten} unwritten, {n_bad_idx} bad blockIdx, dims seen {dict(seen)})"
+        elif set(seen) == {zeros}:
+            verdicts[state] = "ZEROS"
+        elif set(seen) == {expected}:
+            verdicts[state] = "CORRECT"
+        else:
+            verdicts[state] = f"WRONG {next(iter(seen))} (expected {expected})"
+    meaning = {("ZEROS", "CORRECT"): "hypothesis CONFIRMED and fill offsets verified on this GPU",
+               ("CORRECT", "CORRECT"): "hypothesis REFUTED -- dims populated without the fill"}.get(
+               (verdicts["OFF"], verdicts["ON"]), "unexpected -- see log")
+    print(f"RESULT: dims-probe fill-OFF={verdicts['OFF']} fill-ON={verdicts['ON']} -- {meaning}", file=sys.stdout, flush=True)
+
+
 def make_program(dev, TinyELF, Target, dtypes, BeagleNVProgram, elf_bytes, name, n_int_args):
     """Builds a BeagleNVProgram for `name` out of the *same* compiled ELF
     kernelMatrixMulADB came from -- kernels4.cu #includes kernelsAll.cu
@@ -556,9 +654,9 @@ def main():
     combined_exp_flat_w0 = False
     combined_write_direct_w0 = False
     combined_write_listc_w0 = False
-    single_tile_dispatch = False
+    dims_probe = False
     argv = sys.argv[1:]
-    while argv and (argv[0] in ("--batch", "--realloc", "--logl", "--logl-sweep", "--chain-sweep", "--sync-each", "--sweep", "--swap-cat01", "--wide-grid", "--maxrregcount", "--per-thread-ds", "--per-thread-ds-w0", "--downstream-sweep", "--dummy-third-block", "--per-thread-dummy-w0", "--per-thread-ds-min-w0", "--local-mem-w0", "--shared-spill-w0", "--local-mem-flat-w0", "--shared-broadcast-flat-w0", "--flat-dispatch", "--ab-pattern-2d-w0", "--ab-pattern-flat-w0", "--final-abcd-w0", "--combined-flat-w0", "--combined-ldg-flat-w0", "--combined-exp-flat-w0", "--combined-write-direct-w0", "--combined-write-listc-w0", "--single-tile-dispatch")):
+    while argv and (argv[0] in ("--batch", "--realloc", "--logl", "--logl-sweep", "--chain-sweep", "--sync-each", "--sweep", "--swap-cat01", "--wide-grid", "--maxrregcount", "--per-thread-ds", "--per-thread-ds-w0", "--downstream-sweep", "--dummy-third-block", "--per-thread-dummy-w0", "--per-thread-ds-min-w0", "--local-mem-w0", "--shared-spill-w0", "--local-mem-flat-w0", "--shared-broadcast-flat-w0", "--flat-dispatch", "--ab-pattern-2d-w0", "--ab-pattern-flat-w0", "--final-abcd-w0", "--combined-flat-w0", "--combined-ldg-flat-w0", "--combined-exp-flat-w0", "--combined-write-direct-w0", "--combined-write-listc-w0", "--dims-probe")):
         if argv[0] == "--batch":
             batch = True
         elif argv[0] == "--realloc":
@@ -872,24 +970,13 @@ def main():
             # resolves to the same address as the direct probe -- isolates
             # the extra indirect load itself as the only variable.
             combined_write_listc_w0 = True
-        elif argv[0] == "--single-tile-dispatch":
-            # TODO.md Phase 126, user's proposal B: every PADDED_STATE_
-            # COUNT this kernel supports is a multiple of MULTIPLY_BLOCK_
-            # SIZE (16) except 4 -- the one config this whole investigation
-            # has ever tested -- so the general FW_TINYGPU_HYBRID_NV
-            # dispatch (256 threads/block) wastes 240 of 256 threads on
-            # the EDGE-boundary guard's padding branch, a pattern unique
-            # to this config. This flag adds a SECOND macro,
-            # FW_TINYGPU_HYBRID_NV_SINGLE_TILE, on top of
-            # FW_TINYGPU_HYBRID_NV -- kernelsAll.cu then derives tx/ty
-            # from a PADDED_STATE_COUNT-wide (not MULTIPLY_BLOCK_SIZE-
-            # wide) flat layout, and dispatches exactly PADDED_STATE_
-            # COUNT^2 (16) threads/block instead of 256 -- every
-            # dispatched thread does real work, no padding threads at
-            # all. Real kernel, no early return, no diagnostic region --
-            # --sweep's own existing correctness check answers whether
-            # this is correct, same minimal design as --flat-dispatch.
-            single_tile_dispatch = True
+        elif argv[0] == "--dims-probe":
+            # TODO.md Phase 140: does anything populate the cbuf0 words
+            # ptxas reads blockDim/gridDim from? No dispatch path writes
+            # them. Tiny standalone kernel (no kernels4.cu compile, no BEAGLE
+            # kernel), one boot, dispatched twice: launch-dims fill OFF,
+            # then ON -- see run_dims_probe().
+            dims_probe = True
         elif argv[0] == "--maxrregcount":
             # TODO.md Phase 85: forces ptxas to cap kernelMatrixMulADB's
             # real, unmodified register allocation (naturally 40,
@@ -971,15 +1058,13 @@ def main():
         macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_WRITE_DIRECT_W0"]
     if combined_write_listc_w0:
         macros = macros + ["TINYGPU_DEBUG_DUMP_COMBINED_WRITE_LISTC_W0"]
-    if single_tile_dispatch:
-        macros = macros + ["FW_TINYGPU_HYBRID_NV", "FW_TINYGPU_HYBRID_NV_SINGLE_TILE"]
 
     os.makedirs(os.path.expanduser("~/Library/Logs"), exist_ok=True)
     fd = os.open(os.path.expanduser("~/Library/Logs/nv_real_kernel_probe.log"),
                  os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_SYNC, 0o644)
     sys.stderr = os.fdopen(fd, 'w', buffering=1)
 
-    log(f"starting -- batch={batch} realloc={realloc} logl={logl} logl_sweep={logl_sweep} chain_sweep={chain_sweep} sync_each={sync_each} downstream_sweep={downstream_sweep} sweep={sweep} swap_cat01={swap_cat01} wide_grid={wide_grid} maxrregcount={maxrregcount} per_thread_ds={per_thread_ds} per_thread_ds_w0={per_thread_ds_w0} dummy_third_block={dummy_third_block} per_thread_dummy_w0={per_thread_dummy_w0} per_thread_ds_min_w0={per_thread_ds_min_w0} local_mem_w0={local_mem_w0} shared_spill_w0={shared_spill_w0} local_mem_flat_w0={local_mem_flat_w0} shared_broadcast_flat_w0={shared_broadcast_flat_w0} flat_dispatch={flat_dispatch} ab_pattern_2d_w0={ab_pattern_2d_w0} ab_pattern_flat_w0={ab_pattern_flat_w0} final_abcd_w0={final_abcd_w0} combined_flat_w0={combined_flat_w0} combined_ldg_flat_w0={combined_ldg_flat_w0} combined_exp_flat_w0={combined_exp_flat_w0} combined_write_direct_w0={combined_write_direct_w0} combined_write_listc_w0={combined_write_listc_w0} single_tile_dispatch={single_tile_dispatch} macros={macros}")
+    log(f"starting -- batch={batch} realloc={realloc} logl={logl} logl_sweep={logl_sweep} chain_sweep={chain_sweep} sync_each={sync_each} downstream_sweep={downstream_sweep} sweep={sweep} swap_cat01={swap_cat01} wide_grid={wide_grid} maxrregcount={maxrregcount} per_thread_ds={per_thread_ds} per_thread_ds_w0={per_thread_ds_w0} dummy_third_block={dummy_third_block} per_thread_dummy_w0={per_thread_dummy_w0} per_thread_ds_min_w0={per_thread_ds_min_w0} local_mem_w0={local_mem_w0} shared_spill_w0={shared_spill_w0} local_mem_flat_w0={local_mem_flat_w0} shared_broadcast_flat_w0={shared_broadcast_flat_w0} flat_dispatch={flat_dispatch} ab_pattern_2d_w0={ab_pattern_2d_w0} ab_pattern_flat_w0={ab_pattern_flat_w0} final_abcd_w0={final_abcd_w0} combined_flat_w0={combined_flat_w0} combined_ldg_flat_w0={combined_ldg_flat_w0} combined_exp_flat_w0={combined_exp_flat_w0} combined_write_direct_w0={combined_write_direct_w0} combined_write_listc_w0={combined_write_listc_w0} dims_probe={dims_probe} macros={macros}")
     import nv_init_helper  # noqa: F401 -- GSP/RM boot safety patches (module-level side effects)
     from tinygrad.runtime.support.system import APLRemotePCIDevice
     def _safe_reset(self):
@@ -1032,6 +1117,10 @@ def main():
 
     nvcc = os.environ.get("TINYGPU_NVCC", os.path.expanduser("~/.local/bin/nvcc"))
 
+    if dims_probe:
+        run_dims_probe(dev, nch, nvcc, BeagleNVProgram, TinyELF, Target, dtypes, HCQBuffer)
+        return
+
     elf_bytes = compile_real_kernel(nch, dev, nvcc, macros, maxrregcount=maxrregcount)
     log(f"compiled kernelMatrixMulADB -- {len(elf_bytes)} byte ELF")
 
@@ -1043,26 +1132,20 @@ def main():
     prg = BeagleNVProgram(dev, obj)
     log(f"regs_usage={prg.regs_usage} shmem_usage={prg.shmem_usage} lcmem_usage={prg.lcmem_usage}")
 
-    # TODO.md Phase 109-126: the real kernel's own dispatch shape --
+    # TODO.md Phase 109-128: the real kernel's own dispatch shape --
     # (256,1,1) flat for every FW_TINYGPU_HYBRID_NV-family macro
     # (Phase 111's --flat-dispatch and every w0-only flat probe since),
-    # (S2,1,1) for --single-tile-dispatch (Phase 126), else the native
-    # (16,16,1) BLOCK. Computed here, unconditionally, right after the
-    # one compile step -- not inside `if sweep:` -- so every dispatch
-    # mode (--sweep, --logl-sweep, --logl, --batch, --realloc) that goes
-    # on to actually launch kernelMatrixMulADB sees the same, correct
-    # local_size for whichever macros were just compiled in. (Bug found
-    # and fixed this phase: --logl-sweep's own kernelMatrixMulADB
-    # dispatch previously hardcoded local_size=BLOCK regardless of any
-    # of these flags, since this computation used to live only inside
-    # the --sweep branch below -- --logl-sweep --single-tile-dispatch
-    # would have silently dispatched the wrong shape.)
-    if single_tile_dispatch:
-        # TODO.md Phase 126: exactly PADDED_STATE_COUNT^2 (S2)
-        # threads/block, flat -- matches kernelsAll.cu's own
-        # FW_TINYGPU_HYBRID_NV_SINGLE_TILE tx/ty derivation exactly.
-        dispatch_local_size = (S2, 1, 1)
-    elif (local_mem_flat_w0 or shared_broadcast_flat_w0 or flat_dispatch or ab_pattern_2d_w0 or ab_pattern_flat_w0 or final_abcd_w0 or combined_flat_w0 or combined_ldg_flat_w0 or combined_exp_flat_w0 or combined_write_direct_w0 or combined_write_listc_w0):
+    # else the native (16,16,1) BLOCK. (Phase 126's --single-tile-dispatch
+    # (S2,1,1) was removed in Phase 140 -- an EDGE=20 workaround, not a
+    # fix.) Computed here, unconditionally, right after the one compile
+    # step -- not inside `if sweep:` -- so every dispatch mode (--sweep,
+    # --logl-sweep, --logl, --batch, --realloc) that goes on to actually
+    # launch kernelMatrixMulADB sees the same, correct local_size for
+    # whichever macros were just compiled in. (Phase 128 bug: --logl-
+    # sweep's own kernelMatrixMulADB dispatch previously hardcoded
+    # local_size=BLOCK regardless of these flags, since this computation
+    # used to live only inside the --sweep branch below.)
+    if (local_mem_flat_w0 or shared_broadcast_flat_w0 or flat_dispatch or ab_pattern_2d_w0 or ab_pattern_flat_w0 or final_abcd_w0 or combined_flat_w0 or combined_ldg_flat_w0 or combined_exp_flat_w0 or combined_write_direct_w0 or combined_write_listc_w0):
         dispatch_local_size = (256, 1, 1)
     else:
         dispatch_local_size = BLOCK

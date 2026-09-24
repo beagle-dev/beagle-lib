@@ -134,16 +134,18 @@ static char           g_handoff[256] = {};
 static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
 static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
 
-// Opt-in switch to the new daemon-architecture NV path (STATUS.md §73/§75,
-// GPUInterfaceTinyGPUHybridNV.cpp) instead of this file's original
-// hand-rolled GPFIFO/QMD dispatch. Off by default: the hand-rolled path is
-// the only one hardware-verified for full BEAGLE likelihood evaluation so
-// far (the daemon path's premise was validated in isolation, §74, but the
-// daemon path itself has not yet been run on hardware) -- flipping the
-// default would risk regressing currently-working NV usage. Set
-// BEAGLE_NV_USE_DAEMON=1 to try the new path.
+// NV dispatch path: the daemon architecture (STATUS.md §73/§75,
+// GPUInterfaceTinyGPUHybridNV.cpp -> nv_dispatch_daemon.py) is the default
+// -- the hardware-verified production path (TODO.md Phase 140:
+// tinygpuhybridtest --diag-compare-cpu PASS at state counts 4 and 64).
+// BEAGLE_NV_USE_DAEMON=0 selects this file's original hand-rolled
+// GPFIFO/QMD dispatch instead (legacy; its separate PPNS defect, STATUS.md
+// §6-9b, was never root-caused).
 static bool nv_use_daemon() {
-    static const bool v = (getenv("BEAGLE_NV_USE_DAEMON") != nullptr);
+    static const bool v = [] {
+        const char* e = getenv("BEAGLE_NV_USE_DAEMON");
+        return !(e && strcmp(e, "0") == 0);
+    }();
     return v;
 }
 
@@ -1475,6 +1477,24 @@ void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
     }
     memcpy(cbuf0, ke->cbuf0_pfx, ke->cbuf0_param_off);
 
+    // Launch dims (blockDim/gridDim), which the CUDA driver writes into cbuf0
+    // on every launch and ptxas code reads %ntid/%nctaid from: c[0x0][0x0]/
+    // [0xc] pre-Blackwell, c[0x0][0x360]/[0x370] on Blackwell (SASS-verified;
+    // see BeagleNVProgram in nv_dispatch_daemon.py, TODO.md Phase 140).
+    // On by default; BEAGLE_NV_FILL_LAUNCH_DIMS=0 disables it (A/B only).
+    static const bool fill_launch_dims = [] {
+        const char* e = getenv("BEAGLE_NV_FILL_LAUNCH_DIMS");
+        return !(e && strcmp(e, "0") == 0);
+    }();
+    const uint32_t dims_b_off = ke->is_v5 ? 0x360u : 0x0u;
+    const uint32_t dims_g_off = ke->is_v5 ? 0x370u : 0xcu;
+    if (fill_launch_dims && dims_g_off + 12 <= ke->cbuf0_param_off) {
+        const uint32_t b[3] = {(uint32_t)block.x, (uint32_t)block.y, (uint32_t)block.z};
+        const uint32_t g[3] = {(uint32_t)grid.x,  (uint32_t)grid.y,  (uint32_t)grid.z};
+        memcpy(cbuf0 + dims_b_off, b, sizeof(b));
+        memcpy(cbuf0 + dims_g_off, g, sizeof(g));
+    }
+
     uint8_t* arg_area = cbuf0 + ke->cbuf0_param_off;
     // Pointer args first (uint64, little-endian).
     for (int i = 0; i < nPtr; ++i) {
@@ -1668,8 +1688,10 @@ void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dst, GPUPtr src, size_t sz) {
     // Same g_state-is-NV-only pitfall as LaunchKernel/LaunchKernelConcurrent
     // above -- MemcpyDeviceToHost/MemcpyHostToDevice below already branch
-    // correctly per-vendor, this outer guard must not block AMD first.
-    if (!sz || (isNVIDIA && !g_state)) return;
+    // correctly per-vendor and per-NV-path, so this outer guard must block
+    // neither AMD nor the NV daemon path (g_state stays null under
+    // nv_use_daemon()).
+    if (!sz || (isNVIDIA && !nv_use_daemon() && !g_state)) return;
     std::vector<uint8_t> tmp(sz);
     MemcpyDeviceToHost(tmp.data(), src, sz);
     MemcpyHostToDevice(dst, tmp.data(), sz);

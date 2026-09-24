@@ -26,7 +26,7 @@ directory if GPUImplDefs.h or the kernel .cu files changed).
 """
 import sys, os, pathlib, struct, ctypes
 
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad"))
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

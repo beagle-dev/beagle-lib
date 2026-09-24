@@ -271,23 +271,6 @@ enum BeagleDeviceImplementationCodes {
     #define KW_RESTRICT      restrict
 #endif
 
-// TinyGPU kernel PTX is compiled with -DCUDA -DFW_TINYGPU together (see
-// kernels/make_tinygpu_kernels.sh) so every #ifdef CUDA block above behaves
-// identically to the real CUDA backend -- this override is deliberately
-// separate from that chain, not a branch of it, so it applies regardless
-// of which branch above fired. __restrict__ lets newer nvcc (this backend
-// uses 12.8; the CUDA backend's checked-in kernel header was last compiled
-// by 10.2) promote reads through KW_RESTRICT-qualified pointers to
-// ld.global.nc (the read-only/texture-cache path) more aggressively than
-// the older compiler did. That path faults deterministically on this
-// backend's from-scratch driver -- see STATUS.md/TODO.md on the usb
-// branch. Dropping __restrict__ here removes nvcc's non-aliasing
-// justification for that promotion; every other backend is unaffected.
-#if defined(FW_TINYGPU)
-    #undef KW_RESTRICT
-    #define KW_RESTRICT
-#endif
-
 /* Compiler definitions
  *
  * PADDED_STATE_COUNT - # of total states after augmentation

@@ -32,7 +32,7 @@ if(BUILD_OPENCL OR BUILD_TINYGPU_HYBRID)
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h"
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/${OPENCL_KERNELS_CMD_NAME}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "kernels/kernelsAll.cu"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "kernels/kernelsAll.cu" "GPUImplDefs.h"
 			COMMENT "Building OpenCL kernels"
 			VERBATIM)
 	add_custom_target(_BeagleOpenCLKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h")
@@ -79,7 +79,7 @@ if(BUILD_TINYGPU OR BUILD_TINYGPU_HYBRID)
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h"
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/make_tinygpu_kernels.sh"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh"
 			COMMENT "Building TinyGPU-specific kernel PTX (-DCUDA -DFW_TINYGPU)"
 			VERBATIM)
 	add_custom_target(TinyGPUKernels DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h")

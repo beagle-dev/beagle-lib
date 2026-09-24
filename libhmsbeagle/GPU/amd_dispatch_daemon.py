@@ -44,7 +44,10 @@ already-flushed launch is guaranteed to have completed on the GPU.
 """
 import sys, os, json, struct, pathlib, ctypes, weakref, time
 
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad"))
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

@@ -48,10 +48,11 @@ class _TeeStream:
 _LOG_PATH = os.path.expanduser("~/Library/Logs/nv_compile_helper.log")
 
 # Locate tinygrad
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
 _TINYGRAD_PATH = os.environ.get(
-    "TINYGRAD_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "..", "..", "..", "tinygrad"))
+    "TINYGRAD_PATH", os.path.expanduser("~/Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, os.path.abspath(_TINYGRAD_PATH))
 
 from tinygrad.runtime.support.elf import elf_loader, ElfSection
@@ -65,7 +66,7 @@ def _ptxas_path() -> str:
     if p := os.environ.get("PTXAS"):
         return p
     for candidate in ("/usr/local/cuda/bin/ptxas", "/usr/cuda/bin/ptxas",
-                      "/opt/cuda/bin/ptxas"):
+                      "/opt/cuda/bin/ptxas", os.path.expanduser("~/.local/bin/ptxas")):
         if os.path.isfile(candidate):
             return candidate
     return "ptxas"   # hope it's on PATH

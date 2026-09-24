@@ -20,8 +20,10 @@ import sys, os
 # stale duplicate nv_init_helper.py sits directly in the tinygrad checkout
 # root (leftover from earlier ad-hoc testing); getting the order backwards
 # silently imports that stale copy instead of this directory's real one.
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tinygrad"))
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", os.path.expanduser("~/Dropbox/Projects/tinygrad-hcq1"))
 if not os.path.isdir(_TINYGRAD_PATH):
     print(f"FAIL: cannot find tinygrad at {_TINYGRAD_PATH}", file=sys.stderr)
     sys.exit(1)

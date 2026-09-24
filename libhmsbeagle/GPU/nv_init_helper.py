@@ -26,11 +26,12 @@ at init time so C++ can compute gpu_va = region_gpu_va + offset directly.
 
 import sys, os, json, ctypes, socket, struct, time
 
-# Locate tinygrad — prefer env var, fall back to sibling checkout.
+# Locate tinygrad — prefer env var, fall back to the pinned worktree.
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
 _TINYGRAD_PATH = os.environ.get(
-    "TINYGRAD_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "..", "..", "..", "tinygrad"))
+    "TINYGRAD_PATH", os.path.expanduser("~/Dropbox/Projects/tinygrad-hcq1"))
 if not os.path.isdir(_TINYGRAD_PATH):
     print(f"nv_init_helper: cannot find tinygrad at {_TINYGRAD_PATH}\n"
           "Set TINYGRAD_PATH to the tinygrad checkout root.", file=sys.stderr)

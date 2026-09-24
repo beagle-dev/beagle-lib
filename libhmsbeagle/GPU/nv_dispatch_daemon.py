@@ -41,7 +41,10 @@ than the GPU dispatch work itself, no need to re-discover that here.
 """
 import sys, os, json, struct, pathlib
 
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad"))
+# Default: the tinygrad worktree pinned at a9830e2b4 -- tinygrad HEAD
+# (after 2026-09-05) dropped the macOS TinyGPU transport and hcq1 (TODO.md
+# Phase 140). TINYGRAD_PATH overrides.
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -191,6 +194,26 @@ class BeagleNVProgram(ops_nv.NVProgram):
                 'shared_memory_size':self.shmem_usage, 'register_count_v':self.regs_usage,
                 f'shader_local_memory_{"low" if NAK else "high"}_size':self.dev.slm_per_thread}
 
+        # cbuf_0 words the CUDA driver fills with the launch dims on every
+        # launch, and that ptxas-compiled code reads %ntid/%nctaid
+        # (blockDim/gridDim) from. Upstream never writes them (tinygrad's own
+        # kernels bake dims in as constants), so they stay 0 and e.g.
+        # kernelMatrixMulADB's BLOCKS=gridDim.y reads 0 -> EDGE=20. Offsets
+        # SASS-verified with ptxas 12.8: sm_86/89/90 blockDim.xyz =
+        # c[0x0][0x0..0x8], gridDim.xyz = c[0x0][0xc..0x14] (words 0-2, 3-5);
+        # sm_100/120 blockDim = c[0x0][0x360..0x368], gridDim =
+        # c[0x0][0x370..0x378] (words 216-218, 220-222; 219 is not a dim).
+        # On by default (TODO.md Phase 140: fixes kernelMatrixMulADB, 320/320
+        # and full pipeline 20/20 on sm_89); BEAGLE_NV_FILL_LAUNCH_DIMS=0
+        # disables it, for A/B only. Written per launch in __call__ below.
+        if NAK or isinstance(dev.iface, ops_nv.MOCKIface): self._dims_idx = None
+        elif dev.iface.compute_class >= ops_nv.nv_gpu.BLACKWELL_COMPUTE_A: self._dims_idx = (216, 220)
+        else: self._dims_idx = (0, 3)
+        self.fill_launch_dims = self._dims_idx is not None and os.environ.get("BEAGLE_NV_FILL_LAUNCH_DIMS", "1") != "0"
+        if self._dims_idx is not None:
+            log(f"launch-dims fill {'ON' if self.fill_launch_dims else 'OFF (BEAGLE_NV_FILL_LAUNCH_DIMS=0)'} [{self.name}]: "
+                f"cbuf_0 blockDim@{self._dims_idx[0]} gridDim@{self._dims_idx[1]}")
+
         smem_cfg = min(shmem_conf * 1024 for shmem_conf in [32, 64, 100] if shmem_conf * 1024 >= self.shmem_usage) // 4096 + 1
 
         self.qmd = ops_nv.QMD(dev, **qmd, qmd_group_id=0x3f, invalidate_texture_header_cache=1, invalidate_texture_sampler_cache=1,
@@ -228,6 +251,20 @@ class BeagleNVProgram(ops_nv.NVProgram):
 
         super(ops_nv.NVProgram, self).__init__(ops_nv.NVArgsState, self.dev, obj, kernargs_alloc_size=round_up(self.constbufs[0][1], 1 << 8) + (8 << 8))
         _weakref.finalize(self, self._fini, self.dev, self.lib_gpu, buf_spec)
+
+    def __call__(self, *bufs, global_size=(1,1,1), local_size=(1,1,1), vals=(), wait=False, timeout=None):
+        # HCQProgram.__call__ copies self.cbuf_0 into a fresh kernargs slot
+        # synchronously (fill_kernargs), so rewriting it per launch is safe
+        # even with wait=False. Zeroed (upstream's value) when the fill is
+        # off, so toggling fill_launch_dims within one process stays exact.
+        if self._dims_idx is not None:
+            b, g = self._dims_idx
+            if self.fill_launch_dims:
+                self.cbuf_0[b:b+3] = list(local_size) + [1] * (3 - len(local_size))
+                self.cbuf_0[g:g+3] = list(global_size) + [1] * (3 - len(global_size))
+            else:
+                self.cbuf_0[b:b+3] = self.cbuf_0[g:g+3] = [0, 0, 0]
+        return super().__call__(*bufs, global_size=global_size, local_size=local_size, vals=vals, wait=wait, timeout=timeout)
 
 
 class BeagleNVComputeQueue(ops_nv.NVComputeQueue):

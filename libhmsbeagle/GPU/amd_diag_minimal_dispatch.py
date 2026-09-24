@@ -23,7 +23,7 @@ Run: python3 amd_diag_minimal_dispatch.py
 """
 import sys, os, ctypes, struct, time, pathlib
 
-_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad"))
+_TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, str(pathlib.Path.home() / "Dropbox/Projects/beagle-lib/libhmsbeagle/GPU"))
 

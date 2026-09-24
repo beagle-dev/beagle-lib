@@ -232,6 +232,13 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
 
     // Thread index
 #if defined(FW_TINYGPU_HYBRID_NV)
+    // SUPERSEDED (TODO.md Phase 140): the "2D-dispatch defect" described
+    // below was never a driver/hardware defect -- gridDim.y read 0 because
+    // no TinyGPU dispatch path wrote the cbuf0 launch-dims words, so BLOCKS=0
+    // and EDGE=20. With the launch-dims fill (BeagleNVProgram / legacy C++
+    // LaunchKernelImpl), the native 2D dispatch is correct (320/320). Kept
+    // only for nv_real_kernel_probe.py's historical flat-dispatch flags.
+    //
     // TODO.md Phase 111: this from-scratch GSP-RM/driver stack has a
     // confirmed defect (Phase 106-110) triggered specifically by
     // launching this kernel with a 2D block (blockDim.y>1) -- both the
@@ -262,94 +269,33 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     // every other backend (plain CUDA, OpenCL, the AMD hybrid build) is
     // completely unaffected, still using the native 2D dispatch that's
     // correct on that hardware.
-#if defined(FW_TINYGPU_HYBRID_NV_SINGLE_TILE)
-    // TODO.md Phase 126, user's proposal B: every PADDED_STATE_COUNT this
-    // kernel actually supports (see GPUImplDefs.h) is a multiple of
-    // MULTIPLY_BLOCK_SIZE (16) *except* 4 -- the one config this entire
-    // investigation has ever tested. For every other supported state
-    // count, BLOCKS*16 exactly covers PADDED_STATE_COUNT with no
-    // leftover tile, so EDGE (below) always equals 16 and every one of
-    // the 256 dispatched threads does real work. For PADDED_STATE_COUNT
-    // ==4 specifically, the general MULTIPLY_BLOCK_SIZE=16-wide dispatch
-    // wastes 240 of 256 threads on the EDGE-boundary guard's "else"
-    // (padding) branch -- a pattern unique to this one config, never
-    // exercised by any other supported model. This branch dispatches
-    // exactly PADDED_STATE_COUNT^2 threads/block (flat) instead of
-    // MULTIPLY_BLOCK_SIZE^2, so every dispatched thread lands in
-    // [0,PADDED_STATE_COUNT) on both axes -- EDGE (always ==
-    // PADDED_STATE_COUNT here, since BLOCKS==1 is guaranteed by the
-    // #error guard below) is then trivially satisfied by construction,
-    // and the "else"/padding branch becomes genuine dead code rather
-    // than 240-of-256 threads actively executing it. Requires a smaller
-    // dispatch (local_size=(PADDED_STATE_COUNT^2,1,1)) on the host side
-    // -- see nv_real_kernel_probe.py's --single-tile-dispatch flag.
-    // Deliberately a SEPARATE macro from FW_TINYGPU_HYBRID_NV (not
-    // auto-enabled just because PADDED_STATE_COUNT<=MULTIPLY_BLOCK_SIZE)
-    // so the already-established --flat-dispatch behavior (Phase 111),
-    // which dispatches the full 256 threads, is completely unaffected
-    // unless this macro is explicitly also defined.
-#if PADDED_STATE_COUNT > MULTIPLY_BLOCK_SIZE
-#error "FW_TINYGPU_HYBRID_NV_SINGLE_TILE requires PADDED_STATE_COUNT <= MULTIPLY_BLOCK_SIZE (single-tile only)"
-#endif
-    int tx = KW_LOCAL_ID_0 % PADDED_STATE_COUNT;
-    int ty = KW_LOCAL_ID_0 / PADDED_STATE_COUNT;
-#else
     int tx = KW_LOCAL_ID_0 % MULTIPLY_BLOCK_SIZE;
     int ty = KW_LOCAL_ID_0 / MULTIPLY_BLOCK_SIZE;
-#endif
 #else
     int tx = KW_LOCAL_ID_0;
     int ty = KW_LOCAL_ID_1;
 #endif
+#if defined(FW_TINYGPU_NV_STATIC_BLOCKS)
+    // Opt-in A/B (TODO.md Phase 140): gridDim.y comes from a cbuf0 word that
+    // reads 0 on TinyGPU NV unless the launch-dims fill is on (-> EDGE=20);
+    // use the value KernelLauncher always launches with instead:
+    // grid.y = ceil(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE).
+    int BLOCKS = (PADDED_STATE_COUNT + MULTIPLY_BLOCK_SIZE - 1) / MULTIPLY_BLOCK_SIZE;
+#else
     int BLOCKS = KW_NUM_GROUPS_1;
+#endif
 
-#if defined(CUDA) && !defined(FW_TINYGPU)
+#ifdef CUDA
     KW_LOCAL_MEM REAL* C;
     KW_LOCAL_MEM REAL distance;
     if (tx == 0 && ty == 0) {
         C = dMatrices + listC[wMatrix]; // Non-coalescent read
         distance = distanceQueue[wMatrix]; // Non-coalescent read
     }
-#elif defined(FW_OPENCL) || defined(FW_TINYGPU)
-    // FW_TINYGPU: same as OpenCL here, not because of any OpenCL-specific
-    // requirement, but because this avoids broadcasting a global-memory
-    // pointer through shared memory and having every thread dereference it
-    // generically. That requires the GPU's shared/local-memory generic-
-    // addressing windows to be configured exactly right; on the TinyGPU
-    // backend's from-scratch driver they aren't (yet), which faults every
-    // thread in every block deterministically. See STATUS.md/TODO.md on
-    // the usb branch ("kernelMatrixMulADB specifically is broken").
+#elif defined(FW_OPENCL)
     KW_GLOBAL_VAR REAL* C;
     REAL distance;
-#if defined(FW_TINYGPU) && defined(TINYGPU_BISECT_NO_LISTC)
-    // Opt-in, single-substitution bisection experiment (TODO.md "PICK UP
-    // HERE" -> NV Phase 65): every candidate tried on the real kernel so
-    // far (exp(), the main loop, the A/B pointer split) has been ruled
-    // out, and a from-scratch single-CTA probe (Phase 64) proved the
-    // residual bug requires multiple concurrent CTAs -- something real
-    // and multi-CTA-specific is still unaccounted for. One genuine
-    // difference no probe has ever included: this read is *data-
-    // dependent addressing* -- listC[wMatrix] is a value loaded from
-    // global memory that then becomes part of a pointer computation
-    // (C's own address), not just arithmetic on blockIdx.x/threadIdx.x
-    // the way every probe's addressing has been. Substitutes the
-    // mathematically *equivalent* closed-form arithmetic (proven, not
-    // guessed: BeagleGPUImpl.hpp's hPtrQueue[wMatrix] =
-    // probabilityIndices[i]*kIndexOffsetMat + j*categoryOffset reduces to
-    // exactly wMatrix*kMatrixSize for this test's specific, sequential
-    // probabilityIndices={0,1,2,3} -- verified against the source
-    // computing listC's real values, not assumed from one hardware log)
-    // -- so C's real, downstream value and every other real computation
-    // stay numerically identical; only the *mechanism* (data-dependent
-    // load vs. pure arithmetic) changes. distanceQueue's read is
-    // deliberately left untouched -- it feeds a real *value* (rate/
-    // branch-length data with no computable closed form), not an
-    // *address*, so it's a different variable from what this experiment
-    // targets.
-    C = dMatrices + wMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
-#else
     C = dMatrices + listC[wMatrix];
-#endif
     distance = distanceQueue[wMatrix];
 #endif
 
