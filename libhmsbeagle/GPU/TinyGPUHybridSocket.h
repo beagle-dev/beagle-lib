@@ -40,6 +40,12 @@ static inline bool tg_send_all(int fd, const void* buf, size_t n) {
     }
     return true;
 }
+// The plugin's TinyGPU.app connection comes with tinygrad's nv_usb4.lock (TODO.md plan step P5), both in
+// GPUInterfaceTinyGPUHybrid.cpp: tg_close closes the connection and gives up the lock; tg_lock_fd is the lock's fd, -1 if
+// none is held.
+void tg_close(int& sock);
+int tg_lock_fd();
+
 static inline void tg_recv_all(int fd, void* buf, size_t n) {
     uint8_t* p = (uint8_t*)buf;
     while (n) { ssize_t r = ::recv(fd, p, n, MSG_WAITALL); if (r <= 0) return; p += r; n -= (size_t)r; }

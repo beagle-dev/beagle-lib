@@ -6,6 +6,7 @@
 # e.g. run_fake_runtime.sh runtime BEAGLE_NV_USE_DAEMON=0 -- --reps 20
 # FAKE_TEST_BIN=<another BEAGLE example> runs that instead, with its own arguments (plan step D1; run_offline.sh), e.g.
 #   FAKE_TEST_BIN=$BEAGLE_BUILD/examples/synthetictest run_fake_runtime.sh st BEAGLE_NV_USE_DAEMON=0 -- --rsrc 1 --manualscale
+# FAKE_SECOND_AFTER=<regex> starts a second test process once the output matches (plan step P5; see the loop below).
 # The mode follows the variables (BEAGLE_NV_USE_DAEMON=0: C++ runtime; BEAGLE_NV_CPP_DISPATCH=1: C++ dispatch;
 # otherwise the daemon path). Exit status 0 only if the run reached every stage that mode must reach and the fake
 # server reports NO ERRORS. logL is wrong by design (kernels are not emulated), so the test's own exit status is
@@ -26,8 +27,8 @@ SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX"); SOCK="$SOCKDIR/fk.sock"
 [ ${#SOCK} -lt 100 ] || { rmdir "$SOCKDIR"; SOCKDIR=$(mktemp -d /tmp/tg.XXXXXX); SOCK="$SOCKDIR/fk.sock"; }
 MEM="$TINYGPU_TEST_WORK/fake_mem_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
 SLOG="$TINYGPU_TEST_WORK/fake_server_$LABEL.log"; OUT="$TINYGPU_TEST_WORK/run_fake_$LABEL.txt"; rm -f "$SLOG" "$OUT"
-SRV=""; TST=""
-cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
+SRV=""; TST=""; T2=""
+cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$T2" ] && kill -KILL "$T2" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
 trap cleanup EXIT
 trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 
@@ -36,12 +37,27 @@ SRV=$!
 for i in $(seq 100); do grep -q listening "$SLOG" 2>/dev/null && break; sleep 0.1; done
 grep -q listening "$SLOG" || { echo "fake server did not start:"; cat "$SLOG"; exit 2; }
 
-env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
-    BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" "${ENVS[@]}" \
-    "$TEST_BIN" "$@" > "$OUT" 2>&1 &
+# TMPDIR: the run's own nv_usb4.lock (plan step P5), which the plugin and the fake daemon both find through it. exec, so the
+# background job's pid ($!) is the test's own, which the SIGINT and the watchdog's SIGKILL must reach.
+run_test() {
+    exec env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
+        BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" \
+        "$TEST_BIN" "$@"
+}
+run_test "$@" > "$OUT" 2>&1 &
 TST=$!
 for i in $(seq ${FAKE_RUN_TIMEOUT:-300}); do   # watchdog: only our own processes
     kill -0 $TST 2>/dev/null || break
+    # FAKE_SECOND_AFTER=<regex>: once the test's output matches, a second test process (--reps 1) against the same fake
+    # TinyGPU.app and lock, given 30 s; plan step P5's "a second process gets 'lock held'"
+    if [ -n "$FAKE_SECOND_AFTER" ] && grep -qE "$FAKE_SECOND_AFTER" "$OUT"; then
+        FAKE_SECOND_AFTER=; OUT2="$TINYGPU_TEST_WORK/run_fake_${LABEL}_second.txt"; s0=$(date +%s)
+        run_test --reps 1 > "$OUT2" 2>&1 &
+        T2=$!
+        for j in $(seq 30); do kill -0 $T2 2>/dev/null || break; sleep 1; done
+        if kill -0 $T2 2>/dev/null; then echo "[$LABEL] second process still running after 30 s; killing it (fake GPU only)"; kill -KILL $T2; fi
+        wait $T2; rc2=$?; T2=""; echo "[$LABEL] second process exit=$rc2 after $(( $(date +%s) - s0 )) s (output: $OUT2)"
+    fi
     # FAKE_SIGINT_AFTER=<regex>: one SIGINT to the test 2 s after its output matches (plan step P3's handler)
     [ -n "$FAKE_SIGINT_AFTER" ] && grep -qE "$FAKE_SIGINT_AFTER" "$OUT" && { sleep 2; kill -INT $TST; FAKE_SIGINT_AFTER=; }
     sleep 1

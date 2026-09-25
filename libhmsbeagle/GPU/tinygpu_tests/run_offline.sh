@@ -2,7 +2,7 @@
 # Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
 # against the fakes in the three NV modes at 4 and 64 states (plus the C++ runtime's uploaded image and its refusal of a GPU
 # no embedded cubin serves; each plan step D1 run with its kernels; a GB205 in the C++ runtime and its COT unload, plan step
-# B1), then the hung path, the teardown default and run_point.sh's
+# B1; several instances in one process, plan step P5), then the hung path, the teardown default and run_point.sh's
 # stop rule, an interrupted run, then the no-launch guard (nothing listening => the plugin errors out and no TinyGPU.app is
 # spawned). Build hmsbeagle-tinygpu-hybrid, tinygpuhybridtest, synthetictest and hmctest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -78,6 +78,51 @@ out="$TINYGPU_TEST_WORK/run_fake_gb205_nohalt.txt"
 if grep -q "TinyGPU/NV: teardown: failed: GSP RISC-V did not halt within 4 s" "$out" && grep -q "keeps the TinyGPU.app connection open" "$out" \
    && ! fini_verdict "$out" && [ "$after" -le "$before" ]; then results+=("fake gb205 no halt: PASS")
 else results+=("fake gb205 no halt: FAIL (see $out)"); fi
+
+# plan step P5: several instances in one process share one boot in the C++ runtime: one TinyGPU.app connection besides the
+# probe's (the fake server sees two clients), each instance's image uploaded where it loaded it, every instance reading
+# back its own tip partials, the GPU torn down once. Two instances at 4 and 64 states; four in four threads; two cycles of
+# create, run and finalize.
+p5_run() {   # <label> <state counts, in load order> -- <tinygpuhybridtest args>
+    local label=$1 states=$2 why=""; shift 2
+    "$TG_TESTS/run_fake_runtime.sh" "$label" BEAGLE_NV_USE_DAEMON=0 "$@" > "$TINYGPU_TEST_WORK/fake_$label.summary" 2>&1 || why=" fake run"
+    local out="$TINYGPU_TEST_WORK/run_fake_$label.txt"
+    "$BEAGLE_PYTHON" "$TG_TESTS/check_upload.py" "$out" "$TINYGPU_TEST_WORK/fake_mem_$label" "$states" sm_89 \
+        > "$TINYGPU_TEST_WORK/check_upload_$label.log" 2>&1 || why="$why upload"
+    [ "$(grep -c "TinyGPU/NV: daemon booted" "$out")" -eq 1 ] || why="$why boots"
+    [ "$(grep -c "client done" "$TINYGPU_TEST_WORK/fake_server_$label.log")" -eq 2 ] || why="$why connections"
+    grep -q "^tips: every instance read back its own tip partials exactly" "$out" && ! grep -q "^tips: an instance" "$out" || why="$why tips"
+    fini_verdict "$out" || why="$why teardown"
+    results+=("fake $label: $([ -z "$why" ] && echo PASS || echo "FAIL (${why# }; see $TINYGPU_TEST_WORK/fake_$label.summary)")")
+}
+p5_run p5_two 4,64 -- --state-count 4,64 --reps 5
+p5_run p5_threads 4,64,16,128 -- --instances 4 --threads --state-count 4,64,16,128 --reps 300
+p5_run p5_cycles 4,64,4,64 -- --cycles 2 --state-count 4,64 --reps 20
+# two instances of one state count (each has its own tip data, so an allocation they shared would show), and a child forked
+# after the boot that exits normally: its atexit must leave the parent's GPU up (the fake GPU flags any command after the
+# daemon's unload; the review found this with the child's teardown)
+p5_run p5_same 4,4 -- --state-count 4,4 --threads --reps 20
+p5_run p5_fork 4,64 -- --state-count 4,64 --fork-exit --reps 5
+grep -q "^forked child [0-9]* exited with status 0" "$TINYGPU_TEST_WORK/run_fake_p5_fork.txt" && results+=("fake p5_fork child: PASS") \
+    || results+=("fake p5_fork child: FAIL (see $TINYGPU_TEST_WORK/run_fake_p5_fork.txt)")
+# ... and a second process fails at once on nv_usb4.lock instead of waiting on TinyGPU.app, touching no GPU
+FAKE_SECOND_AFTER="C\+\+ runtime: [0-9]+ kernels loaded" "$TG_TESTS/run_fake_runtime.sh" p5_lock BEAGLE_NV_USE_DAEMON=0 -- --reps 20000 \
+    > "$TINYGPU_TEST_WORK/fake_p5_lock.summary" 2>&1
+rc=$?; sec="$TINYGPU_TEST_WORK/run_fake_p5_lock_second.txt"
+if [ $rc -eq 0 ] && grep -qE "second process exit=[1-9][0-9]* after [0-5] s" "$TINYGPU_TEST_WORK/fake_p5_lock.summary" \
+   && grep -q "TinyGPU: Failed to acquire lock file nv_usb4.lock" "$sec" && ! grep -q "TinyGPU/NV:" "$sec"; then
+    results+=("fake p5_lock: PASS")
+else results+=("fake p5_lock: FAIL (see $TINYGPU_TEST_WORK/fake_p5_lock.summary)"); fi
+# ... while the daemon and C++ dispatch modes refuse a second instance and tear the first down as before (in the daemon mode
+# the fake daemon takes the lock at boot, as the real one's APLRemotePCIDevice does, so the plugin gave it up before)
+for m in "daemon BEAGLE_NV_CPP_DISPATCH=0" "dispatch BEAGLE_NV_CPP_DISPATCH=1"; do
+    set -- $m
+    "$TG_TESTS/run_fake_runtime.sh" p5_refuse_$1 $2 -- --instances 2 --reps 2 > "$TINYGPU_TEST_WORK/fake_p5_refuse_$1.summary" 2>&1
+    out="$TINYGPU_TEST_WORK/run_fake_p5_refuse_$1.txt"
+    if [ "$(grep -c "TinyGPU/NV: daemon booted" "$out")" -eq 1 ] && grep -q "another BEAGLE instance in this process has the GPU" "$out" \
+       && grep -q "beagleCreateInstance failed" "$out" && fini_verdict "$out"; then results+=("fake p5_refuse_$1: PASS")
+    else results+=("fake p5_refuse_$1: FAIL (see $out)"); fi
+done
 
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames
 # before the one being submitted, not for that one (which never completes: a false hung GPU)

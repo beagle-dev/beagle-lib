@@ -19,17 +19,20 @@
 
 namespace tinygpu_device {
 
+// From Initialize (TODO.md plan step P5): 1 when this process's booted GPU now serves self too, 0 when none is booted,
+// -1 when another instance's GPU cannot be shared (refused, with a message).
+int        NvAttachShared(GPUInterface* self);
 void       NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
                         int patternCount, int unpaddedPatternCount, int tipCount, long flags);
-GPUFunction NvGetFunction(const char* name);
-void       NvLaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
+GPUFunction NvGetFunction(GPUInterface* self, const char* name);
+void       NvLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                                int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
-void       NvSynchronizeHost();
+void       NvSynchronizeHost(GPUInterface* self);
 GPUPtr     NvAllocateMemory(size_t sz);
-void       NvMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz);
-void       NvMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz);
+void       NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
+void       NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     NvGetAvailableMemory();
-void       NvFini();   // called from the destructor; also usable as a safe_exit fallback
+void       NvFini(GPUInterface* self);   // called from the destructor: releases self's instance
 
 } // namespace tinygpu_device
 

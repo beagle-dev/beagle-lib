@@ -37,13 +37,16 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 // ── File-scope globals (used by both helper functions and GPUInterface methods) ─
 static int            g_tgSock = -1;
+static int            g_tgLockFd = -1;   // tinygrad's nv_usb4.lock, held with the plugin's TinyGPU.app connection
 static uint32_t       g_tgDevId = 0;
 static uint16_t       g_tgVendorId = 0;
 static uint16_t       g_tgDeviceId = 0;
@@ -103,6 +106,50 @@ static int tg_open_socket() {
     return -1;
 }
 
+// tinygrad's temp(name): tempfile.gettempdir(), which is $TMPDIR (else /tmp), joined with name.
+static std::string tg_temp_path(const char* name) {
+    const char* tmpdir = getenv("TMPDIR");
+    std::string dir = (tmpdir && tmpdir[0]) ? tmpdir : "/tmp";
+    while (dir.size() > 1 && dir.back() == '/') dir.pop_back();
+    return dir + "/" + name;
+}
+
+// tinygrad's System.flock_acquire("nv_usb4.lock"), which RemotePCIDevice.__init__ takes right after connecting for NV:0
+// over TinyGPU.app (TODO.md plan step P5): while this process holds its connection, another BEAGLE or tinygrad process
+// fails here at once instead of waiting forever on a server that serves one client at a time. Unlike tinygrad, which
+// clears the process umask first, a created file is made world-writable with fchmod, leaving the host's umask alone.
+static bool tg_lock_acquire() {
+    std::string path = tg_temp_path("nv_usb4.lock");
+    bool exists = access(path.c_str(), F_OK) == 0;  // tinygrad avoids O_CREAT on an existing file
+    int fd = exists ? open(path.c_str(), O_RDWR | O_CLOEXEC) : open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if (fd < 0) {
+        fprintf(stderr, "TinyGPU: cannot open the lock file %s: %s\n", path.c_str(), strerror(errno));
+        return false;
+    }
+    if (!exists) fchmod(fd, 0666);
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        fprintf(stderr, "TinyGPU: Failed to acquire lock file nv_usb4.lock (another process has the eGPU). `sudo lsof %s` may "
+                "help identify the process holding the lock.\n", path.c_str());
+        close(fd);
+        return false;
+    }
+    g_tgLockFd = fd;
+    return true;
+}
+
+static void tg_lock_release() {
+    if (g_tgLockFd >= 0) { close(g_tgLockFd); g_tgLockFd = -1; }
+}
+
+void tg_close(int& sock) {
+    if (sock < 0) return;
+    close(sock);
+    sock = -1;
+    tg_lock_release();
+}
+
+int tg_lock_fd() { return g_tgLockFd; }
+
 // ── KernelResource loader (mirrors GPUInterfaceTinyGPU.cpp §LOAD_KERNEL_INTO_RESOURCE) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
@@ -138,8 +185,8 @@ GPUInterface::~GPUInterface() {
         if (tgpuSock >= 0) { close(tgpuSock); tgpuSock = -1; }
         return;
     }
-    NvFini();
-    if (tgpuSock >= 0) { close(tgpuSock); tgpuSock = -1; }
+    NvFini(this);
+    tg_close(tgpuSock);   // an instance that shares the GPU has none (plan step P5)
 }
 
 int GPUInterface::Initialize() {
@@ -153,8 +200,20 @@ int GPUInterface::Initialize() {
                      "(BeagleTinyGPU_kernels.h missing or stale — this should not happen)\n");
 #endif
     fflush(stderr);
+    // TODO.md plan step P5: another instance in this process may have the GPU booted, on the one connection TinyGPU.app
+    // serves.
+    int shared = NvAttachShared(this);
+    if (shared < 0) return BEAGLE_ERROR_GENERAL;
+    if (shared > 0) {
+        fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (NVIDIA), booted by another instance in this process\n",
+                g_tgVendorId, g_tgDeviceId);
+        tgpuDevId = g_tgDevId;
+        isNVIDIA  = true;
+        return BEAGLE_SUCCESS;
+    }
     g_tgSock = tg_open_socket();
     if (g_tgSock < 0) return BEAGLE_ERROR_GENERAL;
+    if (!tg_lock_acquire()) { close(g_tgSock); g_tgSock = -1; return BEAGLE_ERROR_GENERAL; }
     // Enumerate devices: just probe device 0 for now.
     // A full probe would use TGC_PROBE; we keep it simple.
     g_tgDevId = 0;
@@ -175,10 +234,12 @@ int GPUInterface::Initialize() {
     tgpuSock  = g_tgSock;
     tgpuDevId = g_tgDevId;
     isNVIDIA  = (g_tgVendorId != PCI_VENDOR_AMD);   // default to the NV path unless AMD is positively identified
+    if (!isNVIDIA) tg_lock_release();   // the lock is NV's (plan step P5); the AMD path is unchanged
     return BEAGLE_SUCCESS;
 }
 
-int GPUInterface::GetDeviceCount() { return (g_tgSock >= 0) ? 1 : 0; }
+// An instance sharing the booted GPU has no connection of its own, only its NV instance (plan step P5).
+int GPUInterface::GetDeviceCount() { return (tgpuSock >= 0 || nvGspState) ? 1 : 0; }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
                               int categoryCount, int patternCount,
@@ -222,7 +283,7 @@ void GPUInterface::InitializeKernelResource(int n, bool dp) {
 
 void GPUInterface::SynchronizeHost() {
     if (!isNVIDIA) { AmdSynchronizeHost(); return; }
-    NvSynchronizeHost();
+    NvSynchronizeHost(this);
 }
 
 void GPUInterface::SynchronizeDevice() { SynchronizeHost(); }
@@ -233,7 +294,7 @@ void GPUInterface::SynchronizeDeviceWithIndex(int, int) { SynchronizeHost(); }
 
 GPUFunction GPUInterface::GetFunction(const char* name) {
     if (!isNVIDIA) return AmdGetFunction(name);
-    return NvGetFunction(name);
+    return NvGetFunction(this, name);
 }
 
 // ── LaunchKernelImpl ──────────────────────────────────────────────────────────
@@ -241,7 +302,7 @@ GPUFunction GPUInterface::GetFunction(const char* name) {
 void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                      int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
     if (!isNVIDIA) { AmdLaunchKernelImpl(fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
-    NvLaunchKernelImpl(fn, block, grid, nPtr, nTotal, ptrs, ints);
+    NvLaunchKernelImpl(this, fn, block, grid, nPtr, nTotal, ptrs, ints);
 }
 
 // ── LaunchKernel (variadic) ───────────────────────────────────────────────────
@@ -290,12 +351,12 @@ size_t GPUInterface::AlignMemOffset(size_t off) { return off; }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
     if (!isNVIDIA) { AmdMemcpyHostToDevice(dst, src, sz); return; }
-    NvMemcpyHostToDevice(dst, src, sz);
+    NvMemcpyHostToDevice(this, dst, src, sz);
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
     if (!isNVIDIA) { AmdMemcpyDeviceToHost(dst, src, sz); return; }
-    NvMemcpyDeviceToHost(dst, src, sz);
+    NvMemcpyDeviceToHost(this, dst, src, sz);
 }
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dst, GPUPtr src, size_t sz) {

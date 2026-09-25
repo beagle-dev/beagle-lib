@@ -101,8 +101,16 @@ private:
     // way GPUInterfaceTinyGPUHybrid.cpp's own method bodies already do.
     friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
     // Same for the NV path (GPUInterfaceTinyGPUHybridNV.cpp: the daemon by
-    // default, C++ dispatch or the C++ runtime by environment variable).
+    // default, C++ dispatch or the C++ runtime by environment variable), whose
+    // per-instance state is nvGspState (TODO.md plan step P5).
     friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
+    friend int NvAttachShared(GPUInterface*);
+    friend GPUFunction NvGetFunction(GPUInterface*, const char*);
+    friend void NvLaunchKernelImpl(GPUInterface*, GPUFunction, Dim3Int, Dim3Int, int, int, GPUPtr*, unsigned int*);
+    friend void NvSynchronizeHost(GPUInterface*);
+    friend void NvMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
+    friend void NvMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void NvFini(GPUInterface*);
 
     // ── TinyGPU socket ──────────────────────────────────────────────────────
     int      tgpuSock;

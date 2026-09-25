@@ -12,7 +12,7 @@ keys stay Ada's. FAKE_NV_CHIP=gb205 plays an RTX 5070 instead (plan step B1): ar
 v5), the runtime keys and work-submit tokens tinygrad reports for it, and a COT unload whose report comes from
 nv_init_helper's real wrappers over scripted registers (the suspend, then the RISC-V halt; with FAKE_NV_NO_HALT=1 the core
 never halts, so the daemon holds)."""
-import os, sys, re, json, socket, types, mmap, ctypes
+import os, sys, re, json, socket, types, mmap, ctypes, fcntl
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -109,12 +109,28 @@ def handoff_dev():  # an Ada (or, FAKE_NV_CHIP=gb205, a GB205) device as build_h
                                  compute_gpfifo=fifo(0x100000, gb2 | 0x11), dma_gpfifo=fifo(0x200000, gb2 | 0x22),
                                  gpu_mmio=types.SimpleNamespace(residx=0, off=0xbb0000))
 
+def check_lock(inherited):
+    """TODO.md plan step P5: tinygrad's nv_usb4.lock. With the plugin's TinyGPU.app connection (and the lock) inherited, a
+    fresh flock must fail: the plugin still holds it. Otherwise the plugin gave both up before the spawn, and the real
+    daemon's APLRemotePCIDevice takes the lock as it connects, as this does (it raises if the lock is still held)."""
+    from tinygrad.helpers import temp
+    from tinygrad.runtime.support.system import System
+    if not inherited:
+        System.flock_acquire("nv_usb4.lock")
+        return
+    fd = os.open(temp("nv_usb4.lock"), os.O_RDWR)
+    try: fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError: return
+    finally: os.close(fd)
+    raise RuntimeError("the plugin does not hold nv_usb4.lock with the TinyGPU.app connection it handed over")
+
 class FakeDaemon(d.Daemon):
     def _hold(self):   # the real daemon sleeps until it is killed; a fake GPU never needs that, so fail loudly instead
         print("fake_nv_daemon: HOLD requested (the fake GPU did not confirm its unload, or its RISC-V core did not halt); exiting 3",
               file=sys.stderr, flush=True)
         os._exit(3)
     def cmd_boot(self, req):
+        check_lock(self.tgpu_fd is not None)
         self.dev = FakeDev()
         self.vram_next = 0
         self.send_json({"ok": True, "arch": os.environ.get("FAKE_NV_ARCH", "sm_120" if GB205 else "sm_89")})

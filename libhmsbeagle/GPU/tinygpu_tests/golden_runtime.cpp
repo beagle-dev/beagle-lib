@@ -41,6 +41,27 @@ int main(int, char** argv) {
             printf("%u %llu", slm, (unsigned long long)size);
             for (uint32_t w : pb) printf(" %u", w);
             printf("\n");
+        } else if (tag == "LM2") {  // plan step P5: a second instance's programs on the GPU the first set up; slm only grows
+            NVDRuntime t = rt;
+            cases >> t.num_gpcs >> t.num_tpc_per_gpc >> t.num_sm_per_tpc >> t.max_warps_per_sm;
+            uint32_t slm = 0;
+            for (int inst = 0; inst < 2; ++inst) {
+                uint64_t timeline;
+                int n;
+                cases >> timeline >> n;
+                uint32_t need = slm;
+                for (int i = 0; i < n; ++i) { uint64_t r; cases >> r; need = std::max<uint32_t>(need, (uint32_t)nvd_round_up(r, 32)); }
+                if (need <= slm) { printf("%u NONE\n", slm); continue; }
+                slm = need;
+                uint64_t tpc_bytes = 0, size = nvd_local_mem_size(t, slm, tpc_bytes);
+                std::vector<uint32_t> pb;
+                nvd_push_wait(pb, h, sig_va, timeline - 1);
+                nvd_push_setup_local_mem(pb, h, lm_va, tpc_bytes);
+                nvd_push_signal(pb, h, sig_va, timeline);
+                printf("%u %llu", slm, (unsigned long long)size);
+                for (uint32_t w : pb) printf(" %u", w);
+                printf("\n");
+            }
         } else if (tag == "POOL") {
             int n;
             cases >> n;
