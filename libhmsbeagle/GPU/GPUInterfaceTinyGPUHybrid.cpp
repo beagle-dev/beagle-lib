@@ -284,7 +284,9 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr base, size_t off, size_t) {
     return base + (GPUPtr)off;
 }
 
-size_t GPUInterface::AlignMemOffset(size_t off) { return (off + 255) & ~255u; }
+// No padding, as in CUDA: a sub-pointer is a plain address, and BeagleGPUImpl's transpose and convolution offset lists
+// assume unpadded matrix strides (STATUS.md R25).
+size_t GPUInterface::AlignMemOffset(size_t off) { return off; }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
     if (!isNVIDIA) { AmdMemcpyHostToDevice(dst, src, sz); return; }
