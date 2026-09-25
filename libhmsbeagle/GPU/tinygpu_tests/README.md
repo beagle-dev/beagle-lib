@@ -8,12 +8,15 @@ Background and plan: TODO.md `## Runtime roadmap` and `## Plan (2026-09-24)`; ST
 ## Requirements
 
 - A build of `hmsbeagle-tinygpu-hybrid` and `tinygpuhybridtest` (default `../../../build`, or `BEAGLE_BUILD`);
-  the build also generates `../kernels/BeagleTinyGPU_kernels.h`, which the goldens read.
+  the build also generates `../kernels/BeagleTinyGPU_kernels.h`, which the goldens read, and the plugin's embedded
+  cubins (`../kernels/BeagleTinyGPU_cubins.S` and their table `../kernels/TinyGPUNVCubins.h`, plan step C1), which
+  test_c1_cubins links.
 - The pinned tinygrad at `TINYGRAD_PATH` (default `~/Dropbox/Projects/tinygrad-hcq1`, commit a9830e2b4).
 - A Python with tinygrad's dependencies at `BEAGLE_PYTHON` (default `~/Dropbox/Projects/tinygrad/venv/bin/python`).
 - `clang++` (or `CXX`).
-- Cached cubins in `$BEAGLE_TINYGPU_DATA/cubins` (default `~/.beagle/tinygpu`). A missing cubin is compiled once
-  with `nv_compile_helper.compile_ptx`, which runs ptxas (through Docker on this Mac).
+- Cached cubins in `$BEAGLE_TINYGPU_DATA/cubins` (default `~/.beagle/tinygpu`): the reference for the 27 the plugin
+  embeds. A missing cubin is compiled once with `nv_compile_helper.compile_ptx`, which runs ptxas (through Docker on
+  this Mac, about 0.6 s each).
 
 ## Running
 
@@ -27,7 +30,9 @@ Outputs go to `.work/` (git-ignored; `TINYGPU_TEST_WORK` overrides).
 
 | File | What it checks |
 |---|---|
-| `golden_program.py/.cpp` | `TinyGPUHybridNVProgram.h` (ELF loader, program records, relocated image) against real `BeagleNVProgram` objects, for SP_4/32/64/128 on sm_89 and sm_120 |
+| `golden_program.py/.cpp` | `TinyGPUHybridNVProgram.h` (ELF loader, program records, relocated image) against real `BeagleNVProgram` objects, for the 9 SP modules on sm_86, sm_89 and sm_120 (the 27 cubins the plugin embeds) |
+| `test_c1_cubins.py` + `golden_cubins.cpp` | plan step C1: the embedded cubins, linked from the generated `.S` as the plugin links them: the table is the 9 SP modules × sm_86, sm_89, sm_120, each cubin byte-identical to `nv_compile_helper.compile_ptx` of the plugin's PTX (the daemon's compile_all), with kernel names equal to nv_compile_helper's; `TinyGPUHybridNVCubins.h`'s selection of every entry and its refusals (DP, a state count, an architecture, an entry holding another architecture's cubin); `nvd_elf_sm` against the cached cubins' file names; the build's ptxas is compile_all's; the real daemon's C++ runtime handoff right after boot (elf_size 0, no ELF); the real `cmd_boot` never selects tinygrad's renderer (on macOS that starts tinygrad's Docker compile server) and `cmd_compile_all` checks it, refusing NAK |
+| `check_upload.py` | after a C++ runtime fake run (`run_offline.sh`, 4 and 64 states): the plugin loaded the module the harness ran (state count and architecture), and the program image in the fake VRAM equals `BeagleNVProgram`'s relocation of the compile_ptx cubin of that module's PTX |
 | `golden_runtime.py/.cpp` | the C++ runtime pieces: boot-only handoff parsing, table cross-check, local-memory sizing and setup words (`_ensure_has_local_memory`), pool placement (`PCIIfaceBase.alloc` + `alloc_vaddr`) |
 | `golden_encode.py/.cpp` | `TinyGPUHybridNVDispatch.h` launch and copy encoding against hcq1's `NVComputeQueue`/`NVCopyQueue` |
 | `check_firmware.py` | `booter_unload` for ad102/ga102 is in tinygrad's download cache (re-staged from `~/.beagle/tinygpu/fw` if purged) and tinygrad's `fetch_fw` returns it with the network off |
@@ -35,7 +40,7 @@ Outputs go to `.work/` (git-ignored; `TINYGPU_TEST_WORK` overrides).
 | `test_p1_diagnostics.py` | plan step P1: the warm-GPU refusal end to end over a scripted fake TinyGPU socket, and each diagnostic wrapper in `nv_init_helper.py` on fakes |
 | `test_p2_teardown.py` | plan step P2 (the teardown, on by default since P3): the FWSEC-SB and Booter Unload images against tinygrad's own `prep_ucode`/`prep_booter` on the captured VBIOS, the VRAM layout gate (`mm_trace.trace`), the teardown on a scripted register fake (one scenario per failure mode, with the `execute_hs` arguments of both images), LEVEL_0 with an op-8 sequencer, and the daemon's fini/hung/failed-boot decisions |
 | `test_p3.py` | plan step P3: the teardown default (on unless `BEAGLE_NV_TEARDOWN=0`), the daemon half of the C++ state page, the daemon's fini and EOF decisions (no device, no page, idle, frame in flight, timeline behind, stuck or faulted, tinygrad's error_state, cut messages, lost replies), and cmd_handoff's WPR check on tinygrad's allocator |
-| `run_fake_runtime.sh` | one plugin run against `fake_nv_daemon.py` and `fake_tinygpu_server.py`, which runs the pushbuffers like a GPU front end (acquires, QMD chains, releases, DMA) and, in the C++ runtime mode, checks every QMD with tinygrad's reader. PASS requires every stage of the selected mode (boot, compile, launches, evaluations, and the handoff or C++ program loading) and a clean fake server. Kernels are not emulated, so logL is wrong by design. With `FAKE_NV_HANG=1` the fake GPU never writes a release, which `run_offline.sh` uses to check the hung path. In the C++ modes PASS also needs the daemon's state-page line at fini (nothing in flight; the last value submitted equals the C++ timeline and the fake GPU's release count), and the fake GPU flags any TinyGPU.app command from the plugin after the daemon's unload (the fake daemon sends it none; the daemon's own ordering is test_p3's). With `FAKE_SIGINT_AFTER=<regex>` the test gets one SIGINT 2 s after its output matches |
+| `run_fake_runtime.sh` | one plugin run against `fake_nv_daemon.py` and `fake_tinygpu_server.py`, which runs the pushbuffers like a GPU front end (acquires, QMD chains, releases, DMA) and, in the C++ runtime mode, checks every QMD with tinygrad's reader. PASS requires every stage of the selected mode (boot; compile_all, or in the C++ runtime the embedded cubin and no compile_all, which the fake daemon also refuses; launches, evaluations, and the handoff or C++ program loading) and a clean fake server. Kernels are not emulated, so logL is wrong by design. With `FAKE_NV_HANG=1` the fake GPU never writes a release, which `run_offline.sh` uses to check the hung path. In the C++ modes PASS also needs the daemon's state-page line at fini (nothing in flight; the last value submitted equals the C++ timeline and the fake GPU's release count), and the fake GPU flags any TinyGPU.app command from the plugin after the daemon's unload (the fake daemon sends it none; the daemon's own ordering is test_p3's). With `FAKE_SIGINT_AFTER=<regex>` the test gets one SIGINT 2 s after its output matches. `FAKE_NV_ARCH` changes the fake boot reply's architecture (`run_offline.sh`'s refusal run) |
 | `mm_trace.py` | tinygrad's memory manager on a recording fake for BEAGLE's allocation sequence (`--mmu 2` Ada, `--mmu 3` Blackwell): the reference for porting memory management, and P2's layout gate |
 | `cubin_inspect.py` | ELF facts of the cached cubins (SM in e_flags, relocations, register-count records) |
 | `amd_compile_probe.py` | compiles the AMD kernels for gfx1100 with tinygrad's `compile_hip` (native comgr) and reports size, determinism, kernel descriptors |

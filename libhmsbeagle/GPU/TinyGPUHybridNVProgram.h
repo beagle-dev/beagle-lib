@@ -305,14 +305,12 @@ static inline std::string nvd_load_program(const NVDElf& elf, const std::string&
 // ── the boot-only handoff (nv_dispatch_daemon.py cmd_handoff, programs=false) ─
 
 // What NVProgram.__init__ and NVDevice._ensure_has_local_memory read from the
-// device, the VRAM pool this side allocates from, and the size of the compiled
-// ELF that follows the (empty) kernel blob.
+// device, and the VRAM pool this side allocates from.
 struct NVDRuntime {
     uint32_t compute_class = 0, sass_version = 0;
     uint64_t shared_mem_window = 0, local_mem_window = 0;
     uint32_t num_gpcs = 0, num_tpc_per_gpc = 0, num_sm_per_tpc = 0, max_warps_per_sm = 0;
     NVDBuffer pool;
-    uint64_t elf_size = 0;
 };
 
 // Returns an empty string on success, otherwise what was missing.
@@ -327,7 +325,7 @@ static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& r
     rt.shared_mem_window = u64("shared_mem_window");       rt.local_mem_window = u64("local_mem_window");
     rt.num_gpcs = (uint32_t)u64("num_gpcs");               rt.num_tpc_per_gpc = (uint32_t)u64("num_tpc_per_gpc");
     rt.num_sm_per_tpc = (uint32_t)u64("num_sm_per_tpc");   rt.max_warps_per_sm = (uint32_t)u64("max_warps_per_sm");
-    rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size");  rt.elf_size = u64("elf_size");
+    rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size");
     return missing.empty() ? "" : "missing " + missing;
 }
 

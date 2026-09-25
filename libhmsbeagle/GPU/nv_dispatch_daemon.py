@@ -41,10 +41,11 @@ hands the C++ side what it needs to build QMDs and pushbuffers and submit
 both GPFIFOs itself (build_handoff). From then on it only allocates.
 
 C++ runtime (BEAGLE_NV_USE_DAEMON=0, the revived legacy path): the same
-handoff with "programs": false, right after boot and compile_all. The
-daemon then also sends the compiled ELF, the device values program loading
-needs, and a VRAM pool; the C++ side loads the programs and allocates from
-the pool itself, so after the handoff this daemon only waits for "fini".
+handoff with "programs": false, right after boot (no compile_all: the C++
+side embeds its cubins, TODO.md plan step C1). The daemon then also sends
+the device values program loading needs, and a VRAM pool; the C++ side
+loads the programs and allocates from the pool itself, so after the handoff
+this daemon only waits for "fini".
 
     python3 nv_dispatch_daemon.py <cmd_sock_fd> [<tinygpu_sock_fd>]
 """
@@ -541,7 +542,9 @@ class Daemon:
             return
         log(f"booted — {self.dev}, arch={self.dev.arch}")
         log(f"launch_batch: {'one chained queue per batch' if _CHAIN_LAUNCHES else 'one queue per launch (BEAGLE_NV_CHAIN_LAUNCHES=0)'}")
+        self.send_json({"ok": True, "arch": self.dev.arch})
 
+    def cmd_compile_all(self, req):
         # Real per-kernel ELFs below come from ptxas, never tinygrad's NAK
         # (Mesa/Rust) compiler backend — NVProgram.__init__ branches on
         # isinstance(dev.renderer, NAKRenderer) and would misinterpret a
@@ -555,17 +558,18 @@ class Daemon:
         # active. Fail loudly here rather than silently mis-dispatching if
         # it ever is NAK — better to know immediately than to chase a
         # correctness bug that isn't actually in the code being tested.
+        # Checked here, before the first ptxas cubin, not at boot (TODO.md
+        # plan step C1): selecting the renderer builds its compiler, which on
+        # macOS starts tinygrad's Docker compile server (compiler_cuda.py
+        # osx_docker_cmd), and the C++ runtime never compiles.
         from tinygrad.renderer.nir import NAKRenderer
         log(f"renderer: {type(self.dev.renderer).__name__}")
         if isinstance(self.dev.renderer, NAKRenderer):
             self.send_json({"ok": False, "error":
                 f"dev.renderer is NAKRenderer — this daemon injects real ptxas "
                 f"cubins via NVProgram, which assumes a non-NAK ELF layout. "
-                f"See nv_dispatch_daemon.py cmd_boot's comment."})
+                f"See nv_dispatch_daemon.py cmd_compile_all's comment."})
             return
-        self.send_json({"ok": True, "arch": self.dev.arch})
-
-    def cmd_compile_all(self, req):
         self.elf_bytes = nch.compile_ptx(req["ptx_path"], self.dev.arch, kernel_name="_all")
         log(f"compiled — {len(self.elf_bytes)} byte ELF")
         # Name discovery only (is_blackwell=False is fine here — it only
@@ -602,8 +606,8 @@ class Daemon:
         # C++ dispatch (BEAGLE_NV_CPP_DISPATCH=1): every program is prepared
         # now, while this daemon still owns the queues (program uploads and
         # local-memory setup both submit GPU work). The C++ runtime
-        # (BEAGLE_NV_USE_DAEMON=0) sends "programs": false and loads the ELF
-        # itself into a VRAM pool allocated here, then allocates from it too.
+        # (BEAGLE_NV_USE_DAEMON=0) sends "programs": false and loads its embedded
+        # cubin itself into a VRAM pool allocated here, then allocates from it too.
         programs = req.get("programs", True)
         progs = [self._get_program(name, 0) for name in sorted(self.kernel_names)] if programs else []
         dev.synchronize()
@@ -616,24 +620,23 @@ class Daemon:
         bufs["signal"].cpu_view().view(0, 16, 'B')[:] = bytes(16)  # TinyGPU.app leaves the DMA segment list here
         fds = [dev.iface.pci_dev.sysmem_fds[b.cpu_view().addr] for b in bufs.values()]
         info, blob = build_handoff(dev, progs, bufs)
-        if not programs:  # what NVProgram.__init__ and _ensure_has_local_memory read from the device, the pool, the ELF
+        if not programs:  # what NVProgram.__init__ and _ensure_has_local_memory read from the device, and the pool
             self._pool = dev.allocator.alloc(req.get("pool_size") or dev.iface.dev_impl.vram_size // 2)
             info.update(compute_class=dev.iface.compute_class, sass_version=dev.sass_version,
                         shared_mem_window=dev.shared_mem_window, local_mem_window=dev.local_mem_window,
                         num_gpcs=dev.num_gpcs, num_tpc_per_gpc=dev.num_tpc_per_gpc, num_sm_per_tpc=dev.num_sm_per_tpc,
                         max_warps_per_sm=dev.max_warps_per_sm, pool_va=self._pool.va_addr, pool_size=self._pool.size,
-                        elf_size=len(self.elf_bytes))
+                        elf_size=0)   # no ELF follows (plan step C1); a pre-C1 plugin reads 0 bytes and refuses them, still framed
         if (wpr := check_vram_below_wpr(dev.iface.dev_impl)) is not None:   # raises before anything is sent: C++ gets no fds
             log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= gspFwRsvdStart {wpr[1]:#x}")
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
-        if not programs: self.sock.sendall(self.elf_bytes)
         socket.send_fds(self.sock, [b"F"], fds)
         self.handed_off = True
         log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}, " +
             ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()) +
-            ("" if programs else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}, ELF {len(self.elf_bytes)} bytes"))
+            ("" if programs else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}"))
 
     def cmd_state_page(self, req):
         # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this

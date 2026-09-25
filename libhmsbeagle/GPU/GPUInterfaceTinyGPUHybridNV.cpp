@@ -33,10 +33,13 @@
  * plugin's own TinyGPU.app connection (see "C++ dispatch" below).
  *
  * BEAGLE_NV_USE_DAEMON=0, the C++ runtime (the revived legacy path): the
- * daemon only boots and compiles, and hands over right away. This file then
- * also loads the programs (TinyGPUHybridNVProgram.h, a port of tinygrad's
- * program loader) and allocates from a VRAM pool the daemon mapped, so
- * Python does nothing after boot until "fini" (see "C++ runtime" below).
+ * daemon only boots, and hands over right away. This file then also loads
+ * the programs (TinyGPUHybridNVProgram.h, a port of tinygrad's program
+ * loader) from the cubin built for this GPU and linked into the plugin
+ * (TinyGPUHybridNVCubins.h; nothing is compiled at run time, so
+ * BEAGLE_NV_USE_NVJITLINK and BEAGLE_NV_PTXAS_KERNELS apply only to the other
+ * modes), and allocates from a VRAM pool the daemon mapped, so Python does
+ * nothing after boot until "fini" (see "C++ runtime" below).
  */
 
 #ifdef FW_TINYGPU
@@ -50,6 +53,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <fcntl.h>
@@ -70,6 +74,12 @@
 #include "libhmsbeagle/GPU/TinyGPUHybridSocket.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
+
+// The embedded cubins were compiled from the PTX this plugin embeds (TODO.md plan step C1): make_tinygpu_cubins.sh copies
+// the stamp of the kernels header whose PTX it compiled.
+static_assert(std::string_view(TINYGPU_CUBINS_KERNELS_STAMP) == TINYGPU_KERNELS_STAMP,
+              "kernels/TinyGPUNVCubins.h is from another BeagleTinyGPU_kernels.h: rebuild the TinyGPUCubins target");
 
 namespace tinygpu_device {
 
@@ -543,14 +553,13 @@ static void nvd_unmap(NVDispatchState* d) {
 }
 
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
-// of the four shared buffers in NVDHandoff's order. For the C++ runtime
-// (elf != nullptr) the handoff carries no programs; the compiled ELF follows
-// the blob instead. The daemon stops using the queues once it replies, so a
-// failure here is fatal.
-static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector<uint8_t>* elf) {
+// of the four shared buffers in NVDHandoff's order. For the C++ runtime the
+// handoff carries no programs (this side loads its embedded cubin). The
+// daemon stops using the queues once it replies, so a failure here is fatal.
+static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtime) {
     auto t0 = nv_profile_start();
     std::string req = "{\"cmd\":\"handoff\"}";
-    if (elf) {  // BEAGLE_NV_DATA_MB sizes the VRAM pool; the daemon's default is half the VRAM
+    if (runtime) {  // BEAGLE_NV_DATA_MB sizes the VRAM pool; the daemon's default is half the VRAM
         const char* mb = getenv("BEAGLE_NV_DATA_MB");
         req = "{\"cmd\":\"handoff\",\"programs\":false,\"pool_size\":" +
               std::to_string(mb ? strtoull(mb, nullptr, 10) << 20 : 0) + "}";
@@ -559,7 +568,7 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector
     std::string js = nv_recv_msg(cmd_sock);
     uint64_t blob_size = 0, nfds = 0;
     NVDRuntime rt;
-    std::string err = elf ? nvd_parse_runtime(js, rt) : "";
+    std::string err = runtime ? nvd_parse_runtime(js, rt) : "";
     if (js.empty() || !nv_json_ok(js) || !nvd_json_u64(js, "blob_size", blob_size) || !nvd_json_u64(js, "nfds", nfds) || nfds != 4 ||
         !err.empty()) {
         fprintf(stderr, "TinyGPU/NV: handoff failed: %s%s%s\n", js.c_str(), err.empty() ? "" : "; ", err.c_str());
@@ -567,14 +576,12 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector
     }
     std::vector<uint8_t> blob(blob_size);
     int fds[4] = { -1, -1, -1, -1 };
-    if (elf) elf->resize(rt.elf_size);
-    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || (elf && !nv_recv_all(cmd_sock, elf->data(), elf->size())) ||
-        !nv_recv_fds(cmd_sock, fds, 4)) {
+    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || !nv_recv_fds(cmd_sock, fds, 4)) {
         fprintf(stderr, "TinyGPU/NV: handoff: daemon connection lost\n");
         return nullptr;
     }
     NVDispatchState* d = new NVDispatchState;
-    d->runtime = elf != nullptr;
+    d->runtime = runtime;
     d->rt = rt;
     err = nvd_parse_handoff(js, blob, d->h);
     const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
@@ -598,8 +605,8 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector
     d->tg_sock = tg_sock;
     nv_profile_end("handoff", t0);
     if (d->runtime)
-        fprintf(stderr, "TinyGPU/NV: C++ runtime: handed over after boot (QMD v%u, VRAM pool %llu MiB, ELF %zu bytes)\n",
-                d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20), elf->size());
+        fprintf(stderr, "TinyGPU/NV: C++ runtime: handed over after boot (QMD v%u, VRAM pool %llu MiB)\n",
+                d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
     else
         fprintf(stderr, "TinyGPU/NV: C++ dispatch: %zu kernels handed over (QMD v%u)\n", d->h.kernels.size(), d->h.qmd_ver);
     return d;
@@ -654,7 +661,7 @@ static bool nv_fill_launch_dims() {
 // and a synchronize. All kernels share one upload of the image, and local
 // memory is sized once for the largest need (tinygrad grows it program by
 // program to the same size).
-static bool nvdLoadPrograms(const std::vector<uint8_t>& elf_bytes, const std::vector<std::string>& names) {
+static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& names) {
     auto t0 = nv_profile_start();
     NVDispatchState& d = *g_nvd;
     NVDHandoff& h = d.h;
@@ -665,9 +672,7 @@ static bool nvdLoadPrograms(const std::vector<uint8_t>& elf_bytes, const std::ve
     p.local_mem_window = d.rt.local_mem_window;
     p.fill_launch_dims = nv_fill_launch_dims();
 
-    NVDElf elf;
     std::string err = nvd_check_tables(h, d.rt.compute_class);
-    if (err.empty()) err = nvd_elf_load(elf_bytes.data(), elf_bytes.size(), 128, elf);  // NVProgram's force_section_align
     std::vector<NVDProgramUsage> usage(names.size());
     for (size_t i = 0; err.empty() && i < names.size(); ++i) {
         err = nvd_program_usage(elf, names[i], usage[i]);
@@ -712,9 +717,11 @@ static bool nvdLoadPrograms(const std::vector<uint8_t>& elf_bytes, const std::ve
 // itself via NVDevice("NV:0"), matching §74's hardware-verified reference
 // test exactly, no inherited FD needed), then send "boot" and
 // "compile_all". For C++ dispatch (tg_fd >= 0) the daemon inherits the
-// plugin's TinyGPU.app connection instead, and "handoff" follows. ──────────
+// plugin's TinyGPU.app connection instead, and "handoff" follows. The C++
+// runtime sends no "compile_all": it loads the embedded cubin for
+// paddedStateCount and the GPU the daemon booted (plan step C1). ───────────
 
-static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) {
+static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, int paddedStateCount, bool dp) {
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
         fprintf(stderr, "TinyGPU/NV: socketpair failed: %s\n", strerror(errno));
@@ -774,7 +781,21 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     fprintf(stderr, "TinyGPU/NV: daemon booted — arch=%s\n", nv_json_str(resp, "arch").c_str());
     g_nv = g;   // from here on every exit, a GPU hang during setup included, tears the GPU down through the daemon
 
-    if (kernel_code && kernel_code[0]) {
+    NVDElf cubin;
+    if (nv_cpp_runtime() && tg_fd >= 0) {
+        const TinyGPUNVCubin* c = nullptr;
+        std::string arch = nv_json_str(resp, "arch");
+        std::string err = nvd_find_cubin(kTinyGPUNVCubins, sizeof(kTinyGPUNVCubins) / sizeof(kTinyGPUNVCubins[0]),
+                                         paddedStateCount, dp, arch, c);
+        if (err.empty()) err = nvd_elf_load(c->begin, (size_t)(c->end - c->begin), 128, cubin);  // NVProgram's force_section_align
+        if (!err.empty()) {
+            fprintf(stderr, "TinyGPU/NV: C++ runtime: %s\n", err.c_str());
+            nv_safe_exit(1);
+        }
+        for (const std::string& kname : nvd_kernel_names(cubin)) g_nvKernels[kname] = new NVKernelHandle{kname};
+        fprintf(stderr, "TinyGPU/NV: C++ runtime: embedded cubin SP_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", paddedStateCount,
+                arch.c_str(), (size_t)(c->end - c->begin), g_nvKernels.size(), TINYGPU_CUBINS_STAMP);
+    } else if (kernel_code && kernel_code[0]) {
         char ptx_path[256];
         snprintf(ptx_path, sizeof(ptx_path), "/tmp/beagle_nv_all_%d.ptx", getpid());
         nv_write_file(ptx_path, kernel_code, strlen(kernel_code));
@@ -815,13 +836,12 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
         }
     }
     if (tg_fd >= 0) {
-        std::vector<uint8_t> elf;
-        g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime() ? &elf : nullptr);
+        g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime());
         if (!g_nvd || !nvdStatePage(g->cmd_sock, *g_nvd)) nv_safe_exit(1);
         if (g_nvd->runtime) {
             std::vector<std::string> names;
             for (auto& kv : g_nvKernels) names.push_back(kv.first);
-            if (!nvdLoadPrograms(elf, names)) nv_safe_exit(1);
+            if (!nvdLoadPrograms(cubin, names)) nv_safe_exit(1);
         }
         for (auto& kv : g_nvKernels) {
             auto it = g_nvd->h.kernels.find(kv.first);
@@ -864,7 +884,8 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         self->kernelResource->flags                = flags;
     }
 
-    g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd);
+    g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd, paddedStateCount,
+                                 self->supportDoublePrecision);
     if (!g_nv) { fprintf(stderr, "TinyGPU/NV: nvDispatchDaemonSetup failed\n"); nv_safe_exit(1); }
 }
 

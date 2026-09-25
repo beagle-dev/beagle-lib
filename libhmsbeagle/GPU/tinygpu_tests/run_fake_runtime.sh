@@ -53,14 +53,16 @@ cat "$SLOG"
 missing=()
 need() { grep -qE "$1" "$OUT" || missing+=("$2"); }
 need "TinyGPU/NV: daemon booted" "daemon boot"
-need "TinyGPU/NV: compile_all — loaded [1-9]" "compile_all"
+[ $MODE = runtime ] || need "TinyGPU/NV: compile_all — loaded [1-9]" "compile_all"
 need "TinyGPU/NV: \[profile\] +launch_batch +n= +[1-9]" "C++ launch_batch profile"
 need "^per evaluation:" "timed evaluations"
 grep -qE "TinyGPU/NV: .*failed" "$OUT" && missing+=("(a 'failed' line was printed)")
 case $MODE in
     daemon) need "\[nv_dispatch_daemon\] \[profile\] +cmd\.launch_batch +n= +[1-9]" "daemon launch_batch" ;;
     dispatch) need "C\+\+ dispatch: [1-9][0-9]* kernels handed over" "handoff" ;;
-    runtime) need "C\+\+ runtime: [1-9][0-9]* kernels loaded" "C++ program loading" ;;
+    runtime) need "C\+\+ runtime: embedded cubin SP_[0-9]+ sm_[0-9]+ \([0-9]+ bytes, [1-9][0-9]* kernels" "embedded cubin (plan step C1)"
+             grep -q "compiling all kernels" "$OUT" && missing+=("(compile_all in the C++ runtime)")
+             need "C\+\+ runtime: [1-9][0-9]* kernels loaded" "C++ program loading" ;;
 esac
 if [ $MODE != daemon ]; then
     grep "client done" "$SLOG" | tail -1 | grep -qE '"launches": [1-9]' || missing+=("launches seen by the fake GPU")

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
-# against the fakes in the three NV modes at 4 and 64 states, then the hung path, the teardown default and run_point.sh's
+# against the fakes in the three NV modes at 4 and 64 states (plus the C++ runtime's uploaded image and its refusal of a GPU
+# no embedded cubin serves), then the hung path, the teardown default and run_point.sh's
 # stop rule, an interrupted run, then the no-launch guard (nothing listening => the plugin errors out and no TinyGPU.app is
 # spawned). Build hmsbeagle-tinygpu-hybrid and tinygpuhybridtest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -20,6 +21,23 @@ for states in 4 64; do
         results+=("fake $label: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/fake_$label.summary)")")
     done
 done
+
+# plan step C1: each C++ runtime run above uploaded the image compile_all's path would have (the compile_ptx cubin of the same
+# PTX, relocated by BeagleNVProgram); a GPU no embedded cubin serves is refused right after boot and torn down
+for states in 4 64; do
+    "$BEAGLE_PYTHON" "$TG_TESTS/check_upload.py" "$TINYGPU_TEST_WORK/run_fake_runtime_$states.txt" "$TINYGPU_TEST_WORK/fake_mem_runtime_$states" $states sm_89 \
+        > "$TINYGPU_TEST_WORK/check_upload_$states.log" 2>&1
+    rc=$?
+    results+=("upload $states: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_upload_$states.log)")")
+done
+FAKE_NV_ARCH=sm_75 "$TG_TESTS/run_fake_runtime.sh" refuse BEAGLE_NV_USE_DAEMON=0 -- --reps 1 > "$TINYGPU_TEST_WORK/fake_refuse.summary" 2>&1
+out="$TINYGPU_TEST_WORK/run_fake_refuse.txt"
+if grep -q "C++ runtime: no embedded cubin for this GPU's architecture (sm_75); this build has sm_86, sm_89, sm_120" "$out" \
+   && fini_verdict "$out" && ! grep -q "handed over" "$out"; then
+    results+=("fake refuse: PASS")
+else
+    results+=("fake refuse: FAIL (see $out)")
+fi
 
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames
 # before the one being submitted, not for that one (which never completes: a false hung GPU)

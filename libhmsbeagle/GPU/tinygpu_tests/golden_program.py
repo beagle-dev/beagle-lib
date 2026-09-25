@@ -1,7 +1,8 @@
 """Golden test for TinyGPUHybridNVProgram.h: the real BeagleNVProgram (nv_dispatch_daemon.py: tinygrad's
-NVProgram.__init__ plus BEAGLE's multi-kernel fixes) and the C++ port load the same real cubins (ptxas, sm_89
-and sm_120). Their per-kernel records, in build_handoff's format (QMD template, cbuf0 prefix, kernargs layout),
-and the relocated image must be byte-identical. Both use slm_per_thread = the running max over all kernels."""
+NVProgram.__init__ plus BEAGLE's multi-kernel fixes) and the C++ port load the same real cubins (ptxas: the 9 SP
+modules for sm_86, sm_89 and sm_120, the 27 the plugin embeds). Their per-kernel records, in build_handoff's
+format (QMD template, cbuf0 prefix, kernargs layout), and the relocated image must be byte-identical. Both use
+slm_per_thread = the running max over all kernels."""
 import os, sys, types, itertools, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -35,8 +36,9 @@ def program(dev, elf, name): return d.BeagleNVProgram(dev, TinyELF(lib=elf, name
 
 tgpaths.build_cpp(f"{HERE}/golden_program.cpp", f"{WORK}/golden_program")
 ok_all = True
-for variant in ("SP_4", "SP_32", "SP_64", "SP_128"):
-    for arch, cc, sass in (("sm_89", nv_gpu.ADA_COMPUTE_A, 0x89), ("sm_120", nv_gpu.BLACKWELL_COMPUTE_B, 0xa4)):
+for variant in tgpaths.VARIANTS:
+    for arch, cc, sass in (("sm_86", nv_gpu.AMPERE_COMPUTE_B, 0x86), ("sm_89", nv_gpu.ADA_COMPUTE_A, 0x89),
+                           ("sm_120", nv_gpu.BLACKWELL_COMPUTE_B, 0xa4)):
         elf = tgpaths.cubin(variant, arch)
         cubin = str(tgpaths.cubin_path(tgpaths.ptx(variant), arch))
         names = sorted(nch.extract_all_metadata(elf, is_blackwell=cc >= nv_gpu.BLACKWELL_COMPUTE_A)[1].keys())

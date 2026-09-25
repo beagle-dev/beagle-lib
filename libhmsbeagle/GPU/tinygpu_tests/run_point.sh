@@ -16,8 +16,9 @@ case $MODE in
     daemon) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=0 ;;
     *) echo "unknown mode $MODE"; exit 2 ;;
 esac
-# what can hold the GPU: the daemon (<python> .../nv_dispatch_daemon.py <fd> [<fd>]) or a holding nv_teardown_diag.py
-DAEMON_RE="nv_dispatch_daemon.py [0-9]|nv_teardown_diag.py"
+# what can hold the GPU: the daemon (<python> .../nv_dispatch_daemon.py <fd> [<fd>]) or a holding <python> .../nv_teardown_diag.py;
+# anchored at the end of the command line, so a shell or editor that merely mentions either script does not match
+DAEMON_RE="nv_dispatch_daemon\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$"
 pgrep -f "$DAEMON_RE" > /dev/null && { echo "an nv_dispatch_daemon or nv_teardown_diag is still running (it may hold the GPU); not running"; exit 2; }
 for i in $(seq 1 30); do [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -gt 0 ] && break; sleep 2; done
 if [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -eq 0 ]; then echo "eGPU not enumerated; not running"; exit 2; fi

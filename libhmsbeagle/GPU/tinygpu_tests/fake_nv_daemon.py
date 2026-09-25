@@ -4,10 +4,11 @@ end to end without booting the GPU. Kernels don't run, so logL is wrong.
 With a TinyGPU fd argument (C++ dispatch) it also hands off, using the real
 build_handoff over file-backed buffers in $FAKE_NV_MEM, which
 fake_tinygpu_server.py maps to play the GPU; allocations then come from a
-file-backed "VRAM" there too. For the C++ runtime (handoff with "programs": false) it
-hands over no programs; instead it sends the real ptxas cubin of the plugin's PTX (looked up in the
-harness cubin cache by the PTX's sha256, tgpaths.cubin_path; run_goldens.sh fills it), the runtime keys
-of an RTX 4060-like device, and the file-backed VRAM as the pool."""
+file-backed "VRAM" there too. For the C++ runtime (handoff with "programs": false, right after boot:
+the plugin loads its embedded cubin, plan step C1) it hands over no programs, only the runtime keys of
+an RTX 4060-like device and the file-backed VRAM as the pool, and it refuses a compile_all before that
+handoff. FAKE_NV_ARCH sets the boot reply's arch (default sm_89), for refusal runs only: the runtime
+keys stay Ada's."""
 import os, sys, re, json, socket, types, mmap, ctypes
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -82,14 +83,14 @@ class FakeDaemon(d.Daemon):
     def cmd_boot(self, req):
         self.dev = FakeDev()
         self.vram_next = 0
-        self.send_json({"ok": True, "arch": "sm_89"})
+        self.send_json({"ok": True, "arch": os.environ.get("FAKE_NV_ARCH", "sm_89")})
     def cmd_compile_all(self, req):
         ptx = open(req["ptx_path"], "rb").read()
         cubin = tgpaths.cubin_path(ptx, "sm_89")
         if cubin.exists():  # the real daemon's compile_all: the ptxas cubin, and the kernel names found in it
             self.elf_bytes = cubin.read_bytes()
             names = list(nch.extract_all_metadata(self.elf_bytes, is_blackwell=False)[1].keys())
-        else:  # no cubin: kernel names only (the C++ runtime mode then fails to load programs)
+        else:  # no cubin: kernel names only
             print(f"fake_nv_daemon: no cached cubin {cubin}; run run_goldens.sh first", file=sys.stderr)
             names = re.findall(r"\.entry\s+(\w+)", ptx.decode())
         self.kernel_names = set(names)
@@ -101,6 +102,8 @@ class FakeDaemon(d.Daemon):
         dev = handoff_dev()
         cb0 = 88 * 4 + 512
         programs = req.get("programs", True)
+        if not programs and self.kernel_names:
+            raise RuntimeError("compile_all before a C++ runtime handoff: the plugin must load its embedded cubin (plan step C1)")
         progs = [types.SimpleNamespace(name=n, qmd=d.ops_nv.QMD(dev), lcmem_usage=0, max_threads=1024, fill_launch_dims=True,
                                        constbufs={0: (0, cb0)}, kernargs_alloc_size=round_up(cb0, 256) + (8 << 8), cbuf_0=[0] * 88,
                                        _dims_idx=(0, 3)) for n in sorted(self.kernel_names)] if programs else []
@@ -119,12 +122,11 @@ class FakeDaemon(d.Daemon):
         if not programs:
             info.update(compute_class=dev.iface.compute_class, sass_version=0x89, shared_mem_window=0x729400000000,
                         local_mem_window=0x729300000000, num_gpcs=3, num_tpc_per_gpc=4, num_sm_per_tpc=2, max_warps_per_sm=48,
-                        pool_va=VRAM_VA, pool_size=VRAM_SIZE, elf_size=len(self.elf_bytes))
+                        pool_va=VRAM_VA, pool_size=VRAM_SIZE, elf_size=0)
         json.dump(info, open(f"{MEM}/handoff.json", "w"))
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
-        if not programs: self.sock.sendall(self.elf_bytes)
         socket.send_fds(self.sock, [b"F"], fds)
         self.handed_off, self.runtime = True, not programs
     def cmd_alloc(self, req):
