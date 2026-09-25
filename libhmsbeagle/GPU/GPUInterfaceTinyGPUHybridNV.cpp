@@ -207,6 +207,7 @@ struct NVHybridState {
 struct NVKernelHandle {
     std::string name;
     const NVDKernel* tmpl = nullptr;  // C++ dispatch: this kernel's handoff template
+    long long launches = 0;           // launches BEAGLE requested, for BEAGLE_NV_PROFILE's report (plan step D1)
 };
 
 static NVHybridState* g_nv = nullptr;
@@ -987,7 +988,11 @@ void NvFini() {
         g_nvd = nullptr;
     }
     nv_profile_report();
-    for (auto& kv : g_nvKernels) delete kv.second;
+    for (auto& kv : g_nvKernels) {
+        if (nv_profile_enabled() && kv.second->launches)
+            fprintf(stderr, "TinyGPU/NV: [profile]   kernel %s n=%lld\n", kv.first.c_str(), kv.second->launches);
+        delete kv.second;
+    }
     g_nvKernels.clear();
     bool hold = false;
     if (g_nv->cmd_sock >= 0) {
@@ -1022,6 +1027,7 @@ void NvLaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
     if (!g_nv || !fn) return;
     NVKernelHandle* ke = (NVKernelHandle*)fn;
     int nInt = nTotal - nPtr;
+    ++ke->launches;
 
     // Queued, not sent (mirrors AMD's STATUS.md §26 batching) --
     // nvFlushLaunchQueue() sends the whole backlog as one RPC round-trip,

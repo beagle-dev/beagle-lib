@@ -119,17 +119,22 @@ def test_fini_and_eof():
         # EOF with the C++ timeline behind: tinygrad's wait (status-queue drains) until it arrives, then the full teardown
         a, dm, calls, drains, _ = rig(signal=5, advance_to=7); with_page(dm, 0, 7); held, log = run(a, dm)
         assert not held and calls == ["finalize"] and drains[0] >= 2, (calls, drains, log)
-        # EOF with the C++ timeline stuck, or a GSP fault while waiting: the hung path (unload RPC only), hold unless confirmed
-        for kw, fini, want in (({}, CONFIRMED, ["gsp.fini_hw"]), ({}, NOT_CONFIRMED, ["gsp.fini_hw", "hold"]),
-                               ({"fault": True}, CONFIRMED, ["gsp.fini_hw"])):
+        # EOF with the C++ timeline stuck, or a GSP fault while waiting: the hung path (unload RPC only), then a hold even when
+        # the unload is confirmed (a channel stuck on an acquire may still poll the sysmem timeline page: unplug first)
+        for kw, fini in (({}, CONFIRMED), ({}, NOT_CONFIRMED), ({"fault": True}, CONFIRMED)):
             a, dm, calls, _, _ = rig(signal=5, fini=fini, **kw); with_page(dm, 0, 7); held, log = run(a, dm)
-            assert calls == want and held is ("hold" in want) and "the hung path" in log and '"hung": true' in log, (kw, calls, log)
-        # fini{hung}: the plugin already saw its timeline stop, so no wait for it here either; the unload RPC only
+            assert calls == ["gsp.fini_hw", "hold"] and held and "the hung path" in log and '"hung": true' in log, (kw, calls, log)
+        def fini_held(dm):   # the daemon replies, then holds (the stub _hold raises Held)
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err): dm.run()
+            except Held: pass
+            return err.getvalue()
+        # fini{hung}: the plugin already saw its timeline stop, so no wait for it here either; the unload RPC only, then the hold
         a, dm, calls, drains, _ = rig(signal=5); with_page(dm, 0, 7); a.sendall(msg({"cmd": "fini", "hung": True}))
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err): dm.run()
-        a.settimeout(5); r = recv_reply(a)
-        assert calls == ["gsp.fini_hw"] and drains[0] == 0 and r["hung"] and "C++ timeline stuck" not in err.getvalue(), (calls, drains, r)
+        log = fini_held(dm); a.settimeout(5); r = recv_reply(a)
+        assert calls == ["gsp.fini_hw", "hold"] and drains[0] == 0 and r["hung"] and r["hold"] and r["pid"] == os.getpid() \
+            and "C++ timeline stuck" not in log, (calls, drains, r)
         # fini (and fini{hung}) with a frame in flight: the same hold, no device call
         for req in ({"cmd": "fini"}, {"cmd": "fini", "hung": True}):
             a, dm, calls, _, _ = rig(signal=6); with_page(dm, 1, 7)
@@ -141,16 +146,15 @@ def test_fini_and_eof():
             assert calls == ["hold"] and r["hold"] and r["pid"] == os.getpid() and not r["ok"], (req, calls, r)
         # fini after a timeout the daemon saw itself (default mode: tinygrad's error_state): the hung path, no falcon step
         a, dm, calls, _, _ = rig(error_state=RuntimeError("Wait timeout: 30000 ms!")); a.sendall(msg({"cmd": "fini"}))
-        dm.run(); a.settimeout(5); r = recv_reply(a)
-        assert calls == ["gsp.fini_hw"] and r["hung"] and r["unload_ok"], (calls, r)
+        fini_held(dm); a.settimeout(5); r = recv_reply(a)
+        assert calls == ["gsp.fini_hw", "hold"] and r["hung"] and r["unload_ok"] and r["hold"], (calls, r)
         # ... and when that timeout is first seen at fini or at EOF (default mode, no later sync): tinygrad's finalize would
         # swallow it and run the falcon teardown, so the daemon synchronizes first and takes the hung path
         a, dm, calls, _, _ = rig(sync_error=RuntimeError("Wait timeout: 30000 ms!")); a.sendall(msg({"cmd": "fini"}))
-        with contextlib.redirect_stderr(io.StringIO()): dm.run()
-        a.settimeout(5); r = recv_reply(a)
-        assert calls == ["gsp.fini_hw"] and r["hung"] and r["unload_ok"], (calls, r)
+        fini_held(dm); a.settimeout(5); r = recv_reply(a)
+        assert calls == ["gsp.fini_hw", "hold"] and r["hung"] and r["unload_ok"] and r["hold"], (calls, r)
         a, dm, calls, _, _ = rig(sync_error=RuntimeError("Device fault detected")); held, log = run(a, dm)
-        assert not held and calls == ["gsp.fini_hw"] and '"hung": true' in log and "the hung path" in log, (calls, log)
+        assert held and calls == ["gsp.fini_hw", "hold"] and '"hung": true' in log and "the hung path" in log, (calls, log)
         # the plugin gone mid-message: a cut header, or an h2d cut in its payload, is an EOF
         for send in (msg({"cmd": "sync"})[:6], msg({"cmd": "h2d", "addr": 0, "size": 64}) + b"x" * 10):
             a, dm, calls, _, _ = rig(); held, log = run(a, dm, send)
@@ -162,28 +166,35 @@ def test_fini_and_eof():
         assert held and calls == ["finalize", "hold"], calls
     finally: Device._opened_devices = real
     print("fini and EOF: no device -> exit; no page -> finalize; idle -> teardown; frame in flight -> hold with nothing sent "
-          "(fini and fini{hung} too); timeline behind -> tinygrad's wait, then teardown; stuck or faulted -> hung path; "
-          "fini{hung} -> no wait; error_state, set before or first seen at fini/EOF -> hung path; cut messages and lost "
+          "(fini and fini{hung} too); timeline behind -> tinygrad's wait, then teardown; stuck or faulted -> hung path, then "
+          "a hold; fini{hung} -> no wait; error_state, set before or first seen at fini/EOF -> hung path, then a hold; cut "
+          "messages and lost "
           "replies take the same decision, once")
 
 def test_wpr_check():
     """cmd_handoff's WPR check on tinygrad's real allocator: the default pool passes, a pool reaching into GSP-RM's reserved
-    region is refused, FMC-booted chips (Blackwell) are skipped."""
+    region is refused; on FMC-booted chips (Blackwell, plan step B1) the bound is vram_size - 512 MiB."""
     # gspFwRsvdStart as tinygrad's init_wpr_meta (ip.py:447-452) computes it for the 8188 MiB RTX 4060 and 570.144 firmware:
     # 1 MiB below gspFwWprStart 0x1f3b00000, which the GPU raised as WPR2_LO 0x01f3b000 (STATUS.md R17, R18)
     meta = bytes(nv.GspFwWprMeta(gspFwRsvdStart=0x1f3a00000))
-    def dev_impl(pool_mb):
-        pa = TLSFAllocator((8188 - 64 - 2 - 16) * MB, base=(2 + 16) * MB)   # NVMemoryManager's for 8188 MiB (nvdev.py:146, memory.py:190-192)
-        pa.alloc(100 * MB, 0x1000)                                         # allocations made before the pool
+    def dev_impl(pool_mb, vram_mb=8188, fmc_boot=False):
+        pa = TLSFAllocator((vram_mb - 64 - 2 - 16) * MB, base=(2 + 16) * MB)   # NVMemoryManager's (nvdev.py:146, memory.py:190-192)
+        pa.alloc(100 * MB, 0x1000)                                            # allocations made before the pool
         pa.alloc(pool_mb * MB, 0x1000)
-        return types.SimpleNamespace(fmc_boot=False, gsp=types.SimpleNamespace(wpr_meta=meta), mm=types.SimpleNamespace(pa_allocator=pa))
+        return types.SimpleNamespace(fmc_boot=fmc_boot, vram_size=vram_mb * MB, gsp=types.SimpleNamespace(wpr_meta=meta),
+                                     mm=types.SimpleNamespace(pa_allocator=pa))
     end, rsvd = d.check_vram_below_wpr(dev_impl(4094))   # cmd_handoff's default pool, half the VRAM
     assert (end, rsvd) == ((18 + 100 + 4094) * MB, 0x1f3a00000), (hex(end), hex(rsvd))
     try: d.check_vram_below_wpr(dev_impl(7900)); raise AssertionError("a pool reaching into GSP-RM's reserved region was accepted")
     except RuntimeError as e: assert "above gspFwRsvdStart 0x1f3a00000" in str(e), e
-    assert d.check_vram_below_wpr(types.SimpleNamespace(fmc_boot=True)) is None
+    # the RTX 5070 (GB205, 12227 MiB): the default pool passes, a pool ending above vram_size - 512 MiB is refused; the
+    # WPR meta (gspFwRsvdStart 0 there) is not read
+    end5, rsvd5 = d.check_vram_below_wpr(dev_impl(12227 // 2, 12227, fmc_boot=True))
+    assert (end5, rsvd5) == ((18 + 100 + 12227 // 2) * MB, (12227 - 512) * MB), (hex(end5), hex(rsvd5))
+    try: d.check_vram_below_wpr(dev_impl(12227 - 512 - 100 - 18 + 1, 12227, fmc_boot=True)); raise AssertionError("an FMC pool above the bound was accepted")
+    except RuntimeError as e: assert f"above vram_size - 512 MiB {(12227 - 512) * MB:#x}" in str(e), e
     print(f"WPR check: the default pool ends at 0x{end:x} <= gspFwRsvdStart 0x{rsvd:x} and passes; a 7900 MiB pool is refused; "
-          f"FMC-booted chips are skipped")
+          f"on the 12227 MiB GB205 the bound is vram_size - 512 MiB (0x{rsvd5:x}): the default pool passes, 1 MiB over is refused")
 
 def test_handoff_wpr_refusal():
     """The real cmd_handoff: a pool reaching into GSP-RM's reserved region is refused before anything is sent (one error

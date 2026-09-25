@@ -51,8 +51,10 @@ from tinygrad.runtime.autogen import nv_570 as nv_gpu
 # (GPU was previously initialized).  On macOS, a PCIe FLR via USB4 causes
 # a kernel panic.  We override reset() on InheritedFDPCIDevice below and
 # suppress the companion wait_for_reset() which would otherwise block forever.
+# NV_FLCN_COT's wait_for_reset (Blackwell) is not suppressed since plan step B1:
+# it only polls the FSP's readiness (NV_THERM_I2CS_SCRATCH == 0xff), reads only,
+# and the warm refusal (section 4) runs before it (section 6 logs it).
 NV_FLCN.wait_for_reset     = lambda self: None
-NV_FLCN_COT.wait_for_reset = lambda self: None
 
 # 2. Skip VRAM zeroing for large allocations only.
 # MemoryManager.palloc(zero=True) issues a full-size BAR1 write via _bulk_write.
@@ -143,6 +145,9 @@ def _gsp_fini_hw_with_suspend_wait(self):
     # (MAILBOX0 == 0x80000000; 570.144 kernel_gsp_tu102.c:1116-1139, nouveau r535 gsp.c:1772-1779)
     nvdev = self.nvdev
     diag = nvdev.beagle_fini = {"unload_ok": False}
+    # COT (Blackwell): not halted until NV_FLCN_COT.fini_hw's wait proves it (section 6), so any exit before that wait, a raised
+    # read here or the hung path included, leaves halted false and the daemon holds (plan step B1)
+    if getattr(nvdev, "fmc_boot", False): diag["halted"] = False
     _in_unload[0] = True
     # a LEVEL_0 unload (plan step P2) may post RUN_CPU_SEQUENCER, whose op 8 polls BSI right after starting SEC2:
     # the same hang BEAGLE's 20 s sleep avoids during gsp.init_hw (patch 3), so that sleep covers the unload too
@@ -153,7 +158,7 @@ def _gsp_fini_hw_with_suspend_wait(self):
     while (mailbox0 := nvdev.NV_PGSP_FALCON_MAILBOX0.read()) != 0x80000000 and time.monotonic() < deadline: time.sleep(0.01)
     diag.update(mailbox0=mailbox0, wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read(),
                 unload_ok=mailbox0 == 0x80000000)
-    if (cpuctl := nvdev.__dict__.get("NV_PRISCV_RISCV_CPUCTL")) is not None:   # not included on Blackwell (NV_FLCN_COT)
+    if (cpuctl := nvdev.__dict__.get("NV_PRISCV_RISCV_CPUCTL")) is not None:   # on Blackwell since plan step B1 (section 6's include)
         diag["riscv_cpuctl"] = cpuctl.with_base(_GSP_BASE).read()
     _p1log(f"after the unload RPC: GSP MAILBOX0=0x{mailbox0:08x} ({'suspended' if diag['unload_ok'] else 'NOT SUSPENDED'}), "
            f"RISCV_CPUCTL={'0x%08x' % diag['riscv_cpuctl'] if 'riscv_cpuctl' in diag else 'n/a'}, "
@@ -179,7 +184,13 @@ def _seq_ops(seq_buf: bytes) -> list:
     return ops
 
 def _logged_run_cpu_seq(self, seq_buf: bytes):
-    _p1log(f"CPU sequencer ({'during unload' if _in_unload[0] else 'boot'}): ops {_seq_ops(seq_buf)}")
+    _p1log(f"CPU sequencer ({'during unload' if _in_unload[0] else 'boot'}): ops {(ops := _seq_ops(seq_buf))}")
+    # ops 5-8 drive the falcon through NV_FLCN's reset/start_cpu/wait_cpu_halted, which NV_FLCN_COT lacks (ip.py:651-661): tinygrad
+    # would run the ops before them, then raise AttributeError. Refused before the first write instead (plan steps B1, B2)
+    if getattr(self.nvdev, "fmc_boot", False) and (cot := sorted({op for op in ops if op in (0x5, 0x6, 0x7, 0x8)})):
+        self.nvdev.beagle_seq_refused = cot   # it stays at the head of GSP-RM's status queue (unload_after_failed_boot)
+        raise RuntimeError(f"CPU sequencer ops {cot} drive the falcon through NV_FLCN, which the COT boot ({self.nvdev.chip_name}) "
+                           "does not have (plan step B2): refused before any of the sequence ran")
     return _ORIG["run_cpu_seq"](self, seq_buf)
 NV_GSP.run_cpu_seq = _logged_run_cpu_seq
 
@@ -427,10 +438,26 @@ def unload_after_failed_boot():
     Device._opened_devices only once its constructor returns, so nothing would unload it, and closing the TinyGPU.app
     connection could unmap memory the GSP still uses. Sends the unload RPC and waits for the suspend (NV_GSP.fini_hw) and
     returns what it recorded; the caller holds the connection unless unload_ok. None if GSP-RM never started: closing is safe
-    (a failed booter_load leaves it unstarted; the recorded 0x29 failures closed without DART events, STATUS.md R14)."""
+    (a failed booter_load leaves it unstarted; the recorded 0x29 failures closed without DART events, STATUS.md R14).
+    On the COT boot (Blackwell, plan step B1) GSP-RM counts as started from the COT message to the FSP on (section 6); if
+    the boot failed before GSP-RM's status queue existed (gsp.init_hw creates it, ip.py:511), no unload RPC can be answered,
+    so unload_ok is false; otherwise the unload is followed by the halt wait, as NVDev.fini runs it."""
     nvdev = _BOOTING[0]
     if nvdev is None or not getattr(nvdev, "beagle_gsp_started", False): return None
-    try: nvdev.gsp.fini_hw()
+    cot = getattr(nvdev, "fmc_boot", False)
+    if cot and getattr(nvdev.gsp, "stat_q", None) is None:
+        _p1log("unload after the failed boot: the COT message reached the FSP, but GSP-RM's status queue was never set up, "
+               "so no unload RPC can be sent: the GSP may be live")
+        return {"unload_ok": False, "halted": False}
+    if cot and (refused := getattr(nvdev, "beagle_seq_refused", None)):
+        # tinygrad moves the status queue on only after run_cpu_seq returns, so the refused sequencer is still its head and no
+        # unload reply could be read behind it
+        _p1log(f"unload after the failed boot: GSP-RM's refused CPU sequencer (ops {refused}) still heads its status queue, so no "
+               "unload RPC is sent: the GSP may be live")
+        return {"unload_ok": False, "halted": False, "seq_refused": refused}
+    try:
+        nvdev.gsp.fini_hw()
+        if cot: nvdev.flcn.fini_hw()
     except Exception as e: _p1log(f"unload after the failed boot: {type(e).__name__}: {e}")
     return getattr(nvdev, "beagle_fini", {"unload_ok": False})
 
@@ -440,7 +467,120 @@ def _rpc_unloading_guest_driver_level0(self):
     data = _nv.rpc_unloading_guest_driver_v(bInPMTransition=0, bGc6Entering=0, newLevel=0)
     self.cmd_q.send_rpc(_nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER, bytes(data))
     self.stat_q.wait_resp(_nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER)
-if _UNLOAD_LEVEL_0: NV_GSP.rpc_unloading_guest_driver = _rpc_unloading_guest_driver_level0
+if _UNLOAD_LEVEL_0:
+    NV_GSP.rpc_unloading_guest_driver = _rpc_unloading_guest_driver_level0
+    _p1log("BEAGLE_NV_UNLOAD_LEVEL=0: the unload RPC is LEVEL_0 (newLevel 0), not tinygrad's FAST_UNLOAD")
+
+
+# ── 6. Blackwell (TODO.md plan step B1). GB20x boots through NV_FLCN_COT: the FSP starts the FMC, which starts GSP-RM
+# from sysmem (ip.py:285-344), with no booter and no host-run ucode, and NVIDIA's driver unload ends with nothing but a wait
+# for the GSP's RISC-V core to halt (570.144 kgspTeardown_GH100, kernel_gsp_gh100.c:943-952; nouveau gh100_gsp_fini,
+# gh100.c:19-41). Below: that halt wait, the flag that makes a failed COT boot unload and hold, the log of tinygrad's FSP
+# readiness wait, the FSP queue state before the COT message, and the BAR layout check (every chip; it reads nothing).
+# Everything here only reads; no GPU write is added or changed. ─────────────────────────────────────────────────────────
+from tinygrad.runtime.support.nv.ip import NV_IP
+_COT_HALT_TIMEOUT_S = 4.0   # NVIDIA's GPU_TIMEOUT_DEFAULT; nouveau polls 4000 times, 1-2 ms apart
+_REFUSE_FMC_BOOT = [None]   # the script that asked (refuse_fmc_boot)
+_ORIG.update(cot_wait_for_reset=NV_FLCN_COT.wait_for_reset, cot_init_sw=NV_FLCN_COT.init_sw, kfsp_send_msg=NV_FLCN_COT.kfsp_send_msg,
+             early_mmu_init=NVDev._early_mmu_init)
+
+class BarLayoutError(RuntimeError):
+    """BAR1 is not the 256 MiB small BAR BEAGLE's handoff and layout checks assume."""
+
+def refuse_fmc_boot(script: str) -> None:
+    """For the scripts that boot Device['NV:0'] outside the daemon (nv_boot_only_diag.py, nv_teardown_diag.py,
+    nv_real_kernel_probe.py, nv_reference_test.py): they have no hold for a COT boot, so an FMC-booted chip is refused right
+    after tinygrad's own chip-id reads, before any boot memory or FSP access (plan step B1)."""
+    _REFUSE_FMC_BOOT[0] = script
+
+def _cot_init(self, nvdev):
+    if _REFUSE_FMC_BOOT[0] is not None:
+        raise RuntimeError(f"{_REFUSE_FMC_BOOT[0]} does not support {nvdev.chip_name} (COT boot): it has no hold for a Blackwell "
+                           "boot (plan step B1); use BEAGLE's daemon path (tinygpu_tests/run_point.sh). Nothing but tinygrad's "
+                           "chip-id reads and bus-master setup reached the GPU.")
+    NV_IP.__init__(self, nvdev)
+NV_FLCN_COT.__init__ = _cot_init
+
+def _cot_wait_for_reset_logged(self):
+    # tinygrad's own wait (ip.py:285-288; NVIDIA kfspWaitForSecureBoot_GB202): the FSP takes the COT message once
+    # NV_THERM_I2CS_SCRATCH reads 0xff. Reads only; a timeout fails the boot before any FSP or boot-memory access
+    t0 = time.monotonic()
+    try: _ORIG["cot_wait_for_reset"](self)
+    except TimeoutError as e:   # tinygrad's message has only the comparison's result: one more read for the value
+        msg = (f"FSP not ready: NV_THERM_I2CS_SCRATCH=0x{self.nvdev.NV_THERM_I2CS_SCRATCH.read():08x} after "
+               f"{(time.monotonic() - t0) * 1e3:.0f} ms (0xff expected); the boot stopped before any FSP or boot-memory access")
+        _p1log(msg)
+        raise TimeoutError(msg) from e
+    _p1log(f"FSP ready: NV_THERM_I2CS_SCRATCH == 0xff after {(time.monotonic() - t0) * 1e3:.0f} ms")
+NV_FLCN_COT.wait_for_reset = _cot_wait_for_reset_logged
+
+def _cot_init_sw_with_riscv_regs(self):
+    # NV_PRISCV_RISCV_CPUCTL for the halt wait and the unload diagnostics: the include NV_FLCN makes (ip.py:101), made first so
+    # a boot that fails later has it too; none of its registers collide with COT's (test_b1_cot.py). A dict update, no GPU access
+    self.nvdev.include("dev_riscv_pri", "ga102")
+    return _ORIG["cot_init_sw"](self)
+NV_FLCN_COT.init_sw = _cot_init_sw_with_riscv_regs
+
+def _kfsp_send_msg_flagged(self, nvmd: int, buf: bytes):
+    if nvmd == _nv.NVDM_TYPE_COT:
+        nvdev = self.nvdev
+        # NVIDIA sends only once the FSP's command queue is empty (kfspPollForCanSend_GH100); tinygrad does not check, and its
+        # response wait would take a stale message for the reply (ip.py:328-344). Logged for the warm reruns, reads only
+        q = [nvdev.__dict__[f"NV_PFSP_{r}"][0].read() for r in ("QUEUE_HEAD", "QUEUE_TAIL", "MSGQ_HEAD", "MSGQ_TAIL")]
+        _p1log(f"before the COT message: FSP command queue head/tail 0x{q[0]:x}/0x{q[1]:x}, message queue head/tail "
+               f"0x{q[2]:x}/0x{q[3]:x} ({'both empty' if q[0] == q[1] and q[2] == q[3] else 'NOT EMPTY'})")
+        # from the first EMEM write on, the FSP may start the FMC and GSP-RM, which run from sysmem (unload_after_failed_boot)
+        nvdev.beagle_gsp_started = True
+    return _ORIG["kfsp_send_msg"](self, nvmd, buf)
+NV_FLCN_COT.kfsp_send_msg = _kfsp_send_msg_flagged
+
+def _cot_fini_hw_halt_wait(self):
+    """kgspTeardown_GH100 after the GSP unload (NVDev.fini runs gsp.fini_hw first, nvdev.py:88-89): wait up to 4 s for the GSP's
+    RISC-V core to halt, "to allow ACR and GSP FMC to finish shutdown" (kflcnWaitForHaltRiscv polls NV_PRISCV_RISCV_CPUCTL.HALTED,
+    570.144 kernel_falcon_ga102.c:275-289). Until it halts, the FMC and the ACR may still use the boot structures in sysmem, so
+    the daemon closes the TinyGPU.app connection only once `halted` is true, and holds otherwise. Reads only. Runs whatever
+    BEAGLE_NV_TEARDOWN says: on this chip it is the unload's own last step, not an added teardown."""
+    nvdev = self.nvdev
+    diag = getattr(nvdev, "beagle_fini", None)
+    if diag is None: return   # no unload was attempted
+    td, diag["halted"] = diag.setdefault("teardown", {}), False
+    if not diag.get("unload_ok"):
+        td["result"] = "skipped: the GSP did not confirm its unload, so its RISC-V core is not polled"
+        _p1log(f"teardown {td['result']}")
+        return
+    cpuctl, t0, polls = nvdev.NV_PRISCV_RISCV_CPUCTL.with_base(_GSP_BASE), time.monotonic(), 0
+    while True:
+        val = cpuctl.read(); polls += 1
+        # a PRI error (0xbadfxxxx) and an unreachable GPU (0xffffffff) can look halted: neither is taken for a halt (stricter
+        # than NVIDIA); the poll goes on, so a glitch before a real halt still ends halted
+        if (halted := val != 0xffffffff and val >> 16 != 0xbadf and cpuctl.decode(val)["halted"] == 1) \
+           or time.monotonic() - t0 >= _COT_HALT_TIMEOUT_S: break
+        time.sleep(0.001)
+    ms = (time.monotonic() - t0) * 1e3
+    diag.update(riscv_cpuctl=val, halted=halted, mailbox0_after_halt=nvdev.NV_PGSP_FALCON_MAILBOX0.read(),
+                wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read())
+    diag["wpr2_down"] = diag["wpr2_hi"] == 0
+    td.update(halt_wait_ms=round(ms), polls=polls,
+              result=f"done: GSP RISC-V halted after {ms:.0f} ms" if halted else
+                     f"failed: GSP RISC-V did not halt within {_COT_HALT_TIMEOUT_S:.0f} s (RISCV_CPUCTL=0x{val:08x})")
+    diag["teardown_ok"] = halted and diag["wpr2_down"]
+    _p1log(f"teardown {td['result']} ({polls} polls); MAILBOX0=0x{diag['mailbox0_after_halt']:08x}, WPR2_LO=0x{diag['wpr2_lo']:08x}, "
+           f"WPR2_HI=0x{diag['wpr2_hi']:08x}: {'the next boot needs no power cycle' if diag['teardown_ok'] else 'power-cycle before the next boot'}"
+           f"{'' if halted else '; the GSP may still be live, so the connection is held'}")
+NV_FLCN_COT.fini_hw = _cot_fini_hw_halt_wait
+
+def _early_mmu_init_with_bar_check(self):
+    _ORIG["early_mmu_init"](self)
+    # BEAGLE's handoff (sysmem fds for tinygrad's cpu_access buffers) and its layout checks assume tinygrad's small-BAR branch:
+    # BAR1 exactly 256 MiB (PCIIfaceBase.is_bar_small, system.py:257) and smaller than VRAM (large_bar false, nvdev.py:134,
+    # whose branch hands the GPU BAR1 addresses for boot memory, nvdev.py:155-157). Both are known by now (bar_info is cached),
+    # so this reads nothing; it runs before any sysmem or falcon memory is allocated (flcn.init_sw), after tinygrad's MMU init
+    # has zeroed its 4 KiB root page table through BAR1, as every boot does
+    if self.vram.nbytes != 256 << 20 or self.large_bar:
+        raise BarLayoutError(f"BAR1 is {self.vram.nbytes >> 20} MiB with {self.vram_size >> 20} MiB of VRAM (large_bar={self.large_bar}): "
+                             "BEAGLE supports only a 256 MiB BAR1 smaller than VRAM (plan step B1). Nothing but tinygrad's 4 KiB root page table "
+                             "reached VRAM; no sysmem or firmware was set up.")
+NVDev._early_mmu_init = _early_mmu_init_with_bar_check
 
 
 # ─────────────────────────────────────────────────────────────────────────────

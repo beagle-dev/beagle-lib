@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 print("nv_boot_only_diag: importing nv_init_helper (safety monkey-patches only, "
       "main() is not invoked by import)...", flush=True)
 import nv_init_helper  # noqa: F401 -- same as nv_real_kernel_probe.py's own preamble
+nv_init_helper.refuse_fmc_boot("nv_boot_only_diag.py")   # no hold for a Blackwell (COT) boot here: refused before boot memory (plan step B1)
 
 from tinygrad.runtime.support.system import APLRemotePCIDevice
 def _safe_reset(self):

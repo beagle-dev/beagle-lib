@@ -73,6 +73,7 @@ def main():
     # unmodified -- importing it (without calling main()) applies them and
     # nothing else; see its own header comment for why each is needed.
     import nv_init_helper  # noqa: F401  (imported for its patch side effects)
+    nv_init_helper.refuse_fmc_boot("nv_reference_test.py")   # no hold for a Blackwell (COT) boot here: refused before boot memory (plan step B1)
     log("nv_init_helper patches applied")
 
     # nv_init_helper.py only overrides .reset() on its own InheritedFDPCIDevice

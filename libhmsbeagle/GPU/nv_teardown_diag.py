@@ -32,6 +32,7 @@ sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import nv_init_helper  # noqa: F401 -- boot patches, P1 checks, P2 teardown
+nv_init_helper.refuse_fmc_boot("nv_teardown_diag.py")   # no hold for a Blackwell (COT) boot here: refused before boot memory (plan step B1)
 
 from tinygrad.runtime.support.system import APLRemotePCIDevice
 def _safe_reset(self):

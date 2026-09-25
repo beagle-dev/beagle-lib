@@ -153,8 +153,10 @@ int main( int argc, const char* argv[] )
 
     bool doJC = true;
 
-    bool singlePrecision = false;
-    bool useSSE = true;
+    // --tinygpu as the last argument: the TinyGPU resource's flags, single precision with no SSE and no threads (TODO.md plan step D1)
+    bool tinygpu = argc > 1 && strcmp(argv[argc - 1], "--tinygpu") == 0;
+    bool singlePrecision = tinygpu;
+    bool useSSE = !tinygpu;
 
     // is nucleotides...
     int stateCount = 4;
@@ -207,7 +209,7 @@ int main( int argc, const char* argv[] )
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
 
-    int threadCount = 4;
+    int threadCount = tinygpu ? 1 : 4;
     if (threadCount > 1) {
         requirementFlags |= BEAGLE_FLAG_THREADING_CPP;
     }

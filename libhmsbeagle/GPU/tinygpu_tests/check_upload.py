@@ -16,10 +16,11 @@ if (got := re.search(r"C\+\+ runtime: embedded cubin SP_(\d+) (sm_\d+)", out).gr
     print(f"the plugin loaded SP_{got[0]} {got[1]}, not SP_{states} {arch}"); sys.exit(1)
 size, lib_va = (int(x, 0) for x in re.search(r"C\+\+ runtime: \d+ kernels loaded \(image (\d+) bytes at (0x[0-9a-f]+)", out).groups())
 images = []   # the fake device's allocator puts the image at the plugin's lib_va and keeps the relocated bytes
-dev = types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=d.ops_nv.nv_gpu.ADA_COMPUTE_A), renderer=object(),
+bw = arch == "sm_120"   # a GB205 (plan step B1): Blackwell's compute class and sass version, as fake_nv_daemon's FAKE_NV_CHIP=gb205
+dev = types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=d.ops_nv.nv_gpu.BLACKWELL_COMPUTE_B if bw else d.ops_nv.nv_gpu.ADA_COMPUTE_A), renderer=object(),
                             allocator=types.SimpleNamespace(alloc=lambda size, spec=None: types.SimpleNamespace(va_addr=lib_va, size=size),
                                                             _copyin=lambda buf, mv: images.append(bytes(mv)), free=lambda *a: None),
-                            slm_per_thread=0x10000, shared_mem_window=0x729400000000, local_mem_window=0x729300000000, sass_version=0x89,
+                            slm_per_thread=0x10000, shared_mem_window=0x729400000000, local_mem_window=0x729300000000, sass_version=0xa4 if bw else 0x89,
                             prof_prg_counter=itertools.count(), _ensure_has_local_memory=lambda required: None, synchronize=lambda: None)
 elf = tgpaths.cubin(f"SP_{states}", arch)
 d.BeagleNVProgram(dev, TinyELF(lib=elf, name=sorted(nch.extract_all_metadata(elf)[1])[0], target=Target(), signature=()))

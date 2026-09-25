@@ -346,8 +346,9 @@ def test_hung_fini():
         def confirmed(di): di.beagle_fini = {"unload_ok": True, "mailbox0": 0x80000000}
         dm, a, calls = rig(confirmed)
         r = daemon_reply(dm, a, {"hung": True})
-        assert calls == ["gsp.fini_hw"] and r["hung"] and r["unload_ok"] and not r.get("hold") and "NV" not in Device._opened_devices, (calls, r)
-        print("hung fini: the unload RPC only (no synchronize, no falcon teardown), no hold once the GSP confirms")
+        assert calls == ["gsp.fini_hw", "hold"] and r["hung"] and r["unload_ok"] and r.get("hold") and "NV" not in Device._opened_devices, (calls, r)
+        print("hung fini: the unload RPC only (no synchronize, no falcon teardown), then a hold even once the GSP confirms "
+              "(a stuck channel may still poll sysmem)")
         def rpc_fails(di): di.beagle_fini = {"unload_ok": False}; raise RuntimeError("Timeout waiting for RPC response")
         dm, a, calls = rig(rpc_fails)
         with contextlib.redirect_stderr(io.StringIO()): r = daemon_reply(dm, a, {"hung": True})

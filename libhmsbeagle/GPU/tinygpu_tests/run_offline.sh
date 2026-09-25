@@ -1,11 +1,13 @@
 #!/bin/bash
 # Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
 # against the fakes in the three NV modes at 4 and 64 states (plus the C++ runtime's uploaded image and its refusal of a GPU
-# no embedded cubin serves), then the hung path, the teardown default and run_point.sh's
+# no embedded cubin serves; each plan step D1 run with its kernels; a GB205 in the C++ runtime and its COT unload, plan step
+# B1), then the hung path, the teardown default and run_point.sh's
 # stop rule, an interrupted run, then the no-launch guard (nothing listening => the plugin errors out and no TinyGPU.app is
-# spawned). Build hmsbeagle-tinygpu-hybrid and tinygpuhybridtest first.
+# spawned). Build hmsbeagle-tinygpu-hybrid, tinygpuhybridtest, synthetictest and hmctest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
+unset FAKE_TEST_BIN       # every run below is tinygpuhybridtest's unless it names another binary itself
 results=()
 "$TG_TESTS/run_goldens.sh"; results+=("goldens: $([ $? -eq 0 ] && echo PASS || echo FAIL)")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
@@ -39,13 +41,53 @@ else
     results+=("fake refuse: FAIL (see $out)")
 fi
 
+# plan step D1: every d1_runs.txt line in the C++ runtime, launching exactly the kernels the line lists (d1_verdict): the set
+# its hardware run must launch, since which kernels run depends only on the arguments. (The fake VRAM is not kept.)
+while IFS='|' read -r label cmd kernels; do
+    set -- $cmd; bin=$1; shift
+    FAKE_TEST_BIN="$BEAGLE_BUILD/examples/$bin" "$TG_TESTS/run_fake_runtime.sh" d1_$label BEAGLE_NV_USE_DAEMON=0 -- "$@" \
+        > "$TINYGPU_TEST_WORK/fake_d1_$label.summary" 2>&1 < /dev/null
+    rc=$?; out="$TINYGPU_TEST_WORK/run_fake_d1_$label.txt"; rm -rf "$TINYGPU_TEST_WORK/fake_mem_d1_$label"
+    # run_d1.sh stops the session on a failed program or a bad fini report, so the fakes must pass both too
+    if why=$(d1_verdict "$out" "$out" "$kernels") && [ $rc -eq 0 ] && grep -q " exit=0 " "$TINYGPU_TEST_WORK/fake_d1_$label.summary" \
+       && fini_verdict "$out"; then results+=("fake d1 $label: PASS")
+    else results+=("fake d1 $label: FAIL (${why:-see $TINYGPU_TEST_WORK/fake_d1_$label.summary})"); fi
+done < <(grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt")
+
+# plan step B1: an RTX 5070 (GB205, the COT boot; FAKE_NV_CHIP=gb205) in the C++ runtime at 4 and 64 states: the embedded
+# sm_120 cubin on QMD v5, checked by tinygrad's v5 reader, the uploaded image, and nv_init_helper's COT unload report (the
+# suspend, then the RISC-V halt), which fini_verdict accepts; then a RISC-V core that never halts: the daemon holds, the
+# plugin says so, and the verdict fails (the fake daemon's hold exits, so no daemon is left behind)
+for states in 4 64; do
+    FAKE_NV_CHIP=gb205 "$TG_TESTS/run_fake_runtime.sh" gb205_$states BEAGLE_NV_USE_DAEMON=0 -- --state-count $states --reps 5 \
+        > "$TINYGPU_TEST_WORK/fake_gb205_$states.summary" 2>&1
+    rc=$?; out="$TINYGPU_TEST_WORK/run_fake_gb205_$states.txt"
+    "$BEAGLE_PYTHON" "$TG_TESTS/check_upload.py" "$out" "$TINYGPU_TEST_WORK/fake_mem_gb205_$states" $states sm_120 \
+        > "$TINYGPU_TEST_WORK/check_upload_gb205_$states.log" 2>&1; up=$?
+    if [ $rc -eq 0 ] && [ $up -eq 0 ] && grep -q "TinyGPU: device 0 PCI id = 10de:2f04" "$out" \
+       && grep -q "C++ runtime: handed over after boot (QMD v5," "$out" && grep -q "TinyGPU/NV: teardown: done: GSP RISC-V halted" "$out" \
+       && grep -qE " [1-9][0-9]* constant buffers checked" "$TINYGPU_TEST_WORK/fake_server_gb205_$states.log" && fini_verdict "$out"; then
+        results+=("fake gb205 $states: PASS")
+    else results+=("fake gb205 $states: FAIL (see $TINYGPU_TEST_WORK/fake_gb205_$states.summary, check_upload_gb205_$states.log)"); fi
+done
+before=$(pgrep -f "fake_nv_daemon.py" | wc -l)
+FAKE_NV_CHIP=gb205 FAKE_NV_NO_HALT=1 "$TG_TESTS/run_fake_runtime.sh" gb205_nohalt BEAGLE_NV_USE_DAEMON=0 -- --reps 1 \
+    > "$TINYGPU_TEST_WORK/fake_gb205_nohalt.summary" 2>&1
+sleep 0.5; after=$(pgrep -f "fake_nv_daemon.py" | wc -l)
+out="$TINYGPU_TEST_WORK/run_fake_gb205_nohalt.txt"
+if grep -q "TinyGPU/NV: teardown: failed: GSP RISC-V did not halt within 4 s" "$out" && grep -q "keeps the TinyGPU.app connection open" "$out" \
+   && ! fini_verdict "$out" && [ "$after" -le "$before" ]; then results+=("fake gb205 no halt: PASS")
+else results+=("fake gb205 no halt: FAIL (see $out)"); fi
+
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames
 # before the one being submitted, not for that one (which never completes: a false hung GPU)
 "$TG_TESTS/run_fake_runtime.sh" wrap BEAGLE_NV_USE_DAEMON=0 -- --reps 10000 > "$TINYGPU_TEST_WORK/fake_wrap.summary" 2>&1
 results+=("fake wrap: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/fake_wrap.summary)")")
 
 # hung path (plan step P2): the fake GPU never writes a semaphore release, so the C++ runtime's 30 s timeline wait times
-# out during setup; the plugin must send fini{hung} to the daemon, print its unload report, and leave no daemon behind
+# out during setup; the plugin must send fini{hung} to the daemon and print its unload report, and the daemon must hold
+# after the hang even with the unload confirmed (plan step D1's review; the fake daemon's hold exits instead of sleeping, so
+# no daemon is left behind)
 before=$(pgrep -f "fake_nv_daemon.py" | wc -l)
 FAKE_NV_HANG=1 FAKE_RUN_TIMEOUT=120 "$TG_TESTS/run_fake_runtime.sh" hung BEAGLE_NV_USE_DAEMON=0 -- --reps 1 \
     > "$TINYGPU_TEST_WORK/fake_hung.summary" 2>&1
@@ -54,7 +96,7 @@ after=$(pgrep -f "fake_nv_daemon.py" | wc -l)
 out="$TINYGPU_TEST_WORK/run_fake_hung.txt"
 if grep -q "timeline wait timed out" "$out" && grep -q "GPU teardown: unload confirmed" "$out" \
    && grep -qE "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted [1-9][0-9]*, C\+\+ timeline signal 0" "$out" \
-   && ! grep -q "keeps the TinyGPU.app connection open" "$out" && [ "$after" -le "$before" ]; then
+   && grep -q "keeps the TinyGPU.app connection open" "$out" && [ "$after" -le "$before" ]; then
     results+=("fake hung: PASS")
 else
     results+=("fake hung: FAIL (see $out)")

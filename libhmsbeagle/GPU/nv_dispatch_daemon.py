@@ -445,19 +445,25 @@ def check_vram_below_wpr(dev_impl):
     pool included, must end at or below GspFwWprMeta.gspFwRsvdStart, where GSP-RM's reserved region starts (ip.py:448-452).
     tinygrad's PA allocator reaches vram_size - 64 MiB (nvdev.py:146, memory.py:190-192), about 130 MiB into that region
     on the 8188 MiB RTX 4060. The WPR meta is host memory on a small-BAR card (nvdev.py:151-153), so this reads nothing
-    from the GPU. Returns (end, gspFwRsvdStart), or None on FMC-booted chips (Blackwell), where tinygrad leaves
-    gspFwRsvdStart 0 (ip.py:444-446)."""
-    if dev_impl.fmc_boot:
-        return None
+    from the GPU. Returns (end, gspFwRsvdStart). On FMC-booted chips (Blackwell) tinygrad leaves gspFwRsvdStart 0 and the
+    FMC places the reserved region itself (ip.py:444-446: its heaps and reservations total about 162 MiB plus the GSP image,
+    below the end of VRAM), so the bound is a static vram_size - 512 MiB there, about twice that (plan step B1)."""
     import ctypes
     from tinygrad.runtime.autogen import nv
-    rsvd = nv.GspFwWprMeta.from_buffer_copy(bytes(dev_impl.gsp.wpr_meta[:ctypes.sizeof(nv.GspFwWprMeta)])).gspFwRsvdStart
+    if dev_impl.fmc_boot:
+        rsvd = dev_impl.vram_size - (512 << 20)
+    else:
+        rsvd = nv.GspFwWprMeta.from_buffer_copy(bytes(dev_impl.gsp.wpr_meta[:ctypes.sizeof(nv.GspFwWprMeta)])).gspFwRsvdStart
     pa = dev_impl.mm.pa_allocator
     end = max((pa.base + start + size for start, (size, _, _, free) in pa.blocks.items() if not free), default=0)
     if end > rsvd:
-        raise RuntimeError(f"VRAM allocations end at {end:#x}, above gspFwRsvdStart {rsvd:#x}, where GSP-RM's reserved region "
-                           f"starts (C++ runtime: lower BEAGLE_NV_DATA_MB)")
+        raise RuntimeError(f"VRAM allocations end at {end:#x}, above {_wpr_bound_name(dev_impl)} {rsvd:#x}, where GSP-RM's reserved "
+                           f"region starts (C++ runtime: lower BEAGLE_NV_DATA_MB)")
     return end, rsvd
+
+
+def _wpr_bound_name(dev_impl):
+    return "vram_size - 512 MiB" if dev_impl.fmc_boot else "gspFwRsvdStart"
 
 
 # The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): three u64 words
@@ -529,11 +535,13 @@ class Daemon:
                 # failed after booter_load started GSP-RM: unload it, and close only once it confirms the suspend (plan step P2)
                 import nv_init_helper
                 fini = nv_init_helper.unload_after_failed_boot()
-                if fini is None: raise
+                # GSP-RM never started, so closing is safe; the error names each cause, which tinygrad's ExceptionGroup text
+                # hides (the plugin prints it: e.g. nv_init_helper's BAR refusal or the FSP readiness timeout, plan step B1)
+                if fini is None: raise RuntimeError(_boot_error_text(e)) from e
                 import traceback
                 traceback.print_exc(file=sys.stderr)
-                reply = {**fini, "ok": False, "error": f"boot failed after GSP-RM started: {e}"}
-                if not reply.get("unload_ok"):
+                reply = {**fini, "ok": False, "error": f"boot failed after GSP-RM started: {_boot_error_text(e)}"}
+                if not reply.get("unload_ok") or reply.get("halted") is False:   # Blackwell: the RISC-V core never halted (plan step B1)
                     reply.update(hold=True, pid=os.getpid())
                 self._reply_and_hold(reply)
                 return
@@ -628,7 +636,7 @@ class Daemon:
                         max_warps_per_sm=dev.max_warps_per_sm, pool_va=self._pool.va_addr, pool_size=self._pool.size,
                         elf_size=0)   # no ELF follows (plan step C1); a pre-C1 plugin reads 0 bytes and refuses them, still framed
         if (wpr := check_vram_below_wpr(dev.iface.dev_impl)) is not None:   # raises before anything is sent: C++ gets no fds
-            log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= gspFwRsvdStart {wpr[1]:#x}")
+            log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= {_wpr_bound_name(dev.iface.dev_impl)} {wpr[1]:#x}")
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
@@ -791,7 +799,11 @@ class Daemon:
             finally:
                 for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
                     Device._opened_devices.discard(name)   # atexit must not run NVDev.fini a second time
-            if not reply.get("unload_ok"):
+            # after a hang, hold even with the unload confirmed (plan step D1's review): a channel stuck on a semaphore acquire
+            # may still be polling the sysmem timeline page, which closing the connection would unmap (unplug first, then kill)
+            # on Blackwell also until the GSP's RISC-V core halted (nv_init_helper section 6; plan step B1): before that the FMC
+            # and the ACR may still use the boot structures in sysmem
+            if not reply.get("unload_ok") or reply.get("hung") or reply.get("halted") is False:
                 reply.update(hold=True, pid=os.getpid())
             else:
                 self.dev = None   # torn down: a later EOF (the plugin gone before reading this reply) must not tear down again
@@ -850,6 +862,16 @@ class Daemon:
 def _warm_error_type():
     import nv_init_helper
     return nv_init_helper.WarmGPUError
+
+
+def _boot_error_text(e):
+    """e's text, followed for (nested) exception groups by each leaf exception's type and message."""
+    leaves = []
+    def walk(x):
+        if getattr(x, "exceptions", None): [walk(s) for s in x.exceptions]
+        else: leaves.append(f"{type(x).__name__}: {x}")
+    walk(e)
+    return str(e) if leaves == [f"{type(e).__name__}: {e}"] else f"{e}: " + "; ".join(leaves)
 
 
 def _find_exception(e, typ):

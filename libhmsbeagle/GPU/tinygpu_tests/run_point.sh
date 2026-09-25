@@ -20,26 +20,24 @@ esac
 # anchored at the end of the command line, so a shell or editor that merely mentions either script does not match
 DAEMON_RE="nv_dispatch_daemon\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$"
 pgrep -f "$DAEMON_RE" > /dev/null && { echo "an nv_dispatch_daemon or nv_teardown_diag is still running (it may hold the GPU); not running"; exit 2; }
+hw_begin
 for i in $(seq 1 30); do [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -gt 0 ] && break; sleep 2; done
 if [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -eq 0 ]; then echo "eGPU not enumerated; not running"; exit 2; fi
 RUNS="$BEAGLE_TINYGPU_DATA/runs"; mkdir -p "$RUNS"
-STAMP=$(date +%Y%m%d-%H%M%S); OUT="$RUNS/${STAMP}_N${N}_${MODE}.txt"; LS="$RUNS/${STAMP}_N${N}_${MODE}_logstream.txt"
-# the filter of every hardware run so far (STATUS.md R17, R18): with nothing from the eGPU it prints only its header
-log stream --predicate 'composedMessage CONTAINS[c] "DART" OR composedMessage CONTAINS[c] "apciec" OR process CONTAINS[c] "tinygpu" OR composedMessage CONTAINS[c] "panic"' > "$LS" 2>&1 &
-LSP=$!; trap 'kill $LSP 2>/dev/null' EXIT
-for i in $(seq 50); do grep -q "^Filtering the log data" "$LS" && break; sleep 0.1; done
-grep -q "^Filtering the log data" "$LS" || { echo "log stream did not attach; not running"; exit 2; }
+STAMP=$(date +%Y%m%d-%H%M%S)_$HW_HOST; OUT="$RUNS/${STAMP}_N${N}_${MODE}.txt"; LS="$RUNS/${STAMP}_N${N}_${MODE}_logstream.txt"
+hw_logstream "$LS"
 cd "$REPO"
 env $MODE_ENV BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" \
     "$TEST_BIN" --state-count "$N" --reps "$REPS" --diag-compare-cpu $POISON > "$OUT" 2>&1
 rc=$?
 for i in $(seq 60); do pgrep -f "$DAEMON_RE" > /dev/null || break; sleep 1; done   # it exits after fini, or decides at EOF
-sleep 2; kill $LSP 2>/dev/null   # let log stream flush
+hw_logstream_stop; ls_ok=$?
 cp ~/Library/Logs/nv_dispatch_daemon.log "$RUNS/${STAMP}_N${N}_${MODE}_daemon.log" 2>/dev/null
 echo "N=$N mode=$MODE $POISON exit=$rc output=$OUT"
 grep -E "C\+\+ dispatch:|C\+\+ runtime:|load_programs|\] +(launch_batch|h2d|d2h) |launches in|maxAbsDiff|First mismatching|CPU-reference logL|per evaluation|repeats|^PASS|^FAIL|timed out|failed|rror" "$OUT" | grep -v "^  \[" | head -30
 grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app|fini round trip" "$OUT"
-if pid=$(pgrep -f "$DAEMON_RE"); then echo "STOP: pid $pid (nv_dispatch_daemon or nv_teardown_diag) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"; exit 1; fi
+hw_hold_check || exit 1
+[ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
 # eGPU events: every line but the filter's header, the column header log stream prints before its first event, and the
 # Apple Neural Engine's and camera's own buffer messages, which match "DART" (dartMapBase) and have nothing to do with the eGPU
 EVENTS=$(grep -cvE "^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE0:|H13Cam" "$LS")

@@ -596,6 +596,7 @@ def main():
 
     log(f"starting -- batch={batch} realloc={realloc} logl={logl} logl_sweep={logl_sweep} chain_sweep={chain_sweep} sync_each={sync_each} downstream_sweep={downstream_sweep} sweep={sweep} wide_grid={wide_grid} maxrregcount={maxrregcount} dims_probe={dims_probe} macros={macros}")
     import nv_init_helper  # noqa: F401 -- GSP/RM boot safety patches (module-level side effects)
+    nv_init_helper.refuse_fmc_boot("nv_real_kernel_probe.py")   # no hold for a Blackwell (COT) boot here: refused before boot memory (plan step B1)
     from tinygrad.runtime.support.system import APLRemotePCIDevice
     def _safe_reset(self):
         log("PCIe FLR suppressed (macOS eGPU safety)")

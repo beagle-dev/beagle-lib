@@ -8,7 +8,10 @@ file-backed "VRAM" there too. For the C++ runtime (handoff with "programs": fals
 the plugin loads its embedded cubin, plan step C1) it hands over no programs, only the runtime keys of
 an RTX 4060-like device and the file-backed VRAM as the pool, and it refuses a compile_all before that
 handoff. FAKE_NV_ARCH sets the boot reply's arch (default sm_89), for refusal runs only: the runtime
-keys stay Ada's."""
+keys stay Ada's. FAKE_NV_CHIP=gb205 plays an RTX 5070 instead (plan step B1): arch sm_120, Blackwell's compute class (QMD
+v5), the runtime keys and work-submit tokens tinygrad reports for it, and a COT unload whose report comes from
+nv_init_helper's real wrappers over scripted registers (the suspend, then the RISC-V halt; with FAKE_NV_NO_HALT=1 the core
+never halts, so the daemon holds)."""
 import os, sys, re, json, socket, types, mmap, ctypes
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -22,6 +25,7 @@ MEM = os.environ.get("FAKE_NV_MEM", "")
 BUFS = (("cmdq", 0x10_1000_0000, 2 << 20), ("kargs", 0x10_2000_0000, 16 << 20),
         ("staging", 0x10_4000_0000, 16 << 20), ("signal", 0x10_3000_0000, 0x4000))
 VRAM_VA, VRAM_SIZE = 0x20_0000_0000, 1 << 30
+GB205 = os.environ.get("FAKE_NV_CHIP", "") == "gb205"
 
 class FakeQueue:
     def wait(self, sig, val): return self
@@ -45,6 +49,32 @@ class FakeAllocator:
 
 UNLOAD_DIAG = {"unload_ok": True, "mailbox0": 0x80000000, "riscv_cpuctl": 0, "wpr2_lo": 0x1ff00, "wpr2_hi": 0x1ff10}  # suspended, WPR2 still up
 
+def cot_unload(halt_wait):
+    """What nv_init_helper reports after a GB205's unload RPC (the RPC itself is a no-op here): its suspend wait, then, unless
+    this is the hung path, NV_FLCN_COT's halt wait, over registers that read suspended, then halted after two polls (never
+    with FAKE_NV_NO_HALT=1), with WPR2 down. Any register write fails the run."""
+    import nv_init_helper as h
+    from tinygrad.runtime.support.nv.nvdev import NVDev
+    from tinygrad.runtime.support.nv.ip import NV_GSP, NV_FLCN_COT
+    halts = os.environ.get("FAKE_NV_NO_HALT", "0") in ("", "0")
+    class Regs:
+        polls = 0
+        def __getitem__(self, i):
+            if i * 4 == 0x110040: return 0x80000000                                          # GSP MAILBOX0: suspended
+            if i * 4 == 0x111388: Regs.polls += 1; return 0x10 if halts and Regs.polls > 2 else 0   # RISCV_CPUCTL.HALTED
+            return 0                                                                           # WPR2_LO/HI: down
+        def __setitem__(self, i, v): raise RuntimeError(f"fake GB205: register write 0x{v:x} to 0x{i * 4:x} during the unload")
+    nvdev = NVDev.__new__(NVDev)
+    nvdev.mmio, nvdev.chip_name, nvdev.fmc_boot = Regs(), "GB205", True
+    for name, arch in (("dev_riscv_pri", "ga102"), ("nv_ref", ""), ("dev_fb", "tu102"), ("dev_gsp", "ga102"), ("dev_falcon_v4", "gh100")):
+        nvdev.include(name, arch)   # the registers these reads use, as a GB205 boot includes them
+    h._ORIG["gsp_fini_hw"] = lambda self: None
+    gsp, flcn = NV_GSP.__new__(NV_GSP), NV_FLCN_COT.__new__(NV_FLCN_COT)
+    gsp.nvdev = flcn.nvdev = nvdev
+    gsp.fini_hw()
+    if halt_wait: flcn.fini_hw()
+    return nvdev.beagle_fini
+
 class FakeDev:
     def __init__(self):
         self.allocator, self.timeline_signal, self.timeline_value = FakeAllocator(), object(), 1
@@ -52,9 +82,11 @@ class FakeDev:
         self.iface.dev_impl.gsp = types.SimpleNamespace(fini_hw=self._gsp_fini_hw)
     def _gsp_fini_hw(self):   # a hung fini's unload RPC only: a clean GSP unload, no teardown
         open(f"{MEM}/fini", "w").close()   # from here on the fake GPU flags any TinyGPU.app traffic (plan step P3)
-        self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
+        self.iface.dev_impl.beagle_fini = cot_unload(halt_wait=False) if GB205 else dict(UNLOAD_DIAG)
     def finalize(self):   # a clean GSP unload (nv_init_helper's report); unless BEAGLE_NV_TEARDOWN=0 also a successful teardown
         open(f"{MEM}/fini", "w").close()
+        if GB205:   # NVDev.fini on COT: the unload RPC, the suspend wait, the halt wait, whatever BEAGLE_NV_TEARDOWN says
+            self.iface.dev_impl.beagle_fini = cot_unload(halt_wait=True); return
         self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
         if os.environ.get("BEAGLE_NV_TEARDOWN", "1") != "0":
             self.iface.dev_impl.beagle_fini.update(teardown={"result": "done: Booter Unload lowered WPR2", "booter_mailbox0": 0},
@@ -69,21 +101,23 @@ class FakePrg:
     def fill_kernargs(self, bufs, vals): return None
     def __call__(self, *bufs, **kw): pass
 
-def handoff_dev():  # an Ada device as build_handoff sees it; the fake server reads the same numbers back
+def handoff_dev():  # an Ada (or, FAKE_NV_CHIP=gb205, a GB205) device as build_handoff sees it; the fake server reads the same numbers back
     fifo = lambda off, token: types.SimpleNamespace(ring=types.SimpleNamespace(residx=1, off=off), entries_count=0x10000, token=token,
                                                     gpput=types.SimpleNamespace(residx=1, off=off + 0x8008c), put_value=5)
-    return types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=d.ops_nv.nv_gpu.ADA_COMPUTE_A), slm_per_thread=0x800,
-                                 compute_gpfifo=fifo(0x100000, 0x11), dma_gpfifo=fifo(0x200000, 0x22),
+    cls, gb2 = (d.ops_nv.nv_gpu.BLACKWELL_COMPUTE_B, 1 << 30) if GB205 else (d.ops_nv.nv_gpu.ADA_COMPUTE_A, 0)   # GB2 tokens: ip.py:590-591
+    return types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=cls), slm_per_thread=0x800,
+                                 compute_gpfifo=fifo(0x100000, gb2 | 0x11), dma_gpfifo=fifo(0x200000, gb2 | 0x22),
                                  gpu_mmio=types.SimpleNamespace(residx=0, off=0xbb0000))
 
 class FakeDaemon(d.Daemon):
     def _hold(self):   # the real daemon sleeps until it is killed; a fake GPU never needs that, so fail loudly instead
-        print("fake_nv_daemon: HOLD requested (the fake GPU did not confirm its unload); exiting 3", file=sys.stderr, flush=True)
+        print("fake_nv_daemon: HOLD requested (the fake GPU did not confirm its unload, or its RISC-V core did not halt); exiting 3",
+              file=sys.stderr, flush=True)
         os._exit(3)
     def cmd_boot(self, req):
         self.dev = FakeDev()
         self.vram_next = 0
-        self.send_json({"ok": True, "arch": os.environ.get("FAKE_NV_ARCH", "sm_89")})
+        self.send_json({"ok": True, "arch": os.environ.get("FAKE_NV_ARCH", "sm_120" if GB205 else "sm_89")})
     def cmd_compile_all(self, req):
         ptx = open(req["ptx_path"], "rb").read()
         cubin = tgpaths.cubin_path(ptx, "sm_89")
@@ -120,8 +154,10 @@ class FakeDaemon(d.Daemon):
         json.dump({"va": VRAM_VA}, open(f"{MEM}/vram.json", "w"))
         info, blob = d.build_handoff(dev, progs, {n: types.SimpleNamespace(va_addr=va, size=s) for n, va, s in BUFS})
         if not programs:
-            info.update(compute_class=dev.iface.compute_class, sass_version=0x89, shared_mem_window=0x729400000000,
-                        local_mem_window=0x729300000000, num_gpcs=3, num_tpc_per_gpc=4, num_sm_per_tpc=2, max_warps_per_sm=48,
+            # a GB205 reports sm_version 0xa04 (sass 0xa4) and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
+            info.update(compute_class=dev.iface.compute_class, sass_version=0xa4 if GB205 else 0x89, shared_mem_window=0x729400000000,
+                        local_mem_window=0x729300000000, num_gpcs=12 if GB205 else 3, num_tpc_per_gpc=8 if GB205 else 4,
+                        num_sm_per_tpc=2, max_warps_per_sm=48,
                         pool_va=VRAM_VA, pool_size=VRAM_SIZE, elf_size=0)
         json.dump(info, open(f"{MEM}/handoff.json", "w"))
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))

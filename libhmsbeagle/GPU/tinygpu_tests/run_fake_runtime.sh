@@ -4,12 +4,15 @@
 # starts only once the fake is listening on a short per-run socket path (macOS sun_path is 104 bytes).
 #   run_fake_runtime.sh <label> [VAR=value ...] -- [tinygpuhybridtest args ...]
 # e.g. run_fake_runtime.sh runtime BEAGLE_NV_USE_DAEMON=0 -- --reps 20
+# FAKE_TEST_BIN=<another BEAGLE example> runs that instead, with its own arguments (plan step D1; run_offline.sh), e.g.
+#   FAKE_TEST_BIN=$BEAGLE_BUILD/examples/synthetictest run_fake_runtime.sh st BEAGLE_NV_USE_DAEMON=0 -- --rsrc 1 --manualscale
 # The mode follows the variables (BEAGLE_NV_USE_DAEMON=0: C++ runtime; BEAGLE_NV_CPP_DISPATCH=1: C++ dispatch;
 # otherwise the daemon path). Exit status 0 only if the run reached every stage that mode must reach and the fake
 # server reports NO ERRORS. logL is wrong by design (kernels are not emulated), so the test's own exit status is
 # not used.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
+TEST_BIN=${FAKE_TEST_BIN:-$TEST_BIN}
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
@@ -55,7 +58,7 @@ need() { grep -qE "$1" "$OUT" || missing+=("$2"); }
 need "TinyGPU/NV: daemon booted" "daemon boot"
 [ $MODE = runtime ] || need "TinyGPU/NV: compile_all — loaded [1-9]" "compile_all"
 need "TinyGPU/NV: \[profile\] +launch_batch +n= +[1-9]" "C++ launch_batch profile"
-need "^per evaluation:" "timed evaluations"
+[ -n "$FAKE_TEST_BIN" ] || need "^per evaluation:" "timed evaluations"
 grep -qE "TinyGPU/NV: .*failed" "$OUT" && missing+=("(a 'failed' line was printed)")
 case $MODE in
     daemon) need "\[nv_dispatch_daemon\] \[profile\] +cmd\.launch_batch +n= +[1-9]" "daemon launch_batch" ;;

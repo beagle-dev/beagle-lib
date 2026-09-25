@@ -2,7 +2,8 @@
 memory management to C++, TODO.md plan step C6). Runs tinygrad-hcq1's real NVMemoryManager, NVPageTableEntry and
 PCIIfaceBase.alloc over a bytearray-backed fake BAR1 (no socket, no device), with BEAGLE's palloc zero patch, and
 counts BAR1 reads/writes, BAR0 writes, sysmem allocations and page-table entries per phase.
-    python mm_trace.py [--mmu 2|3]     # 2: Ada (8188 MiB, MMU v2); 3: Blackwell (16304 MiB, MMU v3)
+    python mm_trace.py [--mmu 2|3] [--vram-mb N]   # 2: Ada (8188 MiB, MMU v2); 3: Blackwell (16304 MiB, MMU v3; the
+                                                   # RTX 5070 is 12227 MiB, plan step B1's gate in test_b1_cot.py)
 The ctx-buffer sizes in the "golden" and "nvdevice" phases are approximations (recordings will pin them, plan V1).
 trace(mmu, boot_images) is also the layout gate of plan step P2 (test_p2_teardown.py): boot_images are the sizes
 of the falcon images palloc'd in VRAM during NV_FLCN.init_sw, before everything else here."""
@@ -51,7 +52,7 @@ class FakePCI:
         base = self.next_dma; self.next_dma += (sz + 0x3fff) & ~0x3fff     # one DART segment
         return None, [base + i for i in range(0, sz, 0x1000)][:(size + 0xfff) // 0x1000]
 
-def trace(MMU=2, boot_images=(), quiet=False):
+def trace(MMU=2, boot_images=(), quiet=False, vram_mb=None):
     """Run tinygrad's memory manager for BEAGLE's allocation sequence; returns addresses of interest."""
     stats.clear(); levels.clear(); phase[0] = "boot"
     out = print if not quiet else (lambda *a, **k: None)
@@ -62,7 +63,7 @@ def trace(MMU=2, boot_images=(), quiet=False):
     dev.include("dev_vm", "tu102"); dev.include("dev_mmu", "tu102" if MMU == 2 else "gh100")
     if MMU == 2: dev.pte_t, dev.pde_t, dev.dual_pde_t = dev.NV_MMU_VER2_PTE, dev.NV_MMU_VER2_PDE, dev.NV_MMU_VER2_DUAL_PDE
     else: dev.pte_t, dev.pde_t, dev.dual_pde_t = dev.NV_MMU_VER3_PTE, dev.NV_MMU_VER3_PDE, dev.NV_MMU_VER3_DUAL_PDE
-    dev.vram_size = (8188 if MMU == 2 else 16304) * MB
+    dev.vram_size = (vram_mb or (8188 if MMU == 2 else 16304)) * MB
     dev.vram = pci.map_bar(1)
     dev.large_bar = dev.vram.nbytes >= dev.vram_size
     NVMemoryManager.va_allocator = TLSFAllocator((1 << 44), base=0x1000000000)
@@ -114,4 +115,6 @@ def trace(MMU=2, boot_images=(), quiet=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--mmu", type=int, choices=(2, 3), default=2)
-    trace(ap.parse_args().mmu)
+    ap.add_argument("--vram-mb", type=int)
+    a = ap.parse_args()
+    trace(a.mmu, vram_mb=a.vram_mb)

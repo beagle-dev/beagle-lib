@@ -158,9 +158,9 @@ def compile_ptx(ptx_path: str, arch: str, kernel_name: str = "", force_tool: str
                 print(f"nv_compile_helper: failing PTX saved to {saved}", file=sys.stderr)
             except Exception as copy_err:
                 print(f"nv_compile_helper: could not save PTX: {copy_err}", file=sys.stderr)
-            print(f"nv_compile_helper: {tool} exited {r.returncode} — exiting cleanly",
-                  file=sys.stderr)
-            sys.exit(1)
+            # an exception, not sys.exit: inside nv_dispatch_daemon a SystemExit would skip the daemon's hold decision and
+            # leave a booted GPU to tinygrad's atexit (the command line still exits 1)
+            raise RuntimeError(f"nv_compile_helper: {tool} exited {r.returncode}")
 
         with open(out, "rb") as f:
             return f.read()
