@@ -1,7 +1,8 @@
 #!/bin/bash
 # Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
-# against the fakes in the three NV modes at 4 and 64 states, then the hung path, then the no-launch guard (nothing listening => the
-# plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid and tinygpuhybridtest first.
+# against the fakes in the three NV modes at 4 and 64 states, then the hung path, the teardown default and run_point.sh's
+# stop rule, an interrupted run, then the no-launch guard (nothing listening => the plugin errors out and no TinyGPU.app is
+# spawned). Build hmsbeagle-tinygpu-hybrid and tinygpuhybridtest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
 results=()
@@ -34,10 +35,36 @@ sleep 0.5
 after=$(pgrep -f "fake_nv_daemon.py" | wc -l)
 out="$TINYGPU_TEST_WORK/run_fake_hung.txt"
 if grep -q "timeline wait timed out" "$out" && grep -q "GPU teardown: unload confirmed" "$out" \
+   && grep -qE "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted [1-9][0-9]*, C\+\+ timeline signal 0" "$out" \
    && ! grep -q "keeps the TinyGPU.app connection open" "$out" && [ "$after" -le "$before" ]; then
     results+=("fake hung: PASS")
 else
     results+=("fake hung: FAIL (see $out)")
+fi
+
+# teardown default and run_point.sh's stop rule (plan step P3): every fake run above tore the GPU down (the fake daemon
+# follows BEAGLE_NV_TEARDOWN's default) and passes fini_verdict; the hung run says a power cycle is needed and fails it
+bad=()
+for f in "$TINYGPU_TEST_WORK"/run_fake_{daemon,dispatch,runtime}_{4,64}.txt; do
+    fini_verdict "$f" && grep -q "fini round trip" "$f" && ! grep -q "no teardown result" "$f" || bad+=("$(basename "$f")")
+done
+hung="$TINYGPU_TEST_WORK/run_fake_hung.txt"
+grep -q "no teardown result (WPR2 is still up); power-cycle the eGPU before the next boot" "$hung" || bad+=("hung warning")
+fini_verdict "$hung" && bad+=("hung verdict")
+results+=("teardown default + stop rule: $([ ${#bad[@]} -eq 0 ] && echo PASS || echo "FAIL (${bad[*]})")")
+
+# SIGINT mid --reps (plan step P3): tinygpuhybridtest's handler only sets a flag, so the repeats stop, the instance is
+# finalized normally (NvFini -> daemon fini -> teardown) and the test exits 128+2. In the daemon mode the test is mostly
+# blocked in recv() on the command socket when the signal lands, which only SA_RESTART survives.
+FAKE_SIGINT_AFTER="compile_all — loaded [1-9]" FAKE_RUN_TIMEOUT=60 "$TG_TESTS/run_fake_runtime.sh" sigint BEAGLE_NV_CPP_DISPATCH=0 -- \
+    --reps 1000000 > "$TINYGPU_TEST_WORK/fake_sigint.summary" 2>&1
+sig="$TINYGPU_TEST_WORK/run_fake_sigint.txt"
+if grep -q "tinygpuhybridtest exit=130" "$TINYGPU_TEST_WORK/fake_sigint.summary" \
+   && grep -qE -- "--reps: interrupted by signal 2 after [1-9][0-9]* of 1000000 repeats" "$sig" \
+   && fini_verdict "$sig" && ! grep -qE "TinyGPU/NV: .*failed" "$sig"; then
+    results+=("fake sigint: PASS")
+else
+    results+=("fake sigint: FAIL (see $sig)")
 fi
 
 # no-launch guard: point the plugin at a socket nobody listens on

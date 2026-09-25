@@ -4,7 +4,7 @@ nv_teardown_diag.py -- TODO.md plan step P2's hardware check. Boots the eGPU
 exactly as nv_boot_only_diag.py does (same imports, same nv_init_helper
 patches, same Device["NV:0"] boot path), then tears it down: the GSP unload
 RPC and suspend wait, then NVIDIA's driver-unload teardown (FWSEC-SB, Booter
-Unload) from nv_init_helper, which BEAGLE_NV_TEARDOWN=1 enables. Prints every
+Unload) from nv_init_helper, which is on unless BEAGLE_NV_TEARDOWN=0. Prints every
 value the teardown read. Exit status 0 when WPR2 ended down and the teardown
 succeeded, i.e. the next boot of this script (or of BEAGLE) needs no power
 cycle; 1 when a power cycle is needed.
@@ -13,12 +13,12 @@ If the GSP does not confirm its unload (after the run, or after a boot that
 failed once GSP-RM had started), this process keeps its TinyGPU.app
 connection open and waits: unplug the eGPU first, then kill it.
 
-Usage: BEAGLE_NV_TEARDOWN=1 python3 nv_teardown_diag.py
+Usage: python3 nv_teardown_diag.py
 """
 import sys, os, signal, time
 
-if os.environ.get("BEAGLE_NV_TEARDOWN", "0") in ("", "0"):
-    print("nv_teardown_diag: refusing to run without BEAGLE_NV_TEARDOWN=1 (the teardown is what it checks)", file=sys.stderr)
+if os.environ.get("BEAGLE_NV_TEARDOWN", "1") == "0":
+    print("nv_teardown_diag: refusing to run with BEAGLE_NV_TEARDOWN=0 (the teardown is what it checks)", file=sys.stderr)
     sys.exit(2)
 signal.signal(signal.SIGINT, signal.SIG_IGN)   # never interrupt a boot or a teardown
 signal.signal(signal.SIGHUP, signal.SIG_IGN)

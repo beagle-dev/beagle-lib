@@ -36,7 +36,11 @@
  *                         Every repeat must reproduce the first logL
  *                         exactly. Not combinable with the --diag-inject-
  *                         matrices, --diag-reorder-partials-first or
- *                         --diag-matmul-ground-truth pipelines.
+ *                         --diag-matmul-ground-truth pipelines. SIGINT or
+ *                         SIGTERM ends the repeats early; the instance is
+ *                         still finalized (the GPU torn down) and the exit
+ *                         status is 128 + signal. (For hosts and harnesses:
+ *                         hardware runs still follow the never-Ctrl-C rule.)
  *   --state-count N       Use a synthetic generalized-JC model with N states
  *                         instead of the default 4-state DNA/JC69 dataset.
  *                         Any N >= 2 works; the values BEAGLE has a
@@ -80,6 +84,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <signal.h>
 
 #include "libhmsbeagle/beagle.h"
 
@@ -252,6 +257,12 @@ static bool compareArrays(const char* label, const double* gpuVals, const double
     return ok;
 }
 
+// SIGINT/SIGTERM only set this flag: the --reps loop stops and the instance is
+// finalized normally, which tears the GPU down through the plugin (TODO.md plan
+// step P3; inv:transport-teardown#8). The library installs no handlers.
+static volatile sig_atomic_t gStopSignal = 0;
+static void onStopSignal(int sig) { gStopSignal = sig; }
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
@@ -343,6 +354,15 @@ int main(int argc, char** argv) {
     }
     bool useDnaModel = (stateCount == 4);
     if (!useDnaModel) diagCompareCpu = true;  // only available correctness check for a synthetic model
+
+    // SA_RESTART: the plugin's socket loops (nv_recv_all, nv_send_all,
+    // tg_send_all) take EINTR for a lost connection and would cut a message.
+    struct sigaction sa = {};
+    sa.sa_handler = onStopSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
 
     // ── Step 1: Enumerate all BEAGLE resources ────────────────────────────────
     printf("=== TinyGPUHybrid backend test ===\n\n");
@@ -768,6 +788,12 @@ int main(int argc, char** argv) {
         int nDiffer = 0;
         double maxDiff = 0.0;
         for (int r = 0; r < reps; ++r) {
+            if (gStopSignal) {
+                fprintf(stderr, "--reps: interrupted by signal %d after %d of %d repeats; finalizing the instance\n",
+                        (int)gStopSignal, r, reps);
+                repsOk = false;
+                break;
+            }
             double repLogL = 0.0;
             auto s0 = std::chrono::steady_clock::now();
             int rr = doUpdateTransitionMatrices();
@@ -809,5 +835,5 @@ int main(int argc, char** argv) {
 
     if (cpuRefInstance >= 0) beagleFinalizeInstance(cpuRefInstance);
     beagleFinalizeInstance(instance);
-    return overallOk ? 0 : 1;
+    return gStopSignal ? 128 + gStopSignal : (overallOk ? 0 : 1);
 }

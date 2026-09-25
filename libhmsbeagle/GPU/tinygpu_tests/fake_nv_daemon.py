@@ -8,13 +8,14 @@ file-backed "VRAM" there too. For the C++ runtime (handoff with "programs": fals
 hands over no programs; instead it sends the real ptxas cubin of the plugin's PTX (looked up in the
 harness cubin cache by the PTX's sha256, tgpaths.cubin_path; run_goldens.sh fills it), the runtime keys
 of an RTX 4060-like device, and the file-backed VRAM as the pool."""
-import os, sys, re, json, socket, types
+import os, sys, re, json, socket, types, mmap, ctypes
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
 import nv_dispatch_daemon as d
 import nv_compile_helper as nch
 from tinygrad.helpers import round_up
+from tinygrad.runtime.support.hcq import MMIOInterface
 
 MEM = os.environ.get("FAKE_NV_MEM", "")
 BUFS = (("cmdq", 0x10_1000_0000, 2 << 20), ("kargs", 0x10_2000_0000, 16 << 20),
@@ -49,10 +50,12 @@ class FakeDev:
         self.iface = types.SimpleNamespace(dev_impl=types.SimpleNamespace())
         self.iface.dev_impl.gsp = types.SimpleNamespace(fini_hw=self._gsp_fini_hw)
     def _gsp_fini_hw(self):   # a hung fini's unload RPC only: a clean GSP unload, no teardown
+        open(f"{MEM}/fini", "w").close()   # from here on the fake GPU flags any TinyGPU.app traffic (plan step P3)
         self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
-    def finalize(self):   # a clean GSP unload (nv_init_helper's report); with BEAGLE_NV_TEARDOWN=1 also a successful teardown
+    def finalize(self):   # a clean GSP unload (nv_init_helper's report); unless BEAGLE_NV_TEARDOWN=0 also a successful teardown
+        open(f"{MEM}/fini", "w").close()
         self.iface.dev_impl.beagle_fini = dict(UNLOAD_DIAG)
-        if os.environ.get("BEAGLE_NV_TEARDOWN", "0") not in ("", "0"):
+        if os.environ.get("BEAGLE_NV_TEARDOWN", "1") != "0":
             self.iface.dev_impl.beagle_fini.update(teardown={"result": "done: Booter Unload lowered WPR2", "booter_mailbox0": 0},
                                                    wpr2_lo=0, wpr2_hi=0, wpr2_down=True, teardown_ok=True)
     def hw_compute_queue_t(self): return FakeQueue()
@@ -105,6 +108,10 @@ class FakeDaemon(d.Daemon):
         for name, va, size in BUFS + (("vram", VRAM_VA, VRAM_SIZE),):
             fd = os.open(f"{MEM}/{name}.bin", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
             os.ftruncate(fd, size)
+            if name == "signal":   # the C++ timeline, which the daemon reads through the handoff buffer (plan step P3)
+                self._signal_mm = mmap.mmap(fd, size)
+                view = MMIOInterface(ctypes.addressof(ctypes.c_char.from_buffer(self._signal_mm)), size)
+                self._handoff_bufs = {"signal": d.HCQBuffer(va, size, view=view)}
             if name != "vram": fds.append(fd)
             else: os.close(fd)
         json.dump({"va": VRAM_VA}, open(f"{MEM}/vram.json", "w"))

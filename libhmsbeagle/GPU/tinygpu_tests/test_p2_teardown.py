@@ -338,7 +338,7 @@ def test_hung_fini():
             a, b = socket.socketpair()
             dm, calls, dev_impl = d.Daemon(b), [], types.SimpleNamespace()
             dev_impl.gsp = types.SimpleNamespace(fini_hw=lambda: (calls.append("gsp.fini_hw"), gsp_fini(dev_impl)))
-            dm.dev = types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev_impl),
+            dm.dev = types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev_impl), synchronize=lambda: None,
                                            finalize=lambda: (calls.append("finalize"), finalize and finalize(dev_impl)))
             dm._hold = lambda: calls.append("hold")
             Device._opened_devices.add("NV")

@@ -17,6 +17,7 @@
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDSOCKET_H
 #define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDSOCKET_H
 
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -29,9 +30,15 @@ enum TGCmd : uint8_t {
     TGC_SYSMEM_READ, TGC_SYSMEM_WRITE, TGC_RESIZE_BAR, TGC_PING
 };
 
-static inline void tg_send_all(int fd, const void* buf, size_t n) {
+static inline bool tg_send_all(int fd, const void* buf, size_t n) {
     const uint8_t* p = (const uint8_t*)buf;
-    while (n) { ssize_t r = ::send(fd, p, n, 0); if (r <= 0) return; p += r; n -= (size_t)r; }
+    while (n) {
+        ssize_t r = ::send(fd, p, n, 0);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) return false;
+        p += r; n -= (size_t)r;
+    }
+    return true;
 }
 static inline void tg_recv_all(int fd, void* buf, size_t n) {
     uint8_t* p = (uint8_t*)buf;

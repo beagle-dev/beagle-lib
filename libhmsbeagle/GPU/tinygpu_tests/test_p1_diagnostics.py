@@ -213,7 +213,7 @@ def _test_cmd_fini(d, Device):
         a, b = socket.socketpair()
         dm = d.Daemon(b); held = []
         dm._hold = lambda: held.append(True)
-        dm.dev = types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=types.SimpleNamespace()))
+        dm.dev = types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=types.SimpleNamespace()), synchronize=lambda: None)
         dm.dev.finalize = lambda: finalize(dm.dev)
         Device._opened_devices.add("NV")
         dm.cmd_fini({})

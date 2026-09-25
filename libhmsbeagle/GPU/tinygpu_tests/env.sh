@@ -22,3 +22,11 @@ require_no_launch_guard() {
             echo "$so lacks the no-launch guard; rebuild hmsbeagle-tinygpu-hybrid before running offline tests"; exit 2; }
     done
 }
+
+# run_point.sh's stop rule (TODO.md plan step P3), on the plugin's output (GPUInterfaceTinyGPUHybridNV.cpp nv_report_unload):
+# exactly one fini report, WPR2_HI 0 in it, and the teardown line saying the next boot needs no power cycle. Reads a file
+# and runs nothing, so run_offline.sh checks it on the fakes' output.
+fini_verdict() {
+    [ "$(grep -c "TinyGPU/NV: GPU teardown: " "$1")" -eq 1 ] && grep -q "TinyGPU/NV: GPU teardown: .*WPR2_HI=0x00000000)" "$1" \
+        && grep -q "TinyGPU/NV: teardown: .*the next boot needs no power cycle" "$1"
+}

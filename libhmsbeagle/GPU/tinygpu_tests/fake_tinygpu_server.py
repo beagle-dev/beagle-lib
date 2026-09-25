@@ -163,6 +163,7 @@ def serve(conn):  # one client at a time, like TinyGPU.app; GPU state is loaded 
     gpu = None
     while (hdr := recv_exact(conn, 33)) is not None:
         cmd, dev, bar, a0, a1, a2 = struct.unpack(REQ, hdr)
+        if os.path.exists(f"{MEM}/fini"): errors.append(f"command {cmd} after the daemon's GSP unload")   # plan step P3
         if cmd == CFG_READ: conn.sendall(struct.pack(RESP, 0, 0x288210de, 0))  # 10de:2882, an RTX 4060
         elif cmd == MMIO_WRITE:
             data = recv_exact(conn, a1)

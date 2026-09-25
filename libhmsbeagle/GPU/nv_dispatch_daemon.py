@@ -439,6 +439,32 @@ def build_handoff(dev, progs, bufs):
     return info, bytes(blob)
 
 
+def check_vram_below_wpr(dev_impl):
+    """Plan step P3's interim WPR check (C6 makes it permanent in C++): every VRAM allocation so far, the C++ runtime's
+    pool included, must end at or below GspFwWprMeta.gspFwRsvdStart, where GSP-RM's reserved region starts (ip.py:448-452).
+    tinygrad's PA allocator reaches vram_size - 64 MiB (nvdev.py:146, memory.py:190-192), about 130 MiB into that region
+    on the 8188 MiB RTX 4060. The WPR meta is host memory on a small-BAR card (nvdev.py:151-153), so this reads nothing
+    from the GPU. Returns (end, gspFwRsvdStart), or None on FMC-booted chips (Blackwell), where tinygrad leaves
+    gspFwRsvdStart 0 (ip.py:444-446)."""
+    if dev_impl.fmc_boot:
+        return None
+    import ctypes
+    from tinygrad.runtime.autogen import nv
+    rsvd = nv.GspFwWprMeta.from_buffer_copy(bytes(dev_impl.gsp.wpr_meta[:ctypes.sizeof(nv.GspFwWprMeta)])).gspFwRsvdStart
+    pa = dev_impl.mm.pa_allocator
+    end = max((pa.base + start + size for start, (size, _, _, free) in pa.blocks.items() if not free), default=0)
+    if end > rsvd:
+        raise RuntimeError(f"VRAM allocations end at {end:#x}, above gspFwRsvdStart {rsvd:#x}, where GSP-RM's reserved region "
+                           f"starts (C++ runtime: lower BEAGLE_NV_DATA_MB)")
+    return end, rsvd
+
+
+# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): three u64 words
+# [phase, frame_in_flight, last_submitted] in a POSIX shm segment the plugin creates, unlinks and passes here right after
+# the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is gone).
+_STATE_WORDS, _PHASE_DISPATCH = 3, 1   # phase 1: the C++ side owns both GPFIFOs
+
+
 class Daemon:
     def __init__(self, sock, tgpu_fd=None):
         self.sock = sock
@@ -449,6 +475,7 @@ class Daemon:
         self.kernel_names = set() # names found in elf_bytes, for GetFunction-style validation
         self.programs = {}        # (name, n_int_args) -> NVProgram
         self._allocs = {}
+        self._state = self._cpp_signal = None   # the C++ side's state page and timeline (cmd_state_page, plan step P3)
 
     def _check_queues_owned(self):
         # After cmd_handoff, submitting from here too would corrupt the C++ side's GPFIFO and timeline state.
@@ -476,7 +503,7 @@ class Daemon:
         while len(buf) < n:
             chunk = self.sock.recv(n - len(buf))
             if not chunk:
-                raise RuntimeError("socket closed mid-read")
+                raise ConnectionResetError("socket closed mid-read")   # the plugin went away: Daemon.run takes the EOF path
             buf += chunk
         return bytes(buf)
 
@@ -507,9 +534,7 @@ class Daemon:
                 reply = {**fini, "ok": False, "error": f"boot failed after GSP-RM started: {e}"}
                 if not reply.get("unload_ok"):
                     reply.update(hold=True, pid=os.getpid())
-                self.send_json(reply)
-                if reply.get("hold"):
-                    self._hold()
+                self._reply_and_hold(reply)
                 return
             log(str(warm))
             self.send_json({"ok": False, "warm": True, "error": str(warm)})
@@ -598,6 +623,8 @@ class Daemon:
                         num_gpcs=dev.num_gpcs, num_tpc_per_gpc=dev.num_tpc_per_gpc, num_sm_per_tpc=dev.num_sm_per_tpc,
                         max_warps_per_sm=dev.max_warps_per_sm, pool_va=self._pool.va_addr, pool_size=self._pool.size,
                         elf_size=len(self.elf_bytes))
+        if (wpr := check_vram_below_wpr(dev.iface.dev_impl)) is not None:   # raises before anything is sent: C++ gets no fds
+            log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= gspFwRsvdStart {wpr[1]:#x}")
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
@@ -607,6 +634,26 @@ class Daemon:
         log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}, " +
             ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()) +
             ("" if programs else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}, ELF {len(self.elf_bytes)} bytes"))
+
+    def cmd_state_page(self, req):
+        # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this
+        # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fd). Taken before any check, so the command stream stays framed
+        # when the page is refused. Not a TinyGPU allocation: nothing reaches the GPU.
+        import mmap
+        _, fds, _, _ = socket.recv_fds(self.sock, 1, 1)
+        if len(fds) != 1:
+            raise RuntimeError("state_page: no fd received")
+        try:
+            state = memoryview(mmap.mmap(fds[0], _STATE_WORDS * 8, prot=mmap.PROT_READ)).cast("Q")
+        finally:
+            os.close(fds[0])
+        if not self.handed_off or state[0] != _PHASE_DISPATCH:
+            raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
+        self._state = state
+        # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
+        self._cpp_signal = ops_nv.NVSignal(base_buf=self._handoff_bufs["signal"], owner=self.dev, virt=True)
+        log("state page mapped: the C++ side records whether a frame is in flight and the timeline value it last submitted")
+        self.send_json({"ok": True})
 
     def cmd_alloc(self, req):
         buf = self.dev.allocator.alloc(req["size"])
@@ -697,15 +744,40 @@ class Daemon:
         # this process keeps its dup of the connection open and waits to be killed after the eGPU is unplugged.
         if _PROFILE:
             _prof_report()
+        self._reply_and_hold(self._fini(req.get("hung", False)))
+
+    def _fini(self, hung):
+        # cmd_fini's decision, shared with the EOF path (_eof, plan step P3); returns the reply. After a handoff the daemon's
+        # own synchronize does not cover the C++ side's work (inv:transport-teardown#7), so its timeline is waited for first.
         reply = {"ok": True}
         if self.dev is not None:
+            if self._state is not None:
+                phase, in_flight, last = self._state
+                log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, "
+                    f"C++ timeline signal {self._cpp_signal.value}")
+                if phase != _PHASE_DISPATCH or in_flight:   # TinyGPU.app would read our next bytes as the rest of a cut C++ frame
+                    log("a C++ frame may be cut mid-send: sending nothing more to the GPU")
+                    return {"ok": False, "error": "a C++ frame may be cut mid-send", "hold": True, "pid": os.getpid()}
+                if not hung:
+                    try: self._cpp_signal.wait(last)   # as HCQCompiled.synchronize waits: 30 s without progress, GSP faults raise
+                    except Exception as e:
+                        log(f"C++ timeline stuck at {self._cpp_signal.value} < {last} ({e}): the hung path")
+                        hung = True
             from tinygrad import Device
             try:
-                if req.get("hung"):   # the plugin saw the GPU stop making progress: the unload RPC only, no synchronize, no falcon step
+                # a timeline timeout (the plugin's, the C++ timeline's above, or the daemon's own: tinygrad's error_state,
+                # also when first seen here, since HCQCompiled.finalize would swallow it and run the falcon teardown anyway):
+                # the unload RPC only, no synchronize, no falcon step (hung rule)
+                if not hung and getattr(self.dev, "error_state", None) is None:
+                    try: self.dev.synchronize()   # after a handoff the daemon's own timeline is idle, so this returns at once
+                    except Exception as e:
+                        log(f"the daemon's own timeline: {type(e).__name__}: {e}: the hung path")
+                        hung = True
+                if hung or getattr(self.dev, "error_state", None) is not None:
                     self.dev.iface.dev_impl.gsp.fini_hw()
                     reply["hung"] = True
                 else:
-                    self.dev.finalize()   # with BEAGLE_NV_TEARDOWN=1 this also runs NVIDIA's teardown (nv_init_helper, plan step P2)
+                    self.dev.finalize()   # unless BEAGLE_NV_TEARDOWN=0 this also runs NVIDIA's teardown (nv_init_helper, plan steps P2, P3)
                 reply.update(getattr(self.dev.iface.dev_impl, "beagle_fini", {}))
             except Exception as e:
                 import traceback
@@ -718,33 +790,58 @@ class Daemon:
                     Device._opened_devices.discard(name)   # atexit must not run NVDev.fini a second time
             if not reply.get("unload_ok"):
                 reply.update(hold=True, pid=os.getpid())
-        self.send_json(reply)
+            else:
+                self.dev = None   # torn down: a later EOF (the plugin gone before reading this reply) must not tear down again
+        return reply
+
+    def _reply_and_hold(self, reply):
+        # the reply first, so the plugin can print the unplug message; the hold even if the plugin is already gone (plan step P3)
+        try:
+            self.send_json(reply)
+        finally:
+            if reply.get("hold"):
+                self._hold()
+
+    def _eof(self):
+        # The plugin went away without "fini" (killed, crashed, or cut off mid-message). Until plan step P3 the interpreter
+        # then exited and tinygrad's atexit finalized with no hold decision and without waiting for the C++ side's work;
+        # now it decides as fini does, and never closes the last TinyGPU.app fd while the GSP may be live (hold rule).
+        if self.dev is None:   # no boot, a refused or failed one (cmd_boot decided), or fini already tore it down
+            log("command socket closed; no device to tear down, exiting")
+            return
+        log("command socket closed without fini; tearing the GPU down as fini would")
+        reply = self._fini(False)
+        log(f"GPU teardown at EOF: {json.dumps(reply)}")
         if reply.get("hold"):
             self._hold()
 
     def _hold(self):
-        log(f"HOLDING the TinyGPU.app connection: the GPU did not confirm its unload. Unplug the eGPU first, then "
-            f"kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
+        log(f"HOLDING the TinyGPU.app connection: closing it could unmap memory the GPU may still use. Unplug the eGPU first, "
+            f"then kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
         while True:
             time.sleep(3600)
 
     def run(self):
-        while True:
-            msg = self.recv_msg()
-            if msg is None:
-                break
-            with _Profiled("wire.json_loads"):
-                req = json.loads(msg)
-            cmd = req.get("cmd")
-            try:
-                with _Profiled(f"cmd.{cmd}"):
-                    getattr(self, f"cmd_{cmd}")(req)
-            except Exception as e:
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                self.send_json({"ok": False, "error": str(e)})
-            if cmd == "fini":
-                break
+        try:
+            while True:
+                msg = self.recv_msg()
+                if msg is None:
+                    break
+                with _Profiled("wire.json_loads"):
+                    req = json.loads(msg)
+                cmd = req.get("cmd")
+                try:
+                    with _Profiled(f"cmd.{cmd}"):
+                        getattr(self, f"cmd_{cmd}")(req)
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc(file=sys.stderr)
+                    self.send_json({"ok": False, "error": str(e)})
+                if cmd == "fini":
+                    return
+        except ConnectionError as e:   # the plugin went away mid-message, or before reading a reply
+            log(f"command socket: {type(e).__name__}: {e}")
+        self._eof()
 
 
 def _warm_error_type():
@@ -764,7 +861,7 @@ def _find_exception(e, typ):
 
 def main():
     # A terminal Ctrl-C or a hangup must not kill the daemon while it may hold a live GPU (TODO.md plan step P1);
-    # it exits on "fini" or when the plugin's end of the command socket closes.
+    # it exits after "fini", or, if the plugin goes away without it, once Daemon._eof has decided as fini would (plan step P3).
     import signal
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -781,11 +878,14 @@ def main():
     sys.stderr = os.fdopen(fd, 'w', buffering=1)
     log(f"starting, cmd_fd={cmd_fd}" + (f", tinygpu_fd={tgpu_fd} (C++ dispatch)" if tgpu_fd is not None else ""))
 
+    daemon = Daemon(sock, tgpu_fd)
     try:
-        Daemon(sock, tgpu_fd).run()
+        daemon.run()
     except Exception:
         import traceback
         traceback.print_exc(file=sys.stderr)
+        if daemon.dev is not None:   # tinygrad's atexit would finalize with no hold decision and no wait for the C++ side's work
+            daemon._hold()
         sys.exit(1)
     log("exiting cleanly")
 

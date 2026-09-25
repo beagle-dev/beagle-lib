@@ -151,11 +151,13 @@ def _gsp_fini_hw_with_suspend_wait(self):
     finally: _in_unload[0] = _in_gsp_init[0] = False
     deadline = time.monotonic() + _SUSPEND_TIMEOUT_S
     while (mailbox0 := nvdev.NV_PGSP_FALCON_MAILBOX0.read()) != 0x80000000 and time.monotonic() < deadline: time.sleep(0.01)
-    diag.update(mailbox0=mailbox0, riscv_cpuctl=nvdev.NV_PRISCV_RISCV_CPUCTL.with_base(_GSP_BASE).read(),
-                wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read(),
+    diag.update(mailbox0=mailbox0, wpr2_lo=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read(), wpr2_hi=nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_HI.read(),
                 unload_ok=mailbox0 == 0x80000000)
+    if (cpuctl := nvdev.__dict__.get("NV_PRISCV_RISCV_CPUCTL")) is not None:   # not included on Blackwell (NV_FLCN_COT)
+        diag["riscv_cpuctl"] = cpuctl.with_base(_GSP_BASE).read()
     _p1log(f"after the unload RPC: GSP MAILBOX0=0x{mailbox0:08x} ({'suspended' if diag['unload_ok'] else 'NOT SUSPENDED'}), "
-           f"RISCV_CPUCTL=0x{diag['riscv_cpuctl']:08x}, WPR2_LO=0x{diag['wpr2_lo']:08x}, WPR2_HI=0x{diag['wpr2_hi']:08x}")
+           f"RISCV_CPUCTL={'0x%08x' % diag['riscv_cpuctl'] if 'riscv_cpuctl' in diag else 'n/a'}, "
+           f"WPR2_LO=0x{diag['wpr2_lo']:08x}, WPR2_HI=0x{diag['wpr2_hi']:08x}")
 NV_GSP.fini_hw = _gsp_fini_hw_with_suspend_wait
 
 def _rpc_name(func: int) -> str:
@@ -239,8 +241,8 @@ def _new_gpu_fifo_with_userd_baseline(self, gpfifo_area, ctxshare, channel_group
 _ops_nv.NVDevice._new_gpu_fifo = _new_gpu_fifo_with_userd_baseline
 
 
-# ── 5. NVIDIA's driver-unload teardown (TODO.md plan step P2), only with
-# BEAGLE_NV_TEARDOWN=1. tinygrad's only teardown is the FAST_UNLOAD RPC,
+# ── 5. NVIDIA's driver-unload teardown (TODO.md plan step P2), on by default
+# since plan step P3 (BEAGLE_NV_TEARDOWN=0 turns it off). tinygrad's only teardown is the FAST_UNLOAD RPC,
 # NVIDIA's system-shutdown path, which leaves WPR2 up, so every boot needs a
 # power cycle (STATUS.md R14). At driver unload NVIDIA (570.144: kgspUnloadRm
 # -> kgspTeardown_TU102, kernel_gsp_tu102.c:579-623;
@@ -249,9 +251,10 @@ _ops_nv.NVDevice._new_gpu_fifo = _new_gpu_fifo_with_userd_baseline
 # SEC2 and run Booter Unload, after which WPR2 is down. tinygrad has no such
 # code, so the sequence follows NVIDIA, on tinygrad's own falcon primitives
 # (reset, execute_hs), with the two images prepared statement by statement
-# the way tinygrad prepares FRTS and booter_load. With the variable unset
-# nothing below changes a single GPU access. ──────────────────────────────
-_TEARDOWN = os.environ.get("BEAGLE_NV_TEARDOWN", "0") not in ("", "0")
+# the way tinygrad prepares FRTS and booter_load. Only NV_FLCN (Ampere, Ada)
+# is wrapped; Blackwell boots through NV_FLCN_COT, untouched until plan step B1.
+# With BEAGLE_NV_TEARDOWN=0 nothing below changes a single GPU access. ─────
+_TEARDOWN = os.environ.get("BEAGLE_NV_TEARDOWN", "1") != "0"
 _UNLOAD_LEVEL_0 = os.environ.get("BEAGLE_NV_UNLOAD_LEVEL", "") == "0"
 _BOOTER_UNLOAD_SHA = {"ad102": "975b85a14ded8e430d30f000c3c1afdd55c15dee04f35ff9dfd876acd7e67186",   # linux-firmware 0a6871b1
                       "ga102": "8e63db5b78d7d3e349f20a2d11099c3d7109081393cb09ffc0a28133324ae009"}

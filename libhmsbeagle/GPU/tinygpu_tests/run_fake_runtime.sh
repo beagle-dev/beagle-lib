@@ -24,7 +24,7 @@ SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX"); SOCK="$SOCKDIR/fk.sock"
 MEM="$TINYGPU_TEST_WORK/fake_mem_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
 SLOG="$TINYGPU_TEST_WORK/fake_server_$LABEL.log"; OUT="$TINYGPU_TEST_WORK/run_fake_$LABEL.txt"; rm -f "$SLOG" "$OUT"
 SRV=""; TST=""
-cleanup() { [ -n "$TST" ] && kill "$TST" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
+cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
 trap cleanup EXIT
 trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 
@@ -37,8 +37,14 @@ env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$SOCK" FAKE_NV_MEM="$MEM" BEAGLE
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" "${ENVS[@]}" \
     "$TEST_BIN" "$@" > "$OUT" 2>&1 &
 TST=$!
-for i in $(seq ${FAKE_RUN_TIMEOUT:-300}); do kill -0 $TST 2>/dev/null || break; sleep 1; done   # watchdog: only our own processes
-if kill -0 $TST 2>/dev/null; then echo "[$LABEL] timed out; killing the test (fake GPU only)"; kill $TST; fi
+for i in $(seq ${FAKE_RUN_TIMEOUT:-300}); do   # watchdog: only our own processes
+    kill -0 $TST 2>/dev/null || break
+    # FAKE_SIGINT_AFTER=<regex>: one SIGINT to the test 2 s after its output matches (plan step P3's handler)
+    [ -n "$FAKE_SIGINT_AFTER" ] && grep -qE "$FAKE_SIGINT_AFTER" "$OUT" && { sleep 2; kill -INT $TST; FAKE_SIGINT_AFTER=; }
+    sleep 1
+done
+# SIGKILL: the test turns SIGTERM into an orderly stop, which a hung test never reaches
+if kill -0 $TST 2>/dev/null; then echo "[$LABEL] timed out; killing the test (fake GPU only)"; kill -KILL $TST; fi
 wait $TST; RC=$?; TST=""
 sleep 0.5; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 echo "[$LABEL] mode=$MODE tinygpuhybridtest exit=$RC (output: $OUT)"
@@ -58,6 +64,12 @@ case $MODE in
 esac
 if [ $MODE != daemon ]; then
     grep "client done" "$SLOG" | tail -1 | grep -qE '"launches": [1-9]' || missing+=("launches seen by the fake GPU")
+    # the state page at fini (plan step P3): nothing in flight, and the last value submitted is both the C++ timeline and
+    # the fake GPU's release count (it releases 1, 2, ... with no gaps)
+    rel=$(grep "client done" "$SLOG" | tail -1 | sed -nE 's/.*"releases": ([0-9]+).*/\1/p')
+    need "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted $rel, C\+\+ timeline signal $rel\$" "state page at fini"
+else
+    grep -q "state page" "$OUT" && missing+=("(a state page in daemon mode)")
 fi
 grep "fake TinyGPU.app: " "$SLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake server NO ERRORS")
 if [ ${#missing[@]} -eq 0 ]; then echo "[$LABEL] PASS"; exit 0; fi

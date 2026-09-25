@@ -202,6 +202,11 @@ struct NVKernelHandle {
 static NVHybridState* g_nv = nullptr;
 static std::map<std::string, NVKernelHandle*> g_nvKernels;
 
+// The state page (TODO.md plan step P3; nvdStatePage below): three 64-bit words shared with the daemon, which reads them
+// only once this side can no longer write (at "fini", or at EOF after this process died).
+enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateWords };
+static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the daemon holds on any other phase
+
 // C++ dispatch state (see "C++ dispatch" below); null on the daemon path.
 struct NVDispatchState {
     NVDHandoff h;
@@ -209,6 +214,7 @@ struct NVDispatchState {
     void* maps[4] = {};          // host mappings of h.cmdq, h.kargs, h.staging, h.signal
     uint8_t *cmdq = nullptr, *kargs = nullptr, *staging = nullptr;
     uint64_t* signal = nullptr;  // timeline semaphore
+    uint64_t* state = nullptr;   // the state page (kNVDState* words)
     uint64_t cmdq_pos = 0, kargs_pos = 0, staging_pos = 0;
     uint64_t timeline = 1;       // value the next submission signals; every earlier value is submitted
     uint64_t pending = 0;        // submissions since the GPU was last seen idle
@@ -277,25 +283,36 @@ static void nvFlushLaunchQueue() {
 }
 
 // What the daemon reports after it unloaded the GPU (fini, or a boot that failed after GSP-RM started): the unload,
-// NVIDIA's teardown if it ran (BEAGLE_NV_TEARDOWN=1, plan step P2), and whether the daemon keeps its copy of the
-// TinyGPU.app connection open because the GPU did not confirm the unload (closing it could unmap memory the GSP still
-// uses). Returns that last one.
+// NVIDIA's teardown if it ran (on unless BEAGLE_NV_TEARDOWN=0; plan steps P2, P3) or else whether the next boot needs a
+// power cycle, and whether the daemon keeps its copy of the TinyGPU.app connection open because the GPU may still use
+// memory behind it (the unload was not confirmed, or a frame to TinyGPU.app was cut mid-send). Returns that last one.
 static bool nv_report_unload(const std::string& resp) {
     uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
+    bool unload_ok = nv_json_bool(resp, "unload_ok");
     if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
         nvd_json_u64(resp, "wpr2_lo", wlo) && nvd_json_u64(resp, "wpr2_hi", whi))
         fprintf(stderr, "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
-                "WPR2_HI=0x%08llx)\n", nv_json_bool(resp, "unload_ok") ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
+                "WPR2_HI=0x%08llx)\n", unload_ok ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
                 (unsigned long long)cpuctl, (unsigned long long)wlo, (unsigned long long)whi);
     if (resp.find("\"teardown_ok\":") != std::string::npos)
         fprintf(stderr, "TinyGPU/NV: teardown: %s; %s\n", nv_json_str(resp, "result").c_str(),
                 nv_json_bool(resp, "teardown_ok") ? "WPR2 is down, the next boot needs no power cycle"
                                                   : "power-cycle the eGPU before the next boot");
+    else if (resp.find("\"unload_ok\":") != std::string::npos && (!unload_ok || whi != 0))
+        // no teardown result: BEAGLE_NV_TEARDOWN=0, a hung fini, a failed boot, an unconfirmed unload (Blackwell: plan step B1)
+        fprintf(stderr, "TinyGPU/NV: no teardown result (%s); power-cycle the eGPU before the next boot\n",
+                unload_ok ? "WPR2 is still up" : "the GPU did not confirm its unload");
     bool hold = nv_json_bool(resp, "hold") && nvd_json_u64(resp, "pid", pid);
     if (hold)
-        fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU did not confirm "
-                "its unload. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
+        fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU may still use "
+                "memory behind it. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
     return hold;
+}
+
+// The daemon died before replying to fini: nothing says whether the GPU was torn down.
+static void nv_report_no_fini_reply() {
+    fprintf(stderr, "TinyGPU/NV: no fini reply from the daemon (it exited during the teardown?); the GPU state is unknown: "
+            "power-cycle the eGPU before the next boot\n");
 }
 
 // hung: the GPU stopped making progress, so the daemon sends only the GSP unload RPC (no synchronize, no teardown).
@@ -305,7 +322,9 @@ static bool nv_report_unload(const std::string& resp) {
         bool hold = false;
         if (g_nv->cmd_sock >= 0) {
             nv_send_msg(g_nv->cmd_sock, hung ? "{\"cmd\":\"fini\",\"hung\":true}" : "{\"cmd\":\"fini\"}");
-            hold = nv_report_unload(nv_recv_msg(g_nv->cmd_sock));
+            std::string resp = nv_recv_msg(g_nv->cmd_sock);
+            if (resp.empty()) nv_report_no_fini_reply();
+            hold = nv_report_unload(resp);
         }
         if (g_nv->daemon_pid > 0 && !hold) {
             for (int i = 0; i < 100; ++i) {
@@ -382,7 +401,16 @@ static void nvd_submit(NVDFifo& f, const std::vector<uint32_t>& pb) {
     nvd_mmio(msg, f.ring_bar, f.ring_off + (f.put % f.entries) * 8, &entry, 8);
     nvd_mmio(msg, f.gpput_bar, f.gpput_off, &gpput, 4);
     nvd_mmio(msg, g_nvd->h.db_bar, g_nvd->h.db_off, &f.token, 4);
-    tg_send_all(g_nvd->tg_sock, msg.data(), msg.size());
+    // State page: in flight, then the value this frame's work signals (every caller took it from the timeline already),
+    // then "not in flight" once the whole frame is out. A frame cut mid-send ends this process with the flag still set,
+    // so the daemon holds and sends TinyGPU.app nothing more (it would read those bytes as the rest of this frame).
+    __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_nvd->state[kNVDStateLastSubmitted], g_nvd->timeline - 1, __ATOMIC_RELEASE);
+    if (!tg_send_all(g_nvd->tg_sock, msg.data(), msg.size())) {
+        fprintf(stderr, "TinyGPU/NV: TinyGPU.app write cut mid-frame: %s\n", strerror(errno));
+        nv_safe_exit(1);
+    }
+    __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);
     ++f.put;
     ++g_nvd->pending;
 }
@@ -493,10 +521,25 @@ static bool nv_recv_fds(int sock, int* fds, int n) {
     return true;
 }
 
+// The daemon's socket.recv_fds in cmd_state_page: one byte carrying fd as SCM_RIGHTS (nv_recv_fds the other way).
+static bool nv_send_fd(int sock, int fd) {
+    char byte = 'S';
+    struct iovec iov = { &byte, 1 };
+    std::vector<char> cbuf(CMSG_SPACE(sizeof(int)));
+    struct msghdr msg{};
+    msg.msg_iov = &iov; msg.msg_iovlen = 1;
+    msg.msg_control = cbuf.data(); msg.msg_controllen = (socklen_t)cbuf.size();
+    struct cmsghdr* c = CMSG_FIRSTHDR(&msg);
+    c->cmsg_level = SOL_SOCKET; c->cmsg_type = SCM_RIGHTS; c->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(c), &fd, sizeof(int));
+    return sendmsg(sock, &msg, 0) == 1;
+}
+
 static void nvd_unmap(NVDispatchState* d) {
     const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
     for (int i = 0; i < 4; ++i)
         if (d->maps[i]) { munmap(d->maps[i], bufs[i]->size); d->maps[i] = nullptr; }
+    if (d->state) { munmap(d->state, kNVDStateWords * 8); d->state = nullptr; }
 }
 
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
@@ -560,6 +603,40 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, std::vector
     else
         fprintf(stderr, "TinyGPU/NV: C++ dispatch: %zu kernels handed over (QMD v%u)\n", d->h.kernels.size(), d->h.qmd_ver);
     return d;
+}
+
+// TODO.md plan step P3: the state page, created here and passed to the daemon right after the handoff, before anything is
+// submitted from here. A POSIX shm segment, not a TinyGPU allocation (TinyGPU.app's MAP_SYSMEM_FD sequence is unchanged),
+// unlinked at once so only the two processes' descriptors reach it. nvd_submit records in it whether a frame is in flight
+// and the timeline value its work signals; if this process dies without "fini", the daemon holds, or waits for that value
+// before it tears the GPU down (the daemon's own synchronize does not cover work submitted from here).
+static bool nvdStatePage(int cmd_sock, NVDispatchState& d) {
+    char name[32];  // macOS PSHMNAMLEN is 31
+    snprintf(name, sizeof(name), "/beagle-nv.%d", (int)getpid());
+    shm_unlink(name);  // only a killed process with this pid could have left it
+    int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) { fprintf(stderr, "TinyGPU/NV: state page failed: shm_open: %s\n", strerror(errno)); return false; }
+    shm_unlink(name);
+    const size_t size = kNVDStateWords * 8;
+    void* m = ftruncate(fd, size) == 0 ? mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
+    if (m == MAP_FAILED) {
+        fprintf(stderr, "TinyGPU/NV: state page failed: %s\n", strerror(errno));
+        close(fd);
+        return false;
+    }
+    uint64_t* st = (uint64_t*)m;  // zero-filled: nothing in flight, nothing submitted
+    __atomic_store_n(&st[kNVDStatePhase], kNVDPhaseDispatch, __ATOMIC_RELEASE);
+    nv_send_msg(cmd_sock, "{\"cmd\":\"state_page\"}");
+    bool sent = nv_send_fd(cmd_sock, fd);
+    close(fd);
+    std::string js = sent ? nv_recv_msg(cmd_sock) : "";
+    if (js.empty() || !nv_json_ok(js)) {
+        fprintf(stderr, "TinyGPU/NV: state page failed: %s\n", js.c_str());
+        munmap(m, size);
+        return false;
+    }
+    d.state = st;
+    return true;
 }
 
 // ── C++ runtime (BEAGLE_NV_USE_DAEMON=0): program loading and allocation,
@@ -678,6 +755,8 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
 
     NVHybridState* g = new NVHybridState{};
     g->cmd_sock = sv[0];
+    int one = 1;  // a gone daemon shows up as EPIPE, so nv_safe_exit still reports, instead of SIGPIPE ending the host
+    setsockopt(g->cmd_sock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
     g->daemon_pid = pid;
 
     fprintf(stderr, "TinyGPU/NV: sending boot command...\n"); fflush(stderr);
@@ -738,7 +817,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd) 
     if (tg_fd >= 0) {
         std::vector<uint8_t> elf;
         g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime() ? &elf : nullptr);
-        if (!g_nvd) nv_safe_exit(1);
+        if (!g_nvd || !nvdStatePage(g->cmd_sock, *g_nvd)) nv_safe_exit(1);
         if (g_nvd->runtime) {
             std::vector<std::string> names;
             for (auto& kv : g_nvKernels) names.push_back(kv.first);
@@ -770,6 +849,8 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     if (nv_cpp_dispatch() && self->tgpuSock >= 0) {
         tg_fd = self->tgpuSock;
         fcntl(tg_fd, F_SETFD, fcntl(tg_fd, F_GETFD) & ~FD_CLOEXEC);
+        int one = 1;  // a lost TinyGPU.app shows up as EPIPE in nvd_submit (the cut-frame report), not SIGPIPE ending the host
+        setsockopt(tg_fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
     } else if (self->tgpuSock >= 0) {
         close(self->tgpuSock); self->tgpuSock = -1;
     }
@@ -892,11 +973,16 @@ void NvFini() {
         // The daemon tears the GPU down now (GSP unload, then a wait for the GSP to report itself suspended) and
         // replies with what it saw. If the GPU did not confirm the unload, the daemon keeps its copy of the
         // TinyGPU.app connection open: closing it could unmap memory the GSP still uses.
+        auto t0 = nv_profile_start();
         nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"fini\"}");
         std::string resp = nv_recv_msg(g_nv->cmd_sock);
-        if (resp.find("\"mailbox0\":") == std::string::npos && !resp.empty() && !nv_json_ok(resp))
+        double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        if (resp.empty()) nv_report_no_fini_reply();
+        else if (resp.find("\"mailbox0\":") == std::string::npos && !nv_json_ok(resp))
             fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", resp.c_str());
         hold = nv_report_unload(resp);
+        if (nv_profile_enabled())
+            fprintf(stderr, "TinyGPU/NV: fini round trip %.3f s (synchronize, GSP unload, teardown)\n", secs);
     }
     if (g_nv->daemon_pid > 0 && !hold) {
         for (int i = 0; i < 100; ++i) {
