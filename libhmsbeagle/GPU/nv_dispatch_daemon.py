@@ -348,9 +348,10 @@ def _install_inherited_tinygpu(tgpu_fd):
 
     class BeagleTinyGPUDevice(system.APLRemotePCIDevice):
         def __init__(self, devpref, pcibus):
-            # No new connection and no lock file (APLRemotePCIDevice/RemotePCIDevice.__init__).
+            # No new connection, no lock file and no buffer sizes (APLRemotePCIDevice/RemotePCIDevice.__init__): the plugin's
+            # TinyGPU.app client set the buffers when it connected, as RemotePCIDevice.__init__ does (TODO.md plan step C3),
+            # and macOS refuses a second setting (ENOBUFS)
             self.sock = socket.socket(fileno=os.dup(tgpu_fd))
-            for buft in (socket.SO_SNDBUF, socket.SO_RCVBUF): self.sock.setsockopt(socket.SOL_SOCKET, buft, 64 << 20)  # as RemotePCIDevice
             self.pcibus, self.dev_id, self.peer_group, self.lock_fd = "usb4", 0, "usb4", None
             self.sysmem_fds = {}  # host address of a sysmem mapping -> dup of its fd
 
@@ -637,6 +638,10 @@ class Daemon:
                         elf_size=0)   # no ELF follows (plan step C1); a pre-C1 plugin reads 0 bytes and refuses them, still framed
         if (wpr := check_vram_below_wpr(dev.iface.dev_impl)) is not None:   # raises before anything is sent: C++ gets no fds
             log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= {_wpr_bound_name(dev.iface.dev_impl)} {wpr[1]:#x}")
+        # the sizes of the BARs the C++ side writes (tinygrad's bar_info, cached since the boot mapped them): its TinyGPU.app
+        # client checks every posted write against them (TODO.md plan step C3)
+        for bar in sorted({info["c_ring_bar"], info["c_gpput_bar"], info["d_ring_bar"], info["d_gpput_bar"], info["db_bar"]}):
+            info[f"bar{bar}_size"] = dev.iface.pci_dev.bar_info(bar)[1]
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)

@@ -34,6 +34,9 @@ void       NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src,
 size_t     NvGetAvailableMemory();
 void       NvFini(GPUInterface* self);   // called from the destructor: releases self's instance
 
+// Implemented in GPUInterfaceTinyGPUHybrid.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
+uint16_t   tg_pci_device_id();
+
 } // namespace tinygpu_device
 
 #endif // FW_TINYGPU

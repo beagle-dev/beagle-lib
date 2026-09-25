@@ -25,7 +25,7 @@
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridSocket.h"
+#include "libhmsbeagle/GPU/TinyGPUTransport.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
 
@@ -38,16 +38,13 @@
 #include <vector>
 
 #include <fcntl.h>
-#include <sys/file.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 // ── File-scope globals (used by both helper functions and GPUInterface methods) ─
 static int            g_tgSock = -1;
-static int            g_tgLockFd = -1;   // tinygrad's nv_usb4.lock, held with the plugin's TinyGPU.app connection
 static uint32_t       g_tgDevId = 0;
 static uint16_t       g_tgVendorId = 0;
 static uint16_t       g_tgDeviceId = 0;
@@ -55,103 +52,6 @@ static uint16_t       g_tgDeviceId = 0;
 // PCI vendor IDs this backend recognizes.
 static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
 static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
-
-// Open TinyGPU Unix socket.
-static int tg_open_socket() {
-    const char* path = getenv("APL_REMOTE_SOCK");
-    char default_path[256];
-    if (!path) {
-        // tinygrad uses tempfile.gettempdir() which on macOS is $TMPDIR, not /tmp.
-        const char* tmpdir = getenv("TMPDIR");
-        if (!tmpdir || !tmpdir[0]) tmpdir = "/tmp";
-        snprintf(default_path, sizeof(default_path), "%stinygpu.sock", tmpdir);
-        path = default_path;
-    }
-
-    struct sockaddr_un addr{}; addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
-
-    // Mirror tinygrad's APLRemotePCIDevice.__init__: try connect; on first
-    // failure launch "TinyGPU server <path>" in background, then retry.
-    // BEAGLE_TINYGPU_NO_LAUNCH=1 (offline tests against a fake TinyGPU.app,
-    // libhmsbeagle/GPU/tinygpu_tests): never start the real app; fail instead.
-    static const char* kAppPath = "/Applications/TinyGPU.app/Contents/MacOS/TinyGPU";
-    const char* no_launch = getenv("BEAGLE_TINYGPU_NO_LAUNCH");
-    for (int i = 0; i < 100; ++i) {
-        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        if (fd < 0) { perror("TinyGPU socket"); return -1; }
-        if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0)
-            return fd;
-        close(fd);
-        if (no_launch && no_launch[0] && strcmp(no_launch, "0") != 0) {
-            fprintf(stderr, "TinyGPU: nothing is listening at %s and BEAGLE_TINYGPU_NO_LAUNCH is set; not starting TinyGPU.app\n", path);
-            return -1;
-        }
-        if (i == 0) {
-            // Spawn TinyGPU in server mode (detached child).
-            pid_t pid = fork();
-            if (pid == 0) {
-                setsid();
-                // Redirect stdio to /dev/null so the server doesn't pollute our output.
-                int devnull = open("/dev/null", O_RDWR);
-                if (devnull >= 0) { dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2); close(devnull); }
-                const char* argv[] = { kAppPath, "server", path, nullptr };
-                execvp(kAppPath, (char* const*)argv);
-                _exit(1);
-            }
-            // parent: fall through to retry loop
-        }
-        usleep(50000); // 50 ms
-    }
-    fprintf(stderr, "TinyGPU: could not connect to %s after 5 s\n", path);
-    return -1;
-}
-
-// tinygrad's temp(name): tempfile.gettempdir(), which is $TMPDIR (else /tmp), joined with name.
-static std::string tg_temp_path(const char* name) {
-    const char* tmpdir = getenv("TMPDIR");
-    std::string dir = (tmpdir && tmpdir[0]) ? tmpdir : "/tmp";
-    while (dir.size() > 1 && dir.back() == '/') dir.pop_back();
-    return dir + "/" + name;
-}
-
-// tinygrad's System.flock_acquire("nv_usb4.lock"), which RemotePCIDevice.__init__ takes right after connecting for NV:0
-// over TinyGPU.app (TODO.md plan step P5): while this process holds its connection, another BEAGLE or tinygrad process
-// fails here at once instead of waiting forever on a server that serves one client at a time. Unlike tinygrad, which
-// clears the process umask first, a created file is made world-writable with fchmod, leaving the host's umask alone.
-static bool tg_lock_acquire() {
-    std::string path = tg_temp_path("nv_usb4.lock");
-    bool exists = access(path.c_str(), F_OK) == 0;  // tinygrad avoids O_CREAT on an existing file
-    int fd = exists ? open(path.c_str(), O_RDWR | O_CLOEXEC) : open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
-    if (fd < 0) {
-        fprintf(stderr, "TinyGPU: cannot open the lock file %s: %s\n", path.c_str(), strerror(errno));
-        return false;
-    }
-    if (!exists) fchmod(fd, 0666);
-    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
-        fprintf(stderr, "TinyGPU: Failed to acquire lock file nv_usb4.lock (another process has the eGPU). `sudo lsof %s` may "
-                "help identify the process holding the lock.\n", path.c_str());
-        close(fd);
-        return false;
-    }
-    g_tgLockFd = fd;
-    return true;
-}
-
-static void tg_lock_release() {
-    if (g_tgLockFd >= 0) { close(g_tgLockFd); g_tgLockFd = -1; }
-}
-
-void tg_close(int& sock) {
-    if (sock < 0) return;
-    close(sock);
-    sock = -1;
-    tg_lock_release();
-}
-
-int tg_lock_fd() { return g_tgLockFd; }
-
-uint16_t tg_pci_device_id() { return g_tgDeviceId; }
 
 // ── KernelResource loader (mirrors GPUInterfaceTinyGPU.cpp §LOAD_KERNEL_INTO_RESOURCE) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
@@ -171,6 +71,8 @@ uint16_t tg_pci_device_id() { return g_tgDeviceId; }
 
 namespace tinygpu_device {
 
+uint16_t tg_pci_device_id() { return g_tgDeviceId; }
+
 GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
     isNVIDIA(true), vramKernelTop(0), vramDataTop(0),
     amdRingVram(0), amdRingWptr(0), amdRptrAddr(0), amdWptrAddr(0),
@@ -185,11 +87,11 @@ GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
 GPUInterface::~GPUInterface() {
     if (!isNVIDIA) {
         AmdFini();  // sends SIGTERM to amd_init_helper.py and waits for it to exit + adev.fini()
-        if (tgpuSock >= 0) { close(tgpuSock); tgpuSock = -1; }
+        if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }
         return;
     }
     NvFini(this);
-    tg_close(tgpuSock);   // an instance that shares the GPU has none (plan step P5)
+    if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }   // an instance that shares the GPU has none (plan step P5)
 }
 
 int GPUInterface::Initialize() {
@@ -214,9 +116,11 @@ int GPUInterface::Initialize() {
         isNVIDIA  = true;
         return BEAGLE_SUCCESS;
     }
-    g_tgSock = tg_open_socket();
-    if (g_tgSock < 0) return BEAGLE_ERROR_GENERAL;
-    if (!tg_lock_acquire()) { close(g_tgSock); g_tgSock = -1; return BEAGLE_ERROR_GENERAL; }
+    // TinyGPU.app's socket, through tinygrad's client ported to C++ (plan step C3): nv_usb4.lock, then the connection
+    TGTransport& tg = tg_transport();
+    std::string err = tg.open();
+    if (!err.empty()) { fprintf(stderr, "TinyGPU: %s\n", err.c_str()); return BEAGLE_ERROR_GENERAL; }
+    g_tgSock = tg.fd();
     // Enumerate devices: just probe device 0 for now.
     // A full probe would use TGC_PROBE; we keep it simple.
     g_tgDevId = 0;
@@ -224,7 +128,14 @@ int GPUInterface::Initialize() {
     // Identify the vendor from real PCI config space (offset 0 = vendor ID
     // in the low 16 bits, device ID in the high 16 bits of the first
     // config dword) rather than assuming NVIDIA.
-    uint32_t id01 = (uint32_t)tg_cfg_read(g_tgSock, g_tgDevId, /*offset=*/0, /*size=*/4);
+    uint64_t cfg0 = 0;
+    if (!tg.read_config(/*offset=*/0, /*size=*/4, cfg0, err)) {
+        fprintf(stderr, "TinyGPU: reading the PCI id failed: %s\n", err.c_str());
+        tg.close();
+        g_tgSock = -1;
+        return BEAGLE_ERROR_GENERAL;
+    }
+    uint32_t id01 = (uint32_t)cfg0;
     g_tgVendorId = (uint16_t)(id01 & 0xffff);
     g_tgDeviceId = (uint16_t)(id01 >> 16);
     const char* vendorName = (g_tgVendorId == PCI_VENDOR_NVIDIA) ? "NVIDIA"
@@ -237,7 +148,7 @@ int GPUInterface::Initialize() {
     tgpuSock  = g_tgSock;
     tgpuDevId = g_tgDevId;
     isNVIDIA  = (g_tgVendorId != PCI_VENDOR_AMD);   // default to the NV path unless AMD is positively identified
-    if (!isNVIDIA) tg_lock_release();   // the lock is NV's (plan step P5); the AMD path is unchanged
+    if (!isNVIDIA) tg.release_lock();   // the lock is NV's (plan step P5); the AMD path is unchanged
     return BEAGLE_SUCCESS;
 }
 

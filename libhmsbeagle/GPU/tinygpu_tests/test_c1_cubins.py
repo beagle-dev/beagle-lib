@@ -70,10 +70,12 @@ def runtime_handoff():
         impl = types.SimpleNamespace(fmc_boot=False, vram_size=8188 * MB, mm=types.SimpleNamespace(pa_allocator=pa),
                                      gsp=types.SimpleNamespace(wpr_meta=bytes(nv.GspFwWprMeta(gspFwRsvdStart=0x1f3a00000))))
         dev = types.SimpleNamespace(allocator=types.SimpleNamespace(alloc=alloc), synchronize=lambda: None, error_state=None,
-                                    iface=types.SimpleNamespace(dev_impl=impl, pci_dev=types.SimpleNamespace(sysmem_fds=fds), compute_class=0xc9c0),
+                                    iface=types.SimpleNamespace(dev_impl=impl, compute_class=0xc9c0, pci_dev=types.SimpleNamespace(
+                                        sysmem_fds=fds, bar_info=lambda bar: (0, (16 << 20, 256 << 20)[bar]))),
                                     sass_version=0x89, shared_mem_window=0, local_mem_window=0, num_gpcs=3, num_tpc_per_gpc=4,
                                     num_sm_per_tpc=2, max_warps_per_sm=48)
-        d.build_handoff = lambda dev, progs, bufs: ({"qmd_ver": 3}, b"blob")
+        fifo_bars = {"c_ring_bar": 1, "c_gpput_bar": 1, "d_ring_bar": 1, "d_gpput_bar": 1, "db_bar": 0}   # as an RTX 4060's
+        d.build_handoff = lambda dev, progs, bufs: ({"qmd_ver": 3, **fifo_bars}, b"blob")
         a, b = socket.socketpair()
         dm = d.Daemon(b, 7); dm.dev = dev   # booted; no compile_all, so no ELF
         with contextlib.redirect_stderr(io.StringIO()): dm.cmd_handoff({"cmd": "handoff", "programs": False})
@@ -87,7 +89,8 @@ def runtime_handoff():
         n = struct.unpack_from("<I", data)[0]
         reply, tail = json.loads(data[4:4 + n]), data[4 + n:]
     finally: d.build_handoff = real_build
-    ok = reply.get("ok") and reply.get("elf_size") == 0 and reply.get("blob_size") == 4 and tail == b"blobF" and len(got) == 4
+    ok = reply.get("ok") and reply.get("elf_size") == 0 and reply.get("blob_size") == 4 and tail == b"blobF" and len(got) == 4 \
+         and reply.get("bar0_size") == 16 << 20 and reply.get("bar1_size") == 256 << 20   # plan step C3: the BARs the C++ side writes
     print(f"runtime handoff after boot only: elf_size {reply.get('elf_size')}, then {tail!r} and {len(got)} fds: {'ok' if ok else 'FAIL'}")
     return ok
 

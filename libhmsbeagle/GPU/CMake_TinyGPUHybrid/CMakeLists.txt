@@ -31,7 +31,7 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
         ../GPUInterfaceTinyGPUHybridAMD.h
         ../GPUInterfaceTinyGPUHybridNV.cpp
         ../GPUInterfaceTinyGPUHybridNV.h
-        ../TinyGPUHybridSocket.h
+        ../TinyGPUTransport.h
         ../TinyGPUHybridNVDispatch.h
         ../TinyGPUHybridNVProgram.h
         ../TinyGPUHybridNVCubins.h

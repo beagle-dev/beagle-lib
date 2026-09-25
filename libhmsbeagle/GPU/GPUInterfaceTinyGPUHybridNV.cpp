@@ -76,7 +76,7 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridSocket.h"
+#include "libhmsbeagle/GPU/TinyGPUTransport.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
@@ -428,14 +428,6 @@ static uint64_t nvd_alloc(uint64_t& pos, uint64_t size, uint64_t need, uint64_t 
     return p;
 }
 
-// A posted TinyGPU.app MMIO_WRITE (TinyGPUHybridSocket.h's tg_bulk_write), appended to msg.
-static void nvd_mmio(std::vector<uint8_t>& msg, uint32_t bar, uint64_t off, const void* data, uint32_t len) {
-    uint8_t hdr[33];
-    tg_pack_hdr(hdr, TGC_MMIO_WRITE, 0, bar, off, len, 0);
-    msg.insert(msg.end(), hdr, hdr + 33);
-    msg.insert(msg.end(), (const uint8_t*)data, (const uint8_t*)data + len);
-}
-
 // NVCommandQueue._submit_to_gpfifo: the pushbuffer goes into the shared ring;
 // the GPFIFO entry, GPPut and doorbell go out as three posted writes in one send.
 static void nvd_submit(NVDFifo& f, const std::vector<uint32_t>& pb) {
@@ -445,18 +437,18 @@ static void nvd_submit(NVDFifo& f, const std::vector<uint32_t>& pb) {
     memcpy(g_nvd->cmdq + off, pb.data(), pb.size() * 4);
     uint64_t entry = nvd_gpfifo_entry(g_nvd->h.cmdq.va + off, (uint32_t)pb.size());
     uint32_t gpput = (uint32_t)((f.put + 1) % f.entries);
-    std::vector<uint8_t> msg;
-    msg.reserve(3 * 33 + 16);
-    nvd_mmio(msg, f.ring_bar, f.ring_off + (f.put % f.entries) * 8, &entry, 8);
-    nvd_mmio(msg, f.gpput_bar, f.gpput_off, &gpput, 4);
-    nvd_mmio(msg, g_nvd->h.db_bar, g_nvd->h.db_off, &f.token, 4);
+    const TGWrite frame[3] = {{f.ring_bar, f.ring_off + (f.put % f.entries) * 8, &entry, 8},
+                              {f.gpput_bar, f.gpput_off, &gpput, 4},
+                              {g_nvd->h.db_bar, g_nvd->h.db_off, &f.token, 4}};
     // State page: in flight, then the value this frame's work signals (every caller took it from the timeline already),
     // then "not in flight" once the whole frame is out. A frame cut mid-send ends this process with the flag still set,
     // so the daemon holds and sends TinyGPU.app nothing more (it would read those bytes as the rest of this frame).
     __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 1, __ATOMIC_RELEASE);
     __atomic_store_n(&g_nvd->state[kNVDStateLastSubmitted], g_nvd->timeline - 1, __ATOMIC_RELEASE);
-    if (!tg_send_all(g_nvd->tg_sock, msg.data(), msg.size())) {
-        fprintf(stderr, "TinyGPU/NV: TinyGPU.app write cut mid-frame: %s\n", strerror(errno));
+    std::string err;
+    if (!tg_transport().bulk_write_frame(frame, 3, err)) {
+        fprintf(stderr, "TinyGPU/NV: TinyGPU.app write %s: %s\n", tg_transport().lost() ? "cut mid-frame" : "refused", err.c_str());
+        if (!tg_transport().lost()) __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // nothing went out
         nv_safe_exit(1);
     }
     __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);
@@ -623,6 +615,14 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
     d->runtime = runtime;
     d->rt = rt;
     err = nvd_parse_handoff(js, blob, d->h);
+    // the sizes of the BARs the daemon mapped in this session: every posted write from here is checked against them
+    // (plan step C3; a MAP_BAR of our own would change the stream)
+    for (uint32_t bar : {d->h.compute.ring_bar, d->h.compute.gpput_bar, d->h.copy.ring_bar, d->h.copy.gpput_bar, d->h.db_bar}) {
+        uint64_t size = 0;
+        if (err.empty() && !nvd_json_u64(js, ("bar" + std::to_string(bar) + "_size").c_str(), size))
+            err = "the handoff has no size for BAR " + std::to_string(bar);
+        if (err.empty()) tg_transport().seed_bar(bar, size);
+    }
     const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
     for (int i = 0; i < 4; ++i) {
         if (err.empty()) {
@@ -968,7 +968,7 @@ static void nvFiniDevice() {
     if (g_nv->cmd_sock >= 0) close(g_nv->cmd_sock);
     delete g_nv;
     g_nv = nullptr;
-    tg_close(tg_sock);
+    if (tg_sock >= 0) tg_transport().close();
 }
 
 // Plan step P5: the C++ runtime's GPU outlives its instances, as tinygrad's devices do (device.py finalizes them at
@@ -1023,11 +1023,13 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         fcntl(tg_fd, F_SETFD, fcntl(tg_fd, F_GETFD) & ~FD_CLOEXEC);
         // nv_usb4.lock goes to the daemon with the connection, so a daemon still holding the connection after this process
         // is gone still holds the lock (plan step P5)
-        if (tg_lock_fd() >= 0) fcntl(tg_lock_fd(), F_SETFD, fcntl(tg_lock_fd(), F_GETFD) & ~FD_CLOEXEC);
+        int lock_fd = tg_transport().lock_fd();
+        if (lock_fd >= 0) fcntl(lock_fd, F_SETFD, fcntl(lock_fd, F_GETFD) & ~FD_CLOEXEC);
         int one = 1;  // a lost TinyGPU.app shows up as EPIPE in nvd_submit (the cut-frame report), not SIGPIPE ending the host
         setsockopt(tg_fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
     } else if (self->tgpuSock >= 0) {
-        tg_close(self->tgpuSock);   // and nv_usb4.lock, which the daemon's own APLRemotePCIDevice takes (plan step P5)
+        tg_transport().close();   // and nv_usb4.lock, which the daemon's own APLRemotePCIDevice takes (plan step P5)
+        self->tgpuSock = -1;
     }
 
     self->InitializeKernelResource(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
@@ -1052,7 +1054,8 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     if (!g_nv) { fprintf(stderr, "TinyGPU/NV: nvDispatchDaemonSetup failed\n"); nv_safe_exit(1); }
     if (tg_fd >= 0) {   // the daemon has its copies: no later child of the host may keep the connection or the lock
         fcntl(tg_fd, F_SETFD, fcntl(tg_fd, F_GETFD) | FD_CLOEXEC);
-        if (tg_lock_fd() >= 0) fcntl(tg_lock_fd(), F_SETFD, fcntl(tg_lock_fd(), F_GETFD) | FD_CLOEXEC);
+        int lock_fd = tg_transport().lock_fd();
+        if (lock_fd >= 0) fcntl(lock_fd, F_SETFD, fcntl(lock_fd, F_GETFD) | FD_CLOEXEC);
     }
     if (g_nvd && g_nvd->runtime) {   // plan step P5: the GPU outlives this instance, and later ones share it
         self->tgpuSock = -1;          // the GPU's connection now, g_nvd->tg_sock

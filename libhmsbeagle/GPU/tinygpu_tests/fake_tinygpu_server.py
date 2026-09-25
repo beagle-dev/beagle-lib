@@ -17,6 +17,8 @@ import nv_dispatch_daemon as d  # tinygrad's ops_nv (the hcq1 pin)
 sock_path, MEM = sys.argv[1], sys.argv[2]
 REQ, RESP = "<BIIQQQ", "<BQQ"
 HANG = os.environ.get("FAKE_NV_HANG", "0") not in ("", "0")
+# FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (plan step C3: the plugin's stream stays identical)
+RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
 CFG_READ, MMIO_WRITE = 3, 7
 errors, stats = [], {"batches": 0, "launches": 0, "copies": 0, "copy_bytes": 0, "releases": 0, "posted_writes": 0}
 runtime_seen = {"local_mem": None, "slm": set(), "programs": set(), "cbufs_checked": 0}
@@ -163,11 +165,13 @@ def serve(conn):  # one client at a time, like TinyGPU.app; GPU state is loaded 
     gpu = None
     while (hdr := recv_exact(conn, 33)) is not None:
         cmd, dev, bar, a0, a1, a2 = struct.unpack(REQ, hdr)
+        if RECORD: RECORD.write(hdr); RECORD.flush()
         if os.path.exists(f"{MEM}/fini"): errors.append(f"command {cmd} after the daemon's GSP unload")   # plan step P3
         if cmd == CFG_READ:   # 10de:2882, an RTX 4060, or with FAKE_NV_CHIP=gb205 10de:2f04, an RTX 5070 (plan step B1)
             conn.sendall(struct.pack(RESP, 0, 0x2f0410de if os.environ.get("FAKE_NV_CHIP") == "gb205" else 0x288210de, 0))
         elif cmd == MMIO_WRITE:
             data = recv_exact(conn, a1)
+            if RECORD and data: RECORD.write(data); RECORD.flush()
             try:
                 if gpu is None: gpu = GPU()
                 gpu.mmio_write(bar, a0, data)

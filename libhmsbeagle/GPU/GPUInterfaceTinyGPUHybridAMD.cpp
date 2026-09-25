@@ -50,6 +50,7 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
+#include "libhmsbeagle/GPU/TinyGPUTransport.h"
 
 // GPUInterface.h's FW_TINYGPU branch (included above) already pulled in
 // kernels/BeagleTinyGPU_kernels.h, whose KERNELS_STRING_<PREC>_<N> macros are
@@ -398,7 +399,7 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     // (Device["AMD:0"] never completing, cmd_boot never replying) while
     // this stale connection sat idle. Confirmed via a real hardware hang,
     // traceback pinned exactly to that RPC's blocking socket read.
-    if (self->tgpuSock >= 0) { close(self->tgpuSock); self->tgpuSock = -1; }
+    if (self->tgpuSock >= 0) { tg_transport().close(); self->tgpuSock = -1; }   // the plugin's one connection (plan step C3)
     g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0));
     if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: amdDispatchDaemonSetup failed\n"); amd_safe_exit(1); }
 

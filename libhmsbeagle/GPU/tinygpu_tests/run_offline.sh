@@ -10,6 +10,10 @@ require_no_launch_guard   # static check before anything below could reach a spa
 unset FAKE_TEST_BIN       # every run below is tinygpuhybridtest's unless it names another binary itself
 results=()
 "$TG_TESTS/run_goldens.sh"; results+=("goldens: $([ $? -eq 0 ] && echo PASS || echo FAIL)")
+# plan step C3: the C++ TinyGPU.app client against TinyGPU's real server.c on an IOKit stub (its limits, error replies,
+# sysmem, a lost server, the lock), the socket path and the TinyGPU.app check
+"$TG_TESTS/test_c3_transport.sh" > "$TINYGPU_TEST_WORK/test_c3_transport.log" 2>&1
+results+=("transport (C3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c3_transport.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

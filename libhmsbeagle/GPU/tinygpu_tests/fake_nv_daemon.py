@@ -169,6 +169,8 @@ class FakeDaemon(d.Daemon):
             else: os.close(fd)
         json.dump({"va": VRAM_VA}, open(f"{MEM}/vram.json", "w"))
         info, blob = d.build_handoff(dev, progs, {n: types.SimpleNamespace(va_addr=va, size=s) for n, va, s in BUFS})
+        for bar in {info["c_ring_bar"], info["c_gpput_bar"], info["d_ring_bar"], info["d_gpput_bar"], info["db_bar"]}:
+            info[f"bar{bar}_size"] = (16 << 20, 256 << 20)[bar]   # an RTX 4060's BAR0 and small BAR1 (plan step C3)
         if not programs:
             # a GB205 reports sm_version 0xa04 (sass 0xa4) and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
             info.update(compute_class=dev.iface.compute_class, sass_version=0xa4 if GB205 else 0x89, shared_mem_window=0x729400000000,
