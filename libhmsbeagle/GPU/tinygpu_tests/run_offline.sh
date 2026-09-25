@@ -20,6 +20,11 @@ for states in 4 64; do
     done
 done
 
+# the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames
+# before the one being submitted, not for that one (which never completes: a false hung GPU)
+"$TG_TESTS/run_fake_runtime.sh" wrap BEAGLE_NV_USE_DAEMON=0 -- --reps 10000 > "$TINYGPU_TEST_WORK/fake_wrap.summary" 2>&1
+results+=("fake wrap: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/fake_wrap.summary)")")
+
 # hung path (plan step P2): the fake GPU never writes a semaphore release, so the C++ runtime's 30 s timeline wait times
 # out during setup; the plugin must send fini{hung} to the daemon, print its unload report, and leave no daemon behind
 before=$(pgrep -f "fake_nv_daemon.py" | wc -l)

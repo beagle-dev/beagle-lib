@@ -346,16 +346,16 @@ static void nvd_wait(uint64_t value) {
     }
 }
 
-static void nvd_idle() {
-    nvd_wait(g_nvd->timeline - 1);
+static void nvd_idle(uint64_t behind = 1) {   // 2 from nvd_submit: its caller already took this frame's value
+    nvd_wait(g_nvd->timeline - behind);
     g_nvd->pending = 0;
 }
 
 // Bump allocation in a shared ring. Wrapping around first waits until the GPU
 // is done with everything submitted, so no live region is overwritten.
-static uint64_t nvd_alloc(uint64_t& pos, uint64_t size, uint64_t need, uint64_t align) {
+static uint64_t nvd_alloc(uint64_t& pos, uint64_t size, uint64_t need, uint64_t align, uint64_t behind = 1) {
     uint64_t p = (pos + align - 1) & ~(align - 1);
-    if (p + need > size) { nvd_idle(); p = 0; }
+    if (p + need > size) { nvd_idle(behind); p = 0; }
     pos = p + need;
     return p;
 }
@@ -371,8 +371,9 @@ static void nvd_mmio(std::vector<uint8_t>& msg, uint32_t bar, uint64_t off, cons
 // NVCommandQueue._submit_to_gpfifo: the pushbuffer goes into the shared ring;
 // the GPFIFO entry, GPPut and doorbell go out as three posted writes in one send.
 static void nvd_submit(NVDFifo& f, const std::vector<uint32_t>& pb) {
-    if (g_nvd->pending >= f.entries / 2) nvd_idle();  // never let the GPFIFO ring lap the GPU
-    uint64_t off = nvd_alloc(g_nvd->cmdq_pos, g_nvd->h.cmdq.size, pb.size() * 4, 16);
+    // the caller already took this frame's timeline value, so both waits stop at the frame before it
+    if (g_nvd->pending >= f.entries / 2) nvd_idle(2);  // never let the GPFIFO ring lap the GPU
+    uint64_t off = nvd_alloc(g_nvd->cmdq_pos, g_nvd->h.cmdq.size, pb.size() * 4, 16, 2);
     memcpy(g_nvd->cmdq + off, pb.data(), pb.size() * 4);
     uint64_t entry = nvd_gpfifo_entry(g_nvd->h.cmdq.va + off, (uint32_t)pb.size());
     uint32_t gpput = (uint32_t)((f.put + 1) % f.entries);
