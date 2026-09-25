@@ -4,9 +4,10 @@
  * BEAGLE TinyGPU hybrid backend, shared front end: connects to TinyGPU.app,
  * identifies the eGPU's vendor from PCI config space, selects the kernel
  * resource, and implements GPUInterface by calling the vendor's free
- * functions: GPUInterfaceTinyGPUHybridNV.cpp (the daemon path by default;
- * C++ dispatch with BEAGLE_NV_CPP_DISPATCH=1; the C++ runtime with
- * BEAGLE_NV_USE_DAEMON=0) and GPUInterfaceTinyGPUHybridAMD.cpp.
+ * functions: GPUInterfaceTinyGPUHybridNV.cpp (the C++ runtime by default on
+ * Ada GPUs, or with BEAGLE_NV_USE_DAEMON=0; the daemon path on other GPUs, or
+ * with BEAGLE_NV_USE_DAEMON=1; C++ dispatch with BEAGLE_NV_CPP_DISPATCH=1) and
+ * GPUInterfaceTinyGPUHybridAMD.cpp.
  *
  * Drop-in replacement for GPUInterfaceTinyGPU.cpp when built with -DFW_TINYGPU.
  * Select this file in CMakeLists instead of GPUInterfaceTinyGPU.cpp.
@@ -149,6 +150,8 @@ void tg_close(int& sock) {
 }
 
 int tg_lock_fd() { return g_tgLockFd; }
+
+uint16_t tg_pci_device_id() { return g_tgDeviceId; }
 
 // ── KernelResource loader (mirrors GPUInterfaceTinyGPU.cpp §LOAD_KERNEL_INTO_RESOURCE) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \

@@ -45,6 +45,7 @@ static inline bool tg_send_all(int fd, const void* buf, size_t n) {
 // none is held.
 void tg_close(int& sock);
 int tg_lock_fd();
+uint16_t tg_pci_device_id();   // the PCI device ID Initialize's probe read (TODO.md plan decision 16)
 
 static inline void tg_recv_all(int fd, void* buf, size_t n) {
     uint8_t* p = (uint8_t*)buf;

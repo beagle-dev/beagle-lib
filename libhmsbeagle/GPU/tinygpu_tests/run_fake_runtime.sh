@@ -17,11 +17,17 @@ TEST_BIN=${FAKE_TEST_BIN:-$TEST_BIN}
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
-MODE=daemon
+# the plugin's choice: BEAGLE_NV_USE_DAEMON=0 the C++ runtime, BEAGLE_NV_CPP_DISPATCH=1 C++ dispatch, either variable set
+# otherwise the daemon path; neither: the C++ runtime on the fake RTX 4060, the daemon path on the fake GB205 (plan decision 16)
+MODE=; SET=
 for e in "${ENVS[@]}"; do
-    [ "$e" = BEAGLE_NV_CPP_DISPATCH=1 ] && [ $MODE = daemon ] && MODE=dispatch
+    case $e in BEAGLE_NV_USE_DAEMON=*|BEAGLE_NV_CPP_DISPATCH=*) SET=1 ;; esac
+    [ "$e" = BEAGLE_NV_CPP_DISPATCH=1 ] && [ "$MODE" != runtime ] && MODE=dispatch
     [ "$e" = BEAGLE_NV_USE_DAEMON=0 ] && MODE=runtime
 done
+if [ -z "$MODE" ]; then
+    if [ -n "$SET" ] || [ "${FAKE_NV_CHIP:-}" = gb205 ]; then MODE=daemon; else MODE=runtime; fi
+fi
 
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX"); SOCK="$SOCKDIR/fk.sock"
 [ ${#SOCK} -lt 100 ] || { rmdir "$SOCKDIR"; SOCKDIR=$(mktemp -d /tmp/tg.XXXXXX); SOCK="$SOCKDIR/fk.sock"; }

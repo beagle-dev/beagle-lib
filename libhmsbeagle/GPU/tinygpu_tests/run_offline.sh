@@ -124,6 +124,22 @@ for m in "daemon BEAGLE_NV_CPP_DISPATCH=0" "dispatch BEAGLE_NV_CPP_DISPATCH=1"; 
     else results+=("fake p5_refuse_$1: FAIL (see $out)"); fi
 done
 
+# plan decision 16: with no mode variable the plugin picks the C++ runtime on Ada (the fake RTX 4060) and the daemon path on
+# other GPUs (the fake GB205); BEAGLE_NV_USE_DAEMON=1 picks the daemon path on Ada (run_fake_runtime.sh expects the same modes)
+default_case() {   # <label> <runtime|daemon> [VAR=value ...]: the mode chosen, every stage of it, and a clean teardown
+    local label=$1 want=$2; shift 2
+    "$TG_TESTS/run_fake_runtime.sh" "$label" "$@" -- --reps 5 > "$TINYGPU_TEST_WORK/fake_$label.summary" 2>&1
+    local rc=$? out="$TINYGPU_TEST_WORK/run_fake_$label.txt" said=no
+    grep -q "the C++ runtime, the default on this GPU" "$out" && said=yes
+    if [ $rc -eq 0 ] && fini_verdict "$out" && grep -q "mode=$want " "$TINYGPU_TEST_WORK/fake_$label.summary" \
+       && { { [ $want = runtime ] && [ $said = yes ]; } || { [ $want = daemon ] && [ $said = no ] && ! grep -q "C++ runtime:" "$out"; }; }; then
+        results+=("fake $label: PASS")
+    else results+=("fake $label: FAIL (see $TINYGPU_TEST_WORK/fake_$label.summary)"); fi
+}
+default_case default_ada runtime
+FAKE_NV_CHIP=gb205 default_case default_gb205 daemon
+default_case daemon_explicit daemon BEAGLE_NV_USE_DAEMON=1
+
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames
 # before the one being submitted, not for that one (which never completes: a false hung GPU)
 "$TG_TESTS/run_fake_runtime.sh" wrap BEAGLE_NV_USE_DAEMON=0 -- --reps 10000 > "$TINYGPU_TEST_WORK/fake_wrap.summary" 2>&1

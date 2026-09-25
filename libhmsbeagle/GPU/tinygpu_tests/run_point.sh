@@ -2,15 +2,16 @@
 # HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
 # written. Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
-#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime] [reps] [--poison] [--instances K] [--threads] [--cycles C]
-# (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5)
+#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|default] [reps] [--poison] [--instances K] [--threads] [--cycles C]
+# (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; default: no mode
+# variable, the plugin's own choice, the C++ runtime on Ada, plan decision 16)
 # Waits for the eGPU to enumerate, runs from the build tree with --diag-compare-cpu under log stream, keeps the output,
 # the daemon log and the log stream under $BEAGLE_TINYGPU_DATA/runs/, and prints a summary. Exits 0 only if the test
 # passed, the fini report says the next boot needs no power cycle (fini_verdict, env.sh), the daemon exited and log
 # stream saw nothing from the eGPU; 1 stops a chain of runs after a run, 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 N=$1; MODE=${2:-runtime}; REPS=${3:-200}; shift $(( $# < 3 ? $# : 3 ))
-USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime] [reps] [--poison] [--instances K] [--threads] [--cycles C]"
+USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|default] [reps] [--poison] [--instances K] [--threads] [--cycles C]"
 FLAGS=()
 while [ $# -gt 0 ]; do
     case $1 in
@@ -29,6 +30,7 @@ case $MODE in
     cpp) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=1 ;;
     runtime) MODE_ENV=BEAGLE_NV_USE_DAEMON=0 ;;
     daemon) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=0 ;;
+    default) MODE_ENV= ;;
     *) echo "unknown mode $MODE"; exit 2 ;;
 esac
 # what can hold the GPU: the daemon (<python> .../nv_dispatch_daemon.py <fd> [<fd>]) or a holding <python> .../nv_teardown_diag.py;
@@ -42,7 +44,8 @@ RUNS="$BEAGLE_TINYGPU_DATA/runs"; mkdir -p "$RUNS"
 STAMP=$(date +%Y%m%d-%H%M%S)_$HW_HOST; OUT="$RUNS/${STAMP}_N${N}_${MODE}.txt"; LS="$RUNS/${STAMP}_N${N}_${MODE}_logstream.txt"
 hw_logstream "$LS"
 cd "$REPO"
-env $MODE_ENV BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" \
+# -u: the mode is the one named here, whatever the shell exports
+env -u BEAGLE_NV_USE_DAEMON -u BEAGLE_NV_CPP_DISPATCH $MODE_ENV BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" \
     "$TEST_BIN" --state-count "$N" --reps "$REPS" --diag-compare-cpu "${FLAGS[@]}" > "$OUT" 2>&1
 rc=$?
 for i in $(seq 60); do pgrep -f "$DAEMON_RE" > /dev/null || break; sleep 1; done   # it exits after fini, or decides at EOF
@@ -51,6 +54,7 @@ cp ~/Library/Logs/nv_dispatch_daemon.log "$RUNS/${STAMP}_N${N}_${MODE}_daemon.lo
 echo "N=$N mode=$MODE ${FLAGS[*]} exit=$rc output=$OUT"
 grep -E "C\+\+ dispatch:|C\+\+ runtime:|load_programs|\] +(launch_batch|h2d|d2h) |launches in|maxAbsDiff|First mismatching|CPU-reference logL|per evaluation|repeats|^instance [0-9]+ \(|^tips:|^PASS|^FAIL|timed out|failed|rror" "$OUT" | grep -v "^  \[" | head -30
 grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app|fini round trip" "$OUT"
+[ "$MODE" = default ] && echo "the default chose $(grep -q "the C++ runtime, the default on this GPU" "$OUT" && echo "the C++ runtime" || echo "the daemon path")"
 hw_hold_check || exit 1
 [ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
 # eGPU events: every line but the filter's header, the column header log stream prints before its first event, and the

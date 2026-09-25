@@ -32,7 +32,9 @@
  * this file encodes launches and copies itself and submits them over the
  * plugin's own TinyGPU.app connection (see "C++ dispatch" below).
  *
- * BEAGLE_NV_USE_DAEMON=0, the C++ runtime (the revived legacy path): the
+ * BEAGLE_NV_USE_DAEMON=0, the C++ runtime (the revived legacy path), and the
+ * default on Ada (AD10x) GPUs when neither variable is set (TODO.md plan
+ * decision 16; BEAGLE_NV_USE_DAEMON=1 selects the daemon path): the
  * daemon only boots, and hands over right away. This file then also loads
  * the programs (TinyGPUHybridNVProgram.h, a port of tinygrad's program
  * loader) from the cubin built for this GPU and linked into the plugin
@@ -251,9 +253,20 @@ struct NVDispatchState {
 };
 static NVDispatchState* g_nvd = nullptr;
 
-// BEAGLE_NV_USE_DAEMON=0: the C++ runtime (see the top of this file).
+// The C++ runtime (see the top of this file): BEAGLE_NV_USE_DAEMON=0, or, with neither BEAGLE_NV_USE_DAEMON nor
+// BEAGLE_NV_CPP_DISPATCH set, the default on Ada (TODO.md plan decision 16: AD10x, whose PCI device IDs are 0x26xx-0x28xx
+// in tinygrad's PCIIface family list, ops_nv.py:559). Blackwell keeps the daemon until plan step B2, and Ampere never ran.
+// First asked in NvSetDevice, after Initialize read the device ID.
 static bool nv_cpp_runtime() {
-    static const bool on = [] { const char* v = getenv("BEAGLE_NV_USE_DAEMON"); return v && strcmp(v, "0") == 0; }();
+    static const bool on = [] {
+        const char* v = getenv("BEAGLE_NV_USE_DAEMON");
+        if (v) return strcmp(v, "0") == 0;
+        if (getenv("BEAGLE_NV_CPP_DISPATCH")) return false;
+        uint16_t family = tg_pci_device_id() & 0xff00;
+        bool ada = family == 0x2600 || family == 0x2700 || family == 0x2800;
+        if (ada) fprintf(stderr, "TinyGPU/NV: the C++ runtime, the default on this GPU (BEAGLE_NV_USE_DAEMON=1 selects the daemon)\n");
+        return ada;
+    }();
     return on;
 }
 
