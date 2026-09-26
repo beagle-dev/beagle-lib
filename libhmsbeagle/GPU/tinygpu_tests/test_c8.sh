@@ -32,7 +32,8 @@ check "fake AD107: both levels PASS, and the device received identical bytes fro
 check "at gsp_hw: the daemon's boot stopped once GSP-RM started and it exported init_sw's state; the plugin booted GSP-RM, built the NVDevice and unloaded the GPU at fini" \
     "grep -q 'daemon booted the NVDev (level gsp_hw: GSP-RM started)' '$(out gsp_hw)' && grep -q '(level gsp_hw: sm_89, QMD v3' '$(out gsp_hw)' \
      && ! grep -q '$BUILT' '$(out sysmem)' && grep -q 'the C++ GSP unload and teardown' '$(out gsp_hw)' \
-     && grep -q 'rm export: GSP queues (seq 2), .*next handle 0xcf000000.*the C++ side boots GSP-RM' '$(dlog gsp_hw)'"
+     && grep -q 'rm export: GSP queues (seq 2), .*next handle 0xcf000000.*the C++ side boots GSP-RM' '$(dlog gsp_hw)' \
+     && grep -q 'state page mapped (phase 3, frame_in_flight 1, seq 2)' '$(dlog gsp_hw)'"
 # ... and two instances in one process sharing the plugin's GPU (plan step P5), in two threads
 "$TG_TESTS/run_fake_device.sh" c8_p5 BEAGLE_NV_CPP_LEVEL=gsp_hw -- --state-count 4,64 --threads --reps 3 > "$W/p5.txt" 2>&1
 check "fake AD107 at gsp_hw: two instances in two threads share the boot and the plugin's NVDevice" \

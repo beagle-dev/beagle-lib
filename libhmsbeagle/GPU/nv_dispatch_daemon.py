@@ -522,26 +522,31 @@ def _mm_export(dev):
 # Plan step C8, BEAGLE_NV_CPP_LEVEL=gsp_hw: NVDev.__init__'s last statement, NV_GSP.init_hw (waiting for GSP-RM's INIT_DONE, with its
 # CPU sequencer, then init_golden_image), is the C++ side's too: here it does nothing, so the boot stops right after flcn.init_hw
 # started GSP-RM (booter_load); PCIIfaceBase.__init__'s remaining statement (list_devices, IOKit) sends TinyGPU.app nothing.
+# Plan step C9, flcn_hw: NV_FLCN.init_hw (FWSEC-FRTS, then booter_load) is the C++ side's as well: the boot stops after both
+# init_sw calls, which prepared the images, the GSP's boot structures and the prequeued RPCs.
 class _RMDevice:
     error_state = None
-    def __init__(self, iface): self.iface = iface
+    def __init__(self, iface, level="rm"): self.iface, self.level = iface, level
     def synchronize(self): pass
     def finalize(self): self.iface.device_fini()
-    def __repr__(self): return f"<the NVDev of {self.iface.dev_impl.chip_name}, level rm>"
+    def __repr__(self): return f"<the NVDev of {self.iface.dev_impl.chip_name}, level {self.level}>"
 
 
-def _boot_nvdev_only(gsp_hw=False):
-    from tinygrad.runtime.support.nv.ip import NV_GSP
+def _boot_nvdev_only(level="rm"):
+    from tinygrad.runtime.support.nv.ip import NV_FLCN, NV_GSP
     class _Fork(Exception): pass
     class NVDevice: pass   # PCIIfaceBase names the device after its class: "NV"
     def fork(*a, **k): raise _Fork
     iface = ops_nv.PCIIface.__new__(ops_nv.PCIIface)
     saved, ops_nv.PCIIface.rm_alloc = ops_nv.PCIIface.rm_alloc, fork
-    saved_init_hw = NV_GSP.init_hw   # nv_init_helper's _patched_gsp_init_hw
-    if gsp_hw: NV_GSP.init_hw = lambda self: None
+    skipped = {"rm": (), "gsp_hw": (NV_GSP,), "flcn_hw": (NV_FLCN, NV_GSP)}[level]
+    saved_init_hw = {c: c.init_hw for c in skipped}   # NV_GSP's is nv_init_helper's _patched_gsp_init_hw
+    for c in skipped: c.init_hw = lambda self: None
     try: ops_nv.PCIIface.__init__(iface, NVDevice(), 0)
     except _Fork: pass
-    finally: ops_nv.PCIIface.rm_alloc, NV_GSP.init_hw = saved, saved_init_hw
+    finally:
+        ops_nv.PCIIface.rm_alloc = saved
+        for c, f in saved_init_hw.items(): c.init_hw = f
     return iface
 
 
@@ -551,6 +556,7 @@ def _boot_nvdev_only(gsp_hw=False):
 # gone). Plan step C5 added seq, the GSP command queue's sequence number after the C++ side's last RPC, and phase 2.
 _STATE_WORDS, _PHASE_DISPATCH, _PHASE_TEARDOWN = 4, 1, 2   # 1: the C++ side owns both GPFIFOs; 2: it is unloading the GPU itself
 _PHASE_GSP_INIT = 3   # plan step C8 (level gsp_hw): the C++ side is booting GSP-RM (NV_GSP.init_hw), before it read GSP_INIT_DONE
+_PHASE_FLCN_INIT = 4  # plan step C9 (level flcn_hw): the C++ side runs FWSEC-FRTS; booter_load has not started GSP-RM
 
 
 class Daemon:
@@ -566,7 +572,8 @@ class Daemon:
         self._state = self._cpp_signal = None   # the C++ side's state page and timeline (cmd_state_page, plan step P3)
         self.mm_exported = False  # set by cmd_handoff at level vram or sysmem: the C++ side owns the memory manager (plan step C6)
         self.rm_level, self.rm_exported = "", False   # plan step C7: booted the NVDev only ("rm"; "gsp_hw", plan step C8, without
-                                                      # NV_GSP.init_hw); cmd_rm_export gave the C++ side the GSP
+                                                      # NV_GSP.init_hw; "flcn_hw", C9, without either init_hw); cmd_rm_export gave
+                                                      # the C++ side the GSP
 
     def _check_queues_owned(self):
         # After cmd_handoff, submitting from here too would corrupt the C++ side's GPFIFO and timeline state.
@@ -604,16 +611,17 @@ class Daemon:
 
     # ── commands ──────────────────────────────────────────────────────────
     def cmd_boot(self, req):
-        level = req.get("level", "")   # plan step C7: "rm", the NVDev only (the C++ side builds the NVDevice); C8: "gsp_hw", without init_hw
-        if level not in ("", "rm", "gsp_hw") or (level and self.tgpu_fd is None):
-            raise RuntimeError(f"boot: level {level!r} (rm or gsp_hw, with the C++ side's TinyGPU.app connection)")
+        level = req.get("level", "")   # plan step C7: "rm", the NVDev only (the C++ side builds the NVDevice); C8: "gsp_hw", without
+                                       # NV_GSP.init_hw; C9: "flcn_hw", without NV_FLCN.init_hw either
+        if level not in ("", "rm", "gsp_hw", "flcn_hw") or (level and self.tgpu_fd is None):
+            raise RuntimeError(f"boot: level {level!r} (rm, gsp_hw or flcn_hw, with the C++ side's TinyGPU.app connection)")
         _apply_boot_safety_patches()
         if self.tgpu_fd is not None:
             _install_inherited_tinygpu(self.tgpu_fd)
         DEV.value = "NV"
         from tinygrad import Device
         try:
-            if level: self.dev, self.rm_level = _RMDevice(_boot_nvdev_only(gsp_hw=level == "gsp_hw")), level
+            if level: self.dev, self.rm_level = _RMDevice(_boot_nvdev_only(level), level), level
             else: self.dev = Device["NV:0"]
         except Exception as e:
             # nv_init_helper refuses a GPU that still carries a previous boot (WPR2 up) before writing anything;
@@ -638,7 +646,8 @@ class Daemon:
             return
         if self.rm_level:
             log(f"booted — {self.dev}: the C++ side builds the NVDevice (level {self.rm_level}" +
-                (": GSP-RM started, its init_hw and the golden image are the C++ side's)" if self.rm_level == "gsp_hw" else ")"))
+                {"gsp_hw": ": GSP-RM started, its init_hw and the golden image are the C++ side's)",
+                 "flcn_hw": ": the images prepared, both init_hw and the golden image are the C++ side's)"}.get(self.rm_level, ")"))
             self.send_json({"ok": True, "level": self.rm_level})
             return
         log(f"booted — {self.dev}, arch={self.dev.arch}")
@@ -769,16 +778,19 @@ class Daemon:
             if len(fds) == 2: sig_buf = self._map_cpp_signal(fds[1], req)
         finally:
             for fd in fds: os.close(fd)
-        if not self.handed_off or state[0] not in ((_PHASE_DISPATCH, _PHASE_GSP_INIT) if self.rm_level == "gsp_hw" else (_PHASE_DISPATCH,)):
+        phases = {"gsp_hw": (_PHASE_DISPATCH, _PHASE_GSP_INIT), "flcn_hw": (_PHASE_DISPATCH, _PHASE_GSP_INIT, _PHASE_FLCN_INIT)}
+        if not self.handed_off or state[0] not in phases.get(self.rm_level, (_PHASE_DISPATCH,)):
             raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
         self._state = state
         if self.rm_exported and sig_buf is None:   # plan step C7 (level rm): the page precedes the C++ side's RPCs, its timeline follows
-            log("state page mapped: the C++ side records the GSP's sequence number after each RPC; its timeline follows (cmd_timeline)")
+            log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}, seq {state[3]}): the C++ side records the GSP's sequence "
+                f"number after each RPC; its timeline follows (cmd_timeline)")
             self.send_json({"ok": True})
             return
         # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
         self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf or self._handoff_bufs["signal"], owner=self.dev, virt=True)
-        log("state page mapped: the C++ side records whether a frame is in flight and the timeline value it last submitted")
+        log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}): the C++ side records whether a frame is in flight and "
+            f"the timeline value it last submitted")
         self.send_json({"ok": True})
 
     def _map_cpp_signal(self, fd, req):
@@ -860,6 +872,14 @@ class Daemon:
         info.update(rm_level=self.rm_level, rm_next_handle=int(repr(gsp.handle_gen)[6:-1]), rm_gpfifo_class=gsp.gpfifo_class,
                     rm_compute_class=gsp.compute_class, rm_dma_class=gsp.dma_class, rm_viddec_class=gsp.viddec_class or 0,
                     rm_gb2=int(impl.chip_name.startswith("GB2")), bar0_size=pci.bar_info(0)[1])
+        if self.rm_level == "flcn_hw":   # plan step C9: what NV_FLCN.init_sw prepared for init_hw (prep_ucode, prep_booter), and the
+                                         # booter's mailbox argument, the WPR meta
+            fl, d3 = impl.flcn, impl.flcn.desc_v3
+            info.update(frts_paddr=fl.frts_image_paddr, frts_offset=fl.frts_offset, frts_imem_pa=d3.IMEMPhysBase, frts_imem_va=d3.IMEMVirtBase,
+                        frts_imem_sz=d3.IMEMLoadSize, frts_dmem_pa=d3.DMEMPhysBase, frts_dmem_sz=d3.DMEMLoadSize, frts_pkc_off=d3.PKCDataOffset,
+                        frts_engid=d3.EngineIdMask, frts_ucodeid=d3.UcodeId, booter_paddr=fl.booter_image_paddr,
+                        booter_data_off=fl.booter_data_off, booter_data_sz=fl.booter_data_sz, booter_code_off=fl.booter_code_off,
+                        booter_code_sz=fl.booter_code_sz, wpr_meta_sysmem=gsp.wpr_meta_sysmem)
         if self.rm_level == "rm":
             info.update(rm_priv_root=gsp.priv_root, rm_runlists=[x for kv in sorted(gsp.runlists.items()) for x in kv],
                         rm_chan_runlists=[x for kv in sorted(gsp.chan_runlists.items()) for x in kv],
@@ -869,7 +889,8 @@ class Daemon:
         self.send_json(info)
         socket.send_fds(self.sock, [b"Q"], [fd])
         log(f"rm export: GSP queues (seq {info['gsp_seq']}), the memory manager, NV_GSP's RM state (next handle {info['rm_next_handle']:#x}): "
-            f"the C++ side {'boots GSP-RM (init_hw), then ' if self.rm_level == 'gsp_hw' else ''}builds the NVDevice")
+            f"the C++ side {dict(gsp_hw='boots GSP-RM (init_hw), then ', flcn_hw='runs the falcons and boots GSP-RM, then ').get(self.rm_level, '')}"
+            f"builds the NVDevice")
 
     def cmd_alloc(self, req):
         if self.mm_exported: raise RuntimeError("alloc: the C++ side owns the memory manager since the handoff (plan step C6)")
@@ -964,7 +985,7 @@ class Daemon:
         if req.get("cpp_teardown"):
             self._reply_and_hold(self._cpp_fini(req))
             return
-        self._reply_and_hold(self._fini(req.get("hung", False)))
+        self._reply_and_hold(self._fini_or_hold(req.get("hung", False)))
 
     def _cpp_fini(self, req):
         # plan step C5: the C++ side unloaded the GSP and ran NVIDIA's teardown itself (cmd_teardown_export), and reports what
@@ -994,6 +1015,11 @@ class Daemon:
                 phase, in_flight, last, seq = self._state
                 log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, seq {seq}, "
                     f"C++ timeline signal {self._cpp_signal.value if self._cpp_signal else 'not sent'}")
+                if phase == _PHASE_FLCN_INIT:   # plan step C9: before booter_load; FWSEC-FRTS runs from VRAM, nothing from sysmem
+                    log("the C++ side's falcon boot stopped before booter_load started GSP-RM: nothing to unload, closing is safe "
+                        "(if FWSEC-FRTS raised WPR2, the next boot needs a power cycle)")
+                    self.dev = None
+                    return {"ok": False, "error": "the C++ side's falcon boot stopped before GSP-RM started: nothing to unload"}
                 if phase == _PHASE_GSP_INIT:   # plan step C8: the C++ side was booting GSP-RM (its CPU sequencer, before INIT_DONE)
                     log("the C++ side did not finish booting GSP-RM (init_hw, before GSP_INIT_DONE): sending nothing to the GPU")
                     return {"ok": False, "error": "the C++ side did not finish booting GSP-RM", "hold": True, "pid": os.getpid()}
@@ -1011,7 +1037,7 @@ class Daemon:
                 if self.rm_exported:   # plan step C7: the C++ side's RPCs advanced the command queue; the unload continues from there
                     gsp = self.dev.iface.dev_impl.gsp
                     gsp.cmd_q.seq = self._state[3]
-                    if self.rm_level == "gsp_hw" and getattr(gsp, "stat_q", None) is None:   # init_hw's first two statements (ip.py:511-512)
+                    if self.rm_level in ("gsp_hw", "flcn_hw") and getattr(gsp, "stat_q", None) is None:   # init_hw's first two statements (ip.py:511-512)
                         gsp.stat_q = ip_nv.NVRpcQueue(gsp, gsp.stat_q_view, gsp.cmd_q_view)
                         gsp.cmd_q.rx_view = gsp.stat_q_view.view(gsp.stat_q.tx.rxHdrOff, fmt='I')
             from tinygrad import Device
@@ -1065,16 +1091,28 @@ class Daemon:
             log("command socket closed; no device to tear down, exiting")
             return
         log("command socket closed without fini; tearing the GPU down as fini would")
-        reply = self._fini(False)
+        reply = self._fini_or_hold(False)
         log(f"GPU teardown at EOF: {json.dumps(reply)}")
         if reply.get("hold"):
             self._hold()
 
     def _hold(self):
-        log(f"HOLDING the TinyGPU.app connection: closing it could unmap memory the GPU may still use. Unplug the eGPU first, "
-            f"then kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
+        try:
+            log(f"HOLDING the TinyGPU.app connection: closing it could unmap memory the GPU may still use. Unplug the eGPU first, "
+                f"then kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
+        except Exception: pass   # the hold never depends on the log (a full disk, a closed stderr)
         while True:
             time.sleep(3600)
+
+    def _fini_or_hold(self, hung):
+        # _fini's decision; an exception from it (outside the teardown it guards itself) holds: unknown is never closed
+        try: return self._fini(hung)
+        except Exception as e:
+            try:
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+            except Exception: pass
+            return {"ok": False, "error": f"the fini decision failed: {type(e).__name__}: {e}", "hold": True, "pid": os.getpid()}
 
     def run(self):
         try:

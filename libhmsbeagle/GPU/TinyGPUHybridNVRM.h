@@ -32,7 +32,7 @@
 
 namespace tinygpu_device {
 
-struct NVGRBufDesc { uint64_t size; bool phys, virt, local; };   // ip.py's GRBufDesc(size, phys, virt, local=False)
+struct NVGRBufDesc { uint64_t size; bool phys, virt, local; };   // ip.py's GRBufDesc (size, virt, phys, local=False), by name
 
 template <class T> std::vector<uint8_t> nv_bytes(const T& s) {   // bytes(s) of a ctypes struct
     std::vector<uint8_t> b(sizeof(T));

@@ -241,6 +241,7 @@ enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, 
 static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the daemon holds on any other phase
 static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU itself (plan step C5): the daemon holds at EOF
 static const uint64_t kNVDPhaseGspInit = 3;   // level gsp_hw (plan step C8): this side is booting GSP-RM, before its INIT_DONE: the daemon holds
+static const uint64_t kNVDPhaseFlcnInit = 4;  // level flcn_hw (plan step C9): FWSEC-FRTS, before booter_load: GSP-RM never started, the daemon closes
 
 // TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5):
 // this side unloads the GPU at fini, on tinygrad's ported GSP queue and falcon primitives, and the daemon only exits; runtime:
@@ -249,8 +250,9 @@ static const uint64_t kNVDPhaseGspInit = 3;   // level gsp_hw (plan step C8): th
 // buffers too, the default since both rungs passed on the RTX 4060 (STATUS.md R35). rm (plan step C7, rung H3): the daemon boots
 // only the NVDev, and this side builds the NVDevice with tinygrad's RM client ported (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h).
 // gsp_hw (plan step C8, rung H4): the daemon's boot stops once GSP-RM started; this side runs NV_GSP.init_hw (GSP-RM's INIT_DONE,
-// with its CPU sequencer) and init_golden_image, then builds the NVDevice.
-enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw };
+// with its CPU sequencer) and init_golden_image, then builds the NVDevice. flcn_hw (plan step C9): the daemon's boot stops after
+// both init_sw calls; this side runs NV_FLCN.init_hw too (FWSEC-FRTS, booter_load), on the images the daemon prepared.
+enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw, kNVLevelFlcnHw };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
@@ -260,7 +262,9 @@ static NVCppLevel nv_cpp_level() {
         if (strcmp(v, "vram") == 0) return kNVLevelVram;
         if (strcmp(v, "rm") == 0) return kNVLevelRm;
         if (strcmp(v, "gsp_hw") == 0) return kNVLevelGspHw;
-        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw); using sysmem\n", v);
+        if (strcmp(v, "flcn_hw") == 0) return kNVLevelFlcnHw;
+        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw, flcn_hw); "
+                "using sysmem\n", v);
         return kNVLevelSysmem;
     }();
     return level;
@@ -769,8 +773,9 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
 // and the timeline value its work signals; if this process dies without "fini", the daemon holds, or waits for that value
 // before it tears the GPU down (the daemon's own synchronize does not cover work submitted from here). At level rm (plan
 // step C7) the page precedes this side's first RPC and starts with the GSP command queue's sequence number, seq; at gsp_hw
-// (plan step C8) also in phase kNVDPhaseGspInit, until GSP-RM's INIT_DONE.
-static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uint64_t phase = kNVDPhaseDispatch) {
+// (plan step C8) also in phase kNVDPhaseGspInit, until GSP-RM's INIT_DONE; and at every level from rm on with frame_in_flight
+// set until the NVDevice is built (in_flight): its frames and round trips are not nvd_submit's.
+static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uint64_t phase = kNVDPhaseDispatch, uint64_t in_flight = 0) {
     char name[32];  // macOS PSHMNAMLEN is 31
     snprintf(name, sizeof(name), "/beagle-nv.%d", (int)getpid());
     shm_unlink(name);  // only a killed process with this pid could have left it
@@ -786,6 +791,7 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
     }
     uint64_t* st = (uint64_t*)m;  // zero-filled: nothing in flight, nothing submitted
     __atomic_store_n(&st[kNVDStateSeq], seq, __ATOMIC_RELEASE);
+    __atomic_store_n(&st[kNVDStateInFlight], in_flight, __ATOMIC_RELEASE);
     __atomic_store_n(&st[kNVDStatePhase], phase, __ATOMIC_RELEASE);
     // BEAGLE_NV_CPP_LEVEL=sysmem (plan step C6): this side allocated the timeline, so its fd goes along for the daemon's EOF path
     const int sfds[2] = { fd, d.signal_fd };
@@ -883,10 +889,17 @@ static bool nvdTimeline(int cmd_sock, NVDispatchState& d) {
 // the command queue's sequence number, which every RPC updates: a failure from there on still lets the daemon unload the GPU,
 // continuing the queue, and after the NVDevice's first GPU work (its _setup_gpfifos) *hung says to take the hung path. This
 // side's timeline follows the NVDevice (nvdTimeline). At fini this side unloads the GPU on the same GSP client (nvdCppTeardown).
+// Until the NVDevice is built the page also says a frame may be in flight: the build's frames and round trips, and its setup work
+// on the NVDevice's own timeline, are nothing nvd_submit records, so if this process dies meanwhile the daemon holds, sending
+// nothing; an orderly failure clears it (unless the transport was lost), so the daemon unloads as above.
 // gsp_hw (plan step C8): the daemon's boot stopped once GSP-RM started, and the export has init_sw's RM state only: this side
 // runs NV_GSP.init_hw first (nv_gsp_init_hw: GSP-RM's INIT_DONE, with its CPU sequencer, then init_golden_image), its state page
-// in phase kNVDPhaseGspInit until INIT_DONE, so that a failure or an exit before it leaves the daemon holding.
-static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, bool gsp_hw) {
+// in phase kNVDPhaseGspInit until INIT_DONE, so that a failure or an exit before it leaves the daemon holding. flcn_hw (plan step
+// C9): the daemon's boot stopped after both init_sw calls: NV_FLCN.init_hw comes first (FWSEC-FRTS, then booter_load), the page in
+// phase kNVDPhaseFlcnInit until right before booter_load (back to it if booter_load fails: it left GSP-RM unstarted).
+static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCppLevel level) {
+    const bool gsp_hw = level >= kNVLevelGspHw, flcn_hw = level >= kNVLevelFlcnHw;
+    const char* level_name = flcn_hw ? "flcn_hw" : gsp_hw ? "gsp_hw" : "rm";
     auto t0 = nv_profile_start();
     hung = false;
     nv_send_msg(cmd_sock, "{\"cmd\":\"rm_export\"}");
@@ -898,8 +911,23 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, bool
     NVDTeardown& t = d->td;
     if (err.empty()) err = nvdParseTeardown(js, fd, t);
     else if (fd >= 0) close(fd);
-    if (err.empty() && nv_json_str(js, "rm_level") != (gsp_hw ? "gsp_hw" : "rm")) err = "the daemon booted to level " + nv_json_str(js, "rm_level");
-    if (err.empty() && !nvdStatePage(cmd_sock, *d, t.seq, gsp_hw ? kNVDPhaseGspInit : kNVDPhaseDispatch)) err = "no state page";
+    if (err.empty() && nv_json_str(js, "rm_level") != level_name) err = "the daemon booted to level " + nv_json_str(js, "rm_level");
+    if (err.empty() && !nvdStatePage(cmd_sock, *d, t.seq, flcn_hw ? kNVDPhaseFlcnInit : gsp_hw ? kNVDPhaseGspInit : kNVDPhaseDispatch, 1))
+        err = "no state page";
+    NVFlcnImages im;   // flcn_hw: cmd_rm_export's frts_* and booter_* keys
+    uint64_t wpr_meta_sysmem = 0;
+    if (err.empty() && flcn_hw) {
+        uint64_t f[16] = {};
+        const char* fk[16] = {"frts_paddr", "frts_offset", "frts_imem_pa", "frts_imem_va", "frts_imem_sz", "frts_dmem_pa", "frts_dmem_sz",
+                              "frts_pkc_off", "frts_engid", "frts_ucodeid", "booter_paddr", "booter_data_off", "booter_data_sz",
+                              "booter_code_off", "booter_code_sz", "wpr_meta_sysmem"};
+        for (int i = 0; i < 16 && err.empty(); ++i)
+            if (!nvd_json_u64(js, fk[i], f[i])) err = std::string("the export has no ") + fk[i];
+        im.frts_image_paddr = f[0]; im.frts_offset = f[1]; im.imem_pa = (uint32_t)f[2]; im.imem_va = (uint32_t)f[3]; im.imem_sz = (uint32_t)f[4];
+        im.dmem_pa = (uint32_t)f[5]; im.dmem_sz = (uint32_t)f[6]; im.pkc_off = (uint32_t)f[7]; im.engid = (uint32_t)f[8]; im.ucodeid = (uint32_t)f[9];
+        im.booter_image_paddr = f[10]; im.booter_data_off = (uint32_t)f[11]; im.booter_data_sz = (uint32_t)f[12];
+        im.booter_code_off = (uint32_t)f[13]; im.booter_code_sz = (uint32_t)f[14]; wpr_meta_sysmem = f[15];
+    }
     std::vector<uint64_t> w(10), runlists, chan_runlists, grctx;
     const char* keys[10] = {"bar0_size", "rm_next_handle", "rm_gpfifo_class", "rm_compute_class", "rm_dma_class", "rm_viddec_class", "rm_gb2",
                             "rm_priv_root", "rm_subdevice", "rm_device"};   // the last three: init_hw's and init_golden_image's (level rm)
@@ -917,20 +945,26 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, bool
         tg_transport().seed_bar(0, w[0]);   // the daemon mapped BAR0 in its boot
         d->bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
         d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id);
-        d->gsp = std::make_unique<NVGsp>(*d->bar0, *d->flcn, t.queues, t.cmdq_off, t.statq_off, t.queue_size, t.libos_args_sysmem, t.seq,
-                                         d->flcn->wait_ms);
-        d->gsp->after_rpc = [d](uint32_t seq) { __atomic_store_n(&d->state[kNVDStateSeq], seq, __ATOMIC_RELEASE); };
-        d->rm = std::make_unique<NVRMClient>(*d->gsp, *d->mem->mm);
-        NVRMClient& rm = *d->rm;
-        rm.next_handle = (uint32_t)w[1]; rm.gpfifo_class = (uint32_t)w[2]; rm.compute_class = (uint32_t)w[3]; rm.dma_class = (uint32_t)w[4];
-        rm.viddec_class = (uint32_t)w[5]; rm.gb2 = w[6] != 0;
-        if (!gsp_hw) { rm.priv_root = (uint32_t)w[7]; rm.subdevice = (uint32_t)w[8]; rm.device = (uint32_t)w[9]; }
-        for (size_t i = 0; i < runlists.size(); i += 2) rm.runlists[runlists[i]] = (uint32_t)runlists[i + 1];
-        for (size_t i = 0; i < chan_runlists.size(); i += 2) rm.chan_runlists[(uint32_t)chan_runlists[i]] = (uint32_t)chan_runlists[i + 1];
-        for (size_t i = 0; i < grctx.size(); i += 5)
-            rm.grctx_bufs.push_back({(uint16_t)grctx[i], {grctx[i + 1], grctx[i + 2] != 0, grctx[i + 3] != 0, grctx[i + 4] != 0}});
         try {
-            if (gsp_hw) nv_gsp_init_hw(rm, false, [d] { __atomic_store_n(&d->state[kNVDStatePhase], kNVDPhaseDispatch, __ATOMIC_RELEASE); });
+            auto phase = [d](uint64_t p) { __atomic_store_n(&d->state[kNVDStatePhase], p, __ATOMIC_RELEASE); };
+            if (flcn_hw)   // GSP-RM may run from sysmem once booter_load runs; a booter_load that failed left it unstarted
+                d->flcn->init_hw(im, t.libos_args_sysmem, wpr_meta_sysmem, [&] { phase(kNVDPhaseGspInit); },
+                                 [&](uint32_t mbx0) { if (mbx0 != 0) phase(kNVDPhaseFlcnInit); });
+            // the GSP queues, as init_hw's first statements build them: the status queue is GSP-RM's, which sets its header up once
+            // booter_load started it (at flcn_hw, just now); the constructor waits for it
+            d->gsp = std::make_unique<NVGsp>(*d->bar0, *d->flcn, t.queues, t.cmdq_off, t.statq_off, t.queue_size, t.libos_args_sysmem, t.seq,
+                                             d->flcn->wait_ms);
+            d->gsp->after_rpc = [d](uint32_t seq) { __atomic_store_n(&d->state[kNVDStateSeq], seq, __ATOMIC_RELEASE); };
+            d->rm = std::make_unique<NVRMClient>(*d->gsp, *d->mem->mm);
+            NVRMClient& rm = *d->rm;
+            rm.next_handle = (uint32_t)w[1]; rm.gpfifo_class = (uint32_t)w[2]; rm.compute_class = (uint32_t)w[3]; rm.dma_class = (uint32_t)w[4];
+            rm.viddec_class = (uint32_t)w[5]; rm.gb2 = w[6] != 0;
+            if (!gsp_hw) { rm.priv_root = (uint32_t)w[7]; rm.subdevice = (uint32_t)w[8]; rm.device = (uint32_t)w[9]; }
+            for (size_t i = 0; i < runlists.size(); i += 2) rm.runlists[runlists[i]] = (uint32_t)runlists[i + 1];
+            for (size_t i = 0; i < chan_runlists.size(); i += 2) rm.chan_runlists[(uint32_t)chan_runlists[i]] = (uint32_t)chan_runlists[i + 1];
+            for (size_t i = 0; i < grctx.size(); i += 5)
+                rm.grctx_bufs.push_back({(uint16_t)grctx[i], {grctx[i + 1], grctx[i + 2] != 0, grctx[i + 3] != 0, grctx[i + 4] != 0}});
+            if (gsp_hw) nv_gsp_init_hw(rm, false, [&] { phase(kNVDPhaseDispatch); });
             nv_device_init(rm, d->dev);
         } catch (const TGPyError& e) {
             err = "building the NVDevice: " + e.py();
@@ -948,7 +982,8 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, bool
         if (!nvdTimeline(cmd_sock, *d)) err = "no timeline";
     }
     if (!err.empty()) {
-        fprintf(stderr, "TinyGPU/NV: level %s: %s\n", gsp_hw ? "gsp_hw" : "rm", err.c_str());
+        fprintf(stderr, "TinyGPU/NV: level %s: %s\n", level_name, err.c_str());
+        if (d->state && !tg_transport().lost()) __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // between frames
         return nullptr;   // the caller exits through the daemon, which continues the GSP from the state page (if it got one)
     }
     d->cmdq = (uint8_t*)d->maps[0];
@@ -959,11 +994,13 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, bool
     t.ready = true;
     nv_profile_end("handoff", t0);
     tg_transport().marker(TGM_HANDOFF, d->runtime);
+    __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // built: from here nvd_submit keeps the word
     fprintf(stderr, "TinyGPU/NV: C++ runtime: built the NVDevice after %s (level %s: %s, QMD v%u, VRAM pool %llu MiB)\n",
-            gsp_hw ? "booting GSP-RM (init_hw, the golden image)" : "the NVDev's boot", gsp_hw ? "gsp_hw" : "rm", d->dev.arch.c_str(),
+            flcn_hw ? "the falcons' boot and GSP-RM's (both init_hw, the golden image)" : gsp_hw ? "booting GSP-RM (init_hw, the golden image)"
+                    : "the NVDev's boot", level_name, d->dev.arch.c_str(),
             d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
     fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=%s)\n",
-            t.images.present ? " and NVIDIA's teardown" : "", gsp_hw ? "gsp_hw" : "rm");
+            t.images.present ? " and NVIDIA's teardown" : "", level_name);
     return d;
 }
 
@@ -1182,8 +1219,10 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     fprintf(stderr, "TinyGPU/NV: sending boot command...\n"); fflush(stderr);
     auto t0 = nv_profile_start();
     // the daemon boots the NVDev only (plan step C7), and at gsp_hw without NV_GSP.init_hw (plan step C8)
-    const bool rm_level = nv_cpp_runtime() && tg_fd >= 0 && nv_cpp_level() >= kNVLevelRm, gsp_hw = rm_level && nv_cpp_level() == kNVLevelGspHw;
-    nv_send_msg(g->cmd_sock, !rm_level ? "{\"cmd\":\"boot\"}" : gsp_hw ? "{\"cmd\":\"boot\",\"level\":\"gsp_hw\"}" : "{\"cmd\":\"boot\",\"level\":\"rm\"}");
+    // and at flcn_hw without NV_FLCN.init_hw either (plan step C9)
+    const bool rm_level = nv_cpp_runtime() && tg_fd >= 0 && nv_cpp_level() >= kNVLevelRm;
+    const char* boot_level = !rm_level ? "" : nv_cpp_level() == kNVLevelFlcnHw ? "flcn_hw" : nv_cpp_level() == kNVLevelGspHw ? "gsp_hw" : "rm";
+    nv_send_msg(g->cmd_sock, !rm_level ? std::string("{\"cmd\":\"boot\"}") : std::string("{\"cmd\":\"boot\",\"level\":\"") + boot_level + "\"}");
     std::string resp = nv_recv_msg(g->cmd_sock);
     nv_profile_end("boot", t0);
     if (resp.empty() || !nv_json_ok(resp)) {
@@ -1194,7 +1233,9 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
         return nullptr;
     }
     g->arch = nv_json_str(resp, "arch");   // at level rm, from the NVDevice this side builds (nvDispatchRM)
-    if (rm_level) fprintf(stderr, "TinyGPU/NV: daemon booted the NVDev (level %s)\n", gsp_hw ? "gsp_hw: GSP-RM started" : "rm");
+    if (rm_level)
+        fprintf(stderr, "TinyGPU/NV: daemon booted the NVDev (level %s)\n", strcmp(boot_level, "flcn_hw") == 0 ? "flcn_hw: the images prepared"
+                : strcmp(boot_level, "gsp_hw") == 0 ? "gsp_hw: GSP-RM started" : "rm");
     else fprintf(stderr, "TinyGPU/NV: daemon booted — arch=%s\n", g->arch.c_str());
     g_nv = g;   // from here on every exit, a GPU hang during setup included, tears the GPU down through the daemon
 
@@ -1243,7 +1284,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     }
     if (tg_fd >= 0 && rm_level) {
         bool hung = false;
-        g_nvd = nvDispatchRM(g->cmd_sock, tg_fd, hung, gsp_hw);
+        g_nvd = nvDispatchRM(g->cmd_sock, tg_fd, hung, nv_cpp_level());
         if (!g_nvd) nv_safe_exit(1, hung);
         g->arch = g_nvd->dev.arch;
         nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);

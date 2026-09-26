@@ -377,6 +377,11 @@ def test_failed_boot():
             f2.execute_hs(SEC2, 0x200000, code_off=0x100, data_off=0x5000, imemPa=0, imemVa=0x100, imemSz=0x100, dmemPa=0, dmemVa=0,
                           dmemSz=0x100, pkc_off=0x10, engid=1, ucodeid=3, mailbox=1)
             assert getattr(d2, "beagle_gsp_started", False) is started, (mbx0, started)
+        f3, d3, _ = teardown_rig(sec2_halted=0); f3.booter_image_paddr = 0x200000   # booter_load never halts: it may have started GSP-RM
+        try: f3.execute_hs(SEC2, 0x200000, code_off=0x100, data_off=0x5000, imemPa=0, imemVa=0x100, imemSz=0x100, dmemPa=0, dmemVa=0,
+                           dmemSz=0x100, pkc_off=0x10, engid=1, ucodeid=3, mailbox=1); raise AssertionError("SEC2 halted")
+        except TimeoutError: pass
+        assert getattr(d3, "beagle_gsp_started", False) is True
     finally: ip.wait_cond = saved
     gsp = NV_GSP.__new__(NV_GSP); gsp.nvdev = dev; dev.gsp = gsp
     dev.mmio.vals[addr(dev.NV_PGSP_FALCON_MAILBOX0)] = 0x80000000
@@ -412,7 +417,7 @@ def test_failed_boot():
             except RuntimeError as e: assert "GSP_INIT_DONE" in str(e)
         finally: type(Device).__getitem__, Device._opened_devices = real_getitem, real_opened
     finally: h._ORIG["gsp_fini_hw"], h._BOOTING[0], h._SUSPEND_TIMEOUT_S = saved
-    print("failed boot: booter_load returning 0 marks GSP-RM started (0x29 does not); after that the daemon unloads it and "
+    print("failed boot: booter_load marks GSP-RM started from its start, cleared if it halts with 0x29 (not if it never halts); after that the daemon unloads it and "
           "closes only once the GSP confirms, else replies hold with the pid; before it, the error propagates as before")
 
 if __name__ == "__main__":

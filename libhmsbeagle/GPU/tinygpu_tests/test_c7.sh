@@ -31,7 +31,8 @@ check "fake AD107: both levels PASS, and the device received identical bytes fro
 check "at rm: the daemon booted the NVDev only and exported the GSP; the state page came before the plugin's timeline; the plugin built the NVDevice and unloaded the GPU at fini" \
     "grep -q 'daemon booted the NVDev (level rm)' '$(out rm)' && grep -q '(level rm: sm_89, QMD v3' '$(out rm)' && ! grep -q '$BUILT' '$(out sysmem)' \
      && grep -q 'the C++ GSP unload and teardown' '$(out rm)' && grep -q 'rm export: GSP queues' '$(dlog rm)' \
-     && awk '/state page mapped: the C\+\+ side records the GSP/{s=NR} /C\+\+ timeline mapped/{t=NR} END{exit !(s && t && s < t)}' '$(dlog rm)'"
+     && awk '/state page mapped .*the C\+\+ side records the GSP/{s=NR} /C\+\+ timeline mapped/{t=NR} END{exit !(s && t && s < t)}' '$(dlog rm)' \
+     && grep -q 'state page mapped (phase 1, frame_in_flight 1, seq 13)' '$(dlog rm)'"
 # ... and two instances in one process sharing the plugin's one NVDevice (plan step P5), in two threads
 "$TG_TESTS/run_fake_device.sh" c7_p5 BEAGLE_NV_CPP_LEVEL=rm -- --state-count 4,64 --threads --reps 3 > "$W/p5.txt" 2>&1
 check "fake AD107 at rm: two instances in two threads share the boot and the plugin's NVDevice" \

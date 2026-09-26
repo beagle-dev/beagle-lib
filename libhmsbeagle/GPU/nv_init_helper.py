@@ -200,9 +200,12 @@ def _execute_hs_with_frts_checks(self, base, img_paddr, *args, **kwargs):
         plm = nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK.read_bitfields()['read_protection_level0']
         gfw = nvdev.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05[0].read() & 0xff
         _p1log(f"before FWSEC-FRTS: read_protection_level0={plm} (tinygrad waits for 1), SCRATCH_GROUP_05[0]&0xff=0x{gfw:02x} (waits for 0xff)")
+    booter = img_paddr == getattr(self, "booter_image_paddr", None)
+    if booter:   # from SEC2's start on, booter_load may start GSP-RM, which then runs from sysmem (unload_after_failed_boot); so a
+        nvdev.beagle_gsp_started = True   # booter_load that never halts counts as started (TODO.md plan step C9's review)
     ret = _ORIG["execute_hs"](self, base, img_paddr, *args, **kwargs)
-    if img_paddr == getattr(self, "booter_image_paddr", None) and ret is not None and ret[0] == 0:
-        nvdev.beagle_gsp_started = True   # booter_load started GSP-RM, which runs from sysmem from here on (unload_after_failed_boot)
+    if booter and ret is not None and ret[0] != 0:
+        nvdev.beagle_gsp_started = False   # it halted with an error: GSP-RM never started (the recorded 0x29 failures, STATUS.md R14)
     if frts:   # NVIDIA's FRTS post-checks (570.144 kernel_gsp_frts_tu102.c:486-523), before tinygrad's WPR2_HI assert
         scratch = nvdev.NV_PBUS_VBIOS_SCRATCH[0x0e].read()
         wpr2_lo = nvdev.NV_PFB_PRI_MMU_WPR2_ADDR_LO.read_bitfields()['val']

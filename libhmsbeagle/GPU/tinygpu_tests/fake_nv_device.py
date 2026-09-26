@@ -23,6 +23,8 @@ A session that ends while the GSP is live is an error: on the eGPU that unwires 
 FAKE_RM_FAIL=<class>: the GSP refuses every rm_alloc of that class (rpc_result NV_ERR_INVALID_CLASS), as GSP-RM refuses a bad
 request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission). FAKE_NO_INIT_DONE=1:
 the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and the daemon must hold).
+FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; booter_load returns MAILBOX0 0x29 and starts
+nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
 It prints "fake TinyGPU.app (AD107 device) listening", and after each session its counts and NO ERRORS or the errors."""
 import os, sys, json, mmap, glob, socket, struct, ctypes, types, collections
@@ -50,6 +52,7 @@ errors, counts = [], collections.Counter()
 RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
 RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
+FALCON_FAIL = os.environ.get("FAKE_FALCON_FAIL", "")
 
 def err(msg):
     errors.append(msg)
@@ -156,14 +159,15 @@ class Device:
         st = self.falcon[base]
         if base == GSP_BASE:
             counts["FWSEC-SB" if self.unloaded else "FWSEC-FRTS"] += 1
-            if not self.unloaded: self.wpr2 = True   # FRTS sets up WPR2 (the scratch error codes read 0: none)
+            if not self.unloaded and FALCON_FAIL != "frts": self.wpr2 = True   # FRTS sets up WPR2 (the scratch error codes read 0: none)
         elif not self.unloaded:   # booter_load, handed the WPR meta's device address: GSP-RM starts
             counts["booter_load"] += 1
             if not self.wpr2: err("booter_load ran with WPR2 down")
             wpr_meta = mbx("MAILBOX0") | mbx("MAILBOX1") << 32
-            self.regs[addr(FALCON_REGS["MAILBOX0"], base)] = 0
-            self.falcon[GSP_BASE]["riscv_active"] = True
-            self.gsp = Gsp(self, wpr_meta)
+            self.regs[addr(FALCON_REGS["MAILBOX0"], base)] = 0x29 if FALCON_FAIL == "booter" else 0
+            if FALCON_FAIL != "booter":
+                self.falcon[GSP_BASE]["riscv_active"] = FALCON_FAIL != "core"
+                self.gsp = Gsp(self, wpr_meta)
         else:   # Booter Unload (mailboxes 0xff): WPR2 comes down
             counts["booter_unload"] += 1
             if (mbx("MAILBOX0"), mbx("MAILBOX1")) != (0xff, 0xff): err(f"Booter Unload's mailboxes are {mbx('MAILBOX0'):#x}, {mbx('MAILBOX1'):#x}")

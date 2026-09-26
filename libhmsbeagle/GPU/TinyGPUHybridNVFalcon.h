@@ -6,8 +6,10 @@
  * the registers of TinyGPUNVReg.h and TinyGPUNVBootTables.h, over TinyGPU.app's BAR0 (NVDev.rreg/wreg, nvdev.py:92-95), with
  * tinygrad's wait_cond (helpers.py:554-558) and the teardown nv_init_helper.py runs after the GSP unload (plan step P2's
  * NV_FLCN.fini_hw, section 5), with its failure semantics. Also what nv_init_helper's patches add around these primitives:
- * the 20 s sleep after SEC2 starts inside gsp.init_hw or a LEVEL_0 unload (patch 3). Ada (NV_FLCN) only: Blackwell's COT
- * boot has no host-run falcon ucode (plan step B2).
+ * the 20 s sleep after SEC2 starts inside gsp.init_hw or a LEVEL_0 unload (patch 3). Plan step C9 added NV_FLCN.init_hw
+ * (ip.py:186-210: FWSEC-FRTS, then booter_load, which starts GSP-RM) with nv_init_helper's execute_hs wrapper around it
+ * (_execute_hs_with_frts_checks, plan step P1). Ada (NV_FLCN) only: Blackwell's COT boot has no host-run falcon ucode (plan
+ * step B2).
  *
  * tinygrad's exceptions become NVError, carrying the Python type's name (TimeoutError, RuntimeError, AssertionError, ...)
  * and str(e), so the teardown catches what nv_init_helper catches and records the same text. Every hardware-facing step is
@@ -93,6 +95,15 @@ struct NVTeardownImages {
     uint64_t sb_paddr = 0, unload_paddr = 0;
     uint32_t sb_imem_pa = 0, sb_imem_va = 0, sb_imem_sz = 0, sb_dmem_pa = 0, sb_dmem_sz = 0, sb_pkc_off = 0, sb_engid = 0, sb_ucodeid = 0;
     uint32_t unload_data_off = 0, unload_data_sz = 0, unload_code_off = 0, unload_code_sz = 0;   // beagle_unload_params
+};
+
+// What NV_FLCN.init_sw prepared for init_hw (plan step C9), as the daemon exports it at level flcn_hw: prep_ucode's FWSEC-FRTS
+// image in VRAM with its desc_v3 load parameters and frts_offset, and prep_booter's booter_load image with its offsets.
+struct NVFlcnImages {
+    uint64_t frts_image_paddr = 0, frts_offset = 0;
+    uint32_t imem_pa = 0, imem_va = 0, imem_sz = 0, dmem_pa = 0, dmem_sz = 0, pkc_off = 0, engid = 0, ucodeid = 0;   // desc_v3
+    uint64_t booter_image_paddr = 0;
+    uint32_t booter_data_off = 0, booter_data_sz = 0, booter_code_off = 0, booter_code_sz = 0;
 };
 
 // nv_init_helper's beagle_fini: what the unload (P1's suspend wait) and the teardown (P2) recorded, as the daemon's fini
@@ -228,6 +239,52 @@ public:
             return {m0, reg(NV_PFALCON_FALCON_MAILBOX1).with_base(base).read()};
         }
         return {0, 0};
+    }
+
+    // NV_FLCN.init_hw (ip.py:186-210) with nv_init_helper's execute_hs wrapper (_execute_hs_with_frts_checks, plan step P1):
+    // FWSEC-FRTS's pre- and post-checks, read and logged around its execute_hs. before_booter runs right before booter_load, after
+    // which GSP-RM may run from sysmem; booter_done(MAILBOX0) once booter_load halted (0: it started GSP-RM, as nv_init_helper's
+    // beagle_gsp_started records it).
+    void init_hw(const NVFlcnImages& im, uint64_t libos_args_sysmem, uint64_t wpr_meta_sysmem, const std::function<void()>& before_booter = {},
+                 const std::function<void(uint32_t)>& booter_done = {}) {
+        using namespace nv_regs;
+        reset(falcon);
+        // the wrapper, before FWSEC-FRTS: the conditions tinygrad's (suppressed) wait_for_reset polls, ip.py:94-96
+        const uint64_t plm = reg(NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK).read_bitfields()["read_protection_level0"];
+        const uint32_t gfw = reg(NV_PGC6_AON_SECURE_SCRATCH_GROUP_05)[0].read() & 0xff;
+        tg_log("before FWSEC-FRTS: read_protection_level0=%llu (tinygrad waits for 1), SCRATCH_GROUP_05[0]&0xff=0x%02x (waits for 0xff)",
+               (unsigned long long)plm, gfw);
+        execute_hs(falcon, im.frts_image_paddr, 0x0, im.imem_sz, im.imem_pa, im.imem_va, im.imem_sz, im.dmem_pa, 0x0, im.dmem_sz, im.pkc_off,
+                   im.engid, im.ucodeid);
+        // and after it: NVIDIA's FRTS post-checks (570.144 kernel_gsp_frts_tu102.c:486-523), before tinygrad's WPR2_HI assert
+        const uint32_t scratch = reg(NV_PBUS_VBIOS_SCRATCH)[0x0e].read();
+        const uint64_t wpr2_lo = reg(NV_PFB_PRI_MMU_WPR2_ADDR_LO).read_bitfields()["val"];
+        const uint64_t expected = im.frts_offset >> 12;
+        tg_log("after FWSEC-FRTS: VBIOS scratch 0x0E=0x%08x (FRTS error code 0x%x, 0 = none); WPR2_LO.val=0x%llx, frts_offset>>12=0x%llx (%s)",
+               scratch, scratch >> 16, (unsigned long long)wpr2_lo, (unsigned long long)expected, wpr2_lo == expected ? "match" : "MISMATCH");
+        if (reg(NV_PFB_PRI_MMU_WPR2_ADDR_HI).read() == 0) throw NVError("AssertionError", "WPR2 is not initialized");
+
+        reset(falcon, true);
+
+        // set up the mailbox
+        reg(NV_PGSP_FALCON_MAILBOX0).write(nv_lo32(libos_args_sysmem));
+        reg(NV_PGSP_FALCON_MAILBOX1).write(nv_hi32(libos_args_sysmem));
+
+        // booter
+        if (before_booter) before_booter();
+        reset(sec2);
+        const std::pair<uint32_t, uint32_t> mbx = execute_hs(sec2, im.booter_image_paddr, im.booter_code_off, im.booter_data_off, 0x0,
+                                                             im.booter_code_off, im.booter_code_sz, 0x0, 0x0, im.booter_data_sz, 0x10, 1, 3,
+                                                             &wpr_meta_sysmem);
+        if (booter_done) booter_done(mbx.first);
+        if (mbx.first != 0x0) {
+            char m[80];
+            snprintf(m, sizeof(m), "Booter failed to execute, mailbox is %08x, %08x", mbx.first, mbx.second);
+            throw NVError("AssertionError", m);
+        }
+
+        reg(NV_PFALCON_FALCON_OS).with_base(falcon).write(0x0);
+        if (reg(NV_PRISCV_RISCV_CPUCTL).with_base(falcon).read_bitfields()["active_stat"] != 1) throw NVError("AssertionError", "GSP Core is not active");
     }
 
     // NV_FLCN.disable_ctx_req (ip.py:267-269)

@@ -30,6 +30,9 @@ results+=("C++ RM client and NVDevice (C7): $([ $? -eq 0 ] && echo PASS || echo 
 # plan step C8: the plugin boots GSP-RM itself, NV_GSP.init_hw and the golden image (BEAGLE_NV_CPP_LEVEL=gsp_hw), on the fake AD107 and the L0 recordings
 "$TG_TESTS/test_c8.sh" > "$TINYGPU_TEST_WORK/test_c8_e2e.log" 2>&1
 results+=("C++ GSP-RM boot and golden image (C8): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c8_e2e.log)")")
+# plan step C9: the plugin runs the falcons' init_hw too, FWSEC-FRTS and booter_load (BEAGLE_NV_CPP_LEVEL=flcn_hw), on the fake AD107 and the L0 recordings
+"$TG_TESTS/test_c9.sh" > "$TINYGPU_TEST_WORK/test_c9_e2e.log" 2>&1
+results+=("C++ falcon boot (C9): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c9_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

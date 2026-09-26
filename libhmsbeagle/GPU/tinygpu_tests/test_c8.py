@@ -31,13 +31,13 @@ def test_boot_without_init_hw():
     patched = NV_GSP.init_hw
     ops_nv.PCIIfaceBase.__init__ = base_init
     try:
-        d._boot_nvdev_only(gsp_hw=True)
+        d._boot_nvdev_only("gsp_hw")
         assert calls == [] and NV_GSP.init_hw is patched, calls   # nothing ran, and the patched one is back
         d._boot_nvdev_only()
         assert calls == ["init_hw"], calls                         # level rm: init_hw is the daemon's
         def fails(self, dev, dev_id, **kw): raise RuntimeError("no GPU")
         ops_nv.PCIIfaceBase.__init__ = fails
-        try: d._boot_nvdev_only(gsp_hw=True); raise AssertionError("a failed boot must raise")
+        try: d._boot_nvdev_only("gsp_hw"); raise AssertionError("a failed boot must raise")
         except RuntimeError: pass
         assert NV_GSP.init_hw is patched
     finally: ops_nv.PCIIfaceBase.__init__, NV_GSP.init_hw = real_base, real_init_hw
@@ -46,7 +46,7 @@ def test_boot_without_init_hw():
 
 def test_boot_level():
     stubs = {"_apply_boot_safety_patches": lambda: None, "_install_inherited_tinygpu": lambda fd: None,
-             "_boot_nvdev_only": lambda gsp_hw=False: types.SimpleNamespace(dev_impl=types.SimpleNamespace(chip_name="AD107", gsp_hw=gsp_hw),
+             "_boot_nvdev_only": lambda level="rm": types.SimpleNamespace(dev_impl=types.SimpleNamespace(chip_name="AD107", level=level),
                                                                              device_fini=lambda: None)}
     real = {k: getattr(d, k) for k in stubs}
     for k, v in stubs.items(): setattr(d, k, v)

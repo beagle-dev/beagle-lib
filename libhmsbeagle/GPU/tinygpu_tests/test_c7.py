@@ -49,7 +49,7 @@ def test_boot_nvdev_only():
 
 def test_boot_levels():
     calls = []
-    def nvdev(gsp_hw=False):   # the booted PCIIface; its device_fini is NVDev.fini (the unload and NVIDIA's teardown, confirmed)
+    def nvdev(level="rm"):   # the booted PCIIface; its device_fini is NVDev.fini (the unload and NVIDIA's teardown, confirmed)
         impl = types.SimpleNamespace(chip_name="AD107")
         return types.SimpleNamespace(dev_impl=impl, device_fini=lambda: (calls.append("device_fini"), setattr(impl, "beagle_fini", dict(p3.CONFIRMED))))
     stubs = {"_apply_boot_safety_patches": lambda: None, "_install_inherited_tinygpu": lambda fd: None, "_boot_nvdev_only": nvdev}
@@ -176,7 +176,7 @@ def test_state_page_and_timeline():
     print("state page at level rm: the page alone, before the C++ side's first RPC, its sequence number read live; the C++ "
           "timeline after it (cmd_timeline), once; a timeline before the page or below level rm refused, the stream framed")
 
-def fini_rig(seq=None, last=0, signal=None):
+def fini_rig(seq=None, last=0, signal=None, in_flight=0):
     """A level-rm daemon after cmd_rm_export whose GSP client counted 13 commands; seq: the state page's count (None: no page);
     signal: the C++ timeline's value (None: not sent). Every unload records the count it continued from."""
     a, dm, calls, _, _ = p3.rig(signal=signal or 0)
@@ -187,7 +187,7 @@ def fini_rig(seq=None, last=0, signal=None):
     impl.gsp.fini_hw = lambda: (seqs.append(impl.gsp.cmd_q.seq), fini_hw())
     dm.handed_off = dm.rm_exported = True
     if seq is not None:
-        dm._state = memoryview(bytearray(struct.pack("<4Q", d._PHASE_DISPATCH, 0, last, seq))).cast("Q")
+        dm._state = memoryview(bytearray(struct.pack("<4Q", d._PHASE_DISPATCH, in_flight, last, seq))).cast("Q")
         if signal is not None: dm._cpp_signal = d.ops_nv.NVSignal(base_buf=dm._handoff_bufs["signal"], owner=dm.dev, virt=True)
     del dm._handoff_bufs
     return a, dm, calls, seqs
@@ -211,9 +211,37 @@ def test_fini_rm():
         a, dm, calls, seqs = fini_rig(seq=40, last=5, signal=5)   # the C++ timeline reached its last value: the unload follows
         (r, _), = c5.daemon_reply(dm, a, [{"cmd": "fini"}])[0]
         assert r["ok"] and calls == ["finalize"] and seqs == [40], (r, calls, seqs)
+        a, dm, calls, seqs = fini_rig(seq=21, in_flight=1); held, log = p3.run(a, dm)   # died while building the NVDevice
+        assert held and calls == ["hold"] and seqs == [] and "cut mid-send" in log, (calls, log)
     finally: Device._opened_devices = real
     print("fini and EOF at level rm: the unload continues the GSP's command queue from the state page's count (the unload RPC "
-          "only and a hold on the hung path); no state page, a hold with nothing sent to the GPU")
+          "only and a hold on the hung path); no state page, or a death while the NVDevice was being built (frame_in_flight), a hold "
+          "with nothing sent to the GPU")
+
+def test_hold_robust():
+    """The hold never depends on the log, and an exception from the fini decision holds (plan step C7's review)."""
+    real, Device._opened_devices = Device._opened_devices, set()
+    try:
+        a, b = socket.socketpair()
+        dm = d.Daemon(b)
+        class Slept(BaseException): pass
+        def no_log(msg): raise OSError("no space left on device")
+        def slept(s): raise Slept()
+        real_log, real_sleep = d.log, d.time.sleep
+        d.log, d.time.sleep = no_log, slept
+        try:
+            try: dm._hold(); raise AssertionError("the hold returned")
+            except Slept: pass   # it reached its sleep although the log raised
+        finally: d.log, d.time.sleep = real_log, real_sleep
+        a, dm, calls, seqs = fini_rig(seq=21)
+        def broken(hung): raise KeyError("stat_q")
+        dm._fini = broken
+        (r, _), = c5.daemon_reply(dm, a, [{"cmd": "fini"}])[0]
+        assert r.get("hold") and "the fini decision failed: KeyError" in r["error"] and calls == ["hold"], (r, calls)
+        a, dm, calls, seqs = fini_rig(seq=21); dm._fini = broken; held, log = p3.run(a, dm)   # EOF: the same
+        assert held and calls == ["hold"], calls
+    finally: Device._opened_devices = real
+    print("hold rule: the hold reaches its sleep although the log fails; a fini decision that raises holds, at fini and at EOF")
 
 if __name__ == "__main__":
     test_boot_nvdev_only()
@@ -221,4 +249,5 @@ if __name__ == "__main__":
     test_rm_export()
     test_state_page_and_timeline()
     test_fini_rm()
+    test_hold_robust()
     print("C7 daemon: all passed")
