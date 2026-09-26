@@ -511,6 +511,33 @@ def _mm_export(dev):
             "mm_sysmem_count": len(pci.sysmem_fds), "bar1_size": pci.bar_info(1)[1]}
 
 
+# TODO.md plan step C7: at BEAGLE_NV_CPP_LEVEL=rm this process boots only the NVDev, the GSP included, and the C++ side builds the
+# NVDevice with tinygrad's RM client ported to C++ (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h). _boot_nvdev_only runs
+# tinygrad's own PCIIface.__init__ (ops_nv.py:557-568) and stops it at its first RM call, the root client's allocation, which the
+# C++ side makes: so this process sends TinyGPU.app exactly what NVDevice's boot sends up to there. (NVDevice._select_iface tries
+# NVKIface first, which sends nothing here.) _RMDevice stands in for the NVDevice in the fini, EOF, state-page and export paths:
+# the booted PCIIface; no timeline of this process's own, so synchronize has nothing to wait for; and finalize as
+# HCQCompiled.finalize ends, with device_fini (NVDev.fini: the GSP unload, then unless BEAGLE_NV_TEARDOWN=0 NVIDIA's teardown).
+class _RMDevice:
+    error_state = None
+    def __init__(self, iface): self.iface = iface
+    def synchronize(self): pass
+    def finalize(self): self.iface.device_fini()
+    def __repr__(self): return f"<the NVDev of {self.iface.dev_impl.chip_name}, level rm>"
+
+
+def _boot_nvdev_only():
+    class _Fork(Exception): pass
+    class NVDevice: pass   # PCIIfaceBase names the device after its class: "NV"
+    def fork(*a, **k): raise _Fork
+    iface = ops_nv.PCIIface.__new__(ops_nv.PCIIface)
+    saved, ops_nv.PCIIface.rm_alloc = ops_nv.PCIIface.rm_alloc, fork
+    try: ops_nv.PCIIface.__init__(iface, NVDevice(), 0)
+    except _Fork: pass
+    finally: ops_nv.PCIIface.rm_alloc = saved
+    return iface
+
+
 # The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): four u64 words
 # [phase, frame_in_flight, last_submitted, seq] in a POSIX shm segment the plugin creates, unlinks and passes here right
 # after the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is
@@ -530,6 +557,7 @@ class Daemon:
         self._allocs = {}
         self._state = self._cpp_signal = None   # the C++ side's state page and timeline (cmd_state_page, plan step P3)
         self.mm_exported = False  # set by cmd_handoff at level vram or sysmem: the C++ side owns the memory manager (plan step C6)
+        self.rm_level = self.rm_exported = False   # plan step C7: booted the NVDev only; cmd_rm_export gave the C++ side the GSP
 
     def _check_queues_owned(self):
         # After cmd_handoff, submitting from here too would corrupt the C++ side's GPFIFO and timeline state.
@@ -567,13 +595,17 @@ class Daemon:
 
     # ── commands ──────────────────────────────────────────────────────────
     def cmd_boot(self, req):
+        level = req.get("level", "")   # plan step C7: "rm", the NVDev only (the C++ side builds the NVDevice)
+        if level not in ("", "rm") or (level and self.tgpu_fd is None):
+            raise RuntimeError(f"boot: level {level!r} (rm, with the C++ side's TinyGPU.app connection)")
         _apply_boot_safety_patches()
         if self.tgpu_fd is not None:
             _install_inherited_tinygpu(self.tgpu_fd)
         DEV.value = "NV"
         from tinygrad import Device
         try:
-            self.dev = Device["NV:0"]
+            if level: self.dev, self.rm_level = _RMDevice(_boot_nvdev_only()), True
+            else: self.dev = Device["NV:0"]
         except Exception as e:
             # nv_init_helper refuses a GPU that still carries a previous boot (WPR2 up) before writing anything;
             # tinygrad wraps the per-interface errors in an ExceptionGroup, so dig the refusal out for the reply
@@ -594,6 +626,10 @@ class Daemon:
                 return
             log(str(warm))
             self.send_json({"ok": False, "warm": True, "error": str(warm)})
+            return
+        if self.rm_level:
+            log(f"booted — {self.dev}: the C++ side builds the NVDevice (level rm)")
+            self.send_json({"ok": True, "level": "rm"})
             return
         log(f"booted — {self.dev}, arch={self.dev.arch}")
         log(f"launch_batch: {'one chained queue per batch' if _CHAIN_LAUNCHES else 'one queue per launch (BEAGLE_NV_CHAIN_LAUNCHES=0)'}")
@@ -657,6 +693,7 @@ class Daemon:
     def cmd_handoff(self, req):
         if self.tgpu_fd is None:
             raise RuntimeError("handoff needs the C++ side's TinyGPU.app connection (second argument)")
+        if self.rm_level: raise RuntimeError("handoff: at level rm the C++ side builds the NVDevice and its handoff itself (rm_export)")
         dev = self.dev
         # C++ dispatch (BEAGLE_NV_CPP_DISPATCH=1): every program is prepared
         # now, while this daemon still owns the queues (program uploads and
@@ -712,26 +749,49 @@ class Daemon:
         # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this
         # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fd). Taken before any check, so the command stream stays framed
         # when the page is refused. Not a TinyGPU allocation: nothing reaches the GPU.
-        import mmap, ctypes
+        import mmap
         _, fds, _, _ = socket.recv_fds(self.sock, 1, 2)   # plan step C6's level sysmem: the C++ timeline's fd follows the page's
         sig_buf = None
         try:
             if len(fds) != (2 if "signal_va" in req else 1):
                 raise RuntimeError(f"state_page: {len(fds)} fds received")
             state = memoryview(mmap.mmap(fds[0], _STATE_WORDS * 8, prot=mmap.PROT_READ)).cast("Q")
-            if len(fds) == 2:   # the C++ side allocated its timeline itself: map it from TinyGPU.app's fd, as alloc_sysmem does
-                from tinygrad.runtime.support.hcq import HCQBuffer, MMIOInterface
-                self._sig_map = mmap.mmap(fds[1], req["signal_size"])
-                sig_buf = HCQBuffer(req["signal_va"], req["signal_size"], owner=self.dev,
-                                    view=MMIOInterface(ctypes.addressof(ctypes.c_char.from_buffer(self._sig_map)), req["signal_size"], fmt='B'))
+            if len(fds) == 2: sig_buf = self._map_cpp_signal(fds[1], req)
         finally:
             for fd in fds: os.close(fd)
         if not self.handed_off or state[0] != _PHASE_DISPATCH:
             raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
         self._state = state
+        if self.rm_exported and sig_buf is None:   # plan step C7 (level rm): the page precedes the C++ side's RPCs, its timeline follows
+            log("state page mapped: the C++ side records the GSP's sequence number after each RPC; its timeline follows (cmd_timeline)")
+            self.send_json({"ok": True})
+            return
         # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
         self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf or self._handoff_bufs["signal"], owner=self.dev, virt=True)
         log("state page mapped: the C++ side records whether a frame is in flight and the timeline value it last submitted")
+        self.send_json({"ok": True})
+
+    def _map_cpp_signal(self, fd, req):
+        # the C++ side allocated its timeline itself: map it from TinyGPU.app's fd, as alloc_sysmem does
+        import mmap, ctypes
+        from tinygrad.runtime.support.hcq import HCQBuffer, MMIOInterface
+        self._sig_map = mmap.mmap(fd, req["signal_size"])
+        return HCQBuffer(req["signal_va"], req["signal_size"], owner=self.dev,
+                         view=MMIOInterface(ctypes.addressof(ctypes.c_char.from_buffer(self._sig_map)), req["signal_size"], fmt='B'))
+
+    def cmd_timeline(self, req):
+        # Plan step C7 (level rm): the C++ timeline, which the C++ side allocates after it built the NVDevice, so after its state
+        # page. One byte carrying the timeline's TinyGPU.app fd follows this command, taken before any check (as cmd_state_page).
+        _, fds, _, _ = socket.recv_fds(self.sock, 1, 1)
+        try:
+            if len(fds) != 1 or not self.rm_exported or self._state is None or self._cpp_signal is not None:
+                raise RuntimeError(f"timeline: {len(fds)} fds, level rm exported {self.rm_exported}, state page {self._state is not None}, "
+                                   f"timeline {self._cpp_signal is not None}")
+            sig_buf = self._map_cpp_signal(fds[0], req)
+        finally:
+            for fd in fds: os.close(fd)
+        self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf, owner=self.dev, virt=True)
+        log("C++ timeline mapped: the C++ side built the NVDevice (level rm)")
         self.send_json({"ok": True})
 
     def cmd_teardown_export(self, req):
@@ -742,11 +802,19 @@ class Daemon:
         # every falcon reset), and nv_init_helper's two teardown images with their execute_hs arguments. One byte carrying
         # the queue fd follows the reply. Refused before the handoff (the queues are this process's until then) and on the
         # COT boot (Blackwell), whose unload has no host-run falcon step (plan step B2).
+        if not self.handed_off: raise RuntimeError("teardown_export: before the handoff")
+        info, fd, pt_size, queue_size = self._gsp_export("teardown_export")
+        self.send_json(info)
+        socket.send_fds(self.sock, [b"Q"], [fd])
+        log(f"teardown export: GSP queues ({info['gsp_queues_size']:#x} bytes, command queue at {pt_size:#x}, status queue at "
+            f"{pt_size + queue_size:#x}, seq {info['gsp_seq']}), {'teardown images' if info['teardown'] else 'no teardown images'}")
+
+    def _gsp_export(self, what):
+        # cmd_teardown_export's reply (and cmd_rm_export's first part) and the queues' fd
         import nv_init_helper
         from tinygrad.helpers import round_up
-        if not self.handed_off: raise RuntimeError("teardown_export: before the handoff")
         dev_impl = self.dev.iface.dev_impl
-        if dev_impl.fmc_boot: raise RuntimeError(f"teardown_export: the C++ teardown is NV_FLCN's (Ada), not {dev_impl.chip_name}'s COT boot")
+        if dev_impl.fmc_boot: raise RuntimeError(f"{what}: the C++ teardown is NV_FLCN's (Ada), not {dev_impl.chip_name}'s COT boot")
         gsp, flcn = dev_impl.gsp, dev_impl.flcn
         queue_size = gsp.cmd_q.tx.size   # init_rm_args (ip.py:364-387): a page table, then the command and status queues
         pte_cnt = ((queue_pte_cnt := (queue_size * 2) // 0x1000)) + round_up(queue_pte_cnt * 8, 0x1000) // 0x1000
@@ -763,10 +831,31 @@ class Daemon:
                         sb_dmem_pa=d.DMEMPhysBase, sb_dmem_sz=d.DMEMLoadSize, sb_pkc_off=d.PKCDataOffset, sb_engid=d.EngineIdMask,
                         sb_ucodeid=d.UcodeId, unload_paddr=flcn.beagle_unload_image_paddr, unload_data_off=data_off, unload_data_sz=data_sz,
                         unload_code_off=code_off, unload_code_sz=code_sz)
+        return info, fd, pt_size, queue_size
+
+    def cmd_rm_export(self, req):
+        # Plan step C7 (level rm): what the C++ side needs to build the NVDevice itself, after the NVDev-only boot: the GSP queues
+        # and the teardown's arguments (as cmd_teardown_export), tinygrad's memory manager (_mm_export), NV_GSP's RM state as
+        # init_hw and init_golden_image left it (the private root client, the handle generator's next value, the classes,
+        # the runlists, the golden channel's runlist, the context buffers' descriptions), and BAR0's size (bar_info is cached:
+        # this sends nothing). One byte carrying the queue fd follows the reply. From here the GSP, the memory manager and every
+        # queue are the C++ side's; at fini or EOF this process takes the GSP's sequence number from the state page.
+        if not self.rm_level or self.rm_exported: raise RuntimeError("rm_export: only once, after a boot at level rm")
+        info, fd, pt_size, queue_size = self._gsp_export("rm_export")
+        impl, pci = self.dev.iface.dev_impl, self.dev.iface.pci_dev
+        gsp = impl.gsp
+        info.update(_mm_export(self.dev))
+        info.update(rm_priv_root=gsp.priv_root, rm_next_handle=int(repr(gsp.handle_gen)[6:-1]), rm_gpfifo_class=gsp.gpfifo_class,
+                    rm_compute_class=gsp.compute_class, rm_dma_class=gsp.dma_class, rm_viddec_class=gsp.viddec_class or 0,
+                    rm_gb2=int(impl.chip_name.startswith("GB2")), rm_runlists=[x for kv in sorted(gsp.runlists.items()) for x in kv],
+                    rm_chan_runlists=[x for kv in sorted(gsp.chan_runlists.items()) for x in kv],
+                    rm_grctx=[x for i, b in gsp.grctx_bufs.items() for x in (i, b.size, int(b.phys), int(b.virt), int(b.local))],
+                    rm_subdevice=getattr(gsp, "subdevice", 0), rm_device=getattr(gsp, "device", 0), bar0_size=pci.bar_info(0)[1])
+        self.handed_off = self.mm_exported = self.rm_exported = True
         self.send_json(info)
         socket.send_fds(self.sock, [b"Q"], [fd])
-        log(f"teardown export: GSP queues ({info['gsp_queues_size']:#x} bytes, command queue at {pt_size:#x}, status queue at "
-            f"{pt_size + queue_size:#x}, seq {gsp.cmd_q.seq}), {'teardown images' if teardown else 'no teardown images'}")
+        log(f"rm export: GSP queues (seq {info['gsp_seq']}), the memory manager, NV_GSP's RM state (next handle {info['rm_next_handle']:#x}): "
+            f"the C++ side builds the NVDevice")
 
     def cmd_alloc(self, req):
         if self.mm_exported: raise RuntimeError("alloc: the C++ side owns the memory manager since the handoff (plan step C6)")
@@ -884,21 +973,26 @@ class Daemon:
         # own synchronize does not cover the C++ side's work (inv:transport-teardown#7), so its timeline is waited for first.
         reply = {"ok": True}
         if self.dev is not None:
+            if self.rm_exported and self._state is None:   # plan step C7: the C++ side had the GSP and left no sequence number
+                log("level rm: the C++ side took the GSP over and never sent its state page: sending nothing to the GPU")
+                return {"ok": False, "error": "level rm without a state page", "hold": True, "pid": os.getpid()}
             if self._state is not None:
                 phase, in_flight, last, seq = self._state
                 log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, seq {seq}, "
-                    f"C++ timeline signal {self._cpp_signal.value}")
+                    f"C++ timeline signal {self._cpp_signal.value if self._cpp_signal else 'not sent'}")
                 if phase == _PHASE_TEARDOWN:   # plan step C5: the C++ side was unloading the GPU itself, and did not finish
                     log("the C++ side's own GPU teardown did not finish: sending nothing to the GPU")
                     return {"ok": False, "error": "the C++ GPU teardown did not finish", "hold": True, "pid": os.getpid()}
                 if phase != _PHASE_DISPATCH or in_flight:   # TinyGPU.app would read our next bytes as the rest of a cut C++ frame
                     log("a C++ frame may be cut mid-send: sending nothing more to the GPU")
                     return {"ok": False, "error": "a C++ frame may be cut mid-send", "hold": True, "pid": os.getpid()}
-                if not hung:
+                if not hung and self._cpp_signal is not None:   # at level rm none before cmd_timeline: nothing was submitted on it
                     try: self._cpp_signal.wait(last)   # as HCQCompiled.synchronize waits: 30 s without progress, GSP faults raise
                     except Exception as e:
                         log(f"C++ timeline stuck at {self._cpp_signal.value} < {last} ({e}): the hung path")
                         hung = True
+                if self.rm_exported:   # plan step C7: the C++ side's RPCs advanced the command queue; the unload continues from there
+                    self.dev.iface.dev_impl.gsp.cmd_q.seq = self._state[3]
             from tinygrad import Device
             try:
                 # a timeline timeout (the plugin's, the C++ timeline's above, or the daemon's own: tinygrad's error_state,

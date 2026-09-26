@@ -5,7 +5,8 @@
  * after PCIIface's boot, ported statement by statement onto TinyGPUHybridNVRM.h's RM client and TinyGPUHybridNVMemory.h's
  * allocations: PCIIface's root client (ops_nv.py:564-568); the device, subdevice, virtual memory, PERF_BOOST, VA space,
  * channel group, GPFIFO area and context share; two GPFIFO channels (_new_gpu_fifo, :642-666: an error notifier, the
- * channel, its engine object, compute with a debugger or copy, and its work-submit token); the channel group's schedule;
+ * channel, its engine object, compute with a debugger or copy, and its work-submit token; then, as the daemon patches it,
+ * nv_init_helper's USERD baseline); the channel group's schedule;
  * cmdq_page; _query_gpu_info (:668-676); then HCQCompiled's allocations in tinygrad's order (the allocator's 32 copy
  * buffers, hcq.py:527-529; the signal page, whose last two 16-byte slots become the timeline signals, :442-448;
  * kernargs_buf, :411); and _setup_gpfifos (:681-694): the compute queue's setup and signal, the copy queue's wait, setup and
@@ -150,6 +151,19 @@ inline NVGPFifo nv_new_gpu_fifo(NVRMClient& rm, NVDeviceState& d, const NVBuffer
     return g;
 }
 
+// nv_init_helper's _new_gpu_fifo_with_userd_baseline (plan step P1's diagnostics), which wraps _new_gpu_fifo in the daemon: USERD's
+// GPGet, then GPPut, before any submission, each one 4-byte read through the GPFIFO area's BAR1 window, logged
+inline void nv_userd_baseline(NVMemDev& dev, const NVBuffer& gpfifo_area, uint64_t offset, uint32_t entries, const char* kind) {
+    const uint64_t userd = gpfifo_area.mapping.paddrs[0].first + offset + (uint64_t)entries * 8;   // USERD follows the ring
+    uint32_t get = 0, put = 0;
+    std::string err;
+    if (!dev.t->bulk_read(dev.vram_bar, userd + offsetof(nv_gpu::AmpereAControlGPFifo, GPGet), &get, 4, err) ||
+        !dev.t->bulk_read(dev.vram_bar, userd + offsetof(nv_gpu::AmpereAControlGPFifo, GPPut), &put, 4, err))
+        throw TGPyError("RuntimeError", err);
+    tg_log("USERD baseline, %s GPFIFO (gpfifo_area+0x%llx, before any submission): GPGet=0x%x GPPut=0x%x", kind,
+           (unsigned long long)offset, get, put);
+}
+
 // PCIIface.__init__ after its boot (ops_nv.py:564-568), NVDevice.__init__ (:590-640) and HCQCompiled.__init__ (hcq.py:387-412)
 inline void nv_device_init(NVRMClient& rm, NVDeviceState& d) {
     NVMemoryManager& mm = rm.mm;
@@ -192,7 +206,9 @@ inline void nv_device_init(NVRMClient& rm, NVDeviceState& d) {
     ctxshare_params.flags = nv_gpu::NV_CTXSHARE_ALLOCATION_FLAGS_SUBCONTEXT_ASYNC;
     const uint32_t ctxshare = rm.rpc_rm_alloc(d.channel_group, nv_gpu::FERMI_CONTEXT_SHARE_A, ctxshare_params, d.root);
     d.compute_gpfifo = nv_new_gpu_fifo(rm, d, d.gpfifo_area, ctxshare, d.channel_group, 0, 0x10000, true);
+    nv_userd_baseline(dev, d.gpfifo_area, 0, 0x10000, "compute");
     d.dma_gpfifo = nv_new_gpu_fifo(rm, d, d.gpfifo_area, ctxshare, d.channel_group, 0x100000, 0x10000, false);
+    nv_userd_baseline(dev, d.gpfifo_area, 0x100000, 0x10000, "copy");
     nv_gpu::NVA06C_CTRL_GPFIFO_SCHEDULE_PARAMS sched{};
     sched.bEnable = 1;
     rm.rpc_rm_control(d.channel_group, nv_gpu::NVA06C_CTRL_CMD_GPFIFO_SCHEDULE, sched, d.root);

@@ -13,12 +13,15 @@ What it models, and nothing more:
     the end of a session as server.c does;
   - a GSP that starts when SEC2 runs booter_load: it finds its queues from the libos arguments in the GSP mailboxes (checking
     the page list tinygrad wrote), sets up its status queue, answers every RPC (rm_alloc, rm_control with the values
-    tinygrad reads, set_page_directory, the unload), and posts GSP_INIT_DONE, never an unrequested event;
+    tinygrad reads, set_page_directory, the unload), and posts GSP_INIT_DONE, never an unrequested event; every command's
+    sequence number must follow the one before (a client that continues the queue, such as the C++ side, must keep its count);
   - a GPU front end: on a doorbell it runs the channel's GPFIFO through the client's own page tables (tinygrad's MMU v2
     decoders): semaphore acquires and releases, QMD launches and their releases (kernels are not run), copy-engine DMA.
 Values tinygrad reads that the real GPU would compute (the GR topology, context-buffer sizes, runlists) are plausible
 constants, not the RTX 4060's: plan step V1's L0 recordings are the reference for those.
 A session that ends while the GSP is live is an error: on the eGPU that unwires memory the GSP still uses (DART).
+FAKE_RM_FAIL=<class>: the GSP refuses every rm_alloc of that class (rpc_result NV_ERR_INVALID_CLASS), as GSP-RM refuses a bad
+request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission).
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
 It prints "fake TinyGPU.app (AD107 device) listening", and after each session its counts and NO ERRORS or the errors."""
 import os, sys, json, mmap, glob, socket, struct, ctypes, types, collections
@@ -44,6 +47,7 @@ CTX_BUF = (0x20000, 0x1000)                     # every GR context buffer's (siz
 errors, counts = [], collections.Counter()
 # FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (as fake_tinygpu_server.py; plan step V1's proxy check)
 RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
+RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 
 def err(msg):
     errors.append(msg)
@@ -186,7 +190,7 @@ class Gsp:
         self.msg_size, self.msg_count = cmd_tx.msgSize, cmd_tx.msgCount
         self.cmd_rx = self.cmd + cmd_tx.rxHdrOff          # where the CPU keeps its status-queue read pointer
         self.stat_rx = self.stat + 32                     # where this GSP keeps its command-queue read pointer
-        self.seq, self.cmdq = 0, tggpu.QueueReader(self.mm, self.cmd)
+        self.seq, self.cmd_seq, self.cmdq = 0, 0, tggpu.QueueReader(self.mm, self.cmd)
         stat_tx = nv.msgqTxHeader(version=0, size=cmd_tx.size, entryOff=0x1000, msgSize=self.msg_size, msgCount=self.msg_count,
                                   writePtr=0, flags=0, rxHdrOff=32)
         self.mm[self.stat:self.stat + 32] = bytes(stat_tx)
@@ -201,6 +205,8 @@ class Gsp:
         """Every command the CPU has queued since the last run, in order."""
         for fn, msg, elem, ok in self.cmdq.new():
             if not ok: err(f"RPC {fn:#x}: bad checksum")
+            if elem.seqNum != self.cmd_seq: err(f"RPC {fn:#x}: sequence number {elem.seqNum}, not {self.cmd_seq} (NVRpcQueue.seq counts every command)")
+            self.cmd_seq = elem.seqNum + 1
             self.mm[self.stat_rx:self.stat_rx + 4] = struct.pack("<I", self.cmdq.rp)   # this GSP's command-queue read pointer
             counts[f"rpc {nv.rpc_fns.get(fn, hex(fn))}"] += 1
             self.dev.channels.observe_cmd(fn, msg, self.dev.memory)
@@ -208,7 +214,11 @@ class Gsp:
 
     def handle(self, fn, msg):
         if fn in (nv.NV_VGPU_MSG_FUNCTION_GSP_SET_SYSTEM_INFO, nv.NV_VGPU_MSG_FUNCTION_SET_REGISTRY): return   # prequeued, no reply
-        if fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_ALLOC: return self.post(fn, msg)   # its GPFIFO channel is in self.dev.channels
+        if fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_ALLOC:
+            if RM_FAIL and struct.unpack_from("<I", msg, nv.rpc_gsp_rm_alloc_v.hClass.offset)[0] == RM_FAIL:
+                counts["rm_alloc refused (FAKE_RM_FAIL)"] += 1
+                return self.post(fn, msg, rpc_result=nv_gpu.NV_ERR_INVALID_CLASS)
+            return self.post(fn, msg)   # its GPFIFO channel is in self.dev.channels
         if fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_CONTROL:
             c = nv.rpc_gsp_rm_control_v.from_buffer_copy(msg[:24])
             return self.post(fn, msg[:24] + self.control(c, msg[24:24 + c.paramsSize]))
@@ -240,13 +250,13 @@ class Gsp:
             return struct.pack("<I", token)
         return params
 
-    def post(self, fn, payload):
+    def post(self, fn, payload, rpc_result=0):
         """One status-queue message, in one element (tinygrad advances its read pointer by the RPC length, ip.py:79)."""
         wp = self.u32(self.stat + 16)
         length = 0x20 + len(payload)
         if 0x30 + length > self.msg_size: raise RuntimeError(f"reply to {fn:#x} does not fit one element ({length} bytes)")
         if (wp + 1) % self.msg_count == self.u32(self.cmd_rx): raise RuntimeError("status queue full: the CPU is not reading it")
-        hdr = nv.rpc_message_header_v(signature=nv.NV_VGPU_MSG_SIGNATURE_VALID, header_version=3 << 24, rpc_result=0, rpc_result_private=0,
+        hdr = nv.rpc_message_header_v(signature=nv.NV_VGPU_MSG_SIGNATURE_VALID, header_version=3 << 24, rpc_result=rpc_result, rpc_result_private=rpc_result,
                                       function=fn, length=length, sequence=self.seq)
         elem = nv.GSP_MSG_QUEUE_ELEMENT(elemCount=1, seqNum=self.seq)
         elem.checkSum = tggpu.checksum(bytes(elem) + bytes(hdr) + payload)
