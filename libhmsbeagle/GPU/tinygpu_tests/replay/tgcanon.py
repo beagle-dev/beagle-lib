@@ -7,7 +7,10 @@ The same rules apply to both sides, session by session:
   2. those must match exactly, in order: offset and bytes, (size, contiguous) and status for MAP_SYSMEM_FD, the BAR and its
      size (not its address) for MAP_BAR;
   3. within an epoch, BAR0 and config reads: the same set of (offset, length); per address the sequence of distinct values
-     (a poll that reads "busy" 3 times here and 40 there is the same poll); the counts are reported, not compared. In the
+     (a poll that reads "busy" 3 times here and 40 there is the same poll); the counts are reported, not compared. A polled
+     register (read more than once on a side) that ends at the same value on both sides may differ in the values seen before
+     it (C5 on the RTX 4060: the plugin's faster reset caught HWCFG2 still scrubbing once, 0x77b7 before 0x67b7, where the
+     daemon's saw only 0x67b7; a boot's MAILBOX0 poll saw 0 before 0x80000000 in one run and not in the other). In the
      VBIOS (the PROM window prep_ucode reads, ip.py:110) a KiB that reads as all 0xff on one side only is masked: on the
      RTX 4060 (L0) 128 KiB at 0xd6c00, an IFR image ("NVGI"), read as 0xff on the cold boot and as the image after a
      teardown, and tinygrad's parse of the rest is the same. In a falcon's DMATRFCMD the idle bit is masked: whether the
@@ -255,6 +258,8 @@ def compare(a, b, ctx, examples=3):
                     notes[f"VBIOS KiB read as 0xff on one side only (masked): {kib}"] += 1; continue
                 if len(k) == 2 and k[0] in a.dma_cmd and without_idle(ea["r0"][k], a.idle) == without_idle(eb["r0"][k], a.idle):
                     notes[f"DMA idle bits differ at {w.reg_name(k[0])} (masked)"] += 1; continue
+                if len(k) == 2 and ea["r0"][k][-1] == eb["r0"][k][-1] and max(ea["n_r0"][k], eb["n_r0"][k]) > 1:
+                    notes[f"a poll's values before the last differ at {w.reg_name(k[0])}"] += 1; continue
                 add(f"BAR0 read values differ", f"{where} (after {after}): {w.reg_name(k[0]) if len(k) == 2 else k}: {ea['r0'][k]!r:.60} | {eb['r0'][k]!r:.60}")
             elif len(k) == 2 and ea["n_r0"][k] != eb["n_r0"][k]: notes[f"poll counts differ at {w.reg_name(k[0])}"] += 1
         if ea["cfg"] != eb["cfg"]: add("config reads differ", f"{where}: {dict(ea['cfg'])} | {dict(eb['cfg'])}")

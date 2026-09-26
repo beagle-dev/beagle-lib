@@ -77,6 +77,7 @@
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
@@ -230,10 +231,37 @@ static std::recursive_timed_mutex& nv_mutex() {
     return *m;
 }
 
-// The state page (TODO.md plan step P3; nvdStatePage below): three 64-bit words shared with the daemon, which reads them
-// only once this side can no longer write (at "fini", or at EOF after this process died).
-enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateWords };
+// The state page (TODO.md plan step P3; nvdStatePage below): four 64-bit words shared with the daemon, which reads them
+// only once this side can no longer write (at "fini", or at EOF after this process died). Plan step C5 added the GSP
+// command queue's sequence number after this side's last RPC, and the teardown phase.
+enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, kNVDStateWords };
 static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the daemon holds on any other phase
+static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU itself (plan step C5): the daemon holds at EOF
+
+// TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5),
+// the default since it passed on the RTX 4060 (STATUS.md R33): this side unloads the GPU at fini, on tinygrad's ported GSP
+// queue and falcon primitives, and the daemon only exits; runtime: the daemon unloads it, as before C5.
+enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown };
+static NVCppLevel nv_cpp_level() {
+    static const NVCppLevel level = [] {
+        const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
+        if (!v || !v[0] || strcmp(v, "teardown") == 0) return kNVLevelTeardown;
+        if (strcmp(v, "runtime") == 0) return kNVLevelRuntime;
+        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown); using teardown\n", v);
+        return kNVLevelTeardown;
+    }();
+    return level;
+}
+
+// cmd_teardown_export's reply (plan step C5): what this side's GPU teardown needs
+struct NVDTeardown {
+    bool ready = false;
+    uint8_t* queues = nullptr;   // the GSP message queues: the daemon's TinyGPU.app sysmem, shared
+    uint64_t queues_size = 0, cmdq_off = 0, statq_off = 0, queue_size = 0, libos_args_sysmem = 0;
+    uint32_t seq = 0, chip_id = 0;
+    bool level0 = false;         // BEAGLE_NV_UNLOAD_LEVEL=0, as the daemon read it
+    NVTeardownImages images;     // nv_init_helper's FWSEC-SB and Booter Unload, if the teardown is on
+};
 
 // C++ dispatch state (see "C++ dispatch" below); null on the daemon path.
 struct NVDispatchState {
@@ -250,6 +278,7 @@ struct NVDispatchState {
     NVDRuntime rt;
     uint64_t pool_pos = 0;       // rt.pool's fill level
     uint32_t slm_per_thread = 0; // dev.slm_per_thread: the local memory set up so far serves this much per thread
+    NVDTeardown td;              // BEAGLE_NV_CPP_LEVEL=teardown (plan step C5)
 };
 static NVDispatchState* g_nvd = nullptr;
 
@@ -581,6 +610,7 @@ static void nvd_unmap(NVDispatchState* d) {
     for (int i = 0; i < 4; ++i)
         if (d->maps[i]) { munmap(d->maps[i], bufs[i]->size); d->maps[i] = nullptr; }
     if (d->state) { munmap(d->state, kNVDStateWords * 8); d->state = nullptr; }
+    if (d->td.queues) { munmap(d->td.queues, d->td.queues_size); d->td.queues = nullptr; }
 }
 
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
@@ -684,6 +714,90 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d) {
     }
     d.state = st;
     return true;
+}
+
+// TODO.md plan step C5 (BEAGLE_NV_CPP_LEVEL=teardown): the daemon's cmd_teardown_export, right after the state page: the GSP
+// message queues (their TinyGPU.app sysmem fd, which carries both queues' write and read pointers; the offsets; the
+// command queue's sequence number), what the CPU sequencer and the falcon resets need, and nv_init_helper's two teardown
+// images. Without it (a refusal, a COT boot, another chip) the daemon unloads the GPU at fini, as at level runtime.
+static void nvdTeardownExport(int cmd_sock, NVDispatchState& d) {
+    nv_send_msg(cmd_sock, "{\"cmd\":\"teardown_export\"}");
+    std::string js = nv_recv_msg(cmd_sock);
+    int fd = -1;
+    std::string err = js.empty() ? "no reply" : !nv_json_ok(js) ? nv_json_str(js, "error") : !nv_recv_fds(cmd_sock, &fd, 1) ? "no queue fd" : "";
+    uint64_t v[7] = {};
+    const char* keys[7] = {"chip_id", "gsp_queues_size", "gsp_cmdq_off", "gsp_statq_off", "gsp_queue_size", "gsp_seq", "libos_args_sysmem"};
+    for (int i = 0; i < 7 && err.empty(); ++i)
+        if (!nvd_json_u64(js, keys[i], v[i])) err = std::string("the export has no ") + keys[i];
+    if (err.empty() && nv_json_str(js, "fw_name") != "ad102") err = "the C++ teardown has Ada's register tables, not " + nv_json_str(js, "fw_name") + "'s";
+    NVDTeardown& t = d.td;
+    if (err.empty() && nv_json_bool(js, "teardown")) {
+        NVTeardownImages& m = t.images;
+        uint64_t w[14] = {};
+        const char* ik[14] = {"sb_paddr", "sb_imem_pa", "sb_imem_va", "sb_imem_sz", "sb_dmem_pa", "sb_dmem_sz", "sb_pkc_off", "sb_engid",
+                              "sb_ucodeid", "unload_paddr", "unload_data_off", "unload_data_sz", "unload_code_off", "unload_code_sz"};
+        for (int i = 0; i < 14 && err.empty(); ++i)
+            if (!nvd_json_u64(js, ik[i], w[i])) err = std::string("the export has no ") + ik[i];
+        m.present = err.empty();
+        m.sb_paddr = w[0]; m.sb_imem_pa = (uint32_t)w[1]; m.sb_imem_va = (uint32_t)w[2]; m.sb_imem_sz = (uint32_t)w[3];
+        m.sb_dmem_pa = (uint32_t)w[4]; m.sb_dmem_sz = (uint32_t)w[5]; m.sb_pkc_off = (uint32_t)w[6]; m.sb_engid = (uint32_t)w[7];
+        m.sb_ucodeid = (uint32_t)w[8]; m.unload_paddr = w[9]; m.unload_data_off = (uint32_t)w[10]; m.unload_data_sz = (uint32_t)w[11];
+        m.unload_code_off = (uint32_t)w[12]; m.unload_code_sz = (uint32_t)w[13];
+    }
+    if (err.empty()) {
+        void* q = mmap(nullptr, v[1], PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (q == MAP_FAILED) err = std::string("mmap of the GSP queues: ") + strerror(errno);
+        else t.queues = (uint8_t*)q;
+    }
+    if (fd >= 0) close(fd);
+    if (!err.empty()) {
+        fprintf(stderr, "TinyGPU/NV: C++ teardown unavailable (%s): the daemon unloads the GPU at fini\n", err.c_str());
+        t.images = NVTeardownImages();
+        return;
+    }
+    t.chip_id = (uint32_t)v[0]; t.queues_size = v[1]; t.cmdq_off = v[2]; t.statq_off = v[3]; t.queue_size = v[4];
+    t.seq = (uint32_t)v[5]; t.libos_args_sysmem = v[6];
+    t.level0 = nv_json_bool(js, "unload_level0");
+    t.ready = true;
+    __atomic_store_n(&d.state[kNVDStateSeq], t.seq, __ATOMIC_RELEASE);
+    fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=teardown)\n",
+            t.images.present ? " and NVIDIA's teardown" : "");
+}
+
+// TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives
+// (TinyGPUHybridNVGsp.h, TinyGPUHybridNVFalcon.h), in NVDev.fini's order: the GSP unload (nv_init_helper's suspend wait
+// included), then, only if the GSP confirmed it, NVIDIA's teardown. The state page says so first, so a daemon that sees
+// this process die meanwhile holds instead of touching the GPU. Returns the fini request that reports it all to the
+// daemon, which then exits, or holds if the GSP did not confirm its unload (hold rule).
+static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string& report) {
+    auto t0 = std::chrono::steady_clock::now();
+    NVDTeardown& t = d.td;
+    __atomic_store_n(&d.state[kNVDStatePhase], kNVDPhaseTeardown, __ATOMIC_RELEASE);
+    tg_log("C++ GPU teardown: the %s unload RPC (seq %u), the suspend wait%s", t.level0 ? "LEVEL_0" : "FAST_UNLOAD", t.seq,
+           t.images.present ? ", then NVIDIA's teardown" : "; the teardown is off");
+    NVBar0 bar0{&tg_transport()};
+    NVFalcon flcn(bar0, t.chip_id);
+    NVFiniDiag diag;
+    bool hold = false;
+    try {
+        NVGsp gsp(bar0, flcn, t.queues, t.cmdq_off, t.statq_off, t.queue_size, t.libos_args_sysmem, t.seq, flcn.wait_ms);
+        gsp.after_rpc = [&d](uint32_t seq) { __atomic_store_n(&d.state[kNVDStateSeq], seq, __ATOMIC_RELEASE); };
+        try { gsp.fini_hw(diag, t.level0); }
+        catch (const NVError& e) {   // the RPC failed or timed out: the GSP may be live, so no falcon is touched
+            tg_log("the GSP unload failed: %s", e.py().c_str());
+            fprintf(stderr, "TinyGPU/NV: GPU teardown failed: the GSP unload: %s\n", e.py().c_str());
+            hold = true;
+        }
+        if (!hold) flcn.fini_hw(diag, t.images);
+    } catch (const NVError& e) {   // outside what nv_init_helper tolerates: a confirmed unload still makes closing safe
+        tg_log("the C++ GPU teardown failed: %s", e.py().c_str());
+        fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", e.py().c_str());
+        hold = !diag.unload_ok;
+    }
+    secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    tg_log("C++ GPU teardown done in %.3f s: %s", secs, diag.json().c_str());
+    report = diag.json();
+    return std::string("{\"cmd\":\"fini\",\"cpp_teardown\":true,\"hold\":") + (hold ? "true" : "false") + ",\"diag\":" + diag.json() + "}";
 }
 
 // ── C++ runtime (BEAGLE_NV_USE_DAEMON=0): program loading and allocation,
@@ -918,6 +1032,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     if (tg_fd >= 0) {
         g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime());
         if (!g_nvd || !nvdStatePage(g->cmd_sock, *g_nvd)) nv_safe_exit(1);
+        if (g_nvd->runtime && nv_cpp_level() >= kNVLevelTeardown) nvdTeardownExport(g->cmd_sock, *g_nvd);
         if (g_nvd->runtime) nvRuntimePrograms(in, cubin);
         else nvLinkTemplates(in, g_nvd->h.kernels);
     }
@@ -933,9 +1048,15 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
 static void nvFiniDevice() {
     if (!g_nv) return;
     int tg_sock = -1;
-    if (g_nvd) {  // let the GPU finish before the daemon tears it down
+    std::string cpp_fini, cpp_report;   // BEAGLE_NV_CPP_LEVEL=teardown: this side's own GPU teardown and its report (plan step C5)
+    double cpp_secs = 0;
+    if (g_nvd) {  // let the GPU finish before it is torn down
         nvd_idle();
         if (g_nvd->runtime) tg_sock = g_nvd->tg_sock;
+        if (g_nvd->td.ready && g_nv->cmd_sock >= 0) {
+            tg_transport().marker(TGM_FINI, 0);
+            cpp_fini = nvdCppTeardown(*g_nvd, cpp_secs, cpp_report);
+        }
         nvd_unmap(g_nvd);
         delete g_nvd;
         g_nvd = nullptr;
@@ -946,20 +1067,26 @@ static void nvFiniDevice() {
     g_nvKernelLaunches.clear();
     bool hold = false;
     if (g_nv->cmd_sock >= 0) {
-        tg_transport().marker(TGM_FINI, 0);
+        if (cpp_fini.empty()) tg_transport().marker(TGM_FINI, 0);
         // The daemon tears the GPU down now (GSP unload, then a wait for the GSP to report itself suspended) and
-        // replies with what it saw. If the GPU did not confirm the unload, the daemon keeps its copy of the
-        // TinyGPU.app connection open: closing it could unmap memory the GSP still uses.
+        // replies with what it saw; after this side's own teardown (plan step C5) it only takes the report and exits. If
+        // the GPU did not confirm the unload, the daemon keeps its copy of the TinyGPU.app connection open: closing it
+        // could unmap memory the GSP still uses.
         auto t0 = nv_profile_start();
-        nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"fini\"}");
+        nv_send_msg(g_nv->cmd_sock, cpp_fini.empty() ? "{\"cmd\":\"fini\"}" : cpp_fini);
         std::string resp = nv_recv_msg(g_nv->cmd_sock);
         double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-        if (resp.empty()) nv_report_no_fini_reply();
+        if (resp.empty() && !cpp_report.empty()) {   // the daemon is gone, but this side knows what its own teardown did
+            fprintf(stderr, "TinyGPU/NV: no fini reply from the daemon (it exited?); the report of this side's own GPU teardown follows\n");
+            resp = cpp_report;
+        } else if (resp.empty()) nv_report_no_fini_reply();
         else if (resp.find("\"mailbox0\":") == std::string::npos && !nv_json_ok(resp))
             fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", resp.c_str());
         hold = nv_report_unload(resp);
-        if (nv_profile_enabled())
+        if (nv_profile_enabled() && cpp_fini.empty())
             fprintf(stderr, "TinyGPU/NV: fini round trip %.3f s (synchronize, GSP unload, teardown)\n", secs);
+        else if (nv_profile_enabled())
+            fprintf(stderr, "TinyGPU/NV: fini %.3f s: the C++ GSP unload and teardown, then %.3f s for the daemon's reply\n", cpp_secs, secs);
     }
     if (g_nv->daemon_pid > 0 && !hold) {
         for (int i = 0; i < 100; ++i) {

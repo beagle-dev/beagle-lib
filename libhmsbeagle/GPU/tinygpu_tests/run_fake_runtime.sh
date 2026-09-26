@@ -16,6 +16,9 @@ require_no_launch_guard
 TEST_BIN=${FAKE_TEST_BIN:-$TEST_BIN}
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
+# fake_nv_daemon.py has no GSP to hand over, so the plugin's own teardown (plan step C5, the default level) is never asked
+# for here: fake_nv_device.py (run_fake_device.sh, test_c5.sh) tests it
+printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS=(BEAGLE_NV_CPP_LEVEL=runtime "${ENVS[@]}")
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
 # the plugin's choice: BEAGLE_NV_USE_DAEMON=0 the C++ runtime, BEAGLE_NV_CPP_DISPATCH=1 C++ dispatch, either variable set
 # otherwise the daemon path; neither: the C++ runtime on the fake RTX 4060, the daemon path on the fake GB205 (plan decision 16)
@@ -57,7 +60,7 @@ fi
 # TMPDIR: the run's own nv_usb4.lock (plan step P5), which the plugin and the fake daemon both find through it. exec, so the
 # background job's pid ($!) is the test's own, which the SIGINT and the watchdog's SIGKILL must reach.
 run_test() {
-    exec env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$CLIENT_SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
+    exec env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
         BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" \
         "$TEST_BIN" "$@"
 }
@@ -112,7 +115,7 @@ if [ $MODE != daemon ]; then
     # the state page at fini (plan step P3): nothing in flight, and the last value submitted is both the C++ timeline and
     # the fake GPU's release count (it releases 1, 2, ... with no gaps)
     rel=$(grep "client done" "$SLOG" | tail -1 | sed -nE 's/.*"releases": ([0-9]+).*/\1/p')
-    need "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted $rel, C\+\+ timeline signal $rel\$" "state page at fini"
+    need "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted $rel, seq 0, C\+\+ timeline signal $rel\$" "state page at fini"
 else
     grep -q "state page" "$OUT" && missing+=("(a state page in daemon mode)")
 fi

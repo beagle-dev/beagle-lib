@@ -5,7 +5,9 @@
 # Everything else is run_point.sh's: the eGPU must be cold (power-cycled) or torn down by the previous run; never Ctrl-C or kill
 # a run; a hung or holding GPU (or a proxy that stopped forwarding) is unplugged before anything is killed. Run it under
 # caffeinate -ims, with the lid open.
-#   run_l0.sh <label> <state-count> [reps] [--poison]
+#   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown]
+# (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the default, the plugin unloads the GPU and runs NVIDIA's
+# teardown itself at fini, plan step C5; runtime, the daemon does, as in the L0 recordings)
 # L0_DRY_RUN=1 runs the same script offline, against fake_nv_device.py instead of TinyGPU.app (the daemon with tgharness_py's
 # offline patches), recording under $TINYGPU_TEST_WORK: a check of the script itself, which touches no eGPU.
 # The recording goes to $BEAGLE_TINYGPU_DATA/recordings/<date>-<time>_<computer>_<label>/, with the test's output, the daemon's
@@ -14,9 +16,17 @@
 # next boot needs no power cycle, the daemon exited, log stream saw nothing from the eGPU) and the proxy ended every session
 # at its client's close; 1 stops the session's chain of runs; 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison]"
-LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=()
-[ "$4" = --poison ] && FLAGS+=(--poison)
+USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown]"
+LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=teardown)
+set -- "${@:4}"
+while [ $# -gt 0 ]; do
+    case $1 in
+        --poison) FLAGS+=(--poison) ;;
+        --level) [ "$2" = teardown ] || [ "$2" = runtime ] || { echo "$USAGE"; exit 2; }; LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=$2); shift ;;
+        *) echo "$USAGE"; exit 2 ;;
+    esac
+    shift
+done
 [[ "$LABEL" =~ ^[a-z0-9_]+$ ]] && [[ "$N" =~ ^[0-9]+$ ]] && [[ "$REPS" =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE"; exit 2; }
 # what can hold the GPU: the daemon (here started as tgdaemon.py), nv_teardown_diag, or a proxy that stopped forwarding
 DAEMON_RE="(nv_dispatch_daemon|tgdaemon)\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$"
@@ -60,7 +70,7 @@ for i in $(seq 100); do grep -q "tgproxy listening" "$PLOG" 2>/dev/null && break
 grep -q "tgproxy listening" "$PLOG" || { echo "the proxy did not start (nothing was sent to the GPU):"; cat "$PLOG"; kill $PRX 2>/dev/null; exit 2; }
 cd "$REPO"
 # -u: the mode is the C++ runtime, whatever the shell exports; the harness's variables only here, never exported (hw_begin)
-env -u BEAGLE_NV_USE_DAEMON -u BEAGLE_NV_CPP_DISPATCH BEAGLE_NV_USE_DAEMON=0 APL_REMOTE_SOCK="$PSOCK" BEAGLE_TINYGPU_NO_LAUNCH=1 \
+env -u BEAGLE_NV_USE_DAEMON -u BEAGLE_NV_CPP_DISPATCH -u BEAGLE_NV_CPP_LEVEL BEAGLE_NV_USE_DAEMON=0 "${LEVEL_ENV[@]}" APL_REMOTE_SOCK="$PSOCK" BEAGLE_TINYGPU_NO_LAUNCH=1 \
     BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_RECORD=1 BEAGLE_TG_RECORD_LOG="$SIDE" BEAGLE_TG_MARKERS=1 \
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" "${OFFLINE_ENV[@]}" \
     "$TEST_BIN" --state-count "$N" --reps "$REPS" --diag-compare-cpu "${FLAGS[@]}" > "$OUT" 2>&1
@@ -83,12 +93,12 @@ hw_logstream_stop; ls_ok=$?
 cp ~/Library/Logs/nv_dispatch_daemon.log "$RUNS/${STAMP}_L0_${LABEL}_daemon.log" 2>/dev/null
 if [ -d "$REC" ]; then
     cp "$OUT" "$REC/test_output.txt"; cp "$SIDE" "$REC/shim.jsonl" 2>/dev/null; cp "$RUNS/${STAMP}_L0_${LABEL}_daemon.log" "$REC/daemon.log" 2>/dev/null
-    "$BEAGLE_PYTHON" -c 'import json, sys; json.dump(dict(test_bin="tinygpuhybridtest", envs=["BEAGLE_NV_USE_DAEMON=0"], args=sys.argv[1:]), sys.stdout)' \
-        --state-count "$N" --reps "$REPS" --diag-compare-cpu "${FLAGS[@]}" > "$REC/run.json"
+    "$BEAGLE_PYTHON" -c 'import json, sys; e = sys.argv[1].split(); json.dump(dict(test_bin="tinygpuhybridtest", envs=["BEAGLE_NV_USE_DAEMON=0"] + e, args=sys.argv[2:]), sys.stdout)' \
+        "${LEVEL_ENV[*]}" --state-count "$N" --reps "$REPS" --diag-compare-cpu "${FLAGS[@]}" > "$REC/run.json"
 fi
 [ -n "$FAKE" ] && { kill $FAKE 2>/dev/null; wait $FAKE 2>/dev/null; }
 rm -rf "$PRIV"
-echo "L0 $LABEL: N=$N reps=$REPS ${FLAGS[*]} exit=$rc output=$OUT recording=$REC"
+echo "L0 $LABEL: N=$N reps=$REPS ${FLAGS[*]} ${LEVEL_ENV[*]} exit=$rc output=$OUT recording=$REC"
 grep -E "C\+\+ runtime:|per evaluation|maxAbsDiff|CPU-reference logL|^PASS|^FAIL|timed out|failed|rror" "$OUT" | grep -v "^  \[" | head -12
 grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app" "$OUT"
 grep -E "recording ended|session [0-9]+ ended" "$PLOG" | cut -c1-250

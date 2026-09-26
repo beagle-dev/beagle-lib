@@ -18,6 +18,9 @@ results+=("transport (C3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYG
 # AD107 (tinygrad's real boot through the real daemon) and TinyGPU's server.c, and run_l0.sh's dry run
 "$TG_TESTS/test_v1.sh" > "$TINYGPU_TEST_WORK/test_v1.log" 2>&1
 results+=("record/replay (V1): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_v1.log)")")
+# plan step C5: the plugin's own GSP unload and teardown (BEAGLE_NV_CPP_LEVEL=teardown) on the fake AD107 and the L0 recordings
+"$TG_TESTS/test_c5.sh" > "$TINYGPU_TEST_WORK/test_c5_e2e.log" 2>&1   # test_c5.log is test_c5.py's, among the goldens
+results+=("C++ teardown (C5): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c5_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
@@ -164,7 +167,7 @@ sleep 0.5
 after=$(pgrep -f "fake_nv_daemon.py" | wc -l)
 out="$TINYGPU_TEST_WORK/run_fake_hung.txt"
 if grep -q "timeline wait timed out" "$out" && grep -q "GPU teardown: unload confirmed" "$out" \
-   && grep -qE "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted [1-9][0-9]*, C\+\+ timeline signal 0" "$out" \
+   && grep -qE "C\+\+ state page: phase 1, frame_in_flight 0, last_submitted [1-9][0-9]*, seq 0, C\+\+ timeline signal 0" "$out" \
    && grep -q "keeps the TinyGPU.app connection open" "$out" && [ "$after" -le "$before" ]; then
     results+=("fake hung: PASS")
 else

@@ -27,6 +27,9 @@ done
 RUN=(); while IFS= read -r line; do RUN+=("$line"); done < <("$BEAGLE_PYTHON" -c 'import json, sys; r = json.load(open(sys.argv[1])); print(r["test_bin"]); print(len(r["envs"])); [print(x) for x in r["envs"] + r["args"]]' "$REC/run.json")   # bash 3.2: no readarray
 BIN="$BEAGLE_BUILD/examples/${RUN[0]}"; NENV=${RUN[1]}; ARGS=("${RUN[@]:$((2 + NENV))}")
 ENVS=(); for e in "${RUN[@]:2:$NENV}"; do [[ "$e" == BEAGLE_TG_* ]] || ENVS+=("$e"); done   # the harness's own variables are not replayed
+# a recording without a level was made before plan step C5's knob, with the daemon's teardown (the L0 recordings): replayed at
+# level runtime, unless the caller sets one (test_c5.sh replays them to the plugin's own teardown)
+if ! printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' && [ -z "${BEAGLE_NV_CPP_LEVEL+x}" ]; then ENVS+=(BEAGLE_NV_CPP_LEVEL=runtime); fi
 [ -x "$BIN" ] || { echo "no $BIN"; exit 2; }
 SOCKDIR=$(mktemp -d /tmp/tgr.XXXXXX); SOCK="$SOCKDIR/rp.sock"
 MEM="$TINYGPU_TEST_WORK/replay_mem_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
@@ -39,7 +42,7 @@ trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 SRV=$!
 for i in $(seq 300); do grep -q "tgreplay listening" "$RLOG" 2>/dev/null && break; kill -0 $SRV 2>/dev/null || break; sleep 0.1; done
 grep -q "tgreplay listening" "$RLOG" || { echo "tgreplay did not start:"; cat "$RLOG"; exit 2; }
-env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
+env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" "${RECORD_ENV[@]}" \
     "$BIN" "${ARGS[@]}" > "$OUT" 2>&1 &
 TST=$!

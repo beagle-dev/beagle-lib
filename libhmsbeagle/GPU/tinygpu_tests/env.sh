@@ -61,7 +61,8 @@ hw_begin() {
     for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_DATA_MB BEAGLE_NV_DISPATCH_DAEMON APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_NV_MEM FAKE_TEST_BIN \
              BEAGLE_NV_FILL_LAUNCH_DIMS BEAGLE_NV_CHAIN_LAUNCHES BEAGLE_NV_USE_NVJITLINK PTXAS HCQDEV_WAIT_TIMEOUT_MS \
              DISABLE_HTTP_CACHE PMA PROFILE VIZ REMOTE GMMU \
-             BEAGLE_TG_OFFLINE BEAGLE_TG_MUTATE BEAGLE_TG_RECORD BEAGLE_TG_RECORD_LOG BEAGLE_TG_MARKERS BEAGLE_TG_DAEMON_PIDFILE; do   # plan V1's harness
+             BEAGLE_TG_OFFLINE BEAGLE_TG_MUTATE BEAGLE_TG_RECORD BEAGLE_TG_RECORD_LOG BEAGLE_TG_MARKERS BEAGLE_TG_DAEMON_PIDFILE \
+             BEAGLE_NV_CPP_LEVEL BEAGLE_TINYGPU_LOG; do   # plan V1's harness; plan C5's level (the scripts set it) and log
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     # the firmware is staged, so no boot downloads inside the daemon (decision 5; macOS may purge tinygrad's cache): offline,

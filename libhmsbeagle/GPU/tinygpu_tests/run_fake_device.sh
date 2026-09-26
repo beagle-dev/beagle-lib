@@ -14,6 +14,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
+# the level is always explicit, and so recorded in run.json (plan step C5): the plugin's default, teardown, unless given
+printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS+=(BEAGLE_NV_CPP_LEVEL=teardown)
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
 SOCKDIR=$(mktemp -d /tmp/tgd.XXXXXX); SOCK="$SOCKDIR/dev.sock"
 MEM="$TINYGPU_TEST_WORK/fake_device_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
@@ -39,7 +41,7 @@ if [ -n "$FAKE_TG_PROXY" ]; then
     "$BEAGLE_PYTHON" -c 'import json, sys; json.dump(dict(test_bin=sys.argv[1], envs=[e for e in sys.argv[2].split("\x1f") if e], args=sys.argv[3:]), sys.stdout)' \
         "$(basename "$TEST_BIN")" "$(IFS=$'\x1f'; echo "${ENVS[*]}")" "$@" > "$SOCKDIR/run.json"
 fi
-env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$CLIENT_SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
+env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" BEAGLE_NV_USE_DAEMON=0 "${ENVS[@]}" \
     "$TEST_BIN" "$@" > "$OUT" 2>&1 &
 TST=$!

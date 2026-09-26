@@ -467,10 +467,11 @@ def _wpr_bound_name(dev_impl):
     return "vram_size - 512 MiB" if dev_impl.fmc_boot else "gspFwRsvdStart"
 
 
-# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): three u64 words
-# [phase, frame_in_flight, last_submitted] in a POSIX shm segment the plugin creates, unlinks and passes here right after
-# the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is gone).
-_STATE_WORDS, _PHASE_DISPATCH = 3, 1   # phase 1: the C++ side owns both GPFIFOs
+# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): four u64 words
+# [phase, frame_in_flight, last_submitted, seq] in a POSIX shm segment the plugin creates, unlinks and passes here right
+# after the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is
+# gone). Plan step C5 added seq, the GSP command queue's sequence number after the C++ side's last RPC, and phase 2.
+_STATE_WORDS, _PHASE_DISPATCH, _PHASE_TEARDOWN = 4, 1, 2   # 1: the C++ side owns both GPFIFOs; 2: it is unloading the GPU itself
 
 
 class Daemon:
@@ -671,6 +672,40 @@ class Daemon:
         log("state page mapped: the C++ side records whether a frame is in flight and the timeline value it last submitted")
         self.send_json({"ok": True})
 
+    def cmd_teardown_export(self, req):
+        # TODO.md plan step C5 (level teardown): what the C++ side needs to unload the GSP and run NVIDIA's teardown itself at
+        # fini, with this process sending nothing to the GPU afterwards: the GSP message queues (the fd of their TinyGPU.app
+        # sysmem, in which both queues keep their write and read pointers; the offsets as init_rm_args lays them out; the
+        # command queue's sequence number), libos_args_sysmem (the CPU sequencer's op 8), chip_id (FALCON_RM, written by
+        # every falcon reset), and nv_init_helper's two teardown images with their execute_hs arguments. One byte carrying
+        # the queue fd follows the reply. Refused before the handoff (the queues are this process's until then) and on the
+        # COT boot (Blackwell), whose unload has no host-run falcon step (plan step B2).
+        import nv_init_helper
+        from tinygrad.helpers import round_up
+        if not self.handed_off: raise RuntimeError("teardown_export: before the handoff")
+        dev_impl = self.dev.iface.dev_impl
+        if dev_impl.fmc_boot: raise RuntimeError(f"teardown_export: the C++ teardown is NV_FLCN's (Ada), not {dev_impl.chip_name}'s COT boot")
+        gsp, flcn = dev_impl.gsp, dev_impl.flcn
+        queue_size = gsp.cmd_q.tx.size   # init_rm_args (ip.py:364-387): a page table, then the command and status queues
+        pte_cnt = ((queue_pte_cnt := (queue_size * 2) // 0x1000)) + round_up(queue_pte_cnt * 8, 0x1000) // 0x1000
+        pt_size = round_up(pte_cnt * 8, 0x1000)
+        fd = self.dev.iface.pci_dev.sysmem_fds[gsp.cmd_q_view.addr - pt_size]
+        teardown = nv_init_helper._TEARDOWN and hasattr(flcn, "beagle_sb_image_paddr")
+        info = {"ok": True, "fw_name": dev_impl.fw_name, "chip_id": dev_impl.chip_id, "gsp_queues_size": pt_size + 2 * queue_size,
+                "gsp_cmdq_off": pt_size, "gsp_statq_off": pt_size + queue_size, "gsp_queue_size": queue_size, "gsp_seq": gsp.cmd_q.seq,
+                "libos_args_sysmem": gsp.libos_args_sysmem, "unload_level0": nv_init_helper._UNLOAD_LEVEL_0, "teardown": teardown}
+        if teardown:   # FWSEC-SB runs with FWSEC-FRTS's arguments (ip.py:190-193); Booter Unload with beagle_unload_params
+            d = flcn.desc_v3
+            data_off, data_sz, code_off, code_sz = flcn.beagle_unload_params
+            info.update(sb_paddr=flcn.beagle_sb_image_paddr, sb_imem_pa=d.IMEMPhysBase, sb_imem_va=d.IMEMVirtBase, sb_imem_sz=d.IMEMLoadSize,
+                        sb_dmem_pa=d.DMEMPhysBase, sb_dmem_sz=d.DMEMLoadSize, sb_pkc_off=d.PKCDataOffset, sb_engid=d.EngineIdMask,
+                        sb_ucodeid=d.UcodeId, unload_paddr=flcn.beagle_unload_image_paddr, unload_data_off=data_off, unload_data_sz=data_sz,
+                        unload_code_off=code_off, unload_code_sz=code_sz)
+        self.send_json(info)
+        socket.send_fds(self.sock, [b"Q"], [fd])
+        log(f"teardown export: GSP queues ({info['gsp_queues_size']:#x} bytes, command queue at {pt_size:#x}, status queue at "
+            f"{pt_size + queue_size:#x}, seq {gsp.cmd_q.seq}), {'teardown images' if teardown else 'no teardown images'}")
+
     def cmd_alloc(self, req):
         buf = self.dev.allocator.alloc(req["size"])
         self.send_json({"ok": True, "addr": buf.va_addr})
@@ -760,7 +795,26 @@ class Daemon:
         # this process keeps its dup of the connection open and waits to be killed after the eGPU is unplugged.
         if _PROFILE:
             _prof_report()
+        if req.get("cpp_teardown"):
+            self._reply_and_hold(self._cpp_fini(req))
+            return
         self._reply_and_hold(self._fini(req.get("hung", False)))
+
+    def _cpp_fini(self, req):
+        # plan step C5: the C++ side unloaded the GSP and ran NVIDIA's teardown itself (cmd_teardown_export), and reports what
+        # it saw. Nothing more goes to the GPU from here: no synchronize, no NVDev.fini; 'NV' leaves tinygrad's atexit list. If
+        # the GSP did not confirm its unload (or the C++ side could not tell), this process keeps its copy of the TinyGPU.app
+        # connection open (hold rule), as _fini does.
+        from tinygrad import Device
+        diag = req.get("diag", {})
+        log(f"C++ GPU teardown: {json.dumps(diag)}")
+        for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
+            Device._opened_devices.discard(name)   # atexit must not run NVDev.fini: the GPU is torn down
+        reply = {"ok": True, **diag}
+        if req.get("hold") or not diag.get("unload_ok"):
+            reply.update(hold=True, pid=os.getpid())
+        self.dev = None   # nothing left to tear down: a later EOF exits
+        return reply
 
     def _fini(self, hung):
         # cmd_fini's decision, shared with the EOF path (_eof, plan step P3); returns the reply. After a handoff the daemon's
@@ -768,9 +822,12 @@ class Daemon:
         reply = {"ok": True}
         if self.dev is not None:
             if self._state is not None:
-                phase, in_flight, last = self._state
-                log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, "
+                phase, in_flight, last, seq = self._state
+                log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, seq {seq}, "
                     f"C++ timeline signal {self._cpp_signal.value}")
+                if phase == _PHASE_TEARDOWN:   # plan step C5: the C++ side was unloading the GPU itself, and did not finish
+                    log("the C++ side's own GPU teardown did not finish: sending nothing to the GPU")
+                    return {"ok": False, "error": "the C++ GPU teardown did not finish", "hold": True, "pid": os.getpid()}
                 if phase != _PHASE_DISPATCH or in_flight:   # TinyGPU.app would read our next bytes as the rest of a cut C++ frame
                     log("a C++ frame may be cut mid-send: sending nothing more to the GPU")
                     return {"ok": False, "error": "a C++ frame may be cut mid-send", "hold": True, "pid": os.getpid()}
