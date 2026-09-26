@@ -49,7 +49,7 @@ def test_boot_nvdev_only():
 
 def test_boot_levels():
     calls = []
-    def nvdev():   # the booted PCIIface; its device_fini is NVDev.fini (the unload and NVIDIA's teardown, confirmed)
+    def nvdev(gsp_hw=False):   # the booted PCIIface; its device_fini is NVDev.fini (the unload and NVIDIA's teardown, confirmed)
         impl = types.SimpleNamespace(chip_name="AD107")
         return types.SimpleNamespace(dev_impl=impl, device_fini=lambda: (calls.append("device_fini"), setattr(impl, "beagle_fini", dict(p3.CONFIRMED))))
     stubs = {"_apply_boot_safety_patches": lambda: None, "_install_inherited_tinygpu": lambda fd: None, "_boot_nvdev_only": nvdev}
@@ -93,7 +93,7 @@ def rm_rig(fmc_boot=False, rm_level=True):
     g.grctx_bufs = {0: GRBufDesc(0x2a0000, phys=True, virt=True), 1: GRBufDesc(0x40000, phys=True, virt=True, local=True),
                     10: GRBufDesc(0x10000, phys=True, virt=False)}
     pci.bar_info = lambda bar: {0: (0x1c_0000_0000, 16 * MB), 1: (0x1d_0000_0000, 256 * MB)}[bar]
-    if rm_level: dm.dev, dm.rm_level = d._RMDevice(dm.dev.iface), True
+    if rm_level: dm.dev, dm.rm_level = d._RMDevice(dm.dev.iface), "rm"
     return a, dm, calls, queues, impl
 
 def test_rm_export():

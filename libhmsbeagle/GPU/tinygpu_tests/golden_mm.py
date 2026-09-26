@@ -48,7 +48,8 @@ class FakeTG:
     segments at fresh device addresses with gaps between them (below 2^40)."""
     def __init__(self, priv, snap=None, segs=(1,)):
         self.priv, self.segs, self.rec, self.keep = priv, segs, bytearray(), []
-        self.hooks, self.vals = [], {}   # BAR0 4-byte writes go to each hook(address, value) (golden_rm.py's GSP doorbell)
+        self.hooks, self.vals = [], {}   # BAR0 4-byte writes go to each hook(address, value) (golden_rm.py's GSP doorbell); 4-byte
+                                         # reads return vals[address] (a value, or a function of the address; 0 if absent)
         self.bar1, self.iova, self.nsys = (bytearray(snap[0]), snap[1], snap[2]) if snap else (bytearray(256 * MB), 0x40_0000_0000, 0)
     def snapshot(self): return bytes(self.bar1), self.iova, self.nsys
     def serve(self, conn):
@@ -63,6 +64,9 @@ class FakeTG:
             elif cmd == RemoteCmd.MAP_BAR: conn.sendall(struct.pack(RESP, 0, *BARS[bar]))
             elif cmd == RemoteCmd.MMIO_READ and bar == 1 and a0 + a1 <= len(self.bar1):
                 conn.sendall(struct.pack(RESP, 0, a1, 0) + bytes(self.bar1[a0:a0 + a1]))
+            elif cmd == RemoteCmd.MMIO_READ and bar == 0 and a1 == 4:
+                v = self.vals.get(a0, 0)
+                conn.sendall(struct.pack(RESP, 0, 4, 0) + struct.pack("<I", (v(a0) if callable(v) else v) & 0xffffffff))
             elif cmd == RemoteCmd.MAP_SYSMEM_FD: self.sysmem(conn, a0)
             else:
                 msg = b"not served"

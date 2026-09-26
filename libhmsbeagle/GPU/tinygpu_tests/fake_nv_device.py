@@ -21,7 +21,8 @@ Values tinygrad reads that the real GPU would compute (the GR topology, context-
 constants, not the RTX 4060's: plan step V1's L0 recordings are the reference for those.
 A session that ends while the GSP is live is an error: on the eGPU that unwires memory the GSP still uses (DART).
 FAKE_RM_FAIL=<class>: the GSP refuses every rm_alloc of that class (rpc_result NV_ERR_INVALID_CLASS), as GSP-RM refuses a bad
-request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission).
+request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission). FAKE_NO_INIT_DONE=1:
+the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and the daemon must hold).
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
 It prints "fake TinyGPU.app (AD107 device) listening", and after each session its counts and NO ERRORS or the errors."""
 import os, sys, json, mmap, glob, socket, struct, ctypes, types, collections
@@ -48,6 +49,7 @@ errors, counts = [], collections.Counter()
 # FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (as fake_tinygpu_server.py; plan step V1's proxy check)
 RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
 RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
+NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
 
 def err(msg):
     errors.append(msg)
@@ -196,7 +198,7 @@ class Gsp:
         self.mm[self.stat:self.stat + 32] = bytes(stat_tx)
         self.mm[self.stat_rx:self.stat_rx + 4] = struct.pack("<I", 0)
         self.run()                                        # the prequeued SET_SYSTEM_INFO and SET_REGISTRY
-        self.post(nv.NV_VGPU_MSG_EVENT_GSP_INIT_DONE, b"\x00" * 8)
+        if not NO_INIT_DONE: self.post(nv.NV_VGPU_MSG_EVENT_GSP_INIT_DONE, b"\x00" * 8)
         counts["gsp boots"] += 1
 
     def u32(self, off): return struct.unpack_from("<I", self.mm, off)[0]

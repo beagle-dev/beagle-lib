@@ -27,6 +27,9 @@ results+=("C++ memory manager (C6): $([ $? -eq 0 ] && echo PASS || echo "FAIL (s
 # plan step C7: the plugin builds the NVDevice with its own RM client (BEAGLE_NV_CPP_LEVEL=rm) on the fake AD107 and the L0 recordings
 "$TG_TESTS/test_c7.sh" > "$TINYGPU_TEST_WORK/test_c7_e2e.log" 2>&1
 results+=("C++ RM client and NVDevice (C7): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c7_e2e.log)")")
+# plan step C8: the plugin boots GSP-RM itself, NV_GSP.init_hw and the golden image (BEAGLE_NV_CPP_LEVEL=gsp_hw), on the fake AD107 and the L0 recordings
+"$TG_TESTS/test_c8.sh" > "$TINYGPU_TEST_WORK/test_c8_e2e.log" 2>&1
+results+=("C++ GSP-RM boot and golden image (C8): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c8_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

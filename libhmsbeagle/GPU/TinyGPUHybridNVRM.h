@@ -10,7 +10,8 @@
  * given, as tinygrad's dict.get does (its default argument is evaluated first). Parameters travel as bytes, as bytes(params)
  * sends them, in C2's generated layouts (TinyGPUNVRMTables.h); the typed wrappers are for the NVDevice port. Not ported:
  * rpc_alloc_memory and rpc_rm_control's PMA branches (profiling, which the plugin never enables) and the video decoder's
- * hook (NVDevice allocates no decoder); asking for either raises.
+ * hook (NVDevice allocates no decoder); asking for either raises. Plan step C8 added NV_GSP.init_hw (ip.py:510-520, with
+ * nv_init_helper's patch 3, the 20 s sleep after SEC2's start) and init_golden_image (:468-508): nv_gsp_init_hw.
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVRM_H
@@ -18,6 +19,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -207,7 +209,112 @@ public:
         rpc_rm_control(subdev, nv_gpu::NV2080_CTRL_CMD_GPU_PROMOTE_CTX, prom, client);
         return res;
     }
+
+    // init_golden_image (ip.py:468-508): the private root client's device, subdevice and VA space; the runlists from the
+    // device-info table; 512 MiB of VA whose page tables GSP-RM copies; the golden channel, its context buffers (sizes from
+    // KGR_GET_CONTEXT_BUFFERS_INFO) promoted, and its compute and copy objects
+    void init_golden_image() {
+        using namespace nv_gpu;
+        NV0000_ALLOC_PARAMETERS root_params{};
+        rpc_rm_alloc(0x0, 0x0, root_params);
+        NV0080_ALLOC_PARAMETERS dev_params{};
+        dev_params.hClientShare = priv_root;
+        const uint32_t dev = rpc_rm_alloc(priv_root, NV01_DEVICE_0, dev_params);
+        NV2080_ALLOC_PARAMETERS subdev_params{};
+        const uint32_t subdev = rpc_rm_alloc(dev, NV20_SUBDEVICE_0, subdev_params);
+        NV_VASPACE_ALLOCATION_PARAMETERS vaspace_params{};
+        const uint32_t vaspace = rpc_rm_alloc(dev, FERMI_VASPACE_A, vaspace_params);
+
+        NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS di_params{};
+        const NV2080_CTRL_FIFO_GET_DEVICE_INFO_TABLE_PARAMS di = rpc_rm_control(subdev, NV2080_CTRL_CMD_FIFO_GET_DEVICE_INFO_TABLE, di_params);
+        std::map<uint64_t, uint32_t> rl;
+        for (uint32_t i = 0; i < di.numEntries; ++i) {
+            if (i >= 32) throw TGPyError("IndexError", "invalid index");   // di.entries is a ctypes array of 32
+            rl[di.entries[i].engineData[2]] = di.entries[i].engineData[3];
+        }
+        runlists = rl;
+
+        // reserve 512MB for the reserved PDES
+        const uint64_t res_sz = 512ull << 20;
+        const uint64_t res_va = mm.alloc_vaddr(res_sz);
+        struct_NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS bufs_p{};
+        bufs_p.pageSize = res_sz;
+        bufs_p.numLevelsToCopy = 3;
+        bufs_p.virtAddrLo = res_va;
+        bufs_p.virtAddrHi = res_va + res_sz - 1;
+        const std::vector<NVPageTableEntry> pts = mm.page_tables(res_va, res_sz);
+        for (size_t i = 0; i < pts.size(); ++i) {
+            if (i >= 6) throw TGPyError("IndexError", "invalid index");   // bufs_p.levels is a ctypes array of 6
+            struct_NV90F1_CTRL_VASPACE_COPY_SERVER_RESERVED_PDES_PARAMS_level& l = bufs_p.levels[i];
+            l.physAddress = pts[i].paddr;
+            l.size = i == 0 ? mm.pte_cnt[0] * 8 : 0x1000;
+            l.pageShift = (uint8_t)(tg_bit_length(mm.pte_covers[i]) - 1);
+            l.aperture = 1;
+        }
+        rpc_rm_control(vaspace, NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES, bufs_p);
+
+        TGVirtMapping gpfifo_area = mm.valloc(4 << 10, 0x1000, false, true);
+        NV_MEMORY_DESC_PARAMS userd{gpfifo_area.paddrs[0].first + 0x20 * 8, 0x20, 2, 0};
+        NV_CHANNELGPFIFO_ALLOCATION_PARAMETERS gg_params{};
+        gg_params.gpFifoOffset = gpfifo_area.va_addr;
+        gg_params.gpFifoEntries = 32;
+        gg_params.engineType = 0x1;
+        gg_params.cid = 3;
+        gg_params.hVASpace = vaspace;
+        gg_params.userdOffset[0] = 0x20 * 8;
+        gg_params.userdMem = userd;
+        gg_params.internalFlags = 0x1a;
+        gg_params.flags = 0x200320;
+        const uint32_t ch_gpfifo = rpc_rm_alloc(dev, gpfifo_class, gg_params);
+
+        NV2080_CTRL_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO_PARAMS ci_params{};
+        const NV2080_CTRL_INTERNAL_STATIC_GR_CONTEXT_BUFFERS_INFO gr_ctx_bufs_info =
+            rpc_rm_control(subdev, NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO, ci_params).engineContextBuffersInfo[0];
+        auto ctx_info = [&](uint32_t idx, uint64_t add = 0, uint64_t align = 0) {   // align 0: None
+            const uint64_t a = align ? align : gr_ctx_bufs_info.engine[idx].alignment;
+            if (!a) throw TGPyError("ZeroDivisionError", "integer division or modulo by zero");
+            return tg_round_up(gr_ctx_bufs_info.engine[idx].size + add, a);
+        };
+
+        // Setup graphics context
+        const uint64_t gr_size = ctx_info(NV0080_CTRL_FIFO_GET_ENGINE_CONTEXT_PROPERTIES_ENGINE_ID_GRAPHICS, 0x40000);
+        const uint64_t patch_size = ctx_info(NV0080_CTRL_FIFO_GET_ENGINE_CONTEXT_PROPERTIES_ENGINE_ID_GRAPHICS_PATCH);
+        std::map<uint32_t, uint64_t> cfgs_sizes;   // indices 3-10 are mapped to 17-24
+        for (uint32_t x = 3; x < 11; ++x) cfgs_sizes[x] = ctx_info(x + 14, 0, x == 5 ? (2 << 20) : 0);
+        grctx_bufs = {{0, {gr_size, true, true, false}}, {1, {patch_size, true, true, true}}, {2, {patch_size, true, true, false}}};
+        for (uint16_t x = 3; x < 7; ++x) grctx_bufs.push_back({x, {cfgs_sizes[x], false, true, false}});
+        grctx_bufs.push_back({9, {cfgs_sizes[9], true, true, false}});
+        grctx_bufs.push_back({10, {cfgs_sizes[10], true, false, false}});
+        grctx_bufs.push_back({11, {cfgs_sizes[10], true, true, false}});   // NOTE: 11 reuses cfgs_sizes[10]
+        std::vector<std::pair<uint16_t, NVGRBufDesc>> not_local;
+        for (auto& kv : grctx_bufs)
+            if (!kv.second.local) not_local.push_back(kv);
+        promote_ctx(priv_root, subdev, ch_gpfifo, not_local);
+
+        rpc_rm_alloc_bytes(ch_gpfifo, compute_class, nullptr);
+        rpc_rm_alloc_bytes(ch_gpfifo, dma_class, nullptr);
+    }
 };
+
+// NV_GSP.init_hw (ip.py:510-520) as the daemon runs it, with nv_init_helper's patch 3 (_patched_gsp_init_hw): while it runs,
+// SEC2's start (the CPU sequencer's op 8, which GSP-RM posts before GSP_INIT_DONE) sleeps 20 s. Its first two statements, the
+// status queue and the command queue's read pointer, are NVGsp's constructor. on_init_done runs once GSP_INIT_DONE was read.
+// fmc_boot: the COT boot's second BAR1 block register (Blackwell).
+inline void nv_gsp_init_hw(NVRMClient& rm, bool fmc_boot = false, const std::function<void()>& on_init_done = {}) {
+    struct InGspInit {   // _in_gsp_init, reset in its finally
+        NVFalcon& flcn;
+        explicit InGspInit(NVFalcon& f) : flcn(f) { flcn.sleep_after_sec2_start = true; }
+        ~InGspInit() { flcn.sleep_after_sec2_start = false; }
+    } in_gsp_init(rm.gsp.flcn);
+    rm.gsp.stat_q.wait_resp(nv::NV_VGPU_MSG_EVENT_GSP_INIT_DONE, rm.gsp.rpc_timeout_ms);
+    if (on_init_done) on_init_done();
+
+    rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).write({{"mode", 0}, {"target", 0}, {"ptr", 0}});
+    if (fmc_boot) rm.mm.dev->reg(nv_regs::NV_VIRTUAL_FUNCTION_PRIV_FUNC_BAR1_BLOCK_LOW_ADDR).write({{"mode", 0}, {"target", 0}, {"ptr", 0}});
+
+    rm.priv_root = 0xc1e00004;
+    rm.init_golden_image();
+}
 
 } // namespace tinygpu_device
 

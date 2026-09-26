@@ -11,7 +11,7 @@
  * A manager is either built as tinygrad's constructor builds it, or restored from the state a running tinygrad exported
  * (TLSFAllocator::save's words, the root page table): the fork point at which the plugin takes the memory manager over
  * from the daemon. Not ported: GMMU=0's identity mapping (identity_va and the GMMU branches of valloc and vfree; the plugin
- * refuses GMMU=0) and page_tables (the golden image's, plan step C8).
+ * refuses GMMU=0). page_tables, which the golden image uses, came with plan step C8.
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUMEMORY_H
@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <type_traits>
 #include <cstdio>
 #include <map>
 #include <optional>
@@ -281,7 +282,8 @@ public:
     }
 
     // The generator next(size, paddr, off): visit(off, pt, pte_idx, entries, pte_covers) runs where tinygrad's consumer runs,
-    // between the yield and the advance. paddr is nullptr for None.
+    // between the yield and the advance. paddr is nullptr for None. A visit returning bool true leaves the generator there, as a
+    // consumer that returns from inside its for loop does (page_tables).
     template <class F> void next(int64_t size, const uint64_t* paddr, uint64_t off, F&& visit) {
         while (size > 0) {
             Level cur = top();
@@ -304,7 +306,9 @@ public:
             }
             int64_t entries = std::max<int64_t>(std::min<int64_t>(size / (int64_t)pte_covers, (int64_t)(pte_cnt(pt.lv) - pte_idx_)), inspect ? 1 : 0);
             if (!(entries > 0)) throw TGPyError("AssertionError", "Invalid entries size=" + tg_hex(size) + ", pte_covers=" + tg_hex(pte_covers));
-            visit(off, pt, pte_idx_, (uint64_t)entries, pte_covers);
+            if constexpr (std::is_same_v<std::invoke_result_t<F&, uint64_t, PT&, uint64_t, uint64_t, uint64_t>, bool>) {
+                if (visit(off, pt, pte_idx_, (uint64_t)entries, pte_covers)) return;
+            } else visit(off, pt, pte_idx_, (uint64_t)entries, pte_covers);
             size -= entries * (int64_t)pte_covers;
             off += entries * pte_covers;
             vaddr += entries * pte_covers;
@@ -403,6 +407,19 @@ public:
                 pt.set_entry(pte_id, 0x0, false, false, TGAddrSpace::PHYS, false, 0, false);
             }
         });
+    }
+
+    // page_tables (memory.py:204-206): the tables from the root down to the level whose entries cover size at vaddr, created
+    // where missing; the generator's state at its first yield, where tinygrad returns
+    std::vector<PT> page_tables(uint64_t vaddr, uint64_t size) {
+        Ctx ctx(*this, root_page_table, vaddr, true);
+        std::vector<PT> out;
+        const uint64_t paddr = 0;
+        ctx.next((int64_t)size, &paddr, 0, [&](uint64_t, PT&, uint64_t, uint64_t, uint64_t) {
+            for (const auto& l : ctx.pt_stack) out.push_back(l.pt);
+            return true;
+        });
+        return out;
     }
 
     uint64_t alloc_vaddr(uint64_t size, uint64_t align = 0x1000) {
