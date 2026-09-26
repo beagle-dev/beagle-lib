@@ -240,21 +240,21 @@ enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, 
 static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the daemon holds on any other phase
 static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU itself (plan step C5): the daemon holds at EOF
 
-// TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5),
-// the default since it passed on the RTX 4060 (STATUS.md R33): this side unloads the GPU at fini, on tinygrad's ported GSP
-// queue and falcon primitives, and the daemon only exits; runtime: the daemon unloads it, as before C5. vram (plan step C6,
-// rung H1): also, at the handoff this side takes tinygrad's memory manager over (TinyGPUMemory.h, TinyGPUHybridNVMemory.h)
-// and allocates its VRAM pool itself; sysmem (rung H2): its four buffers too.
+// TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5):
+// this side unloads the GPU at fini, on tinygrad's ported GSP queue and falcon primitives, and the daemon only exits; runtime:
+// the daemon unloads it, as before C5. vram (plan step C6, rung H1): also, at the handoff this side takes tinygrad's memory
+// manager over (TinyGPUMemory.h, TinyGPUHybridNVMemory.h) and allocates its VRAM pool itself; sysmem (rung H2): its four
+// buffers too, the default since both rungs passed on the RTX 4060 (STATUS.md R35).
 enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
-        if (!v || !v[0] || strcmp(v, "teardown") == 0) return kNVLevelTeardown;
+        if (!v || !v[0] || strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
         if (strcmp(v, "runtime") == 0) return kNVLevelRuntime;
+        if (strcmp(v, "teardown") == 0) return kNVLevelTeardown;
         if (strcmp(v, "vram") == 0) return kNVLevelVram;
-        if (strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
-        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem); using teardown\n", v);
-        return kNVLevelTeardown;
+        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem); using sysmem\n", v);
+        return kNVLevelSysmem;
     }();
     return level;
 }
@@ -829,8 +829,9 @@ static void nvdTeardownExport(int cmd_sock, NVDispatchState& d) {
     t.level0 = nv_json_bool(js, "unload_level0");
     t.ready = true;
     __atomic_store_n(&d.state[kNVDStateSeq], t.seq, __ATOMIC_RELEASE);
-    fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=teardown)\n",
-            t.images.present ? " and NVIDIA's teardown" : "");
+    fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=%s)\n",
+            t.images.present ? " and NVIDIA's teardown" : "",
+            nv_cpp_level() == kNVLevelSysmem ? "sysmem" : nv_cpp_level() == kNVLevelVram ? "vram" : "teardown");
 }
 
 // TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives

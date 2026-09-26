@@ -5,7 +5,7 @@
 #   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|default] [reps] [--poison] [--instances K] [--threads] [--cycles C]
 # (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; default: no mode
 # variable, the plugin's own choice: the C++ runtime on Ada, plan decision 16, with its own GSP unload and teardown at fini,
-# plan step C5; runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
+# plan step C5, and its own memory manager, plan step C6 (level sysmem); runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
 # BEAGLE_NV_CPP_LEVEL=teardown; vram and sysmem: also the plugin's own memory manager, plan step C6's rungs H1 and H2)
 # Waits for the eGPU to enumerate, runs from the build tree with --diag-compare-cpu under log stream, keeps the output,
 # the daemon log and the log stream under $BEAGLE_TINYGPU_DATA/runs/, and prints a summary. Exits 0 only if the test
@@ -62,7 +62,7 @@ hw_hold_check || exit 1
 [ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
 # eGPU events: every line but the filter's header, the column header log stream prints before its first event, and the
 # Apple Neural Engine's and camera's own buffer messages, which match "DART" (dartMapBase) and have nothing to do with the eGPU
-EVENTS=$(grep -cvE "^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE0:|H13Cam" "$LS")
+EVENTS=$(grep -cvE "$HW_LOG_BENIGN" "$LS")
 [ "$EVENTS" -eq 0 ] || { echo "STOP: log stream saw $EVENTS eGPU event line(s) ($LS): stop all hardware work"; exit 1; }
 fini_verdict "$OUT" || { echo "STOP: bad fini report (lines above): replug the eGPU before the next run"; exit 1; }
 [ $rc -eq 0 ] || { echo "STOP: the test failed (exit $rc); the teardown was clean"; exit 1; }

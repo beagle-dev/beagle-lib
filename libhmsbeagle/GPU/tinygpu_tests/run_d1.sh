@@ -54,7 +54,7 @@ hw_hold_check || exit 1
 [ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
 # eGPU events: every line but the filter's header, the column header log stream prints before its first event, and the
 # Apple Neural Engine's and camera's own buffer messages, which match "DART" (dartMapBase) and have nothing to do with the eGPU
-EVENTS=$(grep -cvE "^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE0:|H13Cam" "$LS")
+EVENTS=$(grep -cvE "$HW_LOG_BENIGN" "$LS")
 [ "$EVENTS" -eq 0 ] || { echo "STOP: log stream saw $EVENTS eGPU event line(s) ($LS): stop all hardware work"; exit 1; }
 grep -qE "TinyGPU/NV: (daemon booted|boot failed)" "$ERR" || { echo "STOP: NOT RUN: the GPU was never booted (see $OUT, $ERR)"; exit 1; }
 fini_verdict "$ERR" || { echo "STOP: bad fini report (lines above): replug the eGPU before the next run"; exit 1; }

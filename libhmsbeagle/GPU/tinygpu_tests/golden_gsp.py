@@ -352,4 +352,5 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
                 if prpc != crpc: print(f"    RPCs the GSP saw: tinygrad {prpc} | c++ {crpc}")
     return n, fails
 
-main()
+if __name__ == "__main__":
+    main()

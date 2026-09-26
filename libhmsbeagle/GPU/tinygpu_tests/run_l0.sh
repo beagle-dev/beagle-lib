@@ -6,8 +6,8 @@
 # a run; a hung or holding GPU (or a proxy that stopped forwarding) is unplugged before anything is killed. Run it under
 # caffeinate -ims, with the lid open.
 #   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem] [--guard]
-# (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the default, the plugin unloads the GPU and runs NVIDIA's
-# teardown itself at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem, the plugin also
+# (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the plugin unloads the GPU and runs NVIDIA's teardown itself
+# at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem (the default), the plugin also
 # allocates its VRAM pool, and its buffers, with its own memory manager, plan step C6; --guard runs the proxy in guard mode,
 # replay/tgguard.py, for a rung's first run: a trigger it refuses is not forwarded and the proxy holds, so unplug the eGPU)
 # L0_DRY_RUN=1 runs the same script offline, against fake_nv_device.py instead of TinyGPU.app (the daemon with tgharness_py's
@@ -19,7 +19,7 @@
 # at its client's close; 1 stops the session's chain of runs; 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem] [--guard]"
-LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=teardown); GUARD=()
+LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=sysmem); GUARD=()
 set -- "${@:4}"
 while [ $# -gt 0 ]; do
     case $1 in
@@ -106,7 +106,7 @@ grep -E "C\+\+ runtime:|per evaluation|maxAbsDiff|CPU-reference logL|^PASS|^FAIL
 grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app" "$OUT"
 grep -E "recording ended|session [0-9]+ ended" "$PLOG" | cut -c1-250
 [ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
-EVENTS=$(grep -cvE "^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE0:|H13Cam" "$LS")
+EVENTS=$(grep -cvE "$HW_LOG_BENIGN" "$LS")
 [ "$EVENTS" -eq 0 ] || { echo "STOP: log stream saw $EVENTS eGPU event line(s) ($LS): stop all hardware work"; exit 1; }
 fini_verdict "$OUT" || { echo "STOP: bad fini report (lines above): replug the eGPU before the next run"; exit 1; }
 grep -q "tgproxy: recording ended after" "$PLOG" && ! grep "tgproxy: session [0-9]* ended:" "$PLOG" | grep -qv " ended: eof;" \
