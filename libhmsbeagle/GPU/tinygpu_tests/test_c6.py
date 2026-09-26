@@ -153,8 +153,30 @@ def test_state_page_signal():
     print("state page at sysmem: the C++ timeline mapped from the fd after the page's and read live through tinygrad's NVSignal; "
           "fds that do not match the request are refused with the stream still framed")
 
+def test_state_page_before_allocations():
+    """Level sysmem since plan step C7's review: the page comes before the C++ side's own allocations, without a timeline (the
+    daemon has none of its own), and cmd_timeline brings it once they are done; the fini that follows an orderly failure (the
+    page's frame_in_flight cleared, no timeline) unloads without waiting on one."""
+    import test_c7 as c7
+    real, Device._opened_devices = Device._opened_devices, set()
+    try:
+        a, dm, calls, _, _ = p3.rig()
+        dm.handed_off, dm.mm_exported, dm._handoff_bufs = True, True, {}
+        (pf, pm), (sf, sm) = c7.page(0), c7.signal_file(41)
+        struct.pack_into("<Q", pm, 8, 1)   # frame_in_flight while the C++ side allocates
+        r1, r2 = c7.serve(a, dm, [({"cmd": "state_page"}, [pf]), ({"cmd": "timeline", "signal_va": 0x1020768000, "signal_size": 0x4000}, [sf])])
+        assert r1["ok"] and r2["ok"] and dm._cpp_signal.value == 41 and calls == ["hold"], (r1, r2, calls)   # then EOF mid-allocation: hold
+        a, dm, calls, _, _ = p3.rig()
+        dm.handed_off, dm.mm_exported, dm._handoff_bufs = True, True, {}
+        r1, = c7.serve(a, dm, [({"cmd": "state_page"}, [c7.page(0)[0]])])   # an orderly failure: frame_in_flight 0, no timeline, EOF
+        assert r1["ok"] and dm._cpp_signal is None and calls == ["finalize"], (r1, calls)
+    finally: Device._opened_devices = real
+    print("state page at sysmem before the C++ side's allocations: no timeline until cmd_timeline; a death mid-allocation holds, "
+          "an orderly failure unloads")
+
 if __name__ == "__main__":
     test_handoff_levels()
     test_lru_refusal()
     test_state_page_signal()
+    test_state_page_before_allocations()
     print("C6 daemon: all passed")

@@ -28,6 +28,11 @@ check "fake AD107: all three levels PASS, and the device received identical byte
 check "the plugin allocated the pool at vram, the buffers and the pool at sysmem, and nothing at teardown" \
     "grep -q '$MM pool, VRAM pool 4094 MiB' '$(out vram)' && grep -q '$MM buffers and pool, VRAM pool 4094 MiB' '$(out sysmem)' \
      && ! grep -q '$MM' '$(out teardown)' && grep -q '(level sysmem)' '$TINYGPU_TEST_WORK/run_device_c6_sysmem_daemon.log'"
+check "the state page came before the plugin's allocations, saying a frame may be in flight; at sysmem the timeline followed them" \
+    "grep -q 'state page mapped (phase 1, frame_in_flight 1)' '$TINYGPU_TEST_WORK/run_device_c6_vram_daemon.log' \
+     && grep -q 'state page mapped (phase 1, frame_in_flight 1, seq 0): its timeline follows' '$TINYGPU_TEST_WORK/run_device_c6_sysmem_daemon.log' \
+     && grep -q 'C++ timeline mapped: the C++ side allocated its buffers (level sysmem)' '$TINYGPU_TEST_WORK/run_device_c6_sysmem_daemon.log' \
+     && grep -q 'state page mapped (phase 1, frame_in_flight 0)' '$TINYGPU_TEST_WORK/run_device_c6_teardown_daemon.log'"
 # ... and two instances in one process sharing one boot and the plugin's one memory manager (plan step P5), in two threads
 "$TG_TESTS/run_fake_device.sh" c6_p5 BEAGLE_NV_CPP_LEVEL=sysmem -- --state-count 4,64 --threads --reps 3 > "$W/p5.txt" 2>&1
 check "fake AD107 at sysmem: two instances in two threads share the boot and the plugin's memory manager" \

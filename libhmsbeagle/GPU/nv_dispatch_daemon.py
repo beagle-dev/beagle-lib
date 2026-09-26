@@ -782,9 +782,11 @@ class Daemon:
         if not self.handed_off or state[0] not in phases.get(self.rm_level, (_PHASE_DISPATCH,)):
             raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
         self._state = state
-        if self.rm_exported and sig_buf is None:   # plan step C7 (level rm): the page precedes the C++ side's RPCs, its timeline follows
-            log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}, seq {state[3]}): the C++ side records the GSP's sequence "
-                f"number after each RPC; its timeline follows (cmd_timeline)")
+        if sig_buf is None and "signal" not in getattr(self, "_handoff_bufs", {}):
+            # plan step C7 (level rm and above) and level sysmem: the page precedes the C++ side's own frames (its RPCs, its allocations),
+            # and its timeline, which it allocates itself, follows (cmd_timeline)
+            log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}, seq {state[3]}): " +
+                ("the C++ side records the GSP's sequence number after each RPC; " if self.rm_exported else "") + "its timeline follows (cmd_timeline)")
             self.send_json({"ok": True})
             return
         # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
@@ -802,18 +804,20 @@ class Daemon:
                          view=MMIOInterface(ctypes.addressof(ctypes.c_char.from_buffer(self._sig_map)), req["signal_size"], fmt='B'))
 
     def cmd_timeline(self, req):
-        # Plan step C7 (level rm): the C++ timeline, which the C++ side allocates after it built the NVDevice, so after its state
-        # page. One byte carrying the timeline's TinyGPU.app fd follows this command, taken before any check (as cmd_state_page).
+        # Plan step C7 (level rm and above) and level sysmem: the C++ timeline, which the C++ side allocates after its state page
+        # (at rm after it built the NVDevice). One byte carrying the timeline's TinyGPU.app fd follows this command, taken before any
+        # check (as cmd_state_page).
         _, fds, _, _ = socket.recv_fds(self.sock, 1, 1)
         try:
-            if len(fds) != 1 or not self.rm_exported or self._state is None or self._cpp_signal is not None:
-                raise RuntimeError(f"timeline: {len(fds)} fds, level rm exported {self.rm_exported}, state page {self._state is not None}, "
-                                   f"timeline {self._cpp_signal is not None}")
+            if len(fds) != 1 or not (self.rm_exported or self.mm_exported) or self._state is None or self._cpp_signal is not None:
+                raise RuntimeError(f"timeline: {len(fds)} fds, level rm exported {self.rm_exported}, memory manager exported "
+                                   f"{self.mm_exported}, state page {self._state is not None}, timeline {self._cpp_signal is not None}")
             sig_buf = self._map_cpp_signal(fds[0], req)
         finally:
             for fd in fds: os.close(fd)
         self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf, owner=self.dev, virt=True)
-        log("C++ timeline mapped: the C++ side built the NVDevice (level rm)")
+        log("C++ timeline mapped: " + (f"the C++ side built the NVDevice (level {self.rm_level})" if self.rm_level else
+                                       "the C++ side allocated its buffers (level sysmem)"))
         self.send_json({"ok": True})
 
     def cmd_teardown_export(self, req):

@@ -689,12 +689,19 @@ static std::string nvdOwnAllocations(const std::string& js, NVDispatchState& d, 
     return "";
 }
 
+static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq, uint64_t phase, uint64_t in_flight);
+static bool nvdTimeline(int cmd_sock, NVDispatchState& d);
+
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
 // of the four shared buffers in NVDHandoff's order. For the C++ runtime the
 // handoff carries no programs (this side loads its embedded cubin). The
 // daemon stops using the queues once it replies, so a failure here is fatal.
 // At BEAGLE_NV_CPP_LEVEL=vram this side allocates the pool itself, and at
 // sysmem the buffers too (no fds), before the handoff marker (plan step C6).
+// Its state page then goes to the daemon first, saying a frame may be in
+// flight until those allocations are done (their frames and round trips are
+// nothing nvd_submit records), and at sysmem the timeline follows them
+// (nvdTimeline), as at level rm (plan step C7's review).
 static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtime) {
     auto t0 = nv_profile_start();
     const NVCppLevel level = runtime ? nv_cpp_level() : kNVLevelRuntime;
@@ -745,9 +752,12 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
         }
         close(fds[i]);
     }
+    if (own_pool && err.empty() && !nvdStatePage(cmd_sock, *d, 0, kNVDPhaseDispatch, 1)) err = "no state page";
     if (own_pool && err.empty()) err = nvdOwnAllocations(js, *d, pool_mb, own_bufs);
+    if (own_bufs && err.empty() && !nvdTimeline(cmd_sock, *d)) err = "no timeline";
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/NV: handoff: %s\n", err.c_str());
+        if (d->state && !tg_transport().lost()) __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // between frames
         nvd_unmap(d);
         delete d;
         return nullptr;
@@ -759,6 +769,7 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
     d->tg_sock = tg_sock;
     nv_profile_end("handoff", t0);
     tg_transport().marker(TGM_HANDOFF, d->runtime);
+    if (own_pool) __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // allocated: from here nvd_submit keeps the word
     if (d->runtime)
         fprintf(stderr, "TinyGPU/NV: C++ runtime: handed over after boot (QMD v%u, VRAM pool %llu MiB)\n",
                 d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
@@ -1291,7 +1302,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
         nvRuntimePrograms(in, cubin);
     } else if (tg_fd >= 0) {
         g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime());
-        if (!g_nvd || !nvdStatePage(g->cmd_sock, *g_nvd)) nv_safe_exit(1);
+        if (!g_nvd || (!g_nvd->state && !nvdStatePage(g->cmd_sock, *g_nvd))) nv_safe_exit(1);   // at vram and sysmem the handoff sent it
         if (g_nvd->runtime && nv_cpp_level() >= kNVLevelTeardown) nvdTeardownExport(g->cmd_sock, *g_nvd);
         if (g_nvd->runtime) nvRuntimePrograms(in, cubin);
         else nvLinkTemplates(in, g_nvd->h.kernels);
