@@ -60,6 +60,9 @@ enum TGCmd : uint8_t {   // RemoteCmd (system.py:311-312)
 
 struct TGWrite { uint32_t bar; uint64_t off; const void* data; uint64_t len; };   // one posted MMIO_WRITE
 
+// Step markers (plan step V1), mirrored in tinygpu_tests/replay/tgwire.py MARKERS: the C++ runtime's phases
+enum TGMarker : uint32_t { TGM_HANDOFF = 0x100, TGM_PROGRAMS_LOADED = 0x101, TGM_FINI = 0x102 };
+
 struct TGSysmem {                  // alloc_sysmem's (memview, paddrs)
     uint8_t* view = nullptr;       // the shared mapping; its first bytes held the segment list
     uint64_t mapped_size = 0;
@@ -127,6 +130,24 @@ public:
         setsockopt(sock_, SOL_SOCKET, SO_RCVBUF, &big, sizeof(big));
         setsockopt(sock_, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));   // a lost server is EPIPE, not a signal
         return "";
+    }
+
+    // Plan step V1: with BEAGLE_TG_MARKERS=1, a step marker for the recording proxy and the replay server, which answer it
+    // themselves and never forward it: a CFG_READ of the vendor ID with dev_id 'BEAG' (0x42454147), the marker's id as the BAR
+    // and its argument as arg2. TinyGPU.app never reads dev_id (server.c:216-220), so there it is a harmless config read. Its
+    // reply is read, so the stream stays in step; it is sent only while this side owns the connection, and nothing is
+    // reported: a marker never changes what the plugin does.
+    void marker(uint32_t id, uint64_t arg) {
+        static const bool on = [] { const char* e = getenv("BEAGLE_TG_MARKERS"); return e && e[0] && strcmp(e, "0") != 0; }();
+        std::string err;
+        if (!on || !usable(err)) return;
+        uint8_t hdr[33], resp[17];
+        pack(hdr, TGC_CFG_READ, id, 0, 4, arg);
+        const uint32_t dev = 0x42454147;
+        memcpy(hdr + 1, &dev, 4);
+        struct iovec iov = {hdr, 33};
+        uint64_t r0, r1;
+        if (send_iov(&iov, 1) && recv_all(resp, 17)) reply(resp, r0, r1, err);
     }
 
     // The connection and the lock go; a later open() is a new server session.

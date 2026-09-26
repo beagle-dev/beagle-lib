@@ -1,5 +1,5 @@
 #!/bin/bash
-# Everything that can be checked without the eGPU: the goldens, the firmware staging, then the plugin end to end
+# Everything that can be checked without the eGPU: the goldens, plan step V1's record/replay tools, the firmware staging, then the plugin end to end
 # against the fakes in the three NV modes at 4 and 64 states (plus the C++ runtime's uploaded image and its refusal of a GPU
 # no embedded cubin serves; each plan step D1 run with its kernels; a GB205 in the C++ runtime and its COT unload, plan step
 # B1; several instances in one process, plan step P5), then the hung path, the teardown default and run_point.sh's
@@ -14,6 +14,10 @@ results=()
 # sysmem, a lost server, the lock), the socket path and the TinyGPU.app check
 "$TG_TESTS/test_c3_transport.sh" > "$TINYGPU_TEST_WORK/test_c3_transport.log" 2>&1
 results+=("transport (C3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c3_transport.log)")")
+# plan step V1: the recording proxy, the recording shim, the replay server, the guard and the comparator, end to end on the fake
+# AD107 (tinygrad's real boot through the real daemon) and TinyGPU's server.c, and run_l0.sh's dry run
+"$TG_TESTS/test_v1.sh" > "$TINYGPU_TEST_WORK/test_v1.log" 2>&1
+results+=("record/replay (V1): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_v1.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

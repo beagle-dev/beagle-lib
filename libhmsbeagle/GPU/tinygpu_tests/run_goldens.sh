@@ -6,7 +6,7 @@
 # ptxas through nv_compile_helper.compile_ptx if missing).
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 fail=0
-for t in golden_encode golden_runtime golden_program golden_transport test_c1_cubins test_daemon_wire test_p1_diagnostics test_p2_teardown test_p3 test_b1_cot; do
+for t in golden_encode golden_runtime golden_program golden_transport test_c1_cubins test_daemon_wire test_p1_diagnostics test_p2_teardown test_p3 test_b1_cot test_c2_tables; do
     echo "== $t"
     "$BEAGLE_PYTHON" "$TG_TESTS/$t.py" > "$TINYGPU_TEST_WORK/$t.log" 2>&1
     rc=$?

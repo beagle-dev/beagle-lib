@@ -33,8 +33,9 @@ SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX"); SOCK="$SOCKDIR/fk.sock"
 [ ${#SOCK} -lt 100 ] || { rmdir "$SOCKDIR"; SOCKDIR=$(mktemp -d /tmp/tg.XXXXXX); SOCK="$SOCKDIR/fk.sock"; }
 MEM="$TINYGPU_TEST_WORK/fake_mem_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
 SLOG="$TINYGPU_TEST_WORK/fake_server_$LABEL.log"; OUT="$TINYGPU_TEST_WORK/run_fake_$LABEL.txt"; rm -f "$SLOG" "$OUT"
-SRV=""; TST=""; T2=""
-cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$T2" ] && kill -KILL "$T2" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
+SRV=""; TST=""; T2=""; PRX=""
+cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$T2" ] && kill -KILL "$T2" 2>/dev/null; [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }
+            [ -n "$PRX" ] && { kill -KILL "$PRX" 2>/dev/null; wait "$PRX" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
 trap cleanup EXIT
 trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 
@@ -42,11 +43,21 @@ trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 SRV=$!
 for i in $(seq 100); do grep -q listening "$SLOG" 2>/dev/null && break; sleep 0.1; done
 grep -q listening "$SLOG" || { echo "fake server did not start:"; cat "$SLOG"; exit 2; }
+# FAKE_TG_PROXY=<new recording dir>: the plugin reaches the fake TinyGPU.app through plan step V1's recording proxy, which
+# records the session there (its log: proxy_<label>.log)
+CLIENT_SOCK=$SOCK
+if [ -n "$FAKE_TG_PROXY" ]; then
+    PLOG="$TINYGPU_TEST_WORK/proxy_$LABEL.log"; CLIENT_SOCK="$SOCKDIR/px.sock"
+    "$BEAGLE_PYTHON" "$TG_TESTS/replay/tgproxy.py" --listen "$CLIENT_SOCK" --upstream "$SOCK" --out "$FAKE_TG_PROXY" --label "$LABEL" > "$PLOG" 2>&1 &
+    PRX=$!
+    for i in $(seq 100); do grep -q "tgproxy listening" "$PLOG" 2>/dev/null && break; sleep 0.1; done
+    grep -q "tgproxy listening" "$PLOG" || { echo "the proxy did not start:"; cat "$PLOG"; exit 2; }
+fi
 
 # TMPDIR: the run's own nv_usb4.lock (plan step P5), which the plugin and the fake daemon both find through it. exec, so the
 # background job's pid ($!) is the test's own, which the SIGINT and the watchdog's SIGKILL must reach.
 run_test() {
-    exec env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
+    exec env BEAGLE_TINYGPU_NO_LAUNCH=1 APL_REMOTE_SOCK="$CLIENT_SOCK" FAKE_NV_MEM="$MEM" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/fake_nv_daemon.py" \
         BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" \
         "$TEST_BIN" "$@"
 }
@@ -71,9 +82,16 @@ done
 # SIGKILL: the test turns SIGTERM into an orderly stop, which a hung test never reaches
 if kill -0 $TST 2>/dev/null; then echo "[$LABEL] timed out; killing the test (fake GPU only)"; kill -KILL $TST; fi
 wait $TST; RC=$?; TST=""
+if [ -n "$PRX" ]; then   # SIGTERM ends the recording once the plugin's session (and the daemon holding it) has closed
+    kill -TERM $PRX 2>/dev/null
+    for i in $(seq 100); do kill -0 $PRX 2>/dev/null || break; sleep 0.1; done
+    kill -0 $PRX 2>/dev/null && { echo "[$LABEL] the proxy did not end its recording"; kill -KILL $PRX; }
+    wait $PRX 2>/dev/null; PRX=""
+fi
 sleep 0.5; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 echo "[$LABEL] mode=$MODE tinygpuhybridtest exit=$RC (output: $OUT)"
 cat "$SLOG"
+[ -n "$FAKE_TG_PROXY" ] && tail -1 "$PLOG"
 
 missing=()
 need() { grep -qE "$1" "$OUT" || missing+=("$2"); }
@@ -99,5 +117,9 @@ else
     grep -q "state page" "$OUT" && missing+=("(a state page in daemon mode)")
 fi
 grep "fake TinyGPU.app: " "$SLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake server NO ERRORS")
+if [ -n "$FAKE_TG_PROXY" ]; then   # every session (the probe at load, then the instance's) ended at the plugin's close
+    grep -q "tgproxy: recording ended after" "$PLOG" && ! grep "tgproxy: session [0-9]* ended:" "$PLOG" | grep -qv " ended: eof;" \
+        || missing+=("the proxy's clean sessions")
+fi
 if [ ${#missing[@]} -eq 0 ]; then echo "[$LABEL] PASS"; exit 0; fi
 echo "[$LABEL] FAIL: missing ${missing[*]}"; exit 1

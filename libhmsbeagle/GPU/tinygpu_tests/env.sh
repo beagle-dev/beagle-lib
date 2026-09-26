@@ -14,6 +14,9 @@ TEST_LIBS="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid:$BEAGLE_BUILD/libh
 # $BEAGLE_TINYGPU_DATA may be shared between computers (a synced folder), each with its own eGPU: the hardware scripts tag
 # their runs/ files with this computer's name and keep their lock on this computer
 HW_HOST=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
+# plan step V1's L0 recordings (STATUS.md R32): the C++ runtime's cold boot, a warm boot and a warm boot at 64 states on the
+# RTX 4060, each with its run and teardown, in $BEAGLE_TINYGPU_DATA/recordings (they hold NVIDIA firmware: never in git)
+TG_L0="20260925-204611_mittag-leffler_cold 20260925-204652_mittag-leffler_warm 20260925-204737_mittag-leffler_warm64"
 
 # Offline scripts call this first: the plugin they load must contain the BEAGLE_TINYGPU_NO_LAUNCH guard, or a failed
 # connection to a fake would start the real TinyGPU.app. (A static check: it runs nothing.)
@@ -57,7 +60,8 @@ hw_begin() {
     # the device list, HCQDEV_WAIT_TIMEOUT_MS the timeline timeout, GMMU every GPU mapping (plan step B1)
     for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_DATA_MB BEAGLE_NV_DISPATCH_DAEMON APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_NV_MEM FAKE_TEST_BIN \
              BEAGLE_NV_FILL_LAUNCH_DIMS BEAGLE_NV_CHAIN_LAUNCHES BEAGLE_NV_USE_NVJITLINK PTXAS HCQDEV_WAIT_TIMEOUT_MS \
-             DISABLE_HTTP_CACHE PMA PROFILE VIZ REMOTE GMMU; do
+             DISABLE_HTTP_CACHE PMA PROFILE VIZ REMOTE GMMU \
+             BEAGLE_TG_OFFLINE BEAGLE_TG_MUTATE BEAGLE_TG_RECORD BEAGLE_TG_RECORD_LOG BEAGLE_TG_MARKERS BEAGLE_TG_DAEMON_PIDFILE; do   # plan V1's harness
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     # the firmware is staged, so no boot downloads inside the daemon (decision 5; macOS may purge tinygrad's cache): offline,

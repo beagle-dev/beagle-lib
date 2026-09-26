@@ -643,6 +643,7 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
     d->signal = (uint64_t*)d->maps[3];
     d->tg_sock = tg_sock;
     nv_profile_end("handoff", t0);
+    tg_transport().marker(TGM_HANDOFF, d->runtime);
     if (d->runtime)
         fprintf(stderr, "TinyGPU/NV: C++ runtime: handed over after boot (QMD v%u, VRAM pool %llu MiB)\n",
                 d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
@@ -757,6 +758,7 @@ static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& n
     nvdCopyIn(p.lib_va, image.data(), image.size());
     nvd_idle();
     nv_profile_end("load_programs", t0);
+    tg_transport().marker(TGM_PROGRAMS_LOADED, names.size());
     if (grow)
         fprintf(stderr, "TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
                 "local memory %llu KiB at 0x%llx)\n", names.size(), image.size(), (unsigned long long)p.lib_va, p.slm_per_thread,
@@ -944,6 +946,7 @@ static void nvFiniDevice() {
     g_nvKernelLaunches.clear();
     bool hold = false;
     if (g_nv->cmd_sock >= 0) {
+        tg_transport().marker(TGM_FINI, 0);
         // The daemon tears the GPU down now (GSP unload, then a wait for the GSP to report itself suspended) and
         // replies with what it saw. If the GPU did not confirm the unload, the daemon keeps its copy of the
         // TinyGPU.app connection open: closing it could unmap memory the GSP still uses.
