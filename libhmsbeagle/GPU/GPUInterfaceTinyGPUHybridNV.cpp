@@ -56,6 +56,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -78,6 +79,7 @@
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
@@ -240,18 +242,31 @@ static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU 
 
 // TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5),
 // the default since it passed on the RTX 4060 (STATUS.md R33): this side unloads the GPU at fini, on tinygrad's ported GSP
-// queue and falcon primitives, and the daemon only exits; runtime: the daemon unloads it, as before C5.
-enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown };
+// queue and falcon primitives, and the daemon only exits; runtime: the daemon unloads it, as before C5. vram (plan step C6,
+// rung H1): also, at the handoff this side takes tinygrad's memory manager over (TinyGPUMemory.h, TinyGPUHybridNVMemory.h)
+// and allocates its VRAM pool itself; sysmem (rung H2): its four buffers too.
+enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
         if (!v || !v[0] || strcmp(v, "teardown") == 0) return kNVLevelTeardown;
         if (strcmp(v, "runtime") == 0) return kNVLevelRuntime;
-        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown); using teardown\n", v);
+        if (strcmp(v, "vram") == 0) return kNVLevelVram;
+        if (strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
+        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem); using teardown\n", v);
         return kNVLevelTeardown;
     }();
     return level;
 }
+
+// nv_dispatch_daemon.py _HANDOFF_BUFS: the buffers the daemon allocates for this side at the handoff, in this order, unless
+// this side does (BEAGLE_NV_CPP_LEVEL=sysmem, plan step C6): PCIIfaceBase.alloc's size, host, uncached and cpu_access
+struct NVDBufferSpec { uint64_t size; bool host, uncached, cpu_access; };
+static const NVDBufferSpec kNVDBuffers[4] = {
+    {2 << 20, false, false, true},    // cmdq: pushbuffers of both queues
+    {16 << 20, false, false, true},   // kargs: kernargs slots, cbuf0 + args, then the QMD
+    {16 << 20, false, false, true},   // staging: h2d/d2h bounce buffer
+    {0x1000, true, true, true}};      // signal: the timeline
 
 // cmd_teardown_export's reply (plan step C5): what this side's GPU teardown needs
 struct NVDTeardown {
@@ -268,6 +283,9 @@ struct NVDispatchState {
     NVDHandoff h;
     int tg_sock = -1;            // the plugin's TinyGPU.app connection, shared with the daemon
     void* maps[4] = {};          // host mappings of h.cmdq, h.kargs, h.staging, h.signal
+    size_t map_sizes[4] = {};    // ... and their sizes
+    std::unique_ptr<NVMemState> mem;   // BEAGLE_NV_CPP_LEVEL=vram or sysmem: tinygrad's memory manager, taken over (plan step C6)
+    int signal_fd = -1;          // ... at sysmem: the timeline's TinyGPU.app fd, for the daemon's EOF path (cmd_state_page)
     uint8_t *cmdq = nullptr, *kargs = nullptr, *staging = nullptr;
     uint64_t* signal = nullptr;  // timeline semaphore
     uint64_t* state = nullptr;   // the state page (kNVDState* words)
@@ -591,60 +609,106 @@ static bool nv_recv_fds(int sock, int* fds, int n) {
     return true;
 }
 
-// The daemon's socket.recv_fds in cmd_state_page: one byte carrying fd as SCM_RIGHTS (nv_recv_fds the other way).
-static bool nv_send_fd(int sock, int fd) {
+// The daemon's socket.recv_fds in cmd_state_page: one byte carrying the fds as SCM_RIGHTS (nv_recv_fds the other way).
+static bool nv_send_fds(int sock, const int* fds, int n) {
     char byte = 'S';
     struct iovec iov = { &byte, 1 };
-    std::vector<char> cbuf(CMSG_SPACE(sizeof(int)));
+    std::vector<char> cbuf(CMSG_SPACE(sizeof(int) * n));
     struct msghdr msg{};
     msg.msg_iov = &iov; msg.msg_iovlen = 1;
     msg.msg_control = cbuf.data(); msg.msg_controllen = (socklen_t)cbuf.size();
     struct cmsghdr* c = CMSG_FIRSTHDR(&msg);
-    c->cmsg_level = SOL_SOCKET; c->cmsg_type = SCM_RIGHTS; c->cmsg_len = CMSG_LEN(sizeof(int));
-    memcpy(CMSG_DATA(c), &fd, sizeof(int));
+    c->cmsg_level = SOL_SOCKET; c->cmsg_type = SCM_RIGHTS; c->cmsg_len = CMSG_LEN(sizeof(int) * n);
+    memcpy(CMSG_DATA(c), fds, sizeof(int) * n);
     return sendmsg(sock, &msg, 0) == 1;
 }
 
 static void nvd_unmap(NVDispatchState* d) {
-    const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
     for (int i = 0; i < 4; ++i)
-        if (d->maps[i]) { munmap(d->maps[i], bufs[i]->size); d->maps[i] = nullptr; }
+        if (d->maps[i]) { munmap(d->maps[i], d->map_sizes[i]); d->maps[i] = nullptr; }
+    if (d->signal_fd >= 0) { close(d->signal_fd); d->signal_fd = -1; }
     if (d->state) { munmap(d->state, kNVDStateWords * 8); d->state = nullptr; }
     if (d->td.queues) { munmap(d->td.queues, d->td.queues_size); d->td.queues = nullptr; }
+}
+
+// BEAGLE_NV_CPP_LEVEL=vram or sysmem (TODO.md plan step C6): tinygrad's memory manager, as the daemon exported it with the
+// handoff, continues here. At sysmem the four buffers come first (kNVDBuffers, the daemon's _HANDOFF_BUFS), then the VRAM
+// pool, each allocated as the daemon's allocator would (PCIIfaceBase.alloc), so TinyGPU.app gets the requests it would have
+// got from the daemon; then plan step P3's WPR check on every VRAM allocation. Returns an empty string on success.
+static std::string nvdOwnAllocations(const std::string& js, NVDispatchState& d, uint64_t pool_mb, bool own_bufs) {
+    d.mem = std::make_unique<NVMemState>();
+    std::string err = nv_mm_import(js, &tg_transport(), *d.mem);
+    if (!err.empty()) return "memory manager: " + err;
+    NVMemoryManager& mm = *d.mem->mm;
+    try {
+        if (own_bufs) {
+            NVDBuffer* hb[4] = { &d.h.cmdq, &d.h.kargs, &d.h.staging, &d.h.signal };
+            for (int i = 0; i < 4; ++i) {
+                const NVDBufferSpec& s = kNVDBuffers[i];
+                NVBuffer b = nv_iface_alloc(mm, s.size, s.host, s.uncached, s.cpu_access, false, false, false, i == 3);
+                *hb[i] = NVDBuffer{b.va_addr, b.size};
+                d.maps[i] = b.view;
+                d.map_sizes[i] = b.view_size;
+                if (i == 3) d.signal_fd = b.fd;
+            }
+            memset(d.maps[3], 0, 16);   // TinyGPU.app leaves the DMA segment list here (the daemon clears the same 16 bytes)
+            if (d.h.kargs.va + d.h.kargs.size > (1ull << 40) || d.h.cmdq.va + d.h.cmdq.size > (1ull << 40))
+                return "kernargs or pushbuffer buffer above 2^40";
+        }
+        NVBuffer pool = nv_iface_alloc(mm, pool_mb ? pool_mb << 20 : d.mem->dev_vram_size / 2);   // as the daemon's pool_size
+        d.rt.pool = NVDBuffer{pool.va_addr, pool.size};
+    } catch (const TGPyError& e) {
+        return "memory manager: " + e.py();
+    }
+    const uint64_t end = nv_vram_end(mm);
+    char msg[200];
+    snprintf(msg, sizeof(msg), "VRAM allocations end at 0x%llx, %s the WPR bound 0x%llx", (unsigned long long)end,
+             end > d.mem->wpr_bound ? "above" : "<=", (unsigned long long)d.mem->wpr_bound);
+    if (end > d.mem->wpr_bound) return std::string(msg) + ", where GSP-RM's reserved region starts (lower BEAGLE_NV_DATA_MB)";
+    fprintf(stderr, "TinyGPU/NV: C++ memory manager: %s, VRAM pool %llu MiB @ 0x%llx; %s\n", own_bufs ? "buffers and pool" : "pool",
+            (unsigned long long)(d.rt.pool.size >> 20), (unsigned long long)d.rt.pool.va, msg);
+    return "";
 }
 
 // cmd_handoff: the daemon's reply (flat JSON), the kernel blob, then the fds
 // of the four shared buffers in NVDHandoff's order. For the C++ runtime the
 // handoff carries no programs (this side loads its embedded cubin). The
 // daemon stops using the queues once it replies, so a failure here is fatal.
+// At BEAGLE_NV_CPP_LEVEL=vram this side allocates the pool itself, and at
+// sysmem the buffers too (no fds), before the handoff marker (plan step C6).
 static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtime) {
     auto t0 = nv_profile_start();
+    const NVCppLevel level = runtime ? nv_cpp_level() : kNVLevelRuntime;
+    const bool own_pool = level >= kNVLevelVram, own_bufs = level >= kNVLevelSysmem;
     std::string req = "{\"cmd\":\"handoff\"}";
+    uint64_t pool_mb = 0;
     if (runtime) {  // BEAGLE_NV_DATA_MB sizes the VRAM pool; the daemon's default is half the VRAM
         const char* mb = getenv("BEAGLE_NV_DATA_MB");
-        req = "{\"cmd\":\"handoff\",\"programs\":false,\"pool_size\":" +
-              std::to_string(mb ? strtoull(mb, nullptr, 10) << 20 : 0) + "}";
+        pool_mb = mb ? strtoull(mb, nullptr, 10) : 0;
+        req = "{\"cmd\":\"handoff\",\"programs\":false,\"pool_size\":" + std::to_string(pool_mb << 20) +
+              (own_bufs ? ",\"level\":\"sysmem\"" : own_pool ? ",\"level\":\"vram\"" : "") + "}";
     }
     nv_send_msg(cmd_sock, req);
     std::string js = nv_recv_msg(cmd_sock);
     uint64_t blob_size = 0, nfds = 0;
+    const uint64_t want_fds = own_bufs ? 0 : 4;
     NVDRuntime rt;
-    std::string err = runtime ? nvd_parse_runtime(js, rt) : "";
-    if (js.empty() || !nv_json_ok(js) || !nvd_json_u64(js, "blob_size", blob_size) || !nvd_json_u64(js, "nfds", nfds) || nfds != 4 ||
+    std::string err = runtime ? nvd_parse_runtime(js, rt, !own_pool) : "";
+    if (js.empty() || !nv_json_ok(js) || !nvd_json_u64(js, "blob_size", blob_size) || !nvd_json_u64(js, "nfds", nfds) || nfds != want_fds ||
         !err.empty()) {
         fprintf(stderr, "TinyGPU/NV: handoff failed: %s%s%s\n", js.c_str(), err.empty() ? "" : "; ", err.c_str());
         return nullptr;
     }
     std::vector<uint8_t> blob(blob_size);
     int fds[4] = { -1, -1, -1, -1 };
-    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || !nv_recv_fds(cmd_sock, fds, 4)) {
+    if (!nv_recv_all(cmd_sock, blob.data(), blob.size()) || (want_fds && !nv_recv_fds(cmd_sock, fds, 4))) {
         fprintf(stderr, "TinyGPU/NV: handoff: daemon connection lost\n");
         return nullptr;
     }
     NVDispatchState* d = new NVDispatchState;
     d->runtime = runtime;
     d->rt = rt;
-    err = nvd_parse_handoff(js, blob, d->h);
+    err = nvd_parse_handoff(js, blob, d->h, !own_bufs);
     // the sizes of the BARs the daemon mapped in this session: every posted write from here is checked against them
     // (plan step C3; a MAP_BAR of our own would change the stream)
     for (uint32_t bar : {d->h.compute.ring_bar, d->h.compute.gpput_bar, d->h.copy.ring_bar, d->h.copy.gpput_bar, d->h.db_bar}) {
@@ -654,13 +718,15 @@ static NVDispatchState* nvDispatchHandoff(int cmd_sock, int tg_sock, bool runtim
         if (err.empty()) tg_transport().seed_bar(bar, size);
     }
     const NVDBuffer* bufs[4] = { &d->h.cmdq, &d->h.kargs, &d->h.staging, &d->h.signal };
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < (int)want_fds; ++i) {
         if (err.empty()) {
             d->maps[i] = mmap(nullptr, bufs[i]->size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[i], 0);
             if (d->maps[i] == MAP_FAILED) { d->maps[i] = nullptr; err = std::string("mmap: ") + strerror(errno); }
+            else d->map_sizes[i] = bufs[i]->size;
         }
         close(fds[i]);
     }
+    if (own_pool && err.empty()) err = nvdOwnAllocations(js, *d, pool_mb, own_bufs);
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/NV: handoff: %s\n", err.c_str());
         nvd_unmap(d);
@@ -703,8 +769,11 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d) {
     }
     uint64_t* st = (uint64_t*)m;  // zero-filled: nothing in flight, nothing submitted
     __atomic_store_n(&st[kNVDStatePhase], kNVDPhaseDispatch, __ATOMIC_RELEASE);
-    nv_send_msg(cmd_sock, "{\"cmd\":\"state_page\"}");
-    bool sent = nv_send_fd(cmd_sock, fd);
+    // BEAGLE_NV_CPP_LEVEL=sysmem (plan step C6): this side allocated the timeline, so its fd goes along for the daemon's EOF path
+    const int sfds[2] = { fd, d.signal_fd };
+    nv_send_msg(cmd_sock, d.signal_fd < 0 ? std::string("{\"cmd\":\"state_page\"}") :
+                "{\"cmd\":\"state_page\",\"signal_va\":" + std::to_string(d.h.signal.va) + ",\"signal_size\":" + std::to_string(d.h.signal.size) + "}");
+    bool sent = nv_send_fds(cmd_sock, sfds, d.signal_fd < 0 ? 1 : 2);
     close(fd);
     std::string js = sent ? nv_recv_msg(cmd_sock) : "";
     if (js.empty() || !nv_json_ok(js)) {

@@ -74,8 +74,29 @@ static inline bool nvd_json_u64(const std::string& js, const char* key, uint64_t
     return end != js.c_str() + p;
 }
 
-// Returns an empty string on success, otherwise what was missing or malformed.
-static inline std::string nvd_parse_handoff(const std::string& js, const std::vector<uint8_t>& blob, NVDHandoff& h) {
+// A flat JSON array of unsigned integers (plan step C6's memory-manager export); false if key is absent or malformed.
+static inline bool nvd_json_u64s(const std::string& js, const char* key, std::vector<uint64_t>& out) {
+    std::string needle = std::string("\"") + key + "\":";
+    size_t p = js.find(needle);
+    if (p == std::string::npos) return false;
+    p += needle.size();
+    while (p < js.size() && js[p] == ' ') ++p;
+    if (p >= js.size() || js[p++] != '[') return false;
+    out.clear();
+    for (;;) {
+        while (p < js.size() && (js[p] == ' ' || js[p] == ',')) ++p;
+        if (p >= js.size()) return false;
+        if (js[p] == ']') return true;
+        char* end = nullptr;
+        out.push_back(strtoull(js.c_str() + p, &end, 10));
+        if (end == js.c_str() + p) return false;
+        p = end - js.c_str();
+    }
+}
+
+// Returns an empty string on success, otherwise what was missing or malformed. Without buffers (BEAGLE_NV_CPP_LEVEL=sysmem,
+// plan step C6) the four buffers are not in the reply: this side allocates them.
+static inline std::string nvd_parse_handoff(const std::string& js, const std::vector<uint8_t>& blob, NVDHandoff& h, bool buffers = true) {
     std::string missing;
     auto u64 = [&](const char* key) -> uint64_t {
         uint64_t v = 0;
@@ -116,7 +137,7 @@ static inline std::string nvd_parse_handoff(const std::string& js, const std::ve
     h.f_sem_release = u32("f_sem_release");  h.m_non_stall_interrupt = u32("m_non_stall_interrupt");
     fifo("c", h.compute);  fifo("d", h.copy);
     h.db_bar = u32("db_bar");  h.db_off = u64("db_off");
-    buffer("cmdq", h.cmdq);  buffer("kargs", h.kargs);  buffer("staging", h.staging);  buffer("signal", h.signal);
+    if (buffers) { buffer("cmdq", h.cmdq);  buffer("kargs", h.kargs);  buffer("staging", h.staging);  buffer("signal", h.signal); }
     uint32_t nkernels = u32("nkernels");
     if (!missing.empty()) return "missing " + missing;
     // SEND_PCAS_A and dependent_qmd0_pointer carry QMD address >> 8 in 32 bits, and a GPFIFO entry carries a

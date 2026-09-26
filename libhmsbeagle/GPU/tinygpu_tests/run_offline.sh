@@ -21,6 +21,9 @@ results+=("record/replay (V1): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $T
 # plan step C5: the plugin's own GSP unload and teardown (BEAGLE_NV_CPP_LEVEL=teardown) on the fake AD107 and the L0 recordings
 "$TG_TESTS/test_c5.sh" > "$TINYGPU_TEST_WORK/test_c5_e2e.log" 2>&1   # test_c5.log is test_c5.py's, among the goldens
 results+=("C++ teardown (C5): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c5_e2e.log)")")
+# plan step C6: the plugin's own memory manager (BEAGLE_NV_CPP_LEVEL=vram, sysmem) on the fake AD107 and the L0 recordings
+"$TG_TESTS/test_c6.sh" > "$TINYGPU_TEST_WORK/test_c6_e2e.log" 2>&1
+results+=("C++ memory manager (C6): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c6_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

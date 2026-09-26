@@ -5,9 +5,11 @@
 # Everything else is run_point.sh's: the eGPU must be cold (power-cycled) or torn down by the previous run; never Ctrl-C or kill
 # a run; a hung or holding GPU (or a proxy that stopped forwarding) is unplugged before anything is killed. Run it under
 # caffeinate -ims, with the lid open.
-#   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown]
+#   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem] [--guard]
 # (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the default, the plugin unloads the GPU and runs NVIDIA's
-# teardown itself at fini, plan step C5; runtime, the daemon does, as in the L0 recordings)
+# teardown itself at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem, the plugin also
+# allocates its VRAM pool, and its buffers, with its own memory manager, plan step C6; --guard runs the proxy in guard mode,
+# replay/tgguard.py, for a rung's first run: a trigger it refuses is not forwarded and the proxy holds, so unplug the eGPU)
 # L0_DRY_RUN=1 runs the same script offline, against fake_nv_device.py instead of TinyGPU.app (the daemon with tgharness_py's
 # offline patches), recording under $TINYGPU_TEST_WORK: a check of the script itself, which touches no eGPU.
 # The recording goes to $BEAGLE_TINYGPU_DATA/recordings/<date>-<time>_<computer>_<label>/, with the test's output, the daemon's
@@ -16,13 +18,14 @@
 # next boot needs no power cycle, the daemon exited, log stream saw nothing from the eGPU) and the proxy ended every session
 # at its client's close; 1 stops the session's chain of runs; 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown]"
-LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=teardown)
+USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem] [--guard]"
+LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=teardown); GUARD=()
 set -- "${@:4}"
 while [ $# -gt 0 ]; do
     case $1 in
         --poison) FLAGS+=(--poison) ;;
-        --level) [ "$2" = teardown ] || [ "$2" = runtime ] || { echo "$USAGE"; exit 2; }; LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=$2); shift ;;
+        --guard) GUARD=(--guard) ;;
+        --level) [[ " runtime teardown vram sysmem " == *" $2 "* ]] || { echo "$USAGE"; exit 2; }; LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=$2); shift ;;
         *) echo "$USAGE"; exit 2 ;;
     esac
     shift
@@ -63,7 +66,7 @@ fi
 hw_logstream "$LS"
 # the proxy in its own process group (a terminal's Ctrl-C cannot reach it; it ignores SIGINT and SIGHUP too)
 set -m
-"$BEAGLE_PYTHON" "$TG_TESTS/replay/tgproxy.py" --listen "$PSOCK" --upstream "$UPSTREAM" --out "$REC" $START_APP --label "$LABEL" > "$PLOG" 2>&1 &
+"$BEAGLE_PYTHON" "$TG_TESTS/replay/tgproxy.py" --listen "$PSOCK" --upstream "$UPSTREAM" --out "$REC" $START_APP --label "$LABEL" "${GUARD[@]}" > "$PLOG" 2>&1 &
 PRX=$!
 set +m
 for i in $(seq 100); do grep -q "tgproxy listening" "$PLOG" 2>/dev/null && break; kill -0 $PRX 2>/dev/null || break; sleep 0.1; done

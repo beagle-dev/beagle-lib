@@ -61,24 +61,30 @@ static inline std::string nvd_cstr(const uint8_t* tab, size_t tab_size, uint64_t
     return std::string(s, strnlen(s, tab_size - idx));
 }
 
-// Returns an empty string on success. ELF64 only (cubins are ELF64).
+// Returns an empty string on success. ELF64 (cubins) and ELF32 (the Blackwell FMC image, TODO.md plan step C4), each read
+// through the layout of elf_loader's libc.Elf64_* or Elf32_* structs.
 static inline std::string nvd_elf_load(const uint8_t* blob, size_t n, uint64_t force_section_align, NVDElf& elf) {
     enum { SHT_PROGBITS = 1, SHT_SYMTAB = 2, SHT_RELA = 4, SHT_REL = 9 };
-    if (n < 64 || memcmp(blob, "\x7f" "ELF", 4) != 0) return "blob is not an ELF, missing magic bytes";
-    if (blob[4] != 2) return "not an ELF64";
+    if (n < 52 || memcmp(blob, "\x7f" "ELF", 4) != 0) return "blob is not an ELF, missing magic bytes";
+    if (blob[4] != 1 && blob[4] != 2) return "not an ELF32 or ELF64";
+    const bool e64 = blob[4] == 2;
+    if (e64 && n < 64) return "truncated ELF header";
+    auto addr_t = [&](const uint8_t* p) { return e64 ? nvd_rd<uint64_t>(p) : (uint64_t)nvd_rd<uint32_t>(p); };  // Elf*_Addr, _Off, _Xword
     elf.blob = blob;
     elf.blob_size = n;
-    uint64_t shoff = nvd_rd<uint64_t>(blob + 0x28);
-    uint16_t shnum = nvd_rd<uint16_t>(blob + 0x3c), shstrndx = nvd_rd<uint16_t>(blob + 0x3e);
-    if (shoff + (uint64_t)shnum * 64 > n || shstrndx >= shnum) return "truncated section headers";
+    const uint64_t shentsize = e64 ? 64 : 40;
+    uint64_t shoff = addr_t(blob + (e64 ? 0x28 : 0x20));
+    uint16_t shnum = nvd_rd<uint16_t>(blob + (e64 ? 0x3c : 0x30)), shstrndx = nvd_rd<uint16_t>(blob + (e64 ? 0x3e : 0x32));
+    if (shoff + (uint64_t)shnum * shentsize > n || shstrndx >= shnum) return "truncated section headers";
     elf.sections.resize(shnum);
     for (uint16_t i = 0; i < shnum; ++i) {
-        const uint8_t* h = blob + shoff + (uint64_t)i * 64;
+        const uint8_t* h = blob + shoff + (uint64_t)i * shentsize;
+        const uint64_t w = e64 ? 8 : 4;   // sh_flags onwards: addr, offset, size, link, info, addralign, entsize
         NVDElfSection& s = elf.sections[i];
-        s.type = nvd_rd<uint32_t>(h + 4);     s.addr = nvd_rd<uint64_t>(h + 16);
-        s.offset = nvd_rd<uint64_t>(h + 24);  s.size = nvd_rd<uint64_t>(h + 32);
-        s.link = nvd_rd<uint32_t>(h + 40);    s.addralign = nvd_rd<uint64_t>(h + 48);
-        s.entsize = nvd_rd<uint64_t>(h + 56);
+        s.type = nvd_rd<uint32_t>(h + 4);                       s.addr = addr_t(h + 8 + w);
+        s.offset = addr_t(h + 8 + 2 * w);                       s.size = addr_t(h + 8 + 3 * w);
+        s.link = nvd_rd<uint32_t>(h + 8 + 4 * w);               s.addralign = addr_t(h + 16 + 4 * w);
+        s.entsize = addr_t(h + 16 + 5 * w);
         s.name = std::to_string(nvd_rd<uint32_t>(h));  // name offset for now, resolved below
         if (s.type != 8 /* SHT_NOBITS */ && s.offset + s.size > n) return "section extends past end of ELF";
     }
@@ -110,16 +116,16 @@ static inline std::string nvd_elf_load(const uint8_t* blob, size_t n, uint64_t f
             auto t = std::find_if(elf.sections.begin(), elf.sections.end(), [&](const NVDElfSection& x) { return x.name == target; });
             if (t == elf.sections.end() || !symtab || s.entsize == 0) return "relocation section " + s.name + " without target or symtab";
             for (uint64_t off = 0; off + s.entsize <= s.size; off += s.entsize) {
-                const uint8_t* r = elf.content(s) + off;
-                uint64_t r_offset = nvd_rd<uint64_t>(r), r_info = nvd_rd<uint64_t>(r + 8);
-                int64_t addend = kind == SHT_RELA ? nvd_rd<int64_t>(r + 16) : 0;
-                uint64_t sym_idx = r_info >> 32;
+                const uint8_t* r = elf.content(s) + off;   // Elf*_Rel/Rela: r_offset, r_info, r_addend
+                uint64_t r_offset = addr_t(r), r_info = addr_t(r + (e64 ? 8 : 4));
+                int64_t addend = kind != SHT_RELA ? 0 : e64 ? nvd_rd<int64_t>(r + 16) : (int64_t)nvd_rd<int32_t>(r + 8);
+                uint64_t sym_idx = e64 ? r_info >> 32 : r_info >> 8;   // ELF64_R_SYM, ELF32_R_SYM
                 if (symtab->entsize == 0 || (sym_idx + 1) * symtab->entsize > symtab->size) return "relocation symbol out of range";
                 const uint8_t* sym = elf.content(*symtab) + sym_idx * symtab->entsize;
-                uint16_t shndx = nvd_rd<uint16_t>(sym + 6);
+                uint16_t shndx = nvd_rd<uint16_t>(sym + (e64 ? 6 : 14));   // Elf*_Sym: st_shndx, then st_value
                 if (shndx == 0 || shndx >= elf.sections.size()) return "relocation against an undefined symbol";
-                elf.relocs.push_back({ t->addr + r_offset, elf.sections[shndx].addr + nvd_rd<uint64_t>(sym + 8),
-                                       (uint32_t)(r_info & 0xffffffffu), addend });
+                elf.relocs.push_back({ t->addr + r_offset, elf.sections[shndx].addr + addr_t(sym + (e64 ? 8 : 4)),
+                                       (uint32_t)(e64 ? r_info & 0xffffffffu : r_info & 0xff), addend });   // *_R_TYPE
             }
         }
     }
@@ -313,8 +319,9 @@ struct NVDRuntime {
     NVDBuffer pool;
 };
 
-// Returns an empty string on success, otherwise what was missing.
-static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& rt) {
+// Returns an empty string on success, otherwise what was missing. Without pool (BEAGLE_NV_CPP_LEVEL=vram or sysmem, plan
+// step C6) the pool is not in the reply: this side allocates it.
+static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& rt, bool pool = true) {
     std::string missing;
     auto u64 = [&](const char* key) -> uint64_t {
         uint64_t v = 0;
@@ -325,7 +332,7 @@ static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& r
     rt.shared_mem_window = u64("shared_mem_window");       rt.local_mem_window = u64("local_mem_window");
     rt.num_gpcs = (uint32_t)u64("num_gpcs");               rt.num_tpc_per_gpc = (uint32_t)u64("num_tpc_per_gpc");
     rt.num_sm_per_tpc = (uint32_t)u64("num_sm_per_tpc");   rt.max_warps_per_sm = (uint32_t)u64("max_warps_per_sm");
-    rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size");
+    if (pool) { rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size"); }
     return missing.empty() ? "" : "missing " + missing;
 }
 

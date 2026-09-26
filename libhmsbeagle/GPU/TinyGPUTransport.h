@@ -236,8 +236,9 @@ public:
         return true;
     }
 
-    // APLRemotePCIDevice.alloc_sysmem (:440-447)
-    bool alloc_sysmem(uint64_t size, bool contiguous, TGSysmem& out, std::string& err) {
+    // APLRemotePCIDevice.alloc_sysmem (:440-447). keep_fd, if given, receives a dup of the allocation's fd (tinygrad closes
+    // it once mapped; the daemon's EOF path maps the C++ timeline from it, plan step C6).
+    bool alloc_sysmem(uint64_t size, bool contiguous, TGSysmem& out, std::string& err, int* keep_fd = nullptr) {
         if (sysmem_count_ >= kMaxSysmem) {
             err = "a 129th sysmem allocation: TinyGPU.app keeps at most 128 per connection";
             return false;
@@ -247,6 +248,7 @@ public:
         if (!rpc_fd(TGC_MAP_SYSMEM_FD, size, contiguous ? 1 : 0, mapped, idx, fd, err)) return false;
         ++sysmem_count_;
         void* m = mmap(nullptr, mapped, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        int kept = keep_fd && m != MAP_FAILED ? fcntl(fd, F_DUPFD_CLOEXEC, 0) : -1;
         ::close(fd);
         if (m == MAP_FAILED) { err = std::string("mmap of the sysmem fd: ") + strerror(errno); return false; }
         // (paddr, size) pairs until a size of 0 at the start of the mapping, each expanded to 4 KiB pages
@@ -263,7 +265,8 @@ public:
             if (err.empty() && (s.first % 0x1000 || s.first + s.second > kIovaLimit || s.first + s.second < s.first))
                 err = "a DMA segment unaligned or at or above 2^40";
         if (err.empty() && total < size) err = "DMA segments shorter than the allocation";
-        if (!err.empty()) { munmap(m, mapped); return false; }
+        if (!err.empty()) { munmap(m, mapped); if (kept >= 0) ::close(kept); return false; }
+        if (keep_fd) *keep_fd = kept;
         out.view = (uint8_t*)m;
         out.mapped_size = mapped;
         out.paddrs.clear();
@@ -273,6 +276,9 @@ public:
         iovas_.insert(iovas_.end(), segs.begin(), segs.end());
         return true;
     }
+
+    // The sysmem allocations others sharing this connection made (the daemon's, plan step C6): they count toward the 128.
+    void seed_sysmem_count(int n) { sysmem_count_ = n; }
 
     // The IOVA whitelist (the C++ fence of plan steps C5-C6): whether [addr, addr + len) lies in one segment this
     // connection was given.

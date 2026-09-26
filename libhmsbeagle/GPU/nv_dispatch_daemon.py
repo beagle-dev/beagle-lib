@@ -449,12 +449,7 @@ def check_vram_below_wpr(dev_impl):
     from the GPU. Returns (end, gspFwRsvdStart). On FMC-booted chips (Blackwell) tinygrad leaves gspFwRsvdStart 0 and the
     FMC places the reserved region itself (ip.py:444-446: its heaps and reservations total about 162 MiB plus the GSP image,
     below the end of VRAM), so the bound is a static vram_size - 512 MiB there, about twice that (plan step B1)."""
-    import ctypes
-    from tinygrad.runtime.autogen import nv
-    if dev_impl.fmc_boot:
-        rsvd = dev_impl.vram_size - (512 << 20)
-    else:
-        rsvd = nv.GspFwWprMeta.from_buffer_copy(bytes(dev_impl.gsp.wpr_meta[:ctypes.sizeof(nv.GspFwWprMeta)])).gspFwRsvdStart
+    rsvd = _wpr_bound(dev_impl)
     pa = dev_impl.mm.pa_allocator
     end = max((pa.base + start + size for start, (size, _, _, free) in pa.blocks.items() if not free), default=0)
     if end > rsvd:
@@ -463,8 +458,57 @@ def check_vram_below_wpr(dev_impl):
     return end, rsvd
 
 
+def _wpr_bound(dev_impl):
+    import ctypes
+    from tinygrad.runtime.autogen import nv
+    if dev_impl.fmc_boot: return dev_impl.vram_size - (512 << 20)
+    return nv.GspFwWprMeta.from_buffer_copy(bytes(dev_impl.gsp.wpr_meta[:ctypes.sizeof(nv.GspFwWprMeta)])).gspFwRsvdStart
+
+
 def _wpr_bound_name(dev_impl):
     return "vram_size - 512 MiB" if dev_impl.fmc_boot else "gspFwRsvdStart"
+
+
+# TODO.md plan step C6: at BEAGLE_NV_CPP_LEVEL=vram the C++ side allocates its VRAM pool itself, with tinygrad's memory
+# manager ported to C++ (TinyGPUMemory.h, TinyGPUHybridNVMemory.h), and at sysmem also the handoff's four buffers, which it
+# otherwise gets from here (_HANDOFF_BUFS, in this order: the C++ side's GPUInterfaceTinyGPUHybridNV.cpp kNVDBuffers is the
+# same list). The handoff reply then carries tinygrad's memory manager as it is (_mm_export), and this process allocates
+# nothing more: the C++ side continues from exactly this state, so it sends TinyGPU.app what this process would have.
+_HANDOFF_BUFS = (("cmdq", 2 << 20, dict(cpu_access=True)),                           # pushbuffers of both queues
+                 ("kargs", 16 << 20, dict(cpu_access=True)),                         # kernargs slots: cbuf0 + args, then the QMD
+                 ("staging", 16 << 20, dict(cpu_access=True)),                       # h2d/d2h bounce buffer
+                 ("signal", 0x1000, dict(host=True, uncached=True, cpu_access=True)))   # C++ timeline
+_NONE = (1 << 64) - 1   # None in a TLSF state
+
+
+def _tlsf_save(a):
+    """A TLSFAllocator's state as TinyGPUMemory.h's TLSFAllocator::save writes it: size, base, block_size, l2_cnt; the blocks
+    by start (start, size, next, prev, free); the non-empty buckets (lv1, lv2, count, starts oldest first); lv1_entries."""
+    w = [a.size, a.base, a.block_size, a.l2_cnt, len(a.blocks)]
+    for start in sorted(a.blocks):
+        size, nxt, prev, free = a.blocks[start]
+        w += [start, size, _NONE if nxt is None else nxt, _NONE if prev is None else prev, int(free)]
+    buckets = [(l1, l2, lst) for l1, d in enumerate(a.storage) for l2, lst in sorted(d.items()) if lst]
+    w.append(len(buckets))
+    for l1, l2, lst in buckets: w += [l1, l2, len(lst), *lst]
+    return w + [len(a.lv1_entries), *a.lv1_entries]
+
+
+def _mm_export(dev):
+    """Plan step C6: tinygrad's memory manager as TinyGPUHybridNVMemory.h's nv_mm_import restores it: NVMemoryManager's
+    configuration, its three allocators and the class's VA allocator, the root page table; and what PCIIfaceBase.alloc and
+    the plugin's checks use: mmap.PAGESIZE, GMMU, the WPR bound, NVDev.vram_size, BAR1's size (bar_info is cached, so this
+    sends nothing) and how many sysmem allocations this process made on the shared connection (TinyGPU.app keeps 128)."""
+    import mmap
+    from tinygrad.helpers import getenv
+    impl, pci = dev.iface.dev_impl, dev.iface.pci_dev
+    mm = impl.mm
+    return {"mm_mmu_ver": impl.mmu_ver, "mm_vram_size": mm.vram_size, "mm_va_bits": mm.va_bits, "mm_va_shifts": list(mm.va_shifts),
+            "mm_va_base": mm.va_base, "mm_palloc_ranges": [x for r in mm.palloc_ranges for x in r], "mm_reserve_ptable": int(mm.reserve_ptable),
+            "mm_root": mm.root_page_table.paddr, "mm_root_lv": mm.root_page_table.lv, "mm_boot": _tlsf_save(mm.boot_allocator),
+            "mm_ptable": _tlsf_save(mm.ptable_allocator), "mm_pa": _tlsf_save(mm.pa_allocator), "mm_va": _tlsf_save(mm.va_allocator),
+            "mm_pagesize": mmap.PAGESIZE, "mm_gmmu": getenv("GMMU", 1), "mm_wpr_bound": _wpr_bound(impl), "mm_dev_vram_size": impl.vram_size,
+            "mm_sysmem_count": len(pci.sysmem_fds), "bar1_size": pci.bar_info(1)[1]}
 
 
 # The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): four u64 words
@@ -485,6 +529,7 @@ class Daemon:
         self.programs = {}        # (name, n_int_args) -> NVProgram
         self._allocs = {}
         self._state = self._cpp_signal = None   # the C++ side's state page and timeline (cmd_state_page, plan step P3)
+        self.mm_exported = False  # set by cmd_handoff at level vram or sysmem: the C++ side owns the memory manager (plan step C6)
 
     def _check_queues_owned(self):
         # After cmd_handoff, submitting from here too would corrupt the C++ side's GPFIFO and timeline state.
@@ -619,56 +664,73 @@ class Daemon:
         # (BEAGLE_NV_USE_DAEMON=0) sends "programs": false and loads its embedded
         # cubin itself into a VRAM pool allocated here, then allocates from it too.
         programs = req.get("programs", True)
+        level = req.get("level", "")   # plan step C6: "vram", the C++ side allocates its pool; "sysmem", its buffers too
+        if level not in ("", "vram", "sysmem") or (level and programs):
+            raise RuntimeError(f"handoff: level {level!r} (the C++ runtime's vram or sysmem, programs false)")
         progs = [self._get_program(name, 0) for name in sorted(self.kernel_names)] if programs else []
         dev.synchronize()
         from tinygrad.device import BufferSpec
-        self._handoff_bufs = bufs = {  # C++ gets their fds in this order
-            "cmdq": dev.allocator.alloc(2 << 20, BufferSpec(cpu_access=True)),      # pushbuffers of both queues
-            "kargs": dev.allocator.alloc(16 << 20, BufferSpec(cpu_access=True)),    # kernargs slots: cbuf0 + args, then the QMD
-            "staging": dev.allocator.alloc(16 << 20, BufferSpec(cpu_access=True)),  # h2d/d2h bounce buffer
-            "signal": dev.allocator.alloc(0x1000, BufferSpec(host=True, uncached=True, cpu_access=True))}  # C++ timeline
-        bufs["signal"].cpu_view().view(0, 16, 'B')[:] = bytes(16)  # TinyGPU.app leaves the DMA segment list here
+        pool_size = req.get("pool_size") or dev.iface.dev_impl.vram_size // 2
+        if level:   # what the C++ side allocates must be what this process would allocate: nothing cached serves it here
+            keys = [(pool_size, None)] + ([(size, BufferSpec(**spec)) for _, size, spec in _HANDOFF_BUFS] if level == "sysmem" else [])
+            if any(dev.allocator.cache.get(k) for k in keys):
+                raise RuntimeError(f"handoff: tinygrad's allocator has a cached buffer for one the C++ side allocates at level {level}")
+        self._handoff_bufs = bufs = {} if level == "sysmem" else \
+            {name: dev.allocator.alloc(size, BufferSpec(**spec)) for name, size, spec in _HANDOFF_BUFS}   # C++ gets their fds in this order
+        if bufs: bufs["signal"].cpu_view().view(0, 16, 'B')[:] = bytes(16)  # TinyGPU.app leaves the DMA segment list here
         fds = [dev.iface.pci_dev.sysmem_fds[b.cpu_view().addr] for b in bufs.values()]
         info, blob = build_handoff(dev, progs, bufs)
         if not programs:  # what NVProgram.__init__ and _ensure_has_local_memory read from the device, and the pool
-            self._pool = dev.allocator.alloc(req.get("pool_size") or dev.iface.dev_impl.vram_size // 2)
             info.update(compute_class=dev.iface.compute_class, sass_version=dev.sass_version,
                         shared_mem_window=dev.shared_mem_window, local_mem_window=dev.local_mem_window,
                         num_gpcs=dev.num_gpcs, num_tpc_per_gpc=dev.num_tpc_per_gpc, num_sm_per_tpc=dev.num_sm_per_tpc,
-                        max_warps_per_sm=dev.max_warps_per_sm, pool_va=self._pool.va_addr, pool_size=self._pool.size,
+                        max_warps_per_sm=dev.max_warps_per_sm,
                         elf_size=0)   # no ELF follows (plan step C1); a pre-C1 plugin reads 0 bytes and refuses them, still framed
+            if not level:
+                self._pool = dev.allocator.alloc(pool_size)
+                info.update(pool_va=self._pool.va_addr, pool_size=self._pool.size)
         if (wpr := check_vram_below_wpr(dev.iface.dev_impl)) is not None:   # raises before anything is sent: C++ gets no fds
             log(f"WPR check: VRAM allocations end at {wpr[0]:#x} <= {_wpr_bound_name(dev.iface.dev_impl)} {wpr[1]:#x}")
         # the sizes of the BARs the C++ side writes (tinygrad's bar_info, cached since the boot mapped them): its TinyGPU.app
         # client checks every posted write against them (TODO.md plan step C3)
         for bar in sorted({info["c_ring_bar"], info["c_gpput_bar"], info["d_ring_bar"], info["d_gpput_bar"], info["db_bar"]}):
             info[f"bar{bar}_size"] = dev.iface.pci_dev.bar_info(bar)[1]
+        if level:
+            info.update(_mm_export(dev))
+            self.mm_exported = True
         info.update(ok=True, blob_size=len(blob), nfds=len(fds))
         self.send_json(info)
         self.sock.sendall(blob)
-        socket.send_fds(self.sock, [b"F"], fds)
+        if fds: socket.send_fds(self.sock, [b"F"], fds)
         self.handed_off = True
-        log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}, " +
-            ", ".join(f"{n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()) +
-            ("" if programs else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}"))
+        log(f"handoff: {len(progs)} programs, QMD v{info['qmd_ver']}" +
+            "".join(f", {n} {b.size >> 10} KiB @ {b.va_addr:#x}" for n, b in bufs.items()) +
+            ("" if programs or level else f"; VRAM pool {self._pool.size >> 20} MiB @ {self._pool.va_addr:#x}") +
+            (f"; the C++ side allocates its {'pool' if level == 'vram' else 'buffers and pool'} (level {level})" if level else ""))
 
     def cmd_state_page(self, req):
         # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this
         # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fd). Taken before any check, so the command stream stays framed
         # when the page is refused. Not a TinyGPU allocation: nothing reaches the GPU.
-        import mmap
-        _, fds, _, _ = socket.recv_fds(self.sock, 1, 1)
-        if len(fds) != 1:
-            raise RuntimeError("state_page: no fd received")
+        import mmap, ctypes
+        _, fds, _, _ = socket.recv_fds(self.sock, 1, 2)   # plan step C6's level sysmem: the C++ timeline's fd follows the page's
+        sig_buf = None
         try:
+            if len(fds) != (2 if "signal_va" in req else 1):
+                raise RuntimeError(f"state_page: {len(fds)} fds received")
             state = memoryview(mmap.mmap(fds[0], _STATE_WORDS * 8, prot=mmap.PROT_READ)).cast("Q")
+            if len(fds) == 2:   # the C++ side allocated its timeline itself: map it from TinyGPU.app's fd, as alloc_sysmem does
+                from tinygrad.runtime.support.hcq import HCQBuffer, MMIOInterface
+                self._sig_map = mmap.mmap(fds[1], req["signal_size"])
+                sig_buf = HCQBuffer(req["signal_va"], req["signal_size"], owner=self.dev,
+                                    view=MMIOInterface(ctypes.addressof(ctypes.c_char.from_buffer(self._sig_map)), req["signal_size"], fmt='B'))
         finally:
-            os.close(fds[0])
+            for fd in fds: os.close(fd)
         if not self.handed_off or state[0] != _PHASE_DISPATCH:
             raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
         self._state = state
         # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
-        self._cpp_signal = ops_nv.NVSignal(base_buf=self._handoff_bufs["signal"], owner=self.dev, virt=True)
+        self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf or self._handoff_bufs["signal"], owner=self.dev, virt=True)
         log("state page mapped: the C++ side records whether a frame is in flight and the timeline value it last submitted")
         self.send_json({"ok": True})
 
@@ -707,6 +769,7 @@ class Daemon:
             f"{pt_size + queue_size:#x}, seq {gsp.cmd_q.seq}), {'teardown images' if teardown else 'no teardown images'}")
 
     def cmd_alloc(self, req):
+        if self.mm_exported: raise RuntimeError("alloc: the C++ side owns the memory manager since the handoff (plan step C6)")
         buf = self.dev.allocator.alloc(req["size"])
         self.send_json({"ok": True, "addr": buf.va_addr})
         self._allocs[buf.va_addr] = buf  # keep alive, prevent GC/free
