@@ -225,14 +225,17 @@ def test_hold_robust():
         a, b = socket.socketpair()
         dm = d.Daemon(b)
         class Slept(BaseException): pass
-        def no_log(msg): raise OSError("no space left on device")
+        class FullDisk:
+            def write(self, s): raise OSError(28, "No space left on device")
+            def flush(self): raise OSError(28, "No space left on device")
         def slept(s): raise Slept()
-        real_log, real_sleep = d.log, d.time.sleep
-        d.log, d.time.sleep = no_log, slept
+        real_stderr, real_sleep = sys.stderr, d.time.sleep
+        sys.stderr, d.time.sleep = FullDisk(), slept
         try:
+            d.log("a line the disk cannot take")   # swallowed
             try: dm._hold(); raise AssertionError("the hold returned")
-            except Slept: pass   # it reached its sleep although the log raised
-        finally: d.log, d.time.sleep = real_log, real_sleep
+            except Slept: pass   # it reached its sleep although the log fails
+        finally: sys.stderr, d.time.sleep = real_stderr, real_sleep
         a, dm, calls, seqs = fini_rig(seq=21)
         def broken(hung): raise KeyError("stat_q")
         dm._fini = broken

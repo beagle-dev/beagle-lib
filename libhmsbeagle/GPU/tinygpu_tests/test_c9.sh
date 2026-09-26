@@ -60,6 +60,14 @@ check "fake AD107 at flcn_hw, booter_load ran but the GSP core is not active: GS
      && grep -q 'C++ state page: phase 3,' '$(dlog core)' && grep -q 'HOLDING the TinyGPU.app connection' '$(dlog core)' \
      && grep -q 'held the fake connection; ending it' '$W/core.txt'"
 
+# ... and after GSP_INIT_DONE (the golden image's VA space refused) the daemon unloads the GPU itself, NVIDIA's teardown included, which
+#     needs the falcons' bases from NV_FLCN.init_hw's first statement
+FAKE_RM_FAIL=0x90f1 "$TG_TESTS/run_fake_device.sh" c9_refused BEAGLE_NV_CPP_LEVEL=flcn_hw -- --state-count 4 --reps 3 > "$W/refused.txt" 2>&1
+check "fake AD107 at flcn_hw, the golden image's VA space refused: the daemon unloads from the plugin's count and runs NVIDIA's teardown" \
+    "grep -q 'level flcn_hw: building the NVDevice: .*RPC call 103 failed with result 34' '$(out refused)' && fini_verdict '$(out refused)' \
+     && grep -q 'teardown: done: Booter Unload lowered WPR2' '$(out refused)' && ! grep -q 'has no attribute' '$(dlog refused)' \
+     && grep -q 'C++ state page: phase 1, frame_in_flight 0, last_submitted 0, seq 6,' '$(dlog refused)' && grep -q 'NO ERRORS' '$(flog refused)'"
+
 # 3. the L0 recordings, replayed to the plugin at level flcn_hw: it runs FWSEC-FRTS, booter_load and the RTX 4060's CPU sequencer
 L0=(); for r in $TG_L0; do [ -f "$BEAGLE_TINYGPU_DATA/recordings/$r/events.bin" ] && L0+=("$BEAGLE_TINYGPU_DATA/recordings/$r"); done
 if [ ${#L0[@]} -eq 3 ]; then

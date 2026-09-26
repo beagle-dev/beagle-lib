@@ -296,7 +296,7 @@ struct NVDispatchState {
     void* maps[4] = {};          // host mappings of h.cmdq, h.kargs, h.staging, h.signal
     size_t map_sizes[4] = {};    // ... and their sizes
     std::unique_ptr<NVMemState> mem;   // BEAGLE_NV_CPP_LEVEL=vram or sysmem: tinygrad's memory manager, taken over (plan step C6)
-    int signal_fd = -1;          // ... at sysmem: the timeline's TinyGPU.app fd, for the daemon's EOF path (cmd_state_page)
+    int signal_fd = -1;          // ... at sysmem: the timeline's TinyGPU.app fd, for the daemon's EOF path (nvdTimeline)
     std::unique_ptr<NVBar0> bar0;      // BEAGLE_NV_CPP_LEVEL=rm (plan step C7): the GSP from the boot on, NV_GSP's RM client, the NVDevice
     std::unique_ptr<NVFalcon> flcn;
     std::unique_ptr<NVGsp> gsp;
@@ -804,11 +804,8 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
     __atomic_store_n(&st[kNVDStateSeq], seq, __ATOMIC_RELEASE);
     __atomic_store_n(&st[kNVDStateInFlight], in_flight, __ATOMIC_RELEASE);
     __atomic_store_n(&st[kNVDStatePhase], phase, __ATOMIC_RELEASE);
-    // BEAGLE_NV_CPP_LEVEL=sysmem (plan step C6): this side allocated the timeline, so its fd goes along for the daemon's EOF path
-    const int sfds[2] = { fd, d.signal_fd };
-    nv_send_msg(cmd_sock, d.signal_fd < 0 ? std::string("{\"cmd\":\"state_page\"}") :
-                "{\"cmd\":\"state_page\",\"signal_va\":" + std::to_string(d.h.signal.va) + ",\"signal_size\":" + std::to_string(d.h.signal.size) + "}");
-    bool sent = nv_send_fds(cmd_sock, sfds, d.signal_fd < 0 ? 1 : 2);
+    nv_send_msg(cmd_sock, "{\"cmd\":\"state_page\"}");
+    bool sent = nv_send_fds(cmd_sock, &fd, 1);
     close(fd);
     std::string js = sent ? nv_recv_msg(cmd_sock) : "";
     if (js.empty() || !nv_json_ok(js)) {

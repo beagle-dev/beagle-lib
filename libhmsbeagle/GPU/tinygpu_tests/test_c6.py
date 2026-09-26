@@ -125,15 +125,17 @@ def test_lru_refusal():
     print("LRU cache: a buffer tinygrad's allocator would reuse for one the C++ side allocates refuses the level (and only then)")
 
 def test_state_page_signal():
+    """cmd_state_page takes one fd, the page's, since the C++ timeline has its own command (cmd_timeline, plan step C7's review):
+    a page with a second fd is refused with the stream still framed, and at sysmem the daemon, which has no timeline of its own,
+    waits for cmd_timeline."""
     real, Device._opened_devices = Device._opened_devices, set()
     try:
-        for n_fds, with_va, ok in ((2, True, True), (1, True, False), (2, False, False)):
+        for n_fds, with_va, ok in ((1, False, True), (2, True, False), (2, False, False)):
             a, dm, calls, _, _ = p3.rig(signal=3)
             dm.handed_off, dm._handoff_bufs = True, {}   # level sysmem: the daemon has no buffers of its own
             page = tempfile.TemporaryFile(); page.truncate(d._STATE_WORDS * 8)
             mine = mmap.mmap(page.fileno(), d._STATE_WORDS * 8); struct.pack_into("<Q", mine, 0, d._PHASE_DISPATCH)
             sig = tempfile.TemporaryFile(); sig.truncate(0x4000)
-            cpp = mmap.mmap(sig.fileno(), 0x4000); struct.pack_into("<Q", cpp, 0, 41)   # the C++ side's timeline, as it maps it
             req = {"cmd": "state_page", **({"signal_va": 0x1020768000, "signal_size": 0x4000} if with_va else {})}
             a.sendall(p3.msg(req)); socket.send_fds(a, [b"S"], [page.fileno(), sig.fileno()][:n_fds]); page.close(); sig.close()
             a.sendall(p3.msg({"cmd": "teardown_export"})); a.shutdown(socket.SHUT_WR)   # parses only if the fd byte was consumed
@@ -144,14 +146,11 @@ def test_state_page_signal():
             dm.sock.close()
             r, nxt = p3.recv_reply(a), p3.recv_reply(a)
             assert r["ok"] is ok and "ok" in nxt, (n_fds, with_va, r, nxt)
-            if ok:
-                assert dm._cpp_signal.value == 41 and dm._cpp_signal.value_addr == 0x1020768000, dm._cpp_signal.value
-                struct.pack_into("<Q", cpp, 0, 42)
-                assert dm._cpp_signal.value == 42   # live: tinygrad's NVSignal over the C++ side's mapping
-            else: assert f"{n_fds} fds received" in r["error"], r
+            if ok: assert dm._state is not None and dm._cpp_signal is None   # the timeline follows (cmd_timeline)
+            else: assert f"{n_fds} fds received" in r["error"] and dm._state is None, r
     finally: Device._opened_devices = real
-    print("state page at sysmem: the C++ timeline mapped from the fd after the page's and read live through tinygrad's NVSignal; "
-          "fds that do not match the request are refused with the stream still framed")
+    print("state page: one fd, the page's; a second fd refused with the stream still framed; at sysmem the timeline follows "
+          "(cmd_timeline)")
 
 def test_state_page_before_allocations():
     """Level sysmem since plan step C7's review: the page comes before the C++ side's own allocations, without a timeline (the

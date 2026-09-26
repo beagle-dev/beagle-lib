@@ -29,8 +29,10 @@ def test_boot_without_either_init_hw():
     patched = (NV_FLCN.init_hw, NV_GSP.init_hw)
     ops_nv.PCIIfaceBase.__init__ = base_init
     try:
-        d._boot_nvdev_only("flcn_hw")
+        iface = d._boot_nvdev_only("flcn_hw")
         assert calls == [] and (NV_FLCN.init_hw, NV_GSP.init_hw) == patched, calls
+        fl = iface.dev_impl.flcn   # init_hw's first statement ran (NV_FLCN.reset reads it in the daemon's own teardown)
+        assert (fl.falcon, fl.sec2) == (0x00110000, 0x00840000), vars(fl)
         d._boot_nvdev_only("gsp_hw")
         assert calls == ["flcn"], calls
         def fails(self, dev, dev_id, **kw): raise RuntimeError("no GPU")
@@ -39,8 +41,8 @@ def test_boot_without_either_init_hw():
         except RuntimeError: pass
         assert (NV_FLCN.init_hw, NV_GSP.init_hw) == patched
     finally: ops_nv.PCIIfaceBase.__init__, NV_FLCN.init_hw, NV_GSP.init_hw = real_base, real_flcn, real_gsp
-    print("NVDev-only boot at flcn_hw: neither init_hw runs during the boot, both are back afterwards (also after a failed boot); "
-          "at gsp_hw the falcons' runs")
+    print("NVDev-only boot at flcn_hw: of both init_hw only the falcons' first statement runs (its bases, which the daemon's own "
+          "teardown needs), both are back afterwards (also after a failed boot); at gsp_hw the falcons' runs")
 
 def test_boot_level():
     stubs = {"_apply_boot_safety_patches": lambda: None, "_install_inherited_tinygpu": lambda fd: None,

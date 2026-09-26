@@ -271,7 +271,8 @@ class BeagleNVProgram(ops_nv.NVProgram):
 
 
 def log(msg):
-    print(f"[nv_dispatch_daemon] {msg}", file=sys.stderr, flush=True)
+    try: print(f"[nv_dispatch_daemon] {msg}", file=sys.stderr, flush=True)
+    except Exception: pass   # a failed write (a full disk, a closed stderr) never stops a decision, a hold above all
 
 
 # Opt-in timing (BEAGLE_NV_PROFILE=1), the daemon half of the C++ side's
@@ -541,7 +542,8 @@ def _boot_nvdev_only(level="rm"):
     saved, ops_nv.PCIIface.rm_alloc = ops_nv.PCIIface.rm_alloc, fork
     skipped = {"rm": (), "gsp_hw": (NV_GSP,), "flcn_hw": (NV_FLCN, NV_GSP)}[level]
     saved_init_hw = {c: c.init_hw for c in skipped}   # NV_GSP's is nv_init_helper's _patched_gsp_init_hw
-    for c in skipped: c.init_hw = lambda self: None
+    def flcn_first_statement(self): self.falcon, self.sec2 = 0x00110000, 0x00840000   # ip.py:187, which NV_FLCN.reset reads
+    for c in skipped: c.init_hw = flcn_first_statement if c is NV_FLCN else (lambda self: None)
     try: ops_nv.PCIIface.__init__(iface, NVDevice(), 0)
     except _Fork: pass
     finally:
@@ -766,23 +768,20 @@ class Daemon:
 
     def cmd_state_page(self, req):
         # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this
-        # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fd). Taken before any check, so the command stream stays framed
+        # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fds). Taken before any check, so the command stream stays framed
         # when the page is refused. Not a TinyGPU allocation: nothing reaches the GPU.
         import mmap
-        _, fds, _, _ = socket.recv_fds(self.sock, 1, 2)   # plan step C6's level sysmem: the C++ timeline's fd follows the page's
-        sig_buf = None
+        _, fds, _, _ = socket.recv_fds(self.sock, 1, 2)   # a second fd would be refused, and still closed here
         try:
-            if len(fds) != (2 if "signal_va" in req else 1):
-                raise RuntimeError(f"state_page: {len(fds)} fds received")
+            if len(fds) != 1: raise RuntimeError(f"state_page: {len(fds)} fds received")
             state = memoryview(mmap.mmap(fds[0], _STATE_WORDS * 8, prot=mmap.PROT_READ)).cast("Q")
-            if len(fds) == 2: sig_buf = self._map_cpp_signal(fds[1], req)
         finally:
             for fd in fds: os.close(fd)
         phases = {"gsp_hw": (_PHASE_DISPATCH, _PHASE_GSP_INIT), "flcn_hw": (_PHASE_DISPATCH, _PHASE_GSP_INIT, _PHASE_FLCN_INIT)}
         if not self.handed_off or state[0] not in phases.get(self.rm_level, (_PHASE_DISPATCH,)):
             raise RuntimeError(f"state_page: handed off {self.handed_off}, phase {state[0]}")
         self._state = state
-        if sig_buf is None and "signal" not in getattr(self, "_handoff_bufs", {}):
+        if "signal" not in getattr(self, "_handoff_bufs", {}):
             # plan step C7 (level rm and above) and level sysmem: the page precedes the C++ side's own frames (its RPCs, its allocations),
             # and its timeline, which it allocates itself, follows (cmd_timeline)
             log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}, seq {state[3]}): " +
@@ -790,7 +789,7 @@ class Daemon:
             self.send_json({"ok": True})
             return
         # the C++ timeline (the handoff's "signal" buffer) as tinygrad's own signal; virt: no initial write, no signal pool (hcq.py:235-241)
-        self._cpp_signal = ops_nv.NVSignal(base_buf=sig_buf or self._handoff_bufs["signal"], owner=self.dev, virt=True)
+        self._cpp_signal = ops_nv.NVSignal(base_buf=self._handoff_bufs["signal"], owner=self.dev, virt=True)
         log(f"state page mapped (phase {state[0]}, frame_in_flight {state[1]}): the C++ side records whether a frame is in flight and "
             f"the timeline value it last submitted")
         self.send_json({"ok": True})
@@ -1101,10 +1100,8 @@ class Daemon:
             self._hold()
 
     def _hold(self):
-        try:
-            log(f"HOLDING the TinyGPU.app connection: closing it could unmap memory the GPU may still use. Unplug the eGPU first, "
-                f"then kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
-        except Exception: pass   # the hold never depends on the log (a full disk, a closed stderr)
+        log(f"HOLDING the TinyGPU.app connection: closing it could unmap memory the GPU may still use. Unplug the eGPU first, "
+            f"then kill {os.getpid()}. (SIGINT and SIGHUP are ignored.)")
         while True:
             time.sleep(3600)
 
@@ -1131,8 +1128,10 @@ class Daemon:
                     with _Profiled(f"cmd.{cmd}"):
                         getattr(self, f"cmd_{cmd}")(req)
                 except Exception as e:
-                    import traceback
-                    traceback.print_exc(file=sys.stderr)
+                    try:
+                        import traceback
+                        traceback.print_exc(file=sys.stderr)
+                    except Exception: pass
                     self.send_json({"ok": False, "error": str(e)})
                 if cmd == "fini":
                     return
@@ -1189,8 +1188,10 @@ def main():
     try:
         daemon.run()
     except Exception:
-        import traceback
-        traceback.print_exc(file=sys.stderr)
+        try:
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+        except Exception: pass   # the hold below never depends on the log
         if daemon.dev is not None:   # tinygrad's atexit would finalize with no hold decision and no wait for the C++ side's work
             daemon._hold()
         sys.exit(1)
