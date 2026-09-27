@@ -8,8 +8,9 @@
  * NV_FLCN.fini_hw, section 5), with its failure semantics. Also what nv_init_helper's patches add around these primitives:
  * the 20 s sleep after SEC2 starts inside gsp.init_hw or a LEVEL_0 unload (patch 3). Plan step C9 added NV_FLCN.init_hw
  * (ip.py:186-210: FWSEC-FRTS, then booter_load, which starts GSP-RM) with nv_init_helper's execute_hs wrapper around it
- * (_execute_hs_with_frts_checks, plan step P1). Ada (NV_FLCN) only: Blackwell's COT boot has no host-run falcon ucode (plan
- * step B2).
+ * (_execute_hs_with_frts_checks, plan step P1). Blackwell's COT boot (plan step B2) runs no falcon ucode from the host: there
+ * NVFalcon has GB20x's registers and only the teardown's wait for the GSP's RISC-V core to halt (cot_fini_hw, nv_init_helper's
+ * NV_FLCN_COT.fini_hw); every other primitive is Ada's (NV_FLCN).
  *
  * tinygrad's exceptions become NVError, carrying the Python type's name (TimeoutError, RuntimeError, AssertionError, ...)
  * and str(e), so the teardown catches what nv_init_helper catches and records the same text. Every hardware-facing step is
@@ -21,8 +22,10 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <stdexcept>
 #include <string>
@@ -71,6 +74,13 @@ template <class F> uint64_t nv_wait_cond(int timeout_ms, F&& cb, int64_t value, 
     throw NVError("TimeoutError", msg + ". Timed out after " + std::to_string(timeout_ms) + " ms, condition not met: " +
                   std::to_string(val) + " != " + (value == kNVTrue ? std::string("True") : std::to_string(value)));
 }
+// wait_cond on a callback that returns a Python bool (a comparison), whose value prints as False
+template <class F> void nv_wait_cond_true(int timeout_ms, F&& cb, const std::string& msg) {
+    const int64_t start = nv_now_ms();
+    while (nv_now_ms() - start < timeout_ms)
+        if (cb()) return;
+    throw NVError("TimeoutError", msg + ". Timed out after " + std::to_string(timeout_ms) + " ms, condition not met: False != True");
+}
 
 // NVDev.rreg/wreg (nvdev.py:92-95): one 4-byte MMIO_READ or MMIO_WRITE on BAR0, as tinygrad's RemoteMMIOInterface sends
 // it (system.py:319-329). A failed transfer is tinygrad's RuntimeError.
@@ -106,11 +116,23 @@ struct NVFlcnImages {
     uint32_t booter_data_off = 0, booter_data_sz = 0, booter_code_off = 0, booter_code_sz = 0;
 };
 
+// What NV_FLCN_COT.init_sw prepared for init_hw (plan step B2), as the daemon exports it at level flcn_hw on the COT boot: the
+// FMC boot parameters' page (mapped from its TinyGPU.app fd) and device address, the FMC image's device address, and its hash,
+// signature and public key (init_fmc_image's ELF sections as tinygrad casts them to 32-bit words).
+struct NVCotImages {
+    uint8_t* fmc_boot_args = nullptr;          // fmc_boot_args_view
+    uint64_t fmc_boot_args_sysmem = 0, fmc_booter_bar1 = 0;
+    std::vector<uint32_t> hash, sig, pkey;     // fmc_booter_hash, fmc_booter_sig, fmc_booter_pkey
+};
+
 // nv_init_helper's beagle_fini: what the unload (P1's suspend wait) and the teardown (P2) recorded, as the daemon's fini
-// reply carries it. The teardown's own dict is kept in insertion order, as json.dumps writes it.
+// reply carries it. The teardown's own dict is kept in insertion order, as json.dumps writes it. On the COT boot (plan step
+// B1) it also says whether the GSP's RISC-V core halted, false until the halt wait proves it, and MAILBOX0 after the halt.
 struct NVFiniDiag {
     bool unload_ok = false, have_mailbox0 = false, have_wpr2 = false, have_cpuctl = false;   // which keys were set
     uint32_t mailbox0 = 0, wpr2_lo = 0, wpr2_hi = 0, riscv_cpuctl = 0;
+    bool cot = false, halted = false, have_mailbox0_after_halt = false;                      // diag["halted"]: COT only
+    uint32_t mailbox0_after_halt = 0;
     bool teardown_ran = false;                                 // diag["teardown"] exists
     std::vector<std::pair<std::string, std::string>> td;      // key -> JSON value
     bool have_td_result = false;
@@ -133,6 +155,7 @@ struct NVFiniDiag {
     void result(const std::string& r) { have_td_result = true; td_result = r; td_set("result", str(r)); }
     std::string json() const {
         std::string j = "{\"unload_ok\": " + std::string(unload_ok ? "true" : "false");
+        if (cot) j += ", \"halted\": " + std::string(halted ? "true" : "false");
         if (have_mailbox0) j += ", \"mailbox0\": " + std::to_string(mailbox0);
         if (have_wpr2) j += ", \"wpr2_lo\": " + std::to_string(wpr2_lo) + ", \"wpr2_hi\": " + std::to_string(wpr2_hi);
         if (have_cpuctl) j += ", \"riscv_cpuctl\": " + std::to_string(riscv_cpuctl);
@@ -141,23 +164,30 @@ struct NVFiniDiag {
             for (size_t i = 0; i < td.size(); ++i) j += (i ? ", " : "") + str(td[i].first) + ": " + td[i].second;
             j += "}";
         }
+        if (have_mailbox0_after_halt) j += ", \"mailbox0_after_halt\": " + std::to_string(mailbox0_after_halt);
         if (have_outcome) j += ", \"wpr2_down\": " + std::string(wpr2_down ? "true" : "false") + ", \"teardown_ok\": " +
                                std::string(teardown_ok ? "true" : "false");
         return j + "}";
     }
 };
 
-// NV_FLCN on Ada's registers (ip.py:88-283), and nv_init_helper's teardown on it.
+// NV_FLCN on Ada's registers (ip.py:88-283), and nv_init_helper's teardown on it; with cot, what GB20x's COT boot has of it:
+// its registers and nv_init_helper's NV_FLCN_COT.fini_hw.
 class NVFalcon {
 public:
-    NVFalcon(NVBar0& dev, uint32_t chip_id) : dev_(dev), chip_id_(chip_id) {}
+    NVFalcon(NVBar0& dev, uint32_t chip_id, bool cot = false) : cot(cot), dev_(dev), chip_id_(chip_id) {}
 
+    const bool cot;                                           // GB20x's COT boot (plan step B2): kGB20xRegs
     const uint32_t falcon = 0x00110000, sec2 = 0x00840000;   // NV_FLCN.init_hw (ip.py:187)
     int wait_ms = 10000;                                      // wait_cond's timeout_ms (tests shorten it, as test_p2_teardown does)
     std::function<void(double)> sleep = nv_sleep;             // time.sleep (tests record it)
     bool sleep_after_sec2_start = false;                      // nv_init_helper's _in_gsp_init (patch 3)
+    double cot_halt_timeout_s = 4.0;                          // nv_init_helper's _COT_HALT_TIMEOUT_S (tests shorten it)
+    std::string chip_name;                                    // NVDev.chip_name, for the COT sequencer's refusal
 
-    nv_regs::NVReg<NVBar0> reg(nv_regs::NVRegId id) const { return nv_regs::NVReg<NVBar0>(&dev_, nv_regs::kAdaRegs[id]); }
+    nv_regs::NVReg<NVBar0> reg(nv_regs::NVRegId id) const {
+        return nv_regs::NVReg<NVBar0>(&dev_, (cot ? nv_regs::kGB20xRegs : nv_regs::kAdaRegs)[id]);
+    }
 
     // NV_FLCN.execute_dma (ip.py:212-226)
     void execute_dma(uint32_t base, uint32_t cmd, uint64_t dest, uint64_t mem_off, uint64_t src, uint64_t size) {
@@ -384,6 +414,130 @@ public:
         tg_log("teardown %s; WPR2_HI=0x%08x: %s", diag.have_td_result ? diag.td_result.c_str() : "interrupted", diag.wpr2_hi,
                diag.teardown_ok ? "the next boot needs no power cycle" : "power-cycle before the next boot");
         if (body_error) throw pending;
+    }
+
+    // NV_FLCN_COT.init_hw (ip.py:311-326): the FMC boot parameters, the COT message to the FSP (kfsp_send_msg, with
+    // nv_init_helper's wrapper), then the wait for the GSP's RISC-V core to leave its boot-ROM lockdown. before_cot runs right
+    // before the message's first EMEM write: from there the FSP may start the FMC and GSP-RM, which run from sysmem
+    // (nv_init_helper's beagle_gsp_started).
+    void cot_init_hw(const NVCotImages& im, uint64_t wpr_meta_sysmem, uint64_t libos_args_sysmem, const std::function<void()>& before_cot = {}) {
+        using namespace nv_regs;
+        nv::GSP_ACR_BOOT_GSP_RM_PARAMS boot_args{};
+        boot_args.gspRmDescOffset = wpr_meta_sysmem;
+        boot_args.gspRmDescSize = (uint32_t)sizeof(nv::GspFwWprMeta);
+        boot_args.target = nv::GSP_DMA_TARGET_COHERENT_SYSTEM;
+        boot_args.bIsGspRmBoot = 1;
+        nv::GSP_RM_PARAMS rm_args{};
+        rm_args.bootArgsOffset = libos_args_sysmem;
+        rm_args.target = nv::GSP_DMA_TARGET_COHERENT_SYSTEM;
+        nv::GSP_FMC_BOOT_PARAMS params{};
+        params.bootGspRmParams = boot_args;
+        params.gspRmParams = rm_args;
+        memcpy(im.fmc_boot_args, &params, sizeof(params));
+
+        nv::NVDM_PAYLOAD_COT cot{};
+        cot.version = 0x2;
+        cot.size = (uint16_t)sizeof(nv::NVDM_PAYLOAD_COT);
+        cot.frtsVidmemOffset = 0x1c00000;
+        cot.frtsVidmemSize = 0x100000;
+        cot.gspBootArgsSysmemOffset = im.fmc_boot_args_sysmem;
+        cot.gspFmcSysmemOffset = im.fmc_booter_bar1;
+        auto words = [](uint32_t* dst, size_t n, const std::vector<uint32_t>& src) {   // a ctypes array's item assignment
+            if (src.size() > n) throw NVError("IndexError", "invalid index");
+            for (size_t i = 0; i < src.size(); ++i) dst[i] = src[i];
+        };
+        words(cot.hash384, 12, im.hash);
+        words(cot.signature, 96, im.sig);
+        words(cot.publicKey, 96, im.pkey);
+        std::vector<uint8_t> payload(sizeof(cot));
+        memcpy(payload.data(), &cot, sizeof(cot));
+        kfsp_send_msg(nv::NVDM_TYPE_COT, payload, before_cot);
+        nv_wait_cond(wait_ms, [&] { return reg(NV_PFALCON_FALCON_HWCFG2).with_base(falcon).read_bitfields()["riscv_br_priv_lockdown"]; }, 0, "");
+    }
+
+    // NV_FLCN_COT.kfsp_send_msg (ip.py:328-344), and around a COT message nv_init_helper's _kfsp_send_msg_flagged: the FSP's
+    // queue registers read and logged first (NVIDIA sends only into an empty command queue, kfspPollForCanSend_GH100; tinygrad
+    // does not check), then before_cot.
+    void kfsp_send_msg(uint32_t nvmd, const std::vector<uint8_t>& payload, const std::function<void()>& before_cot = {}) {
+        using namespace nv_regs;
+        if (nvmd == nv::NVDM_TYPE_COT) {
+            const uint32_t qh = reg(NV_PFSP_QUEUE_HEAD)[0].read(), qt = reg(NV_PFSP_QUEUE_TAIL)[0].read();
+            const uint32_t mh = reg(NV_PFSP_MSGQ_HEAD)[0].read(), mt = reg(NV_PFSP_MSGQ_TAIL)[0].read();
+            tg_log("before the COT message: FSP command queue head/tail 0x%x/0x%x, message queue head/tail 0x%x/0x%x (%s)", qh, qt, mh, mt,
+                   qh == qt && mh == mt ? "both empty" : "NOT EMPTY");
+            if (before_cot) before_cot();
+        }
+        // All single-packets go to seid 0
+        const uint32_t mctp = (1u << 31) | (1u << 30), nvdm = 0x7eu | (0x10deu << 8) | (nvmd << 24);
+        std::vector<uint8_t> buf(8);
+        memcpy(buf.data(), &mctp, 4);
+        memcpy(buf.data() + 4, &nvdm, 4);
+        buf.insert(buf.end(), payload.begin(), payload.end());
+        buf.resize(buf.size() + (4 - payload.size() % 4), 0);   // tinygrad's padding: 4 bytes when the payload is aligned already
+        if (buf.size() >= 0x400)
+            throw NVError("AssertionError", "FSP message too long: " + std::to_string(buf.size()) + " bytes, max 1024 bytes");
+
+        reg(NV_PFSP_EMEMC)[0].write({{"offs", 0}, {"blk", 0}, {"aincw", 1}, {"aincr", 0}});
+        for (size_t i = 0; i < buf.size(); i += 4) {
+            uint32_t w;
+            memcpy(&w, &buf[i], 4);
+            reg(NV_PFSP_EMEMD)[0].write(w);
+        }
+        reg(NV_PFSP_QUEUE_TAIL)[0].write((uint32_t)buf.size() - 4);
+        reg(NV_PFSP_QUEUE_HEAD)[0].write(0);
+
+        // Waiting for a response
+        nv_wait_cond_true(wait_ms, [&] { return reg(NV_PFSP_MSGQ_HEAD)[0].read() != reg(NV_PFSP_MSGQ_TAIL)[0].read(); },
+                          "FSP didn't respond to message");
+
+        reg(NV_PFSP_EMEMC)[0].write({{"offs", 0}, {"blk", 0}, {"aincw", 0}, {"aincr", 1}});
+        reg(NV_PFSP_MSGQ_TAIL)[0].write(reg(NV_PFSP_MSGQ_HEAD)[0].read());
+    }
+
+    // nv_init_helper's NV_FLCN_COT.fini_hw (_cot_fini_hw_halt_wait, plan step B1): kgspTeardown_GH100 after the GSP unload,
+    // a wait of up to 4 s for the GSP's RISC-V core to halt (kflcnWaitForHaltRiscv, 570.144 kernel_falcon_ga102.c:275-289),
+    // "to allow ACR and GSP FMC to finish shutdown"; until it halts they may still use the boot structures in sysmem, so the
+    // TinyGPU.app connection is closed only once halted is true. A PRI error (0xbadfxxxx) and an unreachable GPU (0xffffffff)
+    // are not taken for a halt. Reads only; it is the unload's own last step on this chip, not an added teardown.
+    void cot_fini_hw(NVFiniDiag& diag) {
+        using namespace nv_regs;
+        diag.teardown_ran = true;
+        diag.halted = false;
+        if (!diag.unload_ok) {
+            diag.result("skipped: the GSP did not confirm its unload, so its RISC-V core is not polled");
+            tg_log("teardown %s", diag.td_result.c_str());
+            return;
+        }
+        auto cpuctl = reg(NV_PRISCV_RISCV_CPUCTL).with_base(falcon);
+        const auto t0 = std::chrono::steady_clock::now();
+        auto elapsed = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); };
+        uint32_t val;
+        int polls = 0;
+        bool halted;
+        while (true) {
+            val = cpuctl.read(); polls += 1;
+            if ((halted = val != 0xffffffff && val >> 16 != 0xbadf && cpuctl.decode(val)["halted"] == 1) || elapsed() >= cot_halt_timeout_s) break;
+            sleep(0.001);
+        }
+        const double ms = elapsed() * 1e3;
+        diag.riscv_cpuctl = val; diag.have_cpuctl = true;
+        diag.halted = halted;
+        diag.mailbox0_after_halt = reg(NV_PGSP_FALCON_MAILBOX0).read(); diag.have_mailbox0_after_halt = true;
+        diag.wpr2_lo = reg(NV_PFB_PRI_MMU_WPR2_ADDR_LO).read();
+        diag.wpr2_hi = reg(NV_PFB_PRI_MMU_WPR2_ADDR_HI).read();
+        diag.have_wpr2 = true;
+        diag.wpr2_down = diag.wpr2_hi == 0;
+        diag.td_set("halt_wait_ms", std::to_string((long long)std::nearbyint(ms)));   // round(ms): half to even
+        diag.td_set("polls", std::to_string(polls));
+        char r[120];
+        if (halted) snprintf(r, sizeof(r), "done: GSP RISC-V halted after %.0f ms", ms);
+        else snprintf(r, sizeof(r), "failed: GSP RISC-V did not halt within %.0f s (RISCV_CPUCTL=0x%08x)", cot_halt_timeout_s, val);
+        diag.result(r);
+        diag.teardown_ok = halted && diag.wpr2_down;
+        diag.have_outcome = true;
+        tg_log("teardown %s (%d polls); MAILBOX0=0x%08x, WPR2_LO=0x%08x, WPR2_HI=0x%08x: %s%s", r, polls, diag.mailbox0_after_halt, diag.wpr2_lo,
+               diag.wpr2_hi, diag.teardown_ok ? "the next boot needs no power cycle" : "power-cycle before the next boot",
+               halted ? "" : "; the GSP may still be live, so the connection is held");
     }
 
 private:

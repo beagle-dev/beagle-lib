@@ -8,9 +8,11 @@ text, nv_init_helper's beagle_fini. Covers: RPC framing (one record, continuatio
 the status queue (a CPU sequencer, rpc_result != 0, an error-log event); the CPU sequencer's nine ops, an unknown op and
 truncated operands; every P2 teardown scenario of test_p2_teardown.py; and the whole C++ fini (unload RPC, suspend wait,
 teardown), FAST_UNLOAD and LEVEL_0 with an op-8 sequencer (the 20 s sleep between SEC2's start and the BSI read), never
-suspended, and an unanswered RPC. No GPU and no TinyGPU.app: a private socket and TMPDIR.
+suspended, and an unanswered RPC. And the COT boot's (Blackwell, plan step B2): the unload, then NV_FLCN_COT.fini_hw's wait for
+the GSP's RISC-V core to halt (a halt, PRI-error and unreachable reads before it, never halting, never suspended, an unanswered
+RPC), and its CPU sequencer, which refuses ops 5-8 before any op runs. No GPU and no TinyGPU.app: a private socket and TMPDIR.
     python golden_gsp.py"""
-import os, sys, io, json, mmap, socket, struct, tempfile, threading, subprocess, functools, contextlib
+import os, re, sys, io, json, mmap, socket, struct, tempfile, threading, subprocess, functools, contextlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -20,7 +22,7 @@ import tgwire, tggpu
 from tinygrad.runtime.support.system import APLRemotePCIDevice, RemoteCmd
 from tinygrad.runtime.support.nv import ip
 from tinygrad.runtime.support.nv.nvdev import NVDev
-from tinygrad.runtime.support.nv.ip import NV_FLCN, NV_GSP, NVRpcQueue
+from tinygrad.runtime.support.nv.ip import NV_FLCN, NV_FLCN_COT, NV_GSP, NVRpcQueue
 from tinygrad.runtime.support.hcq import MMIOInterface
 from tinygrad.runtime.autogen import nv
 
@@ -145,17 +147,43 @@ def falcon_script(wpr2_after_sb=0x1ffae00, bcr_valid=1, halted=1, sec2_halted=1,
     s.hooks.append(on_write)
     return s
 
+RISCV_CPUCTL = addr(R.NV_PRISCV_RISCV_CPUCTL, GSP)   # at the same address in GB20x's tables
+def cot_script(halt_after=3, glitches=(), never_halt=False, suspended=False):
+    """A GB205 after its COT boot, as fake_nv_device.py plays it: once the GSP reports itself suspended (MAILBOX0 0x80000000,
+    FakeGsp's, or from the start with suspended), its RISC-V core halts after halt_after more reads of RISCV_CPUCTL (the first
+    returning glitches), and only then does WPR2 come down (R22, R23's values)."""
+    s, st = Script(), {"reads": 0, "halted": False}
+    if suspended: s.vals[GSP_MBX0] = 0x80000000
+    def riscv(a):
+        if s.vals.get(GSP_MBX0) != 0x80000000: return 0x80   # active_stat: GSP-RM runs
+        st["reads"] += 1
+        if st["reads"] <= len(glitches): return glitches[st["reads"] - 1]
+        if never_halt or st["reads"] <= len(glitches) + halt_after: return 0x80
+        st["halted"] = True
+        return 0x410   # halted, as the GB205 reads it after the unload
+    s.vals[RISCV_CPUCTL] = riscv
+    s.vals[WPR2_HI] = lambda a: 0 if st["halted"] else 0x02fad000
+    s.vals[WPR2_LO] = lambda a: 0x7ffffe00 if st["halted"] else 0x02ee2200
+    s.vals[0x1008] = 0x5   # the sequencer scenarios' polled register
+    return s
+
 # ── tinygrad's side ───────────────────────────────────────────────────────────────────────────────────────────────────
-def tinygrad_dev(sock_path):
-    """NVDev on the fake: tinygrad's remote BAR0 (map_bar, NVDev.__init__ nvdev.py:76) with Ada's include() sequence."""
+def tinygrad_dev(sock_path, cot=False):
+    """NVDev on the fake: tinygrad's remote BAR0 (map_bar, NVDev.__init__ nvdev.py:76) with Ada's include() sequence, or with cot
+    GB20x's (with nv_init_helper's dev_riscv_pri, tgwire.INCLUDES) and NV_FLCN_COT, as a GB205's _early_ip_init leaves it."""
     pci = object.__new__(APLRemotePCIDevice)
     pci.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     pci.sock.connect(sock_path)
     pci.pcibus, pci.dev_id = "usb4", 0
     dev = NVDev.__new__(NVDev)
     dev.pci_dev, dev.devfmt, dev.mmio = pci, "usb4", pci.map_bar(0, fmt='I')
-    for name, arch in tgwire.INCLUDES["ada"]: dev.include(name, arch)
+    for name, arch in tgwire.INCLUDES["gb20x" if cot else "ada"]: dev.include(name, arch)
     dev.chip_id, dev.is_err_state = CHIP_ID, False
+    if cot:
+        dev.fmc_boot, dev.chip_name = True, "GB205"
+        fl = NV_FLCN_COT.__new__(NV_FLCN_COT)
+        fl.nvdev, fl.falcon, dev.flcn = dev, GSP, fl
+        return dev, fl
     fl = NV_FLCN.__new__(NV_FLCN)
     fl.nvdev, fl.falcon, fl.sec2 = dev, GSP, SEC2
     fl.desc_v3 = nv.FALCON_UCODE_DESC_V3(IMEMPhysBase=IMAGES["sb_imem_pa"], IMEMVirtBase=IMAGES["sb_imem_va"], IMEMLoadSize=IMAGES["sb_imem_sz"],
@@ -190,7 +218,7 @@ def py_err(e): return f"{type(e).__name__}: {e}"
 def py_scenario(kind, dev, fl, qpath, kw, out):
     if kind == "teardown":
         dev.beagle_fini = {"unload_ok": bool(kw["unload_ok"])}
-        fl.fini_hw()   # nv_init_helper's _flcn_fini_hw_teardown
+        fl.fini_hw()   # nv_init_helper's _flcn_fini_hw_teardown, or on COT its _cot_fini_hw_halt_wait
         out.append("diag=" + json.dumps(dev.beagle_fini))
         return
     gsp = tinygrad_gsp(dev, qpath, kw.get("seq", 0))
@@ -215,7 +243,7 @@ def py_scenario(kind, dev, fl, qpath, kw, out):
             try:
                 try: gsp.fini_hw()   # nv_init_helper's _gsp_fini_hw_with_suspend_wait
                 except Exception as e: out.append(f"unload error={py_err(e)}")
-                fl.fini_hw()         # its _flcn_fini_hw_teardown, in NVDev.fini's order
+                fl.fini_hw()         # its _flcn_fini_hw_teardown (COT: _cot_fini_hw_halt_wait), in NVDev.fini's order
             finally: NV_GSP.rpc_unloading_guest_driver, h._UNLOAD_LEVEL_0 = saved
             out.append("diag=" + json.dumps(dev.beagle_fini))
     except Exception as e: out.append(f"error={py_err(e)}")
@@ -252,6 +280,18 @@ def scenarios():
     yield "fini: LEVEL_0 with an op-8 sequencer", "fini", {}, [], dict(events=[(0x1002, seq_msg([0x8]))]), q(seq=SEQ, level0=1), "collapsed"
     yield "fini: never suspended", "fini", {}, [], dict(never_suspend=True), q(seq=SEQ), "collapsed"
     yield "fini: the unload RPC unanswered", "fini", {}, [], dict(silent=True), q(seq=SEQ), "collapsed"
+    # the COT boot (plan step B2): the unload, then the RISC-V halt wait; its sequencer
+    cot = lambda **k: dict(k, cot=True)
+    yield "COT fini: the unload, then the RISC-V halt", "fini", cot(), [], {}, q(seq=SEQ, cot=1), "exact"
+    # (the suspend wait's own CPUCTL read comes first; the halt wait then reads a PRI error with the halted bit set, and 0xffffffff)
+    yield "COT fini: a PRI error and 0xffffffff read before the halt", "fini", cot(glitches=(0x80, 0xbadf1010, 0xffffffff)), [], {}, q(seq=SEQ, cot=1), "exact"
+    yield "COT fini: the core never halts", "fini", cot(never_halt=True), [], {}, q(seq=SEQ, cot=1, halt_timeout_ms=60), "collapsed"
+    yield "COT fini: never suspended", "fini", cot(), [], dict(never_suspend=True), q(seq=SEQ, cot=1), "collapsed"
+    yield "COT fini: the unload RPC unanswered", "fini", cot(), [], dict(silent=True), q(seq=SEQ, cot=1), "collapsed"
+    yield "COT teardown: the halt wait alone", "teardown", cot(suspended=True), [], None, q(unload_ok=1, cot=1), "exact"
+    yield "COT teardown: GSP not suspended", "teardown", cot(), [], None, q(unload_ok=0, cot=1), "exact"
+    yield "COT sequencer: ops 5-8 refused before any op runs", "seq", cot(), [], None, q(words=[0x0, 0x1000, 0xabcd, 0x6, 0x5, 0x8], cot=1), "exact"
+    yield "COT sequencer: ops 0-4 run", "seq", cot(), [], None, q(words=[0x0, 0x1000, 0xabcd, 0x2, 0x1008, 0xf, 0x5, 0, 0, 0x3, 10], cot=1), "collapsed"
 
 def collapse(trace):
     out = []
@@ -259,10 +299,21 @@ def collapse(trace):
         if not out or x != out[-1] or x[0] != "R": out.append(x)
     return out
 
+def normalized(d):
+    """The COT halt wait's timing: its milliseconds, and its poll count when it timed out."""
+    td = d.get("teardown") if isinstance(d, dict) else None
+    if td and "halt_wait_ms" in td:
+        td["halt_wait_ms"] = "ms"
+        td["result"] = re.sub(r"after \d+ ms", "after N ms", td["result"])
+        if td["result"].startswith("failed:"): td["polls"] = "n"
+    return d
+
 # a perturbed copy of the port must be caught: (header, text, replacement, the scenario that shows it)
 PERTURBED = [("TinyGPUHybridNVGsp.h", "c ^= w;", "c += w;", "RPC, one record"),
              ("TinyGPUHybridNVFalcon.h", "xfered += 256;", "xfered += 512;", "teardown: happy path"),
-             ("TinyGPUHybridNVFalcon.h", "sleep(20);", "sleep(2);", "sequencer: op 8 with the 20 s SEC2 sleep")]
+             ("TinyGPUHybridNVFalcon.h", "sleep(20);", "sleep(2);", "sequencer: op 8 with the 20 s SEC2 sleep"),
+             ("TinyGPUHybridNVFalcon.h", "val >> 16 != 0xbadf", "true", "COT fini: a PRI error and 0xffffffff read before the halt"),
+             ("TinyGPUHybridNVGsp.h", "if (flcn.cot) {", "if (false) {", "COT sequencer: ops 5-8 refused before any op runs")]
 
 def main():
     exe = f"{WORK}/golden_gsp"
@@ -272,7 +323,7 @@ def main():
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path); srv.listen(1); srv.settimeout(60)
     tempfile.tempdir = priv
-    saved_wait, saved_resp, saved_sleep = ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep
+    saved_wait, saved_resp, saved_sleep, saved_halt = ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep, h._COT_HALT_TIMEOUT_S
     ip.wait_cond = functools.partial(saved_wait, timeout_ms=WAIT_MS)                 # timeouts in milliseconds, as in test_p2_teardown
     NVRpcQueue.wait_resp = functools.partialmethod(saved_resp, timeout=RPC_MS)
     h._TEARDOWN = True
@@ -293,7 +344,7 @@ def main():
             print(f"perturbed {hdr} ({old} -> {new}): {'REJECTED' if f == 1 else 'NOT CAUGHT'} by '{scenario}'")
         fails += len(PERTURBED) - caught
     finally:
-        ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep, h._TEARDOWN = saved_wait, saved_resp, saved_sleep, False
+        ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep, h._TEARDOWN, h._COT_HALT_TIMEOUT_S = saved_wait, saved_resp, saved_sleep, False, saved_halt
     sys.exit(1 if fails else 0)
 
 def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=False):
@@ -304,7 +355,7 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
             n += 1
             results = {}
             for side in ("tinygrad", "c++"):
-                script = falcon_script(**skw)
+                script = cot_script(**{k: v for k, v in skw.items() if k != "cot"}) if skw.get("cot") else falcon_script(**skw)
                 mm = init_queues(qpath, cmd_wp=kw.get("cmd_wp", 10))
                 for p in posts: post(mm, *p)
                 gsp = FakeGsp(mm, script, **gspkw) if gspkw is not None else None
@@ -314,15 +365,16 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
                 t = threading.Thread(target=accept, daemon=True); t.start()
                 if side == "tinygrad":
                     h.time.sleep = lambda s: out.append(f"sleep {s:g}") if s >= 1 else saved_sleep(s)
+                    h._COT_HALT_TIMEOUT_S = kw.get("halt_timeout_ms", 4000) / 1000
                     try:
-                        dev, fl = tinygrad_dev(sock_path)
+                        dev, fl = tinygrad_dev(sock_path, cot=bool(kw.get("cot")))
                         with contextlib.redirect_stderr(io.StringIO()): py_scenario(kind, dev, fl, qpath, kw, out)
                     finally: h.time.sleep = saved_sleep
                     dev.pci_dev.sock.close()
                 else:
                     args = [exe, kind] + [f"{k}={v:#x}" if isinstance(v, int) else f"{k}={','.join(hex(x) for x in v)}" for k, v in kw.items()]
                     args += [f"{k}={v:#x}" for k, v in IMAGES.items()] + [f"chip_id={CHIP_ID:#x}", f"wait_ms={WAIT_MS}", f"rpc_timeout_ms={RPC_MS}",
-                                                                        f"libos={LIBOS:#x}"]
+                                                                        f"libos={LIBOS:#x}", "chip_name=GB205"]
                     r = subprocess.run(args, capture_output=True, text=True, timeout=120,
                                        env=dict(os.environ, TMPDIR=priv, APL_REMOTE_SOCK=sock_path, BEAGLE_TINYGPU_NO_LAUNCH="1",
                                                 GOLDEN_QUEUES=qpath, BEAGLE_TINYGPU_LOG=f"{priv}/c5.log"))
@@ -331,7 +383,7 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
                 results[side] = (out, bytes(rec), script.trace, bytes(mm), gsp.rpcs if gsp else None)
                 mm.close()
             (po, prec, ptr, pq, prpc), (co, crec, ctr, cq, crpc) = results["tinygrad"], results["c++"]
-            parse = lambda lines: [json.loads(l[5:]) if l.startswith("diag=") else l for l in lines]
+            parse = lambda lines: [normalized(json.loads(l[5:])) if l.startswith("diag=") else l for l in lines]
             same_out = parse(po) == parse(co)
             same_wire = prec == crec if mode == "exact" else collapse(ptr) == collapse(ctr)
             ok = same_out and same_wire and pq == cq and prpc == crpc

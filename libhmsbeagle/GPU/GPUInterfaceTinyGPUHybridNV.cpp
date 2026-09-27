@@ -288,6 +288,8 @@ struct NVDTeardown {
     uint32_t seq = 0, chip_id = 0;
     bool level0 = false;         // BEAGLE_NV_UNLOAD_LEVEL=0, as the daemon read it
     NVTeardownImages images;     // nv_init_helper's FWSEC-SB and Booter Unload, if the teardown is on
+    bool cot = false;            // GB20x's COT boot (plan step B2): the unload, then the RISC-V halt wait; no falcon ucode
+    std::string chip_name;       // NVDev.chip_name
 };
 
 // C++ dispatch state (see "C++ dispatch" below); null on the daemon path.
@@ -821,7 +823,8 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
 // TODO.md plan step C5 (BEAGLE_NV_CPP_LEVEL=teardown): the daemon's cmd_teardown_export, right after the state page: the GSP
 // message queues (their TinyGPU.app sysmem fd, which carries both queues' write and read pointers; the offsets; the
 // command queue's sequence number), what the CPU sequencer and the falcon resets need, and nv_init_helper's two teardown
-// images. Without it (a refusal, a COT boot, another chip) the daemon unloads the GPU at fini, as at level runtime.
+// images; on a COT boot (Blackwell, plan step B2) no images: its teardown is the unload and the RISC-V halt wait. Without it
+// (a refusal, another chip) the daemon unloads the GPU at fini, as at level runtime.
 // cmd_teardown_export's fields (also in cmd_rm_export's reply) and the GSP queues, mapped from their fd (closed here): an empty
 // string, or what was missing
 static std::string nvdParseTeardown(const std::string& js, int fd, NVDTeardown& t) {
@@ -830,7 +833,10 @@ static std::string nvdParseTeardown(const std::string& js, int fd, NVDTeardown& 
     const char* keys[7] = {"chip_id", "gsp_queues_size", "gsp_cmdq_off", "gsp_statq_off", "gsp_queue_size", "gsp_seq", "libos_args_sysmem"};
     for (int i = 0; i < 7 && err.empty(); ++i)
         if (!nvd_json_u64(js, keys[i], v[i])) err = std::string("the export has no ") + keys[i];
-    if (err.empty() && nv_json_str(js, "fw_name") != "ad102") err = "the C++ teardown has Ada's register tables, not " + nv_json_str(js, "fw_name") + "'s";
+    const std::string fw = nv_json_str(js, "fw_name");
+    const bool cot = nv_json_bool(js, "cot");
+    if (err.empty() && !(fw == "ad102" && !cot) && !(fw == "gb202" && cot))
+        err = "the C++ teardown has Ada's and GB20x's register tables, not " + fw + "'s" + (cot ? " (COT)" : "");
     if (err.empty() && nv_json_bool(js, "teardown")) {
         NVTeardownImages& m = t.images;
         uint64_t w[14] = {};
@@ -854,6 +860,8 @@ static std::string nvdParseTeardown(const std::string& js, int fd, NVDTeardown& 
     t.chip_id = (uint32_t)v[0]; t.queues_size = v[1]; t.cmdq_off = v[2]; t.statq_off = v[3]; t.queue_size = v[4];
     t.seq = (uint32_t)v[5]; t.libos_args_sysmem = v[6];
     t.level0 = nv_json_bool(js, "unload_level0");
+    t.cot = cot;
+    t.chip_name = nv_json_str(js, "chip_name");
     return "";
 }
 
@@ -873,7 +881,7 @@ static void nvdTeardownExport(int cmd_sock, NVDispatchState& d) {
     t.ready = true;
     __atomic_store_n(&d.state[kNVDStateSeq], t.seq, __ATOMIC_RELEASE);
     fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=%s)\n",
-            t.images.present ? " and NVIDIA's teardown" : "",
+            t.cot ? " and the RISC-V halt wait (COT)" : t.images.present ? " and NVIDIA's teardown" : "",
             nv_cpp_level() == kNVLevelSysmem ? "sysmem" : nv_cpp_level() == kNVLevelVram ? "vram" : "teardown");
 }
 
@@ -915,6 +923,8 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     std::string js = nv_recv_msg(cmd_sock);
     int fd = -1;
     std::string err = js.empty() ? "no reply" : !nv_json_ok(js) ? nv_json_str(js, "error") : !nv_recv_fds(cmd_sock, &fd, 1) ? "no queue fd" : "";
+    int cot_fd = -1;   // flcn_hw on the COT boot (plan step B2): the FMC boot parameters' page follows the queues' fd
+    if (err.empty() && flcn_hw && nv_json_bool(js, "cot") && !nv_recv_fds(cmd_sock, &cot_fd, 1)) err = "no FMC boot parameters fd";
     NVDispatchState* d = new NVDispatchState;
     d->runtime = true;
     NVDTeardown& t = d->td;
@@ -924,8 +934,28 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     if (err.empty() && !nvdStatePage(cmd_sock, *d, t.seq, flcn_hw ? kNVDPhaseFlcnInit : gsp_hw ? kNVDPhaseGspInit : kNVDPhaseDispatch, 1))
         err = "no state page";
     NVFlcnImages im;   // flcn_hw: cmd_rm_export's frts_* and booter_* keys
-    uint64_t wpr_meta_sysmem = 0;
-    if (err.empty() && flcn_hw) {
+    NVCotImages cim;   // ... on COT, its cot_* keys and the FMC boot parameters' page
+    uint64_t wpr_meta_sysmem = 0, cot_map_size = 0;
+    if (err.empty() && flcn_hw && t.cot) {
+        uint64_t f[4] = {};
+        const char* fk[4] = {"cot_boot_args_sysmem", "cot_boot_args_size", "cot_fmc_sysmem", "wpr_meta_sysmem"};
+        for (int i = 0; i < 4 && err.empty(); ++i)
+            if (!nvd_json_u64(js, fk[i], f[i])) err = std::string("the export has no ") + fk[i];
+        std::vector<uint64_t> hash, sig, pkey;
+        if (err.empty() && (!nvd_json_u64s(js, "cot_hash", hash) || !nvd_json_u64s(js, "cot_sig", sig) || !nvd_json_u64s(js, "cot_pkey", pkey)))
+            err = "the export's FMC hash, signature or public key is malformed";
+        if (err.empty()) {
+            void* m = mmap(nullptr, f[1], PROT_READ | PROT_WRITE, MAP_SHARED, cot_fd, 0);
+            if (m == MAP_FAILED) err = std::string("mmap of the FMC boot parameters: ") + strerror(errno);
+            else { cim.fmc_boot_args = (uint8_t*)m; cot_map_size = f[1]; }
+        }
+        cim.fmc_boot_args_sysmem = f[0]; cim.fmc_booter_bar1 = f[2]; wpr_meta_sysmem = f[3];
+        for (uint64_t x : hash) cim.hash.push_back((uint32_t)x);
+        for (uint64_t x : sig) cim.sig.push_back((uint32_t)x);
+        for (uint64_t x : pkey) cim.pkey.push_back((uint32_t)x);
+    }
+    if (cot_fd >= 0) close(cot_fd);
+    if (err.empty() && flcn_hw && !t.cot) {
         uint64_t f[16] = {};
         const char* fk[16] = {"frts_paddr", "frts_offset", "frts_imem_pa", "frts_imem_va", "frts_imem_sz", "frts_dmem_pa", "frts_dmem_sz",
                               "frts_pkc_off", "frts_engid", "frts_ucodeid", "booter_paddr", "booter_data_off", "booter_data_sz",
@@ -953,10 +983,13 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     if (err.empty()) {
         tg_transport().seed_bar(0, w[0]);   // the daemon mapped BAR0 in its boot
         d->bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
-        d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id);
+        d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id, t.cot);   // cot: level rm's GSP client, then the COT teardown
+        d->flcn->chip_name = t.chip_name;
         try {
             auto phase = [d](uint64_t p) { __atomic_store_n(&d->state[kNVDStatePhase], p, __ATOMIC_RELEASE); };
-            if (flcn_hw)   // GSP-RM may run from sysmem once booter_load runs; a booter_load that failed left it unstarted
+            if (flcn_hw && t.cot)   // GSP-RM may run from sysmem from the COT message's first EMEM write on (nv_init_helper)
+                d->flcn->cot_init_hw(cim, wpr_meta_sysmem, t.libos_args_sysmem, [&] { phase(kNVDPhaseGspInit); });
+            else if (flcn_hw)   // GSP-RM may run from sysmem once booter_load runs; a booter_load that failed left it unstarted
                 d->flcn->init_hw(im, t.libos_args_sysmem, wpr_meta_sysmem, [&] { phase(kNVDPhaseGspInit); },
                                  [&](uint32_t mbx0) { if (mbx0 != 0) phase(kNVDPhaseFlcnInit); });
             // the GSP queues, as init_hw's first statements build them: the status queue is GSP-RM's, which sets its header up once
@@ -973,7 +1006,7 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
             for (size_t i = 0; i < chan_runlists.size(); i += 2) rm.chan_runlists[(uint32_t)chan_runlists[i]] = (uint32_t)chan_runlists[i + 1];
             for (size_t i = 0; i < grctx.size(); i += 5)
                 rm.grctx_bufs.push_back({(uint16_t)grctx[i], {grctx[i + 1], grctx[i + 2] != 0, grctx[i + 3] != 0, grctx[i + 4] != 0}});
-            if (gsp_hw) nv_gsp_init_hw(rm, false, [&] { phase(kNVDPhaseDispatch); });
+            if (gsp_hw) nv_gsp_init_hw(rm, t.cot, [&] { phase(kNVDPhaseDispatch); });   // cot: the COT boot's second BAR1 block
             nv_device_init(rm, d->dev);
         } catch (const TGPyError& e) {
             err = "building the NVDevice: " + e.py();
@@ -982,6 +1015,7 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
         }
         hung = !err.empty() && d->dev.cmdq_allocator.ptr != 0;   // _setup_gpfifos had begun to submit
     }
+    if (cim.fmc_boot_args) munmap(cim.fmc_boot_args, cot_map_size);   // written once (cot_init_hw); the daemon keeps the page
     uint64_t pool_mb = 0;
     if (const char* mb = getenv("BEAGLE_NV_DATA_MB")) pool_mb = strtoull(mb, nullptr, 10);
     if (err.empty()) err = nvdOwnAllocations(js, *d, pool_mb, true);
@@ -1009,24 +1043,27 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
                     : "the NVDev's boot", level_name, d->dev.arch.c_str(),
             d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
     fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=%s)\n",
-            t.images.present ? " and NVIDIA's teardown" : "", level_name);
+            t.cot ? " and the RISC-V halt wait (COT)" : t.images.present ? " and NVIDIA's teardown" : "", level_name);
     return d;
 }
 
 // TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives
 // (TinyGPUHybridNVGsp.h, TinyGPUHybridNVFalcon.h), in NVDev.fini's order: the GSP unload (nv_init_helper's suspend wait
-// included), then, only if the GSP confirmed it, NVIDIA's teardown. The state page says so first, so a daemon that sees
-// this process die meanwhile holds instead of touching the GPU. Returns the fini request that reports it all to the
-// daemon, which then exits, or holds if the GSP did not confirm its unload (hold rule).
+// included), then, only if the GSP confirmed it, NVIDIA's teardown; on the COT boot (plan step B2), NV_FLCN_COT.fini_hw's
+// wait for the GSP's RISC-V core to halt instead. The state page says so first, so a daemon that sees this process die
+// meanwhile holds instead of touching the GPU. Returns the fini request that reports it all to the daemon, which then exits,
+// or holds if the GSP did not confirm its unload, or on COT if its RISC-V core did not halt (hold rule).
 static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string& report) {
     auto t0 = std::chrono::steady_clock::now();
     NVDTeardown& t = d.td;
     __atomic_store_n(&d.state[kNVDStatePhase], kNVDPhaseTeardown, __ATOMIC_RELEASE);
     tg_log("C++ GPU teardown: the %s unload RPC (seq %u), the suspend wait%s", t.level0 ? "LEVEL_0" : "FAST_UNLOAD",
-           d.gsp ? d.gsp->cmd_q.seq : t.seq, t.images.present ? ", then NVIDIA's teardown" : "; the teardown is off");
+           d.gsp ? d.gsp->cmd_q.seq : t.seq, t.cot ? ", then the RISC-V halt wait (COT)" : t.images.present ? ", then NVIDIA's teardown" :
+           "; the teardown is off");
     if (!d.gsp) {   // below level rm, a GSP client on the queues the daemon exported; at rm, the one the NVDevice was built with
         d.bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
-        d.flcn = std::make_unique<NVFalcon>(*d.bar0, t.chip_id);
+        d.flcn = std::make_unique<NVFalcon>(*d.bar0, t.chip_id, t.cot);
+        d.flcn->chip_name = t.chip_name;
     }
     NVFalcon& flcn = *d.flcn;
     NVFiniDiag diag;
@@ -1043,12 +1080,14 @@ static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string&
             fprintf(stderr, "TinyGPU/NV: GPU teardown failed: the GSP unload: %s\n", e.py().c_str());
             hold = true;
         }
-        if (!hold) flcn.fini_hw(diag, t.images);
+        if (!hold && flcn.cot) flcn.cot_fini_hw(diag);
+        else if (!hold) flcn.fini_hw(diag, t.images);
     } catch (const NVError& e) {   // outside what nv_init_helper tolerates: a confirmed unload still makes closing safe
         tg_log("the C++ GPU teardown failed: %s", e.py().c_str());
         fprintf(stderr, "TinyGPU/NV: GPU teardown failed: %s\n", e.py().c_str());
         hold = !diag.unload_ok;
     }
+    if (diag.cot && !diag.halted) hold = true;   // COT: the FMC and the ACR may still use the boot structures in sysmem
     secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     tg_log("C++ GPU teardown done in %.3f s: %s", secs, diag.json().c_str());
     report = diag.json();

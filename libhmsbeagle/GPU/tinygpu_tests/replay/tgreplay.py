@@ -93,6 +93,7 @@ class Replay:
         self.triggers = w.trigger_addrs()
         self.queue_head = next(x for x, n in names.items() if n == "NV_PGSP_QUEUE_HEAD[0]")
         self.bsi14 = next(x for x, n in names.items() if n == "NV_PGC6_BSI_SECURE_SCRATCH_14")
+        self.boot42 = next(x for x, n in names.items() if n == "NV_PMC_BOOT_42")
         self.engines = {x for x, n in names.items() if n in ("NV_PGSP_FALCON_ENGINE", "NV_PSEC_FALCON_ENGINE")}
         self.sec2_start = {x for x, n in self.triggers.items() if n in ("SEC2.NV_PFALCON_FALCON_CPUCTL", "SEC2.NV_PFALCON_FALCON_CPUCTL_ALIAS")}
         self.R = tggpu.regs("ada")
@@ -130,7 +131,7 @@ class Session:
         self.memory = tggpu.Memory(self.vram, self.sys_rw, rp.R)
         self.channels = tggpu.Channels()
         self.gpu_errors = []
-        self.frontend = tggpu.Frontend(self.memory, self.channels, self.info, self.gpu_errors.append)
+        self.frontend = tggpu.Frontend(self.memory, self.channels, self.info, self.gpu_errors.append)   # Ada's until set_chip
         self.gpu_pages, self.gpu_pages_all = set(), set()   # (allocation, page) the GPU wrote here: since the last snapshot, ever
         self.page_bad, self.diff_bad = [], []
         self.why = self.report = ""
@@ -138,6 +139,11 @@ class Session:
         if rp.a.guard:
             import tgguard
             self.guard = tgguard.Guard(log=rp.log)
+
+    def set_chip(self, boot42):   # the boot's NV_PMC_BOOT_42 read: the chip's MMU and QMD versions (tggpu.chip)
+        name, mmu_ver, compute = tggpu.chip(boot42)
+        self.memory = tggpu.Memory(self.vram, self.sys_rw, tggpu.regs(name), mmu_ver)
+        self.frontend = tggpu.Frontend(self.memory, self.channels, self.info, self.gpu_errors.append, compute)
 
     # sysmem by device address, for the GPU
     def sys_rw(self, iova, n, data=None):
@@ -310,6 +316,8 @@ class Session:
                     if cmd == w.MMIO_READ and bar == 1 and rep.f["reply"][0] == 0 and self.vram.read(a0, a1) != rep.f["data"]:
                         self.info["BAR1 reads unlike the VRAM here"] += 1   # the GPU writes VRAM too (USERD, semaphores, copies)
                     if self.guard and cmd == w.MMIO_READ and rep.f["reply"][0] == 0: self.guard.on_read(bar, a0, rep.f["data"])
+                    if cmd == w.MMIO_READ and bar == 0 and a0 == rp.boot42 and rep.f["reply"][0] == 0 and self.memory.root is None:
+                        self.set_chip(struct.unpack_from("<I", rep.f["data"])[0])
                     if cmd == w.MAP_SYSMEM_FD and rep.f["has_fd"]:
                         sm = sess.sysmem[e.seq]
                         al = self.allocs[sm.f["alloc"]] = Alloc(os.path.join(rp.a.mem, f"replay_{sm.f['alloc']}.bin"), sm)

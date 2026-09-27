@@ -5,7 +5,8 @@ trigger write is forwarded, check_trigger() audits what the GPU is about to use,
 forward it, hold (the proxy's fail-stop: the connection stays open and the user unplugs the eGPU before killing anything).
 It is a second layer beside the ports' own checks and cannot see inside the GPU or the GSP. What it checks:
   - MMU invalidate: every valid PTE of the page tables (a shadow of VRAM built from the client's BAR1 writes and the
-    replies to its BAR1 reads), walked from the page-directory root with tinygrad's MMU v2 field layouts (nvdev.py:33-67):
+    replies to its BAR1 reads), walked from the page-directory root with tinygrad's field layouts (nvdev.py:33-67), MMU v2,
+    or v3 once NV_PMC_BOOT_42 names a chip of architecture 0x1a or later (GB20x, tggpu.chip):
     a sysmem PTE must point at a page of a live MAP_SYSMEM_FD allocation, a VRAM PTE or page table below the VRAM size, and
     no page table may be in sysmem. The root comes from the client's COPY_SERVER_RESERVED_PDES or SET_PAGE_DIRECTORY RPC
     (tinygrad's golden image and NVDevice); an invalidate before either is refused;
@@ -14,9 +15,14 @@ It is a second layer beside the ports' own checks and cannot see inside the GPU 
     they point to is a known device address, and so is everything reachable from it and from the libos arguments the GSP
     mailboxes point to: the radix3 image's page lists, the bootloader, the signature, each libos region, the RM arguments'
     queue page list (ip.py:364-455);
+  - FSP queue head (the COT message, GB20x): GSP-RM counts as started from here, since the FMC and GSP-RM then run from
+    sysmem (NV_FLCN_COT.init_hw, ip.py:285-344); the boot structures the message names are not audited (plan step B2: the
+    COT boot stays tinygrad's, in the daemon). On that boot the teardown is seen as the unload RPC, then a halted GSP RISC-V
+    core, then WPR2 down;
   - command-queue head: each element queued since the last one has a valid checksum (NVRpcQueue._checksum, ip.py:33-37);
   - doorbell: each GPFIFO entry from the channel's last position to its GPPut points at a pushbuffer mapped by the page
-    tables to known memory (channels from the client's GPFIFO rm_alloc, tokens from the GSP's replies)."""
+    tables to known memory (channels from the client's GPFIFO rm_alloc, tokens from the GSP's replies, which are read at
+    every request: the status queue can wrap before the first doorbell, as it does in a GB205's boot, STATUS.md R45)."""
 import struct, pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import tgwire as w
@@ -28,7 +34,7 @@ PAGE = 0x1000
 class Guard:
     def __init__(self, log=print):
         self.log = log
-        self.R = tggpu.regs("ada")
+        self.R = tggpu.regs("ada")   # the falcon registers, relative to each falcon's base
         names = w.reg_names()
         self.addr = {n: a for a, n in names.items()}
         self.vram = tggpu.Vram()
@@ -38,7 +44,8 @@ class Guard:
         self.fb_offsets = {}      # falcon base -> FB offsets written since its last DMA base
         self.vram_size, self.root = None, None
         self.channels = tggpu.Channels()
-        self.memory = tggpu.Memory(self.vram, self.sys_rw, self.R)
+        self.memory = tggpu.Memory(self.vram, self.sys_rw, self.R)   # MMU v2 until NV_PMC_BOOT_42 says otherwise (on_read)
+        self.cot = False              # the chip boots through the FSP (GB20x)
         self.cmdq = self.statq = None
         self.gsp_started = self.torn_down = False
         self.stats = dict(audits=0, ptes=0, structures=0, rpcs=0, pushbuffers=0)
@@ -52,6 +59,7 @@ class Guard:
             self.cmdq, self.statq = tggpu.QueueReader(mm, w.CMD_QUEUE), tggpu.QueueReader(mm, w.STATUS_REGION[0])
 
     def on_write(self, bar, off, data):
+        self.observe_replies()
         if bar == 1: self.vram.write(off, data); return
         if bar != 0 or len(data) != 4: return
         v = struct.unpack("<I", data)[0]
@@ -61,13 +69,25 @@ class Guard:
             elif off == base + self.reg_off("DMATRFFBOFFS"): self.fb_offsets.setdefault(base, []).append(v)
 
     def on_read(self, bar, off, data):
+        self.observe_replies()
         if bar == 1: self.vram.write(off, data); return   # what VRAM holds there (e.g. zeroed page tables)
         if bar == 0 and len(data) >= 4:
             v = struct.unpack_from("<I", data)[0]
+            if off == self.addr["NV_PMC_BOOT_42"] and self.root is None and self.memory.root is None:   # the chip (nvdev.py:112-116)
+                name, mmu_ver, _ = tggpu.chip(v)
+                self.memory, self.cot = tggpu.Memory(self.vram, self.sys_rw, tggpu.regs(name), mmu_ver), mmu_ver == 3
             if off == self.addr["NV_PGC6_AON_SECURE_SCRATCH_GROUP_42"]: self.vram_size = v << 20   # nvdev.py:131
+            if self.cot and off == self.addr["GSP.NV_PRISCV_RISCV_CPUCTL"] and self.unload_rpc and self.R.NV_PRISCV_RISCV_CPUCTL.decode(v)["halted"]:
+                self.unload_ran = True   # the COT teardown's halt wait (nv_init_helper section 6): WPR2 goes down after the halt
             if off == self.addr["NV_PFB_PRI_MMU_WPR2_ADDR_HI"] and v == 0 and self.gsp_started and self.unload_ran: self.torn_down = True
 
     def reg_off(self, name): r = getattr(self.R, f"NV_PFALCON_FALCON_{name}"); return r.base + r.off
+
+    def observe_replies(self):
+        """The GSP's new replies, for the channels' work-submit tokens. Read at every request, before the status queue's ring
+        can overwrite them: the GSP writes it on its own, and a reader that waits for a doorbell misses the laps before it."""
+        if self.statq is not None:
+            for fn, payload, elem, ok in self.statq.new(): self.channels.observe_reply(fn, payload)
 
     def sys_rw(self, iova, n, data=None):
         for segs, size, mm in self.allocs.values():
@@ -88,11 +108,13 @@ class Guard:
     def check_trigger(self, off, data):
         """None to forward the trigger, or why not."""
         try:
+            self.observe_replies()
             v = struct.unpack("<I", data)[0] if len(data) == 4 else 0
             name = w.reg_name(off)
             self.stats["audits"] += 1
             if name == "NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE": return self.audit_page_tables()
             if name == "NV_PGSP_QUEUE_HEAD[0]": return self.audit_rpcs()
+            if name == "NV_PFSP_QUEUE_HEAD[0]": self.gsp_started = True; return None   # the COT message (see the top)
             if name == "NV_VIRTUAL_FUNCTION_DOORBELL": return self.audit_doorbell(v)
             for base, fal in w.FALCONS.items():
                 if name == f"{fal}.NV_PFALCON_FALCON_CPUCTL" and self.R.NV_PFALCON_FALCON_CPUCTL.decode(v)["startcpu"] or \
@@ -105,21 +127,23 @@ class Guard:
     def audit_page_tables(self):
         if self.root is None: return "an MMU invalidate before any page-directory root is known (no COPY_SERVER_RESERVED_PDES or SET_PAGE_DIRECTORY yet)"
         if self.vram_size is None: return "an MMU invalidate before the VRAM size was read"
-        pte, pde, dual = self.R.NV_MMU_VER2_PTE, self.R.NV_MMU_VER2_PDE, self.R.NV_MMU_VER2_DUAL_PDE
+        mmu, levels = self.memory.mmu, self.memory.levels
+        pte, pde, dual = mmu.pte_t, mmu.pde_t, mmu.dual_pde_t
+        sys = "_sys" if mmu.mmu_ver == 2 else ""   # a PDE's address field (NVPageTableEntry.address, nvdev.py:64-66)
         stack, seen = [(self.root, 0, 0)], set()
         while stack:
             pt, lv, va = stack.pop()
             if (pt, lv) in seen: continue
             seen.add((pt, lv))
             if pt + PAGE > self.vram_size: return f"a level-{lv} page table at VRAM {pt:#x}, past the VRAM size"
-            shift, cnt = tggpu.LEVELS[lv]
-            is_dual = lv == len(tggpu.LEVELS) - 2
+            shift, cnt = levels[lv]
+            is_dual = lv == len(levels) - 2
             raw = self.vram.read(pt, PAGE)
             for i in range(cnt):
                 e = (struct.unpack_from("<Q", raw, 16 * i + 8)[0] << 64 | struct.unpack_from("<Q", raw, 16 * i)[0]) if is_dual else struct.unpack_from("<Q", raw, 8 * i)[0]
                 if e == 0: continue
                 eva = va | (i << shift)
-                if lv == len(tggpu.LEVELS) - 1 or e & 1:   # a PTE (NVPageTableEntry.is_page)
+                if lv == len(levels) - 1 or e & 1:   # a PTE (NVPageTableEntry.is_page)
                     f = pte.decode(e)
                     if not f["valid"]: continue
                     self.stats["ptes"] += 1
@@ -134,7 +158,7 @@ class Guard:
                     ap = f["aperture_small" if is_dual else "aperture"]
                     if ap == 0: continue
                     if ap != 1: return f"a level-{lv} PDE for VA {eva:#x} puts its page table in aperture {ap} (only VRAM page tables are expected)"
-                    stack.append((f["address_small_sys" if is_dual else "address_sys"] << 12, lv + 1, eva))
+                    stack.append((f[f"address_small{sys}" if is_dual else f"address{sys}"] << 12, lv + 1, eva))
         return None
 
     def audit_rpcs(self):
@@ -143,6 +167,7 @@ class Guard:
             self.stats["rpcs"] += 1
             if not ok: return f"the queued RPC {nv.rpc_fns.get(fn, hex(fn))} has a bad checksum"
             self.channels.observe_cmd(fn, payload, self.memory)
+            if fn == nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER and self.gsp_started: self.unload_rpc = True
             if fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_CONTROL:
                 c = nv.rpc_gsp_rm_control_v.from_buffer_copy(payload[:24])
                 if c.cmd == nv_gpu.NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES:   # the golden image's page tables (ip.py:477-485)
@@ -170,7 +195,7 @@ class Guard:
         if why is None: self.gsp_started = True   # booter_load starts GSP-RM, which runs from sysmem from here on
         return why
 
-    unload_ran = False
+    unload_ran = unload_rpc = False
 
     def audit_boot_structures(self, wpr_meta):
         """booter_load's WPR meta and the libos arguments, and every device address they lead to (NV_GSP.init_sw)."""
@@ -207,8 +232,6 @@ class Guard:
         return None
 
     def audit_doorbell(self, value):
-        if self.statq is not None:
-            for fn, payload, elem, ok in self.statq.new(): self.channels.observe_reply(fn, payload)
         ch = self.channels.for_doorbell(value)
         if ch is None: return f"a doorbell with token {value:#x}, which no channel was given"
         userd = ch["ring"] + ch["entries"] * 8

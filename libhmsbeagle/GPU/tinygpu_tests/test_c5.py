@@ -1,7 +1,8 @@
 """Offline tests for plan step C5's daemon half and its log (the C++ half is golden_gsp.py, and runs end to end in
-test_c5.sh): cmd_teardown_export hands the C++ side the GSP queues (the right fd) and what the teardown needs, and refuses
-before the handoff and on the COT boot; fini{cpp_teardown} sends nothing to the GPU, drops NV from tinygrad's atexit list,
-and holds exactly when the C++ side's unload was not confirmed (or it asks to); an EOF while the state page says the C++
+test_c5.sh): cmd_teardown_export hands the C++ side the GSP queues (the right fd) and what the teardown needs, refuses before
+the handoff, and on the COT boot (plan step B2) exports no Ada teardown images;
+fini{cpp_teardown} sends nothing to the GPU, drops NV from tinygrad's atexit list, and holds exactly when the C++ side's unload
+was not confirmed, or on COT its RISC-V core did not halt (or it asks to); an EOF while the state page says the C++
 teardown was running holds, sending nothing; and TinyGPULog.h's lines are on disk when the process is killed with
 SIGKILL right after writing them. No GPU, no TinyGPU socket.
     python test_c5.py"""
@@ -67,24 +68,32 @@ def test_teardown_export():
         assert (r["unload_paddr"], r["unload_data_off"], r["unload_data_sz"], r["unload_code_off"], r["unload_code_sz"]) == (0x1230000, 0x5000, 0x4e00, 0x100, 0x4f00), r
         assert len(fds) == 1 and os.fstat(fds[0]).st_ino == os.fstat(queues.fileno()).st_ino, fds   # the queues' own fd
         assert fini["ok"] and not fini.get("hold") and calls == [] and dm.dev is None and "NV" not in Device._opened_devices, (fini, calls)
-        for kw, why in ((dict(handed_off=False), "before the handoff"), (dict(fmc_boot=True), "COT boot")):
-            a, dm, calls, _ = export_rig(**kw)
-            (r, fds), = daemon_reply(dm, a, [{"cmd": "teardown_export"}])[0][:1]
-            assert not r["ok"] and why in r["error"] and fds == [], (kw, r)
+        a, dm, calls, _ = export_rig(handed_off=False)
+        (r, fds), = daemon_reply(dm, a, [{"cmd": "teardown_export"}])[0][:1]
+        assert not r["ok"] and "before the handoff" in r["error"] and fds == [], r
+        a, dm, calls, _ = export_rig(fmc_boot=True)   # the COT boot: the unload and the halt wait, whatever images the stub holds
+        (r, fds), = daemon_reply(dm, a, [{"cmd": "teardown_export"}])[0][:1]
+        assert r["ok"] and (r["cot"], r["fw_name"], r["chip_name"], r["teardown"]) == (True, "gb202", "GB205", False) and "sb_paddr" not in r \
+               and len(fds) == 1, r
         a, dm, _, _ = export_rig(teardown_images=False)   # BEAGLE_NV_TEARDOWN=0 left no images: the unload only
         (r, fds), = daemon_reply(dm, a, [{"cmd": "teardown_export"}])[0][:1]
         assert r["ok"] and r["teardown"] is False and "sb_paddr" not in r and len(fds) == 1, r
     finally: Device._opened_devices = real
     print("teardown export: the GSP queues' own fd with init_rm_args's offsets, the command queue's seq, libos_args_sysmem, chip_id "
-          "and both images' execute_hs arguments; refused before the handoff and on the COT boot; no images when the teardown is off")
+          "and both images' execute_hs arguments; refused before the handoff; on the COT boot no images; no images when the teardown "
+          "is off")
 
 def test_cpp_fini():
     real, Device._opened_devices = Device._opened_devices, set()
     try:
         confirmed = {"unload_ok": True, "mailbox0": 0x80000000, "wpr2_lo": 0x1ffffe00, "wpr2_hi": 0, "riscv_cpuctl": 0x10,
                      "teardown": {"result": "done: Booter Unload lowered WPR2"}, "wpr2_down": True, "teardown_ok": True}
+        cot = {"unload_ok": True, "halted": True, "mailbox0": 0x80000000, "wpr2_lo": 0x7ffffe00, "wpr2_hi": 0, "riscv_cpuctl": 0x410,
+               "teardown": {"halt_wait_ms": 4, "polls": 5, "result": "done: GSP RISC-V halted after 4 ms"}, "mailbox0_after_halt": 0x80000000,
+               "wpr2_down": True, "teardown_ok": True}
         for diag, hold_asked, want_hold in ((confirmed, False, False), ({"unload_ok": False}, True, True), ({"unload_ok": False}, False, True),
-                                            ({**confirmed, "teardown_ok": False, "teardown": {"result": "failed: x"}}, False, False)):
+                                            ({**confirmed, "teardown_ok": False, "teardown": {"result": "failed: x"}}, False, False),
+                                            (cot, False, False), ({**cot, "halted": False, "teardown_ok": False}, False, True)):
             a, dm, calls, _, _ = p3.rig(signal=7); p3.with_page(dm, 0, 7, phase=d._PHASE_TEARDOWN)
             Device._opened_devices.add("NV")
             replies, held = daemon_reply(dm, a, [{"cmd": "fini", "cpp_teardown": True, "hold": hold_asked, "diag": diag}])
@@ -94,7 +103,7 @@ def test_cpp_fini():
             assert all(r[k] == v for k, v in diag.items()) and "NV" not in Device._opened_devices and dm.dev is None, r
     finally: Device._opened_devices = real
     print("fini{cpp_teardown}: nothing sent to the GPU, NV dropped from atexit; the report passed back; holds when the unload was "
-          "not confirmed or the C++ side asks, never after a confirmed one (a failed falcon step closes normally)")
+          "not confirmed, the COT core did not halt, or the C++ side asks, never after a confirmed one (a failed falcon step closes normally)")
 
 def test_eof_mid_teardown():
     real, Device._opened_devices = Device._opened_devices, set()

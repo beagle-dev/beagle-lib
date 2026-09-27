@@ -17,6 +17,10 @@ HW_HOST=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 # plan step V1's L0 recordings (STATUS.md R32): the C++ runtime's cold boot, a warm boot and a warm boot at 64 states on the
 # RTX 4060, each with its run and teardown, in $BEAGLE_TINYGPU_DATA/recordings (they hold NVIDIA firmware: never in git)
 TG_L0="20260925-204611_mittag-leffler_cold 20260925-204652_mittag-leffler_warm 20260925-204737_mittag-leffler_warm64"
+# plan step B2's GB205 recordings (STATUS.md R45-R48): the GB20x L0 (level runtime), then rungs H1 (vram), H2 (sysmem), T
+# (teardown, the plugin's COT teardown), H3 (rm, the plugin's NVDevice) and H4 (gsp_hw, the plugin's GSP-RM boot) behind the
+# guard, warm boots at 4 states in one enumeration
+TG_GB20X="20260927-093033_Marcs-Mac-Studio-490_gb205_l0 20260927-094318_Marcs-Mac-Studio-490_gb205_h1_vram 20260927-094646_Marcs-Mac-Studio-490_gb205_h2_sysmem 20260927-112033_Marcs-Mac-Studio-490_gb205_t 20260927-113001_Marcs-Mac-Studio-490_gb205_h3_rm 20260927-114036_Marcs-Mac-Studio-490_gb205_h4_gsp_hw"
 
 # Offline scripts call this first: the plugin they load must contain the BEAGLE_TINYGPU_NO_LAUNCH guard, or a failed
 # connection to a fake would start the real TinyGPU.app. (A static check: it runs nothing.)

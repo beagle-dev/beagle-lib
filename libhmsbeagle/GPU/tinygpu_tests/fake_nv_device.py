@@ -25,8 +25,14 @@ request; the client's stop is then the test's (plan step C7: the C++ side must s
 the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and the daemon must hold).
 FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; booter_load returns MAILBOX0 0x29 and starts
 nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
+FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
+MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
+starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
+from the host. At the unload the GSP suspends; its RISC-V core halts after two more reads of RISCV_CPUCTL, and only then
+does WPR2 come down (R23). A session that ends before that halt is an error: the FMC's images are in sysmem.
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
-It prints "fake TinyGPU.app (AD107 device) listening", and after each session its counts and NO ERRORS or the errors."""
+It prints "fake TinyGPU.app (AD107 device) listening" (GB205 with FAKE_NV_CHIP=gb205), and after each session its counts and
+NO ERRORS or the errors."""
 import os, sys, json, mmap, glob, socket, struct, ctypes, types, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -39,13 +45,20 @@ sock_path, MEM = sys.argv[1], sys.argv[2]
 REQ, RESP = struct.Struct("<BIIQQQ"), struct.Struct("<BQQ")
 MAP_BAR, MAP_SYSMEM_FD, CFG_READ, CFG_WRITE, MMIO_READ, MMIO_WRITE, RESIZE_BAR = 1, 2, 3, 4, 6, 7, 11
 PAGE, MB = 0x1000, 1 << 20
-VRAM_MB = 8188                                  # the RTX 4060's NV_PGC6_AON_SECURE_SCRATCH_GROUP_42
-BARS = {0: (0x1c_0000_0000, 16 * MB), 1: (0x1d_0000_0000, 256 * MB), 3: (0x1e_0000_0000, 32 * MB)}
-BOOT_0, BOOT_42 = 0x197000a1, 0x19700000        # AD107 (architecture 0x19, implementation 7; as test_b1_cot.py)
-CFG = {0: 0x288210de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x88861458}   # 10de:2882, command/status, class+revision, subsystem
+GB205 = os.environ.get("FAKE_NV_CHIP", "") == "gb205"
+NAME = "GB205" if GB205 else "AD107"
+VRAM_MB = 12227 if GB205 else 8188              # NV_PGC6_AON_SECURE_SCRATCH_GROUP_42: the RTX 5070's (R22), the RTX 4060's
+BARS = {0: (0x1c_0000_0000, (64 if GB205 else 16) * MB), 1: (0x1d_0000_0000, 256 * MB), 3: (0x1e_0000_0000, 32 * MB)}
+# GB205 (architecture 0x1b, implementation 5; the RTX 5070's own reads, R22) or AD107 (0x19, 7; as test_b1_cot.py)
+BOOT_0, BOOT_42 = (0x1b5000a1, 0x1b5a1000) if GB205 else (0x197000a1, 0x19700000)
+CFG = {0: 0x2f0410de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x89e71043} if GB205 else \
+      {0: 0x288210de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x88861458}   # 10de:2f04 or 10de:2882, command/status, class+revision, subsystem
 GSP_BASE, SEC2_BASE = 0x110000, 0x840000
 IOVA_BASE, IOVA_STRIDE = 0x40_0000_0000, 0x4000_0000
-GR_INFO = {"num_gpcs": 3, "num_tpc_per_gpc": 4, "num_sm_per_tpc": 2, "max_warps_per_sm": 48, "sm_version": 0x809}   # as fake_nv_daemon
+# as fake_nv_daemon: a GB205 reports sm_version 0xa04 and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
+GR_INFO = {"num_gpcs": 12 if GB205 else 3, "num_tpc_per_gpc": 8 if GB205 else 4, "num_sm_per_tpc": 2, "max_warps_per_sm": 48,
+           "sm_version": 0xa04 if GB205 else 0x809}
+WPR2_UP, WPR2_DOWN = (0x02ee2200, 0x02fad000), (0x7ffffe00, 0)   # a GB205's WPR2_LO/HI while GSP-RM runs, and at reset (R22, R23)
 CTX_BUF = (0x20000, 0x1000)                     # every GR context buffer's (size, alignment)
 errors, counts = [], collections.Counter()
 # FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (as fake_tinygpu_server.py; plan step V1's proxy check)
@@ -58,19 +71,27 @@ def err(msg):
     errors.append(msg)
     print(f"fake device: ERROR: {msg}", flush=True)
 
-# ── tinygrad's register tables (Ada's include sequence) ─────────────────────────────────────────────────────────────
-R = tggpu.regs("ada")
+# ── tinygrad's register tables (the chip's include sequence) ─────────────────────────────────────────────────────────
+R = tggpu.regs("gb20x" if GB205 else "ada")
 def addr(reg, base=0, idx=None): return base + reg.base + (reg.off(idx) if idx is not None else reg.off)
 A = types.SimpleNamespace(
     WPR2_LO=addr(R.NV_PFB_PRI_MMU_WPR2_ADDR_LO), WPR2_HI=addr(R.NV_PFB_PRI_MMU_WPR2_ADDR_HI), BOOT_0=addr(R.NV_PMC_BOOT_0),
-    BOOT_42=addr(R.NV_PMC_BOOT_42), VRAM=addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_42),
-    PLM=addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK), GFW=addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05, idx=0),
-    BSI14=addr(R.NV_PGC6_BSI_SECURE_SCRATCH_14), QUEUE_HEAD=addr(R.NV_PGSP_QUEUE_HEAD, idx=0),
-    GSP_ENGINE=addr(R.NV_PGSP_FALCON_ENGINE), SEC2_ENGINE=addr(R.NV_PSEC_FALCON_ENGINE), DOORBELL=0xbb0090)
-FALCON_REGS = {n: getattr(R, f"NV_PFALCON_FALCON_{n}") for n in ("CPUCTL", "HWCFG2", "DMATRFCMD", "DMATRFBASE", "DMATRFBASE1", "MAILBOX0", "MAILBOX1")}
-CPUCTL_ALIAS = R.NV_PFALCON_FALCON_CPUCTL_ALIAS   # a plain offset in tinygrad's tables (ip.py:230)
+    BOOT_42=addr(R.NV_PMC_BOOT_42), VRAM=addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_42), QUEUE_HEAD=addr(R.NV_PGSP_QUEUE_HEAD, idx=0),
+    GSP_ENGINE=addr(R.NV_PGSP_FALCON_ENGINE), DOORBELL=0xbb0090)
+if GB205:   # the FSP's EMEM window and queues (NV_FLCN_COT.kfsp_send_msg, ip.py:328-344) and its readiness scratch (:286-288)
+    A.I2CS, A.EMEMC, A.EMEMD = addr(R.NV_THERM_I2CS_SCRATCH), addr(R.NV_PFSP_EMEMC, idx=0), addr(R.NV_PFSP_EMEMD, idx=0)
+    A.FSP_QH, A.FSP_QT = addr(R.NV_PFSP_QUEUE_HEAD, idx=0), addr(R.NV_PFSP_QUEUE_TAIL, idx=0)
+    A.FSP_MH, A.FSP_MT = addr(R.NV_PFSP_MSGQ_HEAD, idx=0), addr(R.NV_PFSP_MSGQ_TAIL, idx=0)
+else:       # FWSEC's inputs, and SEC2 (booter_load and Booter Unload run there)
+    A.PLM, A.GFW = addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK), addr(R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05, idx=0)
+    A.BSI14, A.SEC2_ENGINE = addr(R.NV_PGC6_BSI_SECURE_SCRATCH_14), addr(R.NV_PSEC_FALCON_ENGINE)
+# GB20x's tables (dev_falcon_v4 gh100) name only HWCFG2 and the mailboxes: the COT boot drives no falcon from the host
+FALCON_REGS = {n: r for n in ("CPUCTL", "HWCFG2", "DMATRFCMD", "DMATRFBASE", "DMATRFBASE1", "MAILBOX0", "MAILBOX1")
+               if (r := getattr(R, f"NV_PFALCON_FALCON_{n}", None)) is not None}
+CPUCTL_ALIAS = getattr(R, "NV_PFALCON_FALCON_CPUCTL_ALIAS", None)   # a plain offset in tinygrad's tables (ip.py:230)
 BCR, RISCV_CPUCTL = R.NV_PRISCV_RISCV_BCR_CTRL, R.NV_PRISCV_RISCV_CPUCTL
-VBIOS_BASE, VBIOS = 0x300000, open(sorted(glob.glob(str(tgpaths.DATA / "vbios" / "AD107_*.rom")))[0], "rb").read()
+# the VBIOS window: FWSEC's source on Ada (NV_FLCN.prep_ucode); the COT boot reads none
+VBIOS_BASE, VBIOS = 0x300000, b"" if GB205 else open(sorted(glob.glob(str(tgpaths.DATA / "vbios" / "AD107_*.rom")))[0], "rb").read()
 
 # ── memory ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 class Sysmem:
@@ -103,11 +124,14 @@ class Device:
         self.vram, self.regs, self.sysmem, self.n_alloc = tggpu.Vram(), {}, [], 0
         self.wpr2 = False
         self.falcon = {GSP_BASE: dict(halted=False, riscv_active=False), SEC2_BASE: dict(halted=False, riscv_active=False)}
-        self.gsp = None          # set up when booter_load starts GSP-RM
+        self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
         self.unloaded = False    # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload
-        self.memory = tggpu.Memory(self.vram, self.sys_rw, R)
+        self.halt_in = None      # GB205, after the unload: RISCV_CPUCTL reads left before the core halts and WPR2 comes down
+        self.emem, self.emem_ptr, self.emem_inc = bytearray(0x800), 0, False   # GB205: the FSP's EMEM, as NV_PFSP_EMEMC set it
+        self.memory = tggpu.Memory(self.vram, self.sys_rw, R, mmu_ver=3 if GB205 else 2)
         self.channels = tggpu.Channels()
-        self.frontend = tggpu.Frontend(self.memory, self.channels, counts, err)
+        self.frontend = tggpu.Frontend(self.memory, self.channels, counts, err,
+                                       compute_class=nv_gpu.BLACKWELL_COMPUTE_B if GB205 else nv_gpu.ADA_COMPUTE_A)
 
     # sysmem by device address
     def sys_rw(self, iova, n, data=None):
@@ -125,15 +149,22 @@ class Device:
         if a == A.BOOT_0: return BOOT_0
         if a == A.BOOT_42: return BOOT_42
         if a == A.VRAM: return VRAM_MB
-        if a == A.PLM: return R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK.encode(read_protection_level0=1)
-        if a == A.GFW: return 0xff
-        if a == A.BSI14: return R.NV_PGC6_BSI_SECURE_SCRATCH_14.encode(boot_stage_3_handoff=1)
-        if a == A.WPR2_LO: return R.NV_PFB_PRI_MMU_WPR2_ADDR_LO.encode(val=((VRAM_MB * MB - 2 * MB) >> 12)) if self.wpr2 else 0
-        if a == A.WPR2_HI: return R.NV_PFB_PRI_MMU_WPR2_ADDR_HI.encode(val=((VRAM_MB * MB - 1 * MB) >> 12)) if self.wpr2 else 0
+        if GB205:
+            if a == A.I2CS: return 0xff   # the FSP is ready (NV_FLCN_COT.wait_for_reset)
+            if a in (A.WPR2_LO, A.WPR2_HI): return (WPR2_UP if self.wpr2 else WPR2_DOWN)[a == A.WPR2_HI]
+            if a == addr(RISCV_CPUCTL, GSP_BASE) and self.halt_in is not None:   # the COT unload: the core halts, then WPR2 is down
+                if self.halt_in > 0: self.halt_in -= 1
+                else: self.falcon[GSP_BASE]["riscv_active"], self.wpr2, self.halt_in = False, False, None
+        else:
+            if a == A.PLM: return R.NV_PGC6_AON_SECURE_SCRATCH_GROUP_05_PRIV_LEVEL_MASK.encode(read_protection_level0=1)
+            if a == A.GFW: return 0xff
+            if a == A.BSI14: return R.NV_PGC6_BSI_SECURE_SCRATCH_14.encode(boot_stage_3_handoff=1)
+            if a == A.WPR2_LO: return R.NV_PFB_PRI_MMU_WPR2_ADDR_LO.encode(val=((VRAM_MB * MB - 2 * MB) >> 12)) if self.wpr2 else 0
+            if a == A.WPR2_HI: return R.NV_PFB_PRI_MMU_WPR2_ADDR_HI.encode(val=((VRAM_MB * MB - 1 * MB) >> 12)) if self.wpr2 else 0
         for base, st in self.falcon.items():
-            if a == addr(FALCON_REGS["CPUCTL"], base): return FALCON_REGS["CPUCTL"].encode(halted=int(st["halted"]), alias_en=0)
-            if a == addr(FALCON_REGS["HWCFG2"], base): return FALCON_REGS["HWCFG2"].encode(mem_scrubbing=0, riscv=1)
-            if a == addr(FALCON_REGS["DMATRFCMD"], base): return FALCON_REGS["DMATRFCMD"].encode(full=0, idle=1)
+            if "CPUCTL" in FALCON_REGS and a == addr(FALCON_REGS["CPUCTL"], base): return FALCON_REGS["CPUCTL"].encode(halted=int(st["halted"]), alias_en=0)
+            if a == addr(FALCON_REGS["HWCFG2"], base): return FALCON_REGS["HWCFG2"].encode(mem_scrubbing=0, riscv=1)   # riscv_br_priv_lockdown 0
+            if "DMATRFCMD" in FALCON_REGS and a == addr(FALCON_REGS["DMATRFCMD"], base): return FALCON_REGS["DMATRFCMD"].encode(full=0, idle=1)
             if a == addr(BCR, base): return self.regs.get(a, 0) | BCR.encode(valid=1)
             if a == addr(RISCV_CPUCTL, base): return RISCV_CPUCTL.encode(active_stat=int(st["riscv_active"]), halted=int(not st["riscv_active"]))
         return self.regs.get(a, 0)
@@ -144,6 +175,15 @@ class Device:
             if self.gsp: self.gsp.run()
             return
         if a == A.DOORBELL: self.frontend.doorbell(v); return
+        if GB205:
+            if a == A.EMEMC:
+                f = R.NV_PFSP_EMEMC.decode(v)
+                self.emem_ptr, self.emem_inc = f["blk"] * 256 + f["offs"] * 4, bool(f["aincw"])
+            elif a == A.EMEMD:
+                self.emem[self.emem_ptr:self.emem_ptr + 4] = struct.pack("<I", v)
+                if self.emem_inc: self.emem_ptr += 4
+            elif a == A.FSP_QH: self.fsp_message()
+            return
         for base, st in self.falcon.items():
             start = (a == addr(FALCON_REGS["CPUCTL"], base) and FALCON_REGS["CPUCTL"].decode(v)["startcpu"]) or \
                     (a == base + CPUCTL_ALIAS and v & 0x2)
@@ -152,6 +192,33 @@ class Device:
             st = self.falcon[GSP_BASE if a == A.GSP_ENGINE else SEC2_BASE]
             st["halted"] = False
             if a == A.GSP_ENGINE: st["riscv_active"] = False
+
+    def fsp_message(self):
+        """GB205: the FSP takes the message tinygrad put in its EMEM (kfsp_send_msg: an MCTP header, an NVDM header, the payload,
+        QUEUE_TAIL = its last dword's offset, then QUEUE_HEAD = 0). A COT message's FMC boots GSP-RM from the boot parameters it
+        names; the FSP then answers in its message queue (tinygrad reads only that MSGQ_HEAD != MSGQ_TAIL)."""
+        n = self.regs.get(A.FSP_QT, 0) + 4
+        msg = bytes(self.emem[:n])
+        mctp, nvdm = struct.unpack_from("<II", msg, 0)
+        typ = nvdm >> 24
+        counts[f"FSP message type {typ:#x}"] += 1
+        if mctp >> 30 != 3 or nvdm & 0xffffff != 0x7e | 0x10de << 8: err(f"FSP message headers {mctp:#x} {nvdm:#x}")
+        if typ == nv.NVDM_TYPE_COT:
+            cot = nv.NVDM_PAYLOAD_COT.from_buffer_copy(msg[8:8 + ctypes.sizeof(nv.NVDM_PAYLOAD_COT)].ljust(ctypes.sizeof(nv.NVDM_PAYLOAD_COT), b"\0"))
+            if (cot.version, cot.size) != (2, ctypes.sizeof(nv.NVDM_PAYLOAD_COT)): err(f"COT payload version {cot.version}, size {cot.size}")
+            if self.gsp is not None or self.wpr2: err("a COT message while GSP-RM runs, or with WPR2 up")
+            p = nv.GSP_FMC_BOOT_PARAMS.from_buffer_copy(self.sys_rw(cot.gspBootArgsSysmemOffset, ctypes.sizeof(nv.GSP_FMC_BOOT_PARAMS)))
+            self.sys_rw(cot.gspFmcSysmemOffset, 16)   # the FMC image: a live device address, or this raises
+            b, rm = p.bootGspRmParams, p.gspRmParams
+            if (b.target, rm.target, b.bIsGspRmBoot, b.gspRmDescSize) != (nv.GSP_DMA_TARGET_COHERENT_SYSTEM, nv.GSP_DMA_TARGET_COHERENT_SYSTEM,
+                                                                          1, ctypes.sizeof(nv.GspFwWprMeta)):
+                err(f"FMC boot parameters: targets {b.target}/{rm.target}, GSP-RM boot {b.bIsGspRmBoot}, desc size {b.gspRmDescSize}")
+            counts["FMC boots"] += 1
+            self.wpr2 = True
+            self.falcon[GSP_BASE]["riscv_active"] = True
+            self.gsp = Gsp(self, b.gspRmDescOffset, libos=rm.bootArgsOffset)
+        else: err(f"FSP message type {typ:#x}: BEAGLE sends only COT")
+        self.regs[A.FSP_MH] = (self.regs.get(A.FSP_MT, 0) + 0x10) & 0xffffffff   # a reply is waiting
 
     def falcon_run(self, base):
         """What the falcon's ucode does, decided by which falcon and the boot's phase; then it halts."""
@@ -178,11 +245,12 @@ class Device:
 # ── the GSP ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 class Gsp:
     """GSP-RM as far as tinygrad and BEAGLE see it: the message queues, a reply to every RPC, GSP_INIT_DONE."""
-    def __init__(self, dev, wpr_meta_iova):
+    def __init__(self, dev, wpr_meta_iova, libos=None):   # libos: the COT boot's (GSP_RM_PARAMS); Ada's is in the GSP mailboxes
         self.dev = dev
         meta = nv.GspFwWprMeta.from_buffer_copy(dev.sys_rw(wpr_meta_iova, nv.GspFwWprMeta.SIZE))
         if meta.magic != nv.GSP_FW_WPR_META_MAGIC: err(f"booter_load's WPR meta has magic {meta.magic:#x}")
-        libos = dev.regs.get(addr(FALCON_REGS["MAILBOX0"], GSP_BASE), 0) | dev.regs.get(addr(FALCON_REGS["MAILBOX1"], GSP_BASE), 0) << 32
+        if libos is None:
+            libos = dev.regs.get(addr(FALCON_REGS["MAILBOX0"], GSP_BASE), 0) | dev.regs.get(addr(FALCON_REGS["MAILBOX1"], GSP_BASE), 0) << 32
         args = [nv.LibosMemoryRegionInitArgument.from_buffer_copy(dev.sys_rw(libos + 32 * i, 32)) for i in range(6)]
         rm = next((a for a in args if a.id8 == int.from_bytes(b"RMARGS", "big")), None)
         if rm is None: raise RuntimeError("no RMARGS region in the libos arguments the GSP mailboxes point to")
@@ -232,7 +300,8 @@ class Gsp:
         if fn == nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER:
             self.post(fn, msg)
             self.dev.regs[addr(FALCON_REGS["MAILBOX0"], GSP_BASE)] = 0x80000000   # suspended (kernel_gsp_tu102.c:1116-1139)
-            self.dev.falcon[GSP_BASE]["riscv_active"] = False
+            if GB205: self.dev.halt_in = 2   # the core halts, and WPR2 comes down, a little later (R23: 7 polls)
+            else: self.dev.falcon[GSP_BASE]["riscv_active"] = False
             self.dev.unloaded, self.dev.gsp = True, None
             return
         return self.post(fn, msg)   # anything else: acknowledged as sent
@@ -325,10 +394,12 @@ def serve(conn, dev):
     conn.close()
     if RECORD: RECORD.flush()
     if dev.gsp is not None: err("the session ended while the GSP was live: on the eGPU that unwires memory it still uses (DART)")
+    if dev.halt_in is not None:
+        err("the session ended before the GSP's RISC-V core halted: on a COT boot the FMC's images are in sysmem (DART)")
     for s in dev.sysmem: s.close()   # server.c's cleanup (:171-183)
     dev.sysmem, dev.gsp = [], None
-    print("fake TinyGPU.app (AD107 device): client done: " + json.dumps(dict(sorted(counts.items()))), flush=True)
-    print("fake TinyGPU.app (AD107 device): " + ("NO ERRORS" if not errors else f"{len(errors)} ERRORS, first: " + "; ".join(errors[:3])), flush=True)
+    print(f"fake TinyGPU.app ({NAME} device): client done: " + json.dumps(dict(sorted(counts.items()))), flush=True)
+    print(f"fake TinyGPU.app ({NAME} device): " + ("NO ERRORS" if not errors else f"{len(errors)} ERRORS, first: " + "; ".join(errors[:3])), flush=True)
 
 def main():
     os.makedirs(MEM, exist_ok=True)
@@ -336,7 +407,7 @@ def main():
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path); srv.listen(1)
     dev = Device()   # the GPU keeps its state across sessions; each session's sysmem goes with it
-    print("fake TinyGPU.app (AD107 device) listening", flush=True)
+    print(f"fake TinyGPU.app ({NAME} device) listening", flush=True)
     while True: serve(srv.accept()[0], dev)
 
 if __name__ == "__main__":

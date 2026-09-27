@@ -524,7 +524,8 @@ def _mm_export(dev):
 # CPU sequencer, then init_golden_image), is the C++ side's too: here it does nothing, so the boot stops right after flcn.init_hw
 # started GSP-RM (booter_load); PCIIfaceBase.__init__'s remaining statement (list_devices, IOKit) sends TinyGPU.app nothing.
 # Plan step C9, flcn_hw: NV_FLCN.init_hw (FWSEC-FRTS, then booter_load) is the C++ side's as well: the boot stops after both
-# init_sw calls, which prepared the images, the GSP's boot structures and the prequeued RPCs.
+# init_sw calls, which prepared the images, the GSP's boot structures and the prequeued RPCs. On the COT boot (plan step B2)
+# NV_FLCN_COT.init_hw, the COT message to the FSP, is the C++ side's in the same way.
 class _RMDevice:
     error_state = None
     def __init__(self, iface, level="rm"): self.iface, self.level = iface, level
@@ -540,10 +541,12 @@ def _boot_nvdev_only(level="rm"):
     def fork(*a, **k): raise _Fork
     iface = ops_nv.PCIIface.__new__(ops_nv.PCIIface)
     saved, ops_nv.PCIIface.rm_alloc = ops_nv.PCIIface.rm_alloc, fork
-    skipped = {"rm": (), "gsp_hw": (NV_GSP,), "flcn_hw": (NV_FLCN, NV_GSP)}[level]
+    from tinygrad.runtime.support.nv.ip import NV_FLCN_COT
+    skipped = {"rm": (), "gsp_hw": (NV_GSP,), "flcn_hw": (NV_FLCN, NV_FLCN_COT, NV_GSP)}[level]
     saved_init_hw = {c: c.init_hw for c in skipped}   # NV_GSP's is nv_init_helper's _patched_gsp_init_hw
     def flcn_first_statement(self): self.falcon, self.sec2 = 0x00110000, 0x00840000   # ip.py:187, which NV_FLCN.reset reads
-    for c in skipped: c.init_hw = flcn_first_statement if c is NV_FLCN else (lambda self: None)
+    def cot_first_statement(self): self.falcon = 0x00110000                          # ip.py:312
+    for c in skipped: c.init_hw = {NV_FLCN: flcn_first_statement, NV_FLCN_COT: cot_first_statement}.get(c, lambda self: None)
     try: ops_nv.PCIIface.__init__(iface, NVDevice(), 0)
     except _Fork: pass
     finally:
@@ -824,9 +827,10 @@ class Daemon:
         # fini, with this process sending nothing to the GPU afterwards: the GSP message queues (the fd of their TinyGPU.app
         # sysmem, in which both queues keep their write and read pointers; the offsets as init_rm_args lays them out; the
         # command queue's sequence number), libos_args_sysmem (the CPU sequencer's op 8), chip_id (FALCON_RM, written by
-        # every falcon reset), and nv_init_helper's two teardown images with their execute_hs arguments. One byte carrying
-        # the queue fd follows the reply. Refused before the handoff (the queues are this process's until then) and on the
-        # COT boot (Blackwell), whose unload has no host-run falcon step (plan step B2).
+        # every falcon reset), and nv_init_helper's two teardown images with their execute_hs arguments; on the COT boot
+        # (Blackwell, plan step B2) no images, since its teardown is the unload and the wait for the GSP's RISC-V core to halt
+        # (NV_FLCN_COT.fini_hw). One byte carrying the queue fd follows the reply. Refused before the handoff (the queues are
+        # this process's until then).
         if not self.handed_off: raise RuntimeError("teardown_export: before the handoff")
         info, fd, pt_size, queue_size = self._gsp_export("teardown_export")
         self.send_json(info)
@@ -839,14 +843,14 @@ class Daemon:
         import nv_init_helper
         from tinygrad.helpers import round_up
         dev_impl = self.dev.iface.dev_impl
-        if dev_impl.fmc_boot: raise RuntimeError(f"{what}: the C++ teardown is NV_FLCN's (Ada), not {dev_impl.chip_name}'s COT boot")
         gsp, flcn = dev_impl.gsp, dev_impl.flcn
         queue_size = gsp.cmd_q.tx.size   # init_rm_args (ip.py:364-387): a page table, then the command and status queues
         pte_cnt = ((queue_pte_cnt := (queue_size * 2) // 0x1000)) + round_up(queue_pte_cnt * 8, 0x1000) // 0x1000
         pt_size = round_up(pte_cnt * 8, 0x1000)
         fd = self.dev.iface.pci_dev.sysmem_fds[gsp.cmd_q_view.addr - pt_size]
-        teardown = nv_init_helper._TEARDOWN and hasattr(flcn, "beagle_sb_image_paddr")
-        info = {"ok": True, "fw_name": dev_impl.fw_name, "chip_id": dev_impl.chip_id, "gsp_queues_size": pt_size + 2 * queue_size,
+        teardown = nv_init_helper._TEARDOWN and not dev_impl.fmc_boot and hasattr(flcn, "beagle_sb_image_paddr")   # Ada's images only
+        info = {"ok": True, "fw_name": dev_impl.fw_name, "chip_name": dev_impl.chip_name, "cot": dev_impl.fmc_boot,
+                "chip_id": dev_impl.chip_id, "gsp_queues_size": pt_size + 2 * queue_size,
                 "gsp_cmdq_off": pt_size, "gsp_statq_off": pt_size + queue_size, "gsp_queue_size": queue_size, "gsp_seq": gsp.cmd_q.seq,
                 "libos_args_sysmem": gsp.libos_args_sysmem, "unload_level0": nv_init_helper._UNLOAD_LEVEL_0, "teardown": teardown}
         if teardown:   # FWSEC-SB runs with FWSEC-FRTS's arguments (ip.py:190-193); Booter Unload with beagle_unload_params
@@ -875,8 +879,15 @@ class Daemon:
         info.update(rm_level=self.rm_level, rm_next_handle=int(repr(gsp.handle_gen)[6:-1]), rm_gpfifo_class=gsp.gpfifo_class,
                     rm_compute_class=gsp.compute_class, rm_dma_class=gsp.dma_class, rm_viddec_class=gsp.viddec_class or 0,
                     rm_gb2=int(impl.chip_name.startswith("GB2")), bar0_size=pci.bar_info(0)[1])
-        if self.rm_level == "flcn_hw":   # plan step C9: what NV_FLCN.init_sw prepared for init_hw (prep_ucode, prep_booter), and the
-                                         # booter's mailbox argument, the WPR meta
+        cot_fd = None
+        if self.rm_level == "flcn_hw" and impl.fmc_boot:   # plan step B2: what NV_FLCN_COT.init_sw prepared for init_hw (the FMC boot
+            fl = impl.flcn                                 # parameters' page, whose fd follows the queues', and the FMC image), the WPR meta
+            cot_fd = pci.sysmem_fds[fl.fmc_boot_args_view.addr]
+            info.update(cot_boot_args_sysmem=fl.fmc_boot_args_sysmem, cot_boot_args_size=fl.fmc_boot_args_view.nbytes,
+                        cot_fmc_sysmem=fl.fmc_booter_bar1, cot_hash=list(fl.fmc_booter_hash), cot_sig=list(fl.fmc_booter_sig),
+                        cot_pkey=list(fl.fmc_booter_pkey), wpr_meta_sysmem=gsp.wpr_meta_sysmem)
+        elif self.rm_level == "flcn_hw":   # plan step C9: what NV_FLCN.init_sw prepared for init_hw (prep_ucode, prep_booter), and the
+                                           # booter's mailbox argument, the WPR meta
             fl, d3 = impl.flcn, impl.flcn.desc_v3
             info.update(frts_paddr=fl.frts_image_paddr, frts_offset=fl.frts_offset, frts_imem_pa=d3.IMEMPhysBase, frts_imem_va=d3.IMEMVirtBase,
                         frts_imem_sz=d3.IMEMLoadSize, frts_dmem_pa=d3.DMEMPhysBase, frts_dmem_sz=d3.DMEMLoadSize, frts_pkc_off=d3.PKCDataOffset,
@@ -891,6 +902,7 @@ class Daemon:
         self.handed_off = self.mm_exported = self.rm_exported = True
         self.send_json(info)
         socket.send_fds(self.sock, [b"Q"], [fd])
+        if cot_fd is not None: socket.send_fds(self.sock, [b"B"], [cot_fd])   # the FMC boot parameters (COT, level flcn_hw)
         log(f"rm export: GSP queues (seq {info['gsp_seq']}), the memory manager, NV_GSP's RM state (next handle {info['rm_next_handle']:#x}): "
             f"the C++ side {dict(gsp_hw='boots GSP-RM (init_hw), then ', flcn_hw='runs the falcons and boots GSP-RM, then ').get(self.rm_level, '')}"
             f"builds the NVDevice")
@@ -1001,7 +1013,7 @@ class Daemon:
         for name in [n for n in Device._opened_devices if n.split(":")[0] == "NV"]:
             Device._opened_devices.discard(name)   # atexit must not run NVDev.fini: the GPU is torn down
         reply = {"ok": True, **diag}
-        if req.get("hold") or not diag.get("unload_ok"):
+        if req.get("hold") or not diag.get("unload_ok") or diag.get("halted") is False:   # COT: the RISC-V core did not halt
             reply.update(hold=True, pid=os.getpid())
         self.dev = None   # nothing left to tear down: a later EOF exits
         return reply

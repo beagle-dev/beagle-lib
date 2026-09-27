@@ -72,7 +72,7 @@ sleep 0.3; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 [ -n "$FAKE_TG_PROXY" ] && [ -d "$FAKE_TG_PROXY" ] && cp "$SOCKDIR/run.json" "$FAKE_TG_PROXY/run.json"
 cp ~/Library/Logs/nv_dispatch_daemon.log "$TINYGPU_TEST_WORK/run_device_${LABEL}_daemon.log" 2>/dev/null
 echo "[$LABEL] tinygpuhybridtest exit=$RC (output: $OUT, daemon log: run_device_${LABEL}_daemon.log)"
-grep -E "fake TinyGPU.app \(AD107 device\): " "$DLOG" | tail -2 | cut -c1-600
+grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600
 if [ -n "$TRIP" ]; then   # the run stopped at a refusal: its verdict is whether that refusal was the one expected
     echo "[$LABEL] the proxy stopped forwarding: $TRIP"
     [ -n "$FAKE_EXPECT_TRIP" ] && echo "$TRIP" | grep -qE "$FAKE_EXPECT_TRIP" && { echo "[$LABEL] PASS (the expected refusal)"; exit 0; }
@@ -85,7 +85,7 @@ need "TinyGPU/NV: daemon booted" "daemon boot"
 need "C\+\+ runtime: [1-9][0-9]* kernels loaded" "C++ program loading"
 need "^per evaluation:" "timed evaluations"
 fini_verdict "$OUT" || missing+=("a clean fini report")
-grep "fake TinyGPU.app (AD107 device): " "$DLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake device NO ERRORS")
+grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake device NO ERRORS")
 if [ -n "$FAKE_TG_PROXY" ]; then
     grep -q "tgproxy: recording ended after" "$PLOG" && ! grep "tgproxy: session [0-9]* ended:" "$PLOG" | grep -qv " ended: eof;" \
         || missing+=("the proxy's clean sessions")

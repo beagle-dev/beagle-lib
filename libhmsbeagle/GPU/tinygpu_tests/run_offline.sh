@@ -33,6 +33,10 @@ results+=("C++ GSP-RM boot and golden image (C8): $([ $? -eq 0 ] && echo PASS ||
 # plan step C9: the plugin runs the falcons' init_hw too, FWSEC-FRTS and booter_load (BEAGLE_NV_CPP_LEVEL=flcn_hw), on the fake AD107 and the L0 recordings
 "$TG_TESTS/test_c9.sh" > "$TINYGPU_TEST_WORK/test_c9_e2e.log" 2>&1
 results+=("C++ falcon boot (C9): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c9_e2e.log)")")
+# plan step B2: a GB205 in fake_nv_device.py (the COT boot, MMU v3, QMD v5): the levels and their refusals, run_l0.sh's dry runs,
+# their replays under the guard and tgcanon, and the guard's refusals on MMU v3
+"$TG_TESTS/test_b2.sh" > "$TINYGPU_TEST_WORK/test_b2_e2e.log" 2>&1
+results+=("GB205 levels and V1 tools (B2): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_b2_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

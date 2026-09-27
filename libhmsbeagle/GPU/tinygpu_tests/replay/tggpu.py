@@ -1,5 +1,5 @@
 """The GPU as the V1 harness models it (TODO.md plan step V1): VRAM, the GPU's MMU through the client's own page tables
-(tinygrad's MMU v2 decoders, nvdev.py:33-67), and the front end that runs GPFIFOs: semaphore acquires and releases, QMD
+(tinygrad's MMU v2 and v3 decoders, nvdev.py:33-67), and the front end that runs GPFIFOs: semaphore acquires and releases, QMD
 launches (kernels are not run) and their releases, copy-engine DMA. Shared by fake_nv_device.py, which plays the whole
 GPU, and tgreplay.py, which replays what the GSP wrote but runs what the GPU does itself, so a client's pushbuffers and
 page tables are exercised, not assumed (inv:verification#5).
@@ -17,13 +17,26 @@ sys.path.insert(0, str(HERE))
 import tgwire
 
 PAGE = 0x1000
-LEVELS = tuple(zip((47, 38, 29, 21, 12), (4, 512, 512, 256, 512)))   # MMU v2: MemoryManager's pte_covers and pte_cnt (memory.py:185-187)
+
+def levels(mmu_ver):
+    """((shift, entries), ...) from the top level down: MemoryManager's pte_covers and pte_cnt (memory.py:186-187) for
+    nvdev.py's va_bits and va_shifts (:143). MMU v2 (Ada) has 5 levels, v3 (GB20x) 6."""
+    bits, shifts = (56, [12, 21, 29, 38, 47, 56]) if mmu_ver == 3 else (48, [12, 21, 29, 38, 47])
+    msb = shifts + [bits + 1]
+    return tuple(zip(shifts[::-1], [1 << (msb[i + 1] - msb[i]) for i in range(len(shifts))][::-1]))
+LEVELS = levels(2)   # MMU v2: (47, 4), (38, 512), (29, 512), (21, 256), (12, 512)
 
 def regs(chip="ada"):
     """tinygrad's register namespace after the chip's include() sequence (tgwire.INCLUDES)."""
     d = types.SimpleNamespace()
     for name, arch in tgwire.INCLUDES[chip]: NVDev.include(d, name, arch)
     return d
+
+def chip(boot42):
+    """(regs() chip, MMU version, compute class) for a value of NV_PMC_BOOT_42, as tinygrad decides: MMU v3 and the COT boot
+    from architecture 0x1a (nvdev.py:112-116), the Blackwell classes on a GB chip, QMD v5 with them (ip.py:357-362)."""
+    arch = regs().NV_PMC_BOOT_42.decode(boot42)["architecture"]
+    return ("gb20x", 3, nv_gpu.BLACKWELL_COMPUTE_B) if arch >= 0x1a else ("ada", 2, nv_gpu.ADA_COMPUTE_A)
 
 class Vram:
     """Sparse VRAM: 4 KiB pages, zero until written."""
@@ -51,16 +64,18 @@ class Vram:
 class Memory:
     """GPU virtual addresses, through the client's page tables to VRAM or to sysmem by device address (sys_rw(iova, n) reads,
     sys_rw(iova, n, data) writes)."""
-    def __init__(self, vram, sys_rw, r):
-        self.vram, self.sys_rw, self.root = vram, sys_rw, None
-        self.mmu = types.SimpleNamespace(mm=types.SimpleNamespace(level_cnt=len(LEVELS), pte_covers=[1 << s for s, _ in LEVELS]),
-                                         mmu_ver=2, vram=vram, pte_t=r.NV_MMU_VER2_PTE, pde_t=r.NV_MMU_VER2_PDE, dual_pde_t=r.NV_MMU_VER2_DUAL_PDE)
+    def __init__(self, vram, sys_rw, r, mmu_ver=2):   # r: regs() of the chip, which has its MMU version's entry types
+        self.vram, self.sys_rw, self.root, self.levels = vram, sys_rw, None, levels(mmu_ver)
+        v = f"NV_MMU_VER{mmu_ver}"
+        self.mmu = types.SimpleNamespace(mm=types.SimpleNamespace(level_cnt=len(self.levels), pte_covers=[1 << s for s, _ in self.levels]),
+                                         mmu_ver=mmu_ver, vram=vram, pte_t=getattr(r, f"{v}_PTE"), pde_t=getattr(r, f"{v}_PDE"),
+                                         dual_pde_t=getattr(r, f"{v}_DUAL_PDE"))
 
     def translate(self, va):
         """(is_sysmem, address), as the GPU's MMU would find it."""
         if self.root is None: raise RuntimeError(f"GPU access to VA {va:#x} before any SET_PAGE_DIRECTORY")
         pt = self.root
-        for lv, (shift, cnt) in enumerate(LEVELS):
+        for lv, (shift, cnt) in enumerate(self.levels):
             e = NVPageTableEntry(self.mmu, pt, lv)
             idx = (va >> shift) & (cnt - 1)
             if not e.valid(idx): raise RuntimeError(f"GPU access to unmapped VA {va:#x} (level {lv})")
@@ -120,7 +135,7 @@ class Channels:
 
 class Frontend:
     """On a doorbell, the channel's GPFIFO entries from GPGet to GPPut, as ops_nv.py submits them (NVCommandQueue._submit_to_gpfifo)."""
-    def __init__(self, memory, channels, counts, err):
+    def __init__(self, memory, channels, counts, err, compute_class=nv_gpu.ADA_COMPUTE_A):   # BLACKWELL_COMPUTE_B: QMD v5
         self.mem, self.channels, self.counts, self.err = memory, channels, counts, err
         f = ops_nv.nv_flags
         self.m = types.SimpleNamespace(   # the words build_handoff takes from tinygrad too (nv_dispatch_daemon.py)
@@ -132,7 +147,7 @@ class Frontend:
             dma_launch=nv_gpu.NVC6B5_LAUNCH_DMA, dma_sem_a=nv_gpu.NVC6B5_SET_SEMAPHORE_A,
             dma_copy=f("NVC6B5_LAUNCH_DMA", data_transfer_type="non_pipelined", src_memory_layout="pitch", dst_memory_layout="pitch"),
             dma_sem=f("NVC6B5_LAUNCH_DMA", flush_enable="true", semaphore_type="release_four_word_semaphore"))
-        self.qmd = ops_nv.QMD(types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=nv_gpu.ADA_COMPUTE_A)))
+        self.qmd = ops_nv.QMD(types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=compute_class)))
         self.ctl = nv_gpu.AmpereAControlGPFifo
 
     def doorbell(self, value):
@@ -181,12 +196,15 @@ class Frontend:
 
     def qmds(self, va):
         q = self.qmd
+        # NVComputeQueue.signal's release 0 (ops_nv.py:159-170): QMD v5 names its address and payload differently (its address's
+        # upper field is 25 bits wide; bind_sints_to_mem's mask=0xf clears 4 of them and ORs the whole upper word in)
+        addr, pay = ("release_semaphore0_addr", "release_semaphore0_payload") if q.ver >= 4 else ("release0_address", "release0_payload")
         while True:
             q.mv[:] = self.mem.read(va, q.sz * 4)
             self.counts["launches"] += 1
             if q.read("release0_enable"):
-                self.release(q.read("release0_address_upper") << 32 | q.read("release0_address_lower"),
-                             q.read("release0_payload_upper") << 32 | q.read("release0_payload_lower"))
+                self.release(q.read(f"{addr}_upper") << 32 | q.read(f"{addr}_lower"),
+                             q.read(f"{pay}_upper") << 32 | q.read(f"{pay}_lower"))
             if not q.read("dependent_qmd0_enable"): return
             va = q.read("dependent_qmd0_pointer") << 8
 

@@ -4,21 +4,23 @@
 # started through replay/tgdaemon.py with BEAGLE_TG_OFFLINE=1 (tgharness_py's pre-connect patches). Nothing reaches
 # TinyGPU.app or the eGPU: BEAGLE_TINYGPU_NO_LAUNCH=1, the plugin's lock in a private TMPDIR, real-device constructors
 # blocked in the daemon.
-#   run_replay.sh <recording dir> [label] [--mutate NAME] [--guard] [--record] [--out <replay recording dir>]
+#   run_replay.sh <recording dir> [label] [--mutate NAME] [--guard] [--record] [--out <replay recording dir>] [--level LEVEL]
 # --record adds the recording shim and the plugin's markers (for a recording made with them: the markers are then compared).
+# --level replays at another BEAGLE_NV_CPP_LEVEL than the recorded one (e.g. a level-runtime recording to the plugin's teardown).
 # Exit status 0 only if
 # every recorded session replayed exactly (tgreplay's verdict); the test's own result is not used (the replay does not
 # reproduce what the GPU wrote into big buffers, e.g. results, so logL can be wrong).
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
-REC=$1; shift; [ -f "$REC/events.bin" ] && [ -f "$REC/run.json" ] || { echo "usage: run_replay.sh <recording dir with events.bin and run.json> [label] [--mutate NAME] [--record] [--out DIR]"; exit 2; }
+REC=$1; shift; [ -f "$REC/events.bin" ] && [ -f "$REC/run.json" ] || { echo "usage: run_replay.sh <recording dir with events.bin and run.json> [label] [--mutate NAME] [--record] [--out DIR] [--level LEVEL]"; exit 2; }
 LABEL=replay; [ $# -gt 0 ] && [[ "$1" != --* ]] && { LABEL=$1; shift; }
-XARGS=(); RECORD_ENV=()
+XARGS=(); RECORD_ENV=(); LEVEL=""
 while [ $# -gt 0 ]; do
     case $1 in
         --mutate) XARGS+=(--mutate "$2"); shift ;;
         --guard) XARGS+=(--guard) ;;
         --out) XARGS+=(--out "$2"); shift ;;
+        --level) LEVEL=$2; shift ;;
         --record) RECORD_ENV=(BEAGLE_TG_RECORD=1 BEAGLE_TG_MARKERS=1 "BEAGLE_TG_RECORD_LOG=$TINYGPU_TEST_WORK/replay_${LABEL}_shim.jsonl") ;;
         *) echo "unknown option $1"; exit 2 ;;
     esac
@@ -26,7 +28,8 @@ while [ $# -gt 0 ]; do
 done
 RUN=(); while IFS= read -r line; do RUN+=("$line"); done < <("$BEAGLE_PYTHON" -c 'import json, sys; r = json.load(open(sys.argv[1])); print(r["test_bin"]); print(len(r["envs"])); [print(x) for x in r["envs"] + r["args"]]' "$REC/run.json")   # bash 3.2: no readarray
 BIN="$BEAGLE_BUILD/examples/${RUN[0]}"; NENV=${RUN[1]}; ARGS=("${RUN[@]:$((2 + NENV))}")
-ENVS=(); for e in "${RUN[@]:2:$NENV}"; do [[ "$e" == BEAGLE_TG_* ]] || ENVS+=("$e"); done   # the harness's own variables are not replayed
+ENVS=(); for e in "${RUN[@]:2:$NENV}"; do [[ "$e" == BEAGLE_TG_* ]] || { [ -n "$LEVEL" ] && [[ "$e" == BEAGLE_NV_CPP_LEVEL=* ]]; } || ENVS+=("$e"); done   # the harness's own variables are not replayed
+[ -n "$LEVEL" ] && ENVS+=(BEAGLE_NV_CPP_LEVEL=$LEVEL)
 # a recording without a level was made before plan step C5's knob, with the daemon's teardown (the L0 recordings): replayed at
 # level runtime, unless the caller sets one (test_c5.sh replays them to the plugin's own teardown)
 if ! printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' && [ -z "${BEAGLE_NV_CPP_LEVEL+x}" ]; then ENVS+=(BEAGLE_NV_CPP_LEVEL=runtime); fi

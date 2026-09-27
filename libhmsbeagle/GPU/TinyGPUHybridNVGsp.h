@@ -9,7 +9,8 @@
  * (BEAGLE_NV_UNLOAD_LEVEL=0) with the 20 s SEC2 sleep covering its sequencer, and the logs of the unload's status-queue
  * events and sequencer ops. The queues are the daemon's, shared: their memory comes over as TinyGPU.app's sysmem fd, and
  * everything else they hold (write and read pointers) lives in that memory, except the command queue's sequence number,
- * which the daemon hands over.
+ * which the daemon hands over. On the COT boot (Blackwell, plan step B2) nv_init_helper's additions for it too: the unload's
+ * report starts not halted, and a CPU sequence with ops 5-8 (NV_FLCN's primitives) is refused before any op runs.
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGSP_H
@@ -111,6 +112,7 @@ public:
     uint64_t libos_args_sysmem;
     bool is_err_state = false;   // NVDev.is_err_state
     bool in_unload = false;      // nv_init_helper's _in_unload: the unload's status-queue events and sequencer ops are logged
+    std::vector<int> seq_refused;   // nv_init_helper's beagle_seq_refused: the COT sequencer's refused ops
     int rpc_timeout_ms = 10000;  // wait_resp's timeout (tests shorten it)
     NVRpcQueue cmd_q, stat_q;
     std::function<void(uint32_t)> after_rpc;   // sees each RPC's queue sequence number once it is queued (the state page)
@@ -131,6 +133,21 @@ public:
         if (!words.empty()) memcpy(words.data(), seq_buf.data() + hdr_sz, words.size() * 4);
         if (words.size() > hdr.cmdIndex) words.resize(hdr.cmdIndex);
         tg_log("CPU sequencer (%s): ops %s", in_unload ? "during unload" : "boot", seq_ops(words).c_str());
+        // ops 5-8 drive the falcon through NV_FLCN's reset/start_cpu/wait_cpu_halted, which NV_FLCN_COT lacks: nv_init_helper
+        // refuses them before the first write (plan steps B1, B2), and they stay at the head of GSP-RM's status queue
+        if (flcn.cot) {
+            std::vector<int> cot;
+            for (int op : seq_op_list(words))
+                if (op >= 0x5 && op <= 0x8 && std::find(cot.begin(), cot.end(), op) == cot.end()) cot.push_back(op);
+            std::sort(cot.begin(), cot.end());
+            if (!cot.empty()) {
+                seq_refused = cot;
+                std::string l = "[";
+                for (size_t k = 0; k < cot.size(); ++k) l += (k ? ", " : "") + std::to_string(cot[k]);
+                throw NVError("RuntimeError", "CPU sequencer ops " + l + "] drive the falcon through NV_FLCN, which the COT boot (" +
+                              flcn.chip_name + ") does not have (plan step B2): refused before any of the sequence ran");
+            }
+        }
 
         size_t i = 0;
         auto next = [&]() -> uint32_t {
@@ -199,6 +216,9 @@ public:
     void fini_hw(NVFiniDiag& diag, bool level0) {
         using namespace nv_regs;
         diag = NVFiniDiag();
+        // COT (Blackwell): not halted until NV_FLCN_COT.fini_hw's wait proves it, so any exit before that wait leaves halted
+        // false and the connection is held (plan step B1)
+        diag.cot = flcn.cot;
         in_unload = true;
         if (level0) flcn.sleep_after_sec2_start = true;
         try { rpc_unloading_guest_driver(level0); }
@@ -221,6 +241,14 @@ public:
     }
 
 private:
+    // the ops of a sequence as _seq_ops parses them, up to the first unknown one
+    static std::vector<int> seq_op_list(const std::vector<uint32_t>& w) {
+        static const int nargs[] = {2, 3, 5, 1, 2, 0, 0, 0, 0};
+        std::vector<int> ops;
+        for (size_t i = 0; i < w.size() && w[i] <= 8; i += 1 + nargs[w[i]]) ops.push_back((int)w[i]);
+        return ops;
+    }
+
     // nv_init_helper's _seq_ops: the ops of a sequence, as run_cpu_seq steps through its operands
     static std::string seq_ops(const std::vector<uint32_t>& w) {
         static const int nargs[] = {2, 3, 5, 1, 2, 0, 0, 0, 0};

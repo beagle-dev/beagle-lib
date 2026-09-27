@@ -1,6 +1,7 @@
 // C++ side of golden_gsp.py (TODO.md plan step C5): TinyGPUHybridNVGsp.h and TinyGPUHybridNVFalcon.h run one scenario
 // against golden_gsp.py's scripted TinyGPU.app, through TinyGPUTransport.h (APL_REMOTE_SOCK), with the GSP queues in the
-// file GOLDEN_QUEUES, and print the result lines golden_gsp.py prints for tinygrad's and nv_init_helper's code.
+// file GOLDEN_QUEUES, and print the result lines golden_gsp.py prints for tinygrad's and nv_init_helper's code. cot=1: GB20x's
+// COT boot (plan step B2), whose teardown is the RISC-V halt wait.
 //   golden_gsp <scenario> [key=value ...]
 #include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
 
@@ -39,8 +40,11 @@ int main(int argc, char** argv) {
     uint64_t bar_addr, bar_size;
     if (!e.empty() || !t.bar_info(0, bar_addr, bar_size, e)) return fprintf(stderr, "transport: %s\n", e.c_str()), 1;   // NVDev's map_bar(0)
     NVBar0 bar0{&t};
-    NVFalcon flcn(bar0, (uint32_t)arg("chip_id", 0x197000a1));
+    const bool cot = arg("cot") != 0;
+    NVFalcon flcn(bar0, (uint32_t)arg("chip_id", 0x197000a1), cot);
     flcn.wait_ms = (int)arg("wait_ms", 30);
+    flcn.cot_halt_timeout_s = (double)arg("halt_timeout_ms", 4000) / 1000;
+    flcn.chip_name = g_args["chip_name"];
     flcn.sleep = [](double s) { if (s >= 1) printf("sleep %g\n", s); else nv_sleep(s); };   // the 20 s one is recorded, not slept
 
     uint8_t* queues = nullptr;
@@ -63,10 +67,12 @@ int main(int argc, char** argv) {
     img.unload_code_off = (uint32_t)arg("unload_code_off"); img.unload_code_sz = (uint32_t)arg("unload_code_sz");
 
     try {
-        if (scenario == "teardown") {   // nv_init_helper's NV_FLCN.fini_hw after an unload that did or did not confirm
+        if (scenario == "teardown") {   // nv_init_helper's NV_FLCN.fini_hw (COT: NV_FLCN_COT's) after an unload that did or did not confirm
             NVFiniDiag diag;
             diag.unload_ok = arg("unload_ok") != 0;
-            flcn.fini_hw(diag, img);
+            diag.cot = cot;
+            if (cot) flcn.cot_fini_hw(diag);
+            else flcn.fini_hw(diag, img);
             printf("diag=%s\n", diag.json().c_str());
             return 0;
         }
@@ -102,7 +108,8 @@ int main(int argc, char** argv) {
             NVFiniDiag diag;
             try { gsp.fini_hw(diag, arg("level0") != 0); }
             catch (const NVError& x) { printf("unload error=%s\n", x.py().c_str()); }
-            flcn.fini_hw(diag, img);
+            if (cot) flcn.cot_fini_hw(diag);
+            else flcn.fini_hw(diag, img);
             printf("diag=%s\n", diag.json().c_str());
         } else return fprintf(stderr, "unknown scenario %s\n", scenario.c_str()), 2;
     } catch (const NVError& x) {

@@ -40,7 +40,7 @@ the pages (the first snapshot after a marker holds what was written before it to
 Prints, per session, EQUIVALENT, or every difference by category with examples (and, where the epochs stop being aligned, that
 point with the phase it falls in (the last marker before it) and the N delimiters before it), then what differed within the
 rules (poll counts, BAR1 reads, GSP events, markers, masked bytes); exits 0 only if every session is equivalent."""
-import sys, struct, argparse, hashlib, pathlib, collections
+import sys, struct, ctypes, argparse, hashlib, pathlib, collections
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import tgwire as w
 import tggpu
@@ -57,11 +57,15 @@ class Side:
     def __init__(self, events, blobs, split=None):
         self.blobs, self.split, self.start = blobs, split, 0   # split: compare from the first request after this seq
         self.R = tggpu.regs("ada")
-        self.pte = self.R.NV_MMU_VER2_PTE
+        self.pte, self.chip = self.R.NV_MMU_VER2_PTE, None   # MMU v3's once NV_PMC_BOOT_42 names a GB20x (build)
         dma = self.R.NV_PFALCON_FALCON_DMATRFCMD
         self.dma_cmd, self.idle = {base + dma.base + dma.off for base in w.FALCONS}, dma.mask("idle")
         names = w.reg_names()
         self.mailbox_pairs = {a: n for a, n in names.items() if n.endswith("MAILBOX0") or n.endswith("MAILBOX1")}
+        self.boot42 = next(a for a, n in names.items() if n == "NV_PMC_BOOT_42")
+        # the COT boot's FSP message (NV_FLCN_COT.kfsp_send_msg): its EMEM data, and the page of the FMC boot parameters it names
+        self.fsp = {n: next(a for a, m in names.items() if m == n) for n in ("NV_PFSP_EMEMC[0]", "NV_PFSP_EMEMD[0]", "NV_PFSP_QUEUE_HEAD[0]")}
+        self.emem, self.fmc_params = b"", None
         self.sym = {}       # page IOVA -> (allocation, page)
         self.bars = {}      # BAR physical address -> BAR number
         self.initial = {}   # allocation -> the segment-list bytes TinyGPU.app wrote at its start
@@ -131,6 +135,12 @@ class Side:
                             delim = ("mbx", name, s if s else full)   # the lo half is judged with the hi half
                             if name == "NV_PGSP_FALCON_MAILBOX1": self.libos = self.sym.get(full & ~(PAGE - 1))
                     else: delim = ("w0", w.reg_name(a0), e.f["payload"])
+                    if a0 == self.fsp["NV_PFSP_EMEMC[0]"]: self.emem = b""
+                    elif a0 == self.fsp["NV_PFSP_EMEMD[0]"]: self.emem += e.f["payload"]
+                    elif a0 == self.fsp["NV_PFSP_QUEUE_HEAD[0]"] and len(self.emem) >= 8 + ctypes.sizeof(nv.NVDM_PAYLOAD_COT) \
+                            and self.emem[7] == nv.NVDM_TYPE_COT:   # after the MCTP and NVDM headers, the COT payload
+                        cot = nv.NVDM_PAYLOAD_COT.from_buffer_copy(self.emem[8:8 + ctypes.sizeof(nv.NVDM_PAYLOAD_COT)])
+                        self.fmc_params = self.sym.get(cot.gspBootArgsSysmemOffset & ~(PAGE - 1))
                 elif cmd == w.CFG_WRITE: delim = ("cfgw", a0, a1, a2)
                 elif cmd == w.MAP_SYSMEM_FD: delim = ("sysmem", a0, a1, rep.f["reply"][0] if rep else None, rep.f["reply"][1] if rep else None)
                 elif cmd == w.MAP_BAR: delim = ("bar", bar, rep.f["reply"][0] if rep else None, rep.f["reply"][2] if rep else None)
@@ -145,6 +155,9 @@ class Side:
                     for k, b in enumerate(data): cur["w1"][a0 + k] = b
             elif cmd == w.MMIO_READ and rep and rep.f["reply"][0] == 0:
                 if bar == 0:
+                    if a0 == self.boot42 and self.chip is None:   # the boot's chip-id read: the chip's PTE layout (tggpu.chip)
+                        self.chip, mmu_ver, _ = tggpu.chip(int.from_bytes(rep.f["data"][:4], "little"))
+                        self.pte = getattr(tggpu.regs(self.chip), f"NV_MMU_VER{mmu_ver}_PTE")
                     vals, key = cur["r0"][(a0, a1)], (a0, a1)
                     v = rep.f["data"] if a1 > 8 else int.from_bytes(rep.f["data"], "little")
                     if not vals or vals[-1] != v: vals.append(v)
@@ -163,13 +176,21 @@ class Side:
                 ep = epoch_of_seq.get(e.seq, last_epoch)
                 for pg, sha in e.f["pages"]:
                     self.pages_by_epoch[ep].append(((e.f["alloc"], pg), sha))
+        def last_snapshot(page):   # (allocation, page) -> its contents at its last snapshot, or None
+            last = None
+            for e in events:
+                if e.kind == w.K_PAGES and e.f["alloc"] == page[0]:
+                    for pg, sha in e.f["pages"]:
+                        if pg == page[1]: last = self.blobs.get(sha)
+            return last
+        # on the COT boot (GB20x) the libos arguments' address is in the FMC boot parameters (NV_FLCN_COT.init_hw), not in the
+        # GSP mailboxes; they sit at the start of their page (_alloc_boot_mem)
+        if self.libos is None and self.fmc_params is not None and (params := last_snapshot(self.fmc_params)):
+            rm = nv.GSP_FMC_BOOT_PARAMS.from_buffer_copy(params[:ctypes.sizeof(nv.GSP_FMC_BOOT_PARAMS)]).gspRmParams
+            self.libos = self.sym.get(rm.bootArgsOffset & ~(PAGE - 1))
         # the GSP's log buffer: the allocation the libos arguments' first region (LOGINIT) points at (NV_GSP.init_libos_args)
         if self.libos is not None:
-            last = {}
-            for e in events:
-                if e.kind == w.K_PAGES and e.f["alloc"] == self.libos[0]:
-                    for pg, sha in e.f["pages"]:
-                        if pg == self.libos[1]: last = self.blobs.get(sha)
+            last = last_snapshot(self.libos)
             if last:
                 pa = nv.LibosMemoryRegionInitArgument.from_buffer_copy(last[:32]).pa
                 self.log_alloc = (self.sym.get(pa & ~(PAGE - 1)) or (None,))[0]

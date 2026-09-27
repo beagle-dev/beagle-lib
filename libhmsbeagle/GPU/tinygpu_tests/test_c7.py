@@ -2,7 +2,7 @@
 _boot_nvdev_only runs tinygrad's own PCIIface.__init__ and stops it at its first RM call, unsent; cmd_boot at level rm replies
 without an architecture, and bad levels are refused; the handoff is refused at rm; cmd_rm_export hands the C++ side the GSP
 queues' own fd, tinygrad's memory manager and NV_GSP's RM state (the handle generator not advanced), once, only after a
-level-rm boot and never on the COT boot; cmd_state_page at rm takes the page alone and cmd_timeline the C++ timeline after
+level-rm boot (on the COT boot too, plan step B2); cmd_state_page at rm takes the page alone and cmd_timeline the C++ timeline after
 it; and fini or EOF continues the GSP's command queue from the state page's count (the unload, or on the hung path the unload
 RPC only and a hold), holding without a word to the GPU when the C++ side took the GSP over but sent no state page.
 No GPU, no TinyGPU socket.
@@ -112,14 +112,17 @@ def test_rm_export():
         assert len(fds) == 1 and os.fstat(fds[0]).st_ino == os.fstat(queues.fileno()).st_ino, fds   # the queues' own fd
         assert dm.handed_off and dm.mm_exported and dm.rm_exported and calls == ["hold"], calls   # then an EOF with no state page
         assert not again["ok"] and "only once" in again["error"] and fds2 == [], again
-        for kw, why in ((dict(rm_level=False), "after a boot at level rm"), (dict(fmc_boot=True), "COT boot")):
-            a, dm, calls, _, _ = rm_rig(**kw)
-            (r, fds), = c5.daemon_reply(dm, a, [{"cmd": "rm_export"}])[0][:1]
-            assert not r["ok"] and why in r["error"] and fds == [] and not dm.rm_exported and not dm.handed_off, (kw, r)
+        a, dm, calls, _, _ = rm_rig(rm_level=False)
+        (r, fds), = c5.daemon_reply(dm, a, [{"cmd": "rm_export"}])[0][:1]
+        assert not r["ok"] and "after a boot at level rm" in r["error"] and fds == [] and not dm.rm_exported and not dm.handed_off, r
+        a, dm, calls, queues, _ = rm_rig(fmc_boot=True)   # the COT boot (plan step B2): the same export, GB20x's
+        (r, fds), = c5.daemon_reply(dm, a, [{"cmd": "rm_export"}])[0][:1]
+        assert r["ok"] and (r["cot"], r["fw_name"], r["chip_name"], r["rm_gb2"], r["teardown"]) == (True, "gb202", "GB205", 1, False), r
+        assert len(fds) == 1 and os.fstat(fds[0]).st_ino == os.fstat(queues.fileno()).st_ino and dm.rm_exported, fds
     finally: Device._opened_devices = real
     print("rm export: the GSP queues' own fd and the teardown's arguments, the memory manager, NV_GSP's RM state (handles not "
           "advanced; runlists, the golden channel's runlist and the context buffers in order) and BAR0's size, once; refused "
-          "without a level-rm boot and on the COT boot")
+          "without a level-rm boot; on the COT boot GB20x's, with no Ada teardown images")
 
 def page(seq, phase=d._PHASE_DISPATCH):
     f = tempfile.TemporaryFile(); f.truncate(d._STATE_WORDS * 8)
