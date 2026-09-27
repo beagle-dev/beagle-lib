@@ -7,6 +7,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 W="$TINYGPU_TEST_WORK/v1"; rm -rf "$W"; mkdir -p "$W"
 P="$BEAGLE_PYTHON"; fails=0
+# the fake AD107 runs below boot at level sysmem, where the daemon builds the whole NVDevice: BEAGLE_TG_MUTATE's defects and the
+# shim's markers are in its Python (at the default level, gsp_hw, the plugin boots GSP-RM and builds the NVDevice itself)
+REF=BEAGLE_NV_CPP_LEVEL=sysmem
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
@@ -26,8 +29,8 @@ done
 
 # 3. tinygrad's real boot, the C++ runtime and the teardown on the fake AD107: plain, then through the proxy with the recording
 #    shim and the plugin's markers, which must leave the device's stream unchanged
-FAKE_TG_RECORD="$W/dev_plain.bin" "$TG_TESTS/run_fake_device.sh" v1_plain -- --state-count 4 --reps 3 > "$W/dev_plain.txt" 2>&1; r1=$?
-FAKE_TG_RECORD="$W/dev_rec.bin" FAKE_TG_PROXY="$W/rec" "$TG_TESTS/run_fake_device.sh" v1_rec BEAGLE_TG_RECORD=1 BEAGLE_TG_MARKERS=1 \
+FAKE_TG_RECORD="$W/dev_plain.bin" "$TG_TESTS/run_fake_device.sh" v1_plain "$REF" -- --state-count 4 --reps 3 > "$W/dev_plain.txt" 2>&1; r1=$?
+FAKE_TG_RECORD="$W/dev_rec.bin" FAKE_TG_PROXY="$W/rec" "$TG_TESTS/run_fake_device.sh" v1_rec "$REF" BEAGLE_TG_RECORD=1 BEAGLE_TG_MARKERS=1 \
     BEAGLE_TG_RECORD_LOG="$W/rec_shim.jsonl" -- --state-count 4 --reps 3 > "$W/dev_rec.txt" 2>&1; r2=$?
 check "full boot on the fake AD107 (the real daemon, C++ runtime, teardown): PASS plain and recorded" "[ $r1 -eq 0 ] && [ $r2 -eq 0 ]"
 check "the shim and markers, behind the proxy, leave the device's byte stream unchanged" "cmp -s '$W/dev_plain.bin' '$W/dev_rec.bin'"
@@ -65,18 +68,18 @@ check "the diff-early recording mutation (a channel's replies before its rm_allo
     "replay_line v1_diff_early | grep -q 'PASS'"
 
 # 7. the guard, live behind the proxy: a clean boot passes, and each defect is refused before it reaches the device
-FAKE_TG_GUARD=1 FAKE_TG_PROXY="$W/guard_clean" "$TG_TESTS/run_fake_device.sh" v1_guard -- --state-count 4 --reps 3 > "$W/guard_clean.txt" 2>&1
+FAKE_TG_GUARD=1 FAKE_TG_PROXY="$W/guard_clean" "$TG_TESTS/run_fake_device.sh" v1_guard "$REF" -- --state-count 4 --reps 3 > "$W/guard_clean.txt" 2>&1
 check "the guard passes a clean boot and its teardown" "tail -1 '$W/guard_clean.txt' | grep -q PASS"
 for m in "pte-sys-bad|the PTE for VA .* points at device address" "mailbox-bad|SEC2's mailboxes point at" "rpc-corrupt|bad checksum"; do
     IFS='|' read -r mut rx <<< "$m"
-    BEAGLE_TG_MUTATE=$mut FAKE_TG_GUARD=1 FAKE_EXPECT_TRIP="$rx" FAKE_TG_PROXY="$W/guard_$mut" "$TG_TESTS/run_fake_device.sh" v1_guard_$mut -- --state-count 4 --reps 3 > "$W/guard_$mut.txt" 2>&1
+    BEAGLE_TG_MUTATE=$mut FAKE_TG_GUARD=1 FAKE_EXPECT_TRIP="$rx" FAKE_TG_PROXY="$W/guard_$mut" "$TG_TESTS/run_fake_device.sh" v1_guard_$mut "$REF" -- --state-count 4 --reps 3 > "$W/guard_$mut.txt" 2>&1
     check "the guard refuses the $mut defect" "tail -1 '$W/guard_$mut.txt' | grep -q 'PASS (the expected refusal)'"
 done
 
 # 8. the comparator: a recording is equivalent to itself and to the same boot recorded without the shim (markers aside), and not to
 #    a boot whose client sent a different RPC field
-FAKE_TG_PROXY="$W/rec_plain" "$TG_TESTS/run_fake_device.sh" v1_rec_plain -- --state-count 4 --reps 3 > /dev/null 2>&1
-BEAGLE_TG_MUTATE=rpc-field FAKE_TG_PROXY="$W/rec_rpc" "$TG_TESTS/run_fake_device.sh" v1_rec_rpc -- --state-count 4 --reps 3 > /dev/null 2>&1
+FAKE_TG_PROXY="$W/rec_plain" "$TG_TESTS/run_fake_device.sh" v1_rec_plain "$REF" -- --state-count 4 --reps 3 > /dev/null 2>&1
+BEAGLE_TG_MUTATE=rpc-field FAKE_TG_PROXY="$W/rec_rpc" "$TG_TESTS/run_fake_device.sh" v1_rec_rpc "$REF" -- --state-count 4 --reps 3 > /dev/null 2>&1
 "$P" "$TG_TESTS/replay/tgcanon.py" "$W/rec" "$W/rec" > "$W/canon_self.txt" 2>&1; c1=$?
 "$P" "$TG_TESTS/replay/tgcanon.py" "$W/rec_plain" "$W/rec" > "$W/canon_shim.txt" 2>&1; c2=$?
 "$P" "$TG_TESTS/replay/tgcanon.py" "$W/rec_plain" "$W/rec_rpc" > "$W/canon_rpc.txt" 2>&1; c3=$?

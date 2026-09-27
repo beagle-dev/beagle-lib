@@ -38,6 +38,10 @@ check "at gsp_hw: the daemon's boot stopped once GSP-RM started and it exported 
 "$TG_TESTS/run_fake_device.sh" c8_p5 BEAGLE_NV_CPP_LEVEL=gsp_hw -- --state-count 4,64 --threads --reps 3 > "$W/p5.txt" 2>&1
 check "fake AD107 at gsp_hw: two instances in two threads share the boot and the plugin's NVDevice" \
     "[ $? -eq 0 ] && [ \$(grep -c '$BUILT' '$(out p5)') -eq 1 ] && grep -q '^tips: every instance read back its own tip partials exactly' '$(out p5)'"
+# ... and the plugin's default since the rung passed (STATUS.md R41), the variable empty: level gsp_hw, the same bytes
+FAKE_TG_RECORD="$W/dev_unset.bin" "$TG_TESTS/run_fake_device.sh" c8_unset BEAGLE_NV_CPP_LEVEL= -- --state-count 4 --reps 3 > "$W/unset.txt" 2>&1
+check "fake AD107 with BEAGLE_NV_CPP_LEVEL empty: the plugin's default is level gsp_hw, PASS, the same bytes as gsp_hw" \
+    "[ $? -eq 0 ] && grep -q '(level gsp_hw: sm_89, QMD v3' '$(out unset)' && cmp -s '$W/dev_gsp_hw.bin' '$W/dev_unset.bin'"
 
 # 2. failures: before GSP_INIT_DONE (a GSP that never posts it) the daemon holds; after it (the golden image's VA space refused)
 #    the daemon unloads the GPU, continuing the plugin's GSP command queue

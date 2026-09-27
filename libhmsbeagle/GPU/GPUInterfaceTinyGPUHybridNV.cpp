@@ -247,25 +247,26 @@ static const uint64_t kNVDPhaseFlcnInit = 4;  // level flcn_hw (plan step C9): F
 // this side unloads the GPU at fini, on tinygrad's ported GSP queue and falcon primitives, and the daemon only exits; runtime:
 // the daemon unloads it, as before C5. vram (plan step C6, rung H1): also, at the handoff this side takes tinygrad's memory
 // manager over (TinyGPUMemory.h, TinyGPUHybridNVMemory.h) and allocates its VRAM pool itself; sysmem (rung H2): its four
-// buffers too, the default since both rungs passed on the RTX 4060 (STATUS.md R35). rm (plan step C7, rung H3): the daemon boots
+// buffers too. rm (plan step C7, rung H3): the daemon boots
 // only the NVDev, and this side builds the NVDevice with tinygrad's RM client ported (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h).
 // gsp_hw (plan step C8, rung H4): the daemon's boot stops once GSP-RM started; this side runs NV_GSP.init_hw (GSP-RM's INIT_DONE,
-// with its CPU sequencer) and init_golden_image, then builds the NVDevice. flcn_hw (plan step C9): the daemon's boot stops after
+// with its CPU sequencer) and init_golden_image, then builds the NVDevice: the default since rungs H3 and H4 passed on the
+// RTX 4060 (STATUS.md R41). flcn_hw (plan step C9): the daemon's boot stops after
 // both init_sw calls; this side runs NV_FLCN.init_hw too (FWSEC-FRTS, booter_load), on the images the daemon prepared.
 enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw, kNVLevelFlcnHw };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
-        if (!v || !v[0] || strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
+        if (!v || !v[0] || strcmp(v, "gsp_hw") == 0) return kNVLevelGspHw;
         if (strcmp(v, "runtime") == 0) return kNVLevelRuntime;
         if (strcmp(v, "teardown") == 0) return kNVLevelTeardown;
         if (strcmp(v, "vram") == 0) return kNVLevelVram;
+        if (strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
         if (strcmp(v, "rm") == 0) return kNVLevelRm;
-        if (strcmp(v, "gsp_hw") == 0) return kNVLevelGspHw;
         if (strcmp(v, "flcn_hw") == 0) return kNVLevelFlcnHw;
         fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw, flcn_hw); "
-                "using sysmem\n", v);
-        return kNVLevelSysmem;
+                "using gsp_hw\n", v);
+        return kNVLevelGspHw;
     }();
     return level;
 }

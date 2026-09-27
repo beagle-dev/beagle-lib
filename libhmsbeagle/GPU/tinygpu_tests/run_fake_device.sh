@@ -14,8 +14,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
-# the level is always explicit, and so recorded in run.json (plan step C5): the plugin's default, sysmem, unless given
-printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS+=(BEAGLE_NV_CPP_LEVEL=sysmem)
+# the level is always explicit, and so recorded in run.json (plan step C5): the plugin's default, gsp_hw, unless given
+printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS+=(BEAGLE_NV_CPP_LEVEL=gsp_hw)
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
 SOCKDIR=$(mktemp -d /tmp/tgd.XXXXXX); SOCK="$SOCKDIR/dev.sock"
 MEM="$TINYGPU_TEST_WORK/fake_device_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"

@@ -5,7 +5,7 @@
 #   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|default] [reps] [--poison] [--instances K] [--threads] [--cycles C]
 # (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; default: no mode
 # variable, the plugin's own choice: the C++ runtime on Ada, plan decision 16, with its own GSP unload and teardown at fini,
-# plan step C5, and its own memory manager, plan step C6 (level sysmem); runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
+# plan step C5, its own memory manager, plan step C6, NVDevice, plan step C7, and GSP-RM boot, plan step C8 (level gsp_hw); runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
 # BEAGLE_NV_CPP_LEVEL=teardown; vram and sysmem: also the plugin's own memory manager, plan step C6's rungs H1 and H2; rm: also
 # the NVDevice, which the plugin builds with its own RM client after the daemon's NVDev-only boot, plan step C7's rung H3; gsp_hw:
 # also GSP-RM's init_hw and the golden image, after a daemon boot that stops once GSP-RM started, plan step C8's rung H4;

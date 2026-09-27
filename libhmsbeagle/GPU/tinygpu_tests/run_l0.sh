@@ -7,10 +7,10 @@
 # caffeinate -ims, with the lid open.
 #   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw] [--guard]
 # (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the plugin unloads the GPU and runs NVIDIA's teardown itself
-# at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem (the default), the plugin also
+# at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem, the plugin also
 # allocates its VRAM pool, and its buffers, with its own memory manager, plan step C6; rm, the plugin also builds the NVDevice
-# with its own RM client after the daemon's NVDev-only boot, plan step C7; gsp_hw, also GSP-RM's init_hw and the golden
-# image, after a daemon boot that stops once GSP-RM started, plan step C8; flcn_hw, also the falcons' init_hw (FWSEC-FRTS,
+# with its own RM client after the daemon's NVDev-only boot, plan step C7; gsp_hw (the default), also GSP-RM's init_hw and the
+# golden image, after a daemon boot that stops once GSP-RM started, plan step C8; flcn_hw, also the falcons' init_hw (FWSEC-FRTS,
 # booter_load), after a daemon boot that stops after both init_sw, plan step C9; --guard runs the proxy in guard mode,
 # replay/tgguard.py, for a rung's first run: a trigger it refuses is not forwarded and the proxy holds, so unplug the eGPU)
 # L0_DRY_RUN=1 runs the same script offline, against fake_nv_device.py instead of TinyGPU.app (the daemon with tgharness_py's
@@ -22,7 +22,7 @@
 # at its client's close; 1 stops the session's chain of runs; 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw] [--guard]"
-LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=sysmem); GUARD=()
+LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=gsp_hw); GUARD=()
 set -- "${@:4}"
 while [ $# -gt 0 ]; do
     case $1 in
