@@ -555,11 +555,14 @@ def _boot_nvdev_only(level="rm"):
     return iface
 
 
-# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): four u64 words
-# [phase, frame_in_flight, last_submitted, seq] in a POSIX shm segment the plugin creates, unlinks and passes here right
+# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): five u64 words
+# [phase, frame_in_flight, last_submitted, seq, keeper] in a POSIX shm segment the plugin creates, unlinks and passes here right
 # after the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is
-# gone). Plan step C5 added seq, the GSP command queue's sequence number after the C++ side's last RPC, and phase 2.
-_STATE_WORDS, _PHASE_DISPATCH, _PHASE_TEARDOWN = 4, 1, 2   # 1: the C++ side owns both GPFIFOs; 2: it is unloading the GPU itself
+# gone). Plan step C5 added seq, the GSP command queue's sequence number after the C++ side's last RPC, and phase 2; plan step
+# C10 the keeper word, which the C++ side sets before it asks this process to hand its role to its crash guard (cmd_release),
+# and which _eof reads too.
+_STATE_WORDS, _PHASE_DISPATCH, _PHASE_TEARDOWN = 5, 1, 2   # 1: the C++ side owns both GPFIFOs; 2: it is unloading the GPU itself
+_KEEPER_GUARD = 1     # plan step C10: the keeper word (the page's fifth): the crash guard keeps the GPU, not this process
 _PHASE_GSP_INIT = 3   # plan step C8 (level gsp_hw): the C++ side is booting GSP-RM (NV_GSP.init_hw), before it read GSP_INIT_DONE
 _PHASE_FLCN_INIT = 4  # plan step C9 (level flcn_hw): the C++ side runs FWSEC-FRTS; booter_load has not started GSP-RM
 
@@ -576,6 +579,7 @@ class Daemon:
         self._allocs = {}
         self._state = self._cpp_signal = None   # the C++ side's state page and timeline (cmd_state_page, plan step P3)
         self.mm_exported = False  # set by cmd_handoff at level vram or sysmem: the C++ side owns the memory manager (plan step C6)
+        self.released = False                         # plan step C10: the crash guard keeps the GPU (cmd_release)
         self.rm_level, self.rm_exported = "", False   # plan step C7: booted the NVDev only ("rm"; "gsp_hw", plan step C8, without
                                                       # NV_GSP.init_hw; "flcn_hw", C9, without either init_hw); cmd_rm_export gave
                                                       # the C++ side the GSP
@@ -822,6 +826,20 @@ class Daemon:
                                        "the C++ side allocated its buffers (level sysmem)"))
         self.send_json({"ok": True})
 
+    def cmd_release(self, req):
+        # Plan step C10: the plugin's crash guard (beagle-tinygpu-guard, spawned with the TinyGPU.app connection, the GSP queues, the
+        # state page and the C++ timeline) takes this process's keeper role over at level flcn_hw, once the C++ side built the
+        # NVDevice and its timeline. The C++ side set the keeper word before asking: a plugin that dies from then on leaves the
+        # decision to the guard (_eof reads the word too), and this process exits without a word to the GPU.
+        if not (self.rm_exported and self.rm_level == "flcn_hw" and self._state is not None and self._cpp_signal is not None
+                and self._state[4] == _KEEPER_GUARD):
+            raise RuntimeError(f"release: level {self.rm_level or 'none'}, state page {self._state is not None}, timeline "
+                               f"{self._cpp_signal is not None}, keeper word {self._state[4] if self._state is not None else None} "
+                               "(level flcn_hw, after cmd_timeline, the word set)")
+        self.dev, self.released = None, True
+        log("keeper role handed to the C++ side's guard: exiting without a word to the GPU")
+        self.send_json({"ok": True, "pid": os.getpid()})
+
     def cmd_teardown_export(self, req):
         # TODO.md plan step C5 (level teardown): what the C++ side needs to unload the GSP and run NVIDIA's teardown itself at
         # fini, with this process sending nothing to the GPU afterwards: the GSP message queues (the fd of their TinyGPU.app
@@ -1027,7 +1045,7 @@ class Daemon:
                 log("level rm: the C++ side took the GSP over and never sent its state page: sending nothing to the GPU")
                 return {"ok": False, "error": "level rm without a state page", "hold": True, "pid": os.getpid()}
             if self._state is not None:
-                phase, in_flight, last, seq = self._state
+                phase, in_flight, last, seq = self._state[:4]
                 log(f"C++ state page: phase {phase}, frame_in_flight {in_flight}, last_submitted {last}, seq {seq}, "
                     f"C++ timeline signal {self._cpp_signal.value if self._cpp_signal else 'not sent'}")
                 if phase == _PHASE_FLCN_INIT:   # plan step C9: before booter_load; FWSEC-FRTS runs from VRAM, nothing from sysmem
@@ -1102,6 +1120,9 @@ class Daemon:
         # The plugin went away without "fini" (killed, crashed, or cut off mid-message). Until plan step P3 the interpreter
         # then exited and tinygrad's atexit finalized with no hold decision and without waiting for the C++ side's work;
         # now it decides as fini does, and never closes the last TinyGPU.app fd while the GSP may be live (hold rule).
+        if self._state is not None and self._state[4] == _KEEPER_GUARD:   # plan step C10: the C++ side handed the role over
+            log("command socket closed; the keeper word names the C++ side's guard, which decides: exiting without a word to the GPU")
+            return
         if self.dev is None:   # no boot, a refused or failed one (cmd_boot decided), or fini already tore it down
             log("command socket closed; no device to tear down, exiting")
             return
@@ -1145,7 +1166,7 @@ class Daemon:
                         traceback.print_exc(file=sys.stderr)
                     except Exception: pass
                     self.send_json({"ok": False, "error": str(e)})
-                if cmd == "fini":
+                if cmd == "fini" or self.released:
                     return
         except ConnectionError as e:   # the plugin went away mid-message, or before reading a reply
             log(f"command socket: {type(e).__name__}: {e}")

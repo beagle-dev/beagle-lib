@@ -62,7 +62,9 @@
 #include <string_view>
 #include <vector>
 
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -82,6 +84,7 @@
 #include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDevice.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
 
@@ -234,14 +237,20 @@ static std::recursive_timed_mutex& nv_mutex() {
     return *m;
 }
 
-// The state page (TODO.md plan step P3; nvdStatePage below): four 64-bit words shared with the daemon, which reads them
+// The state page (TODO.md plan step P3; nvdStatePage below): five 64-bit words shared with the daemon, which reads them
 // only once this side can no longer write (at "fini", or at EOF after this process died). Plan step C5 added the GSP
-// command queue's sequence number after this side's last RPC, and the teardown phase.
-enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, kNVDStateWords };
+// command queue's sequence number after this side's last RPC, and the teardown phase; plan step C10 the keeper word, which
+// this side sets before it asks the daemon to hand its role to the crash guard (cmd_release); the guard reads the same page
+// (TinyGPUHybridNVGuard.h).
+enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, kNVDStateKeeper, kNVDStateWords };
 static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the daemon holds on any other phase
 static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU itself (plan step C5): the daemon holds at EOF
 static const uint64_t kNVDPhaseGspInit = 3;   // level gsp_hw (plan step C8): this side is booting GSP-RM, before its INIT_DONE: the daemon holds
 static const uint64_t kNVDPhaseFlcnInit = 4;  // level flcn_hw (plan step C9): FWSEC-FRTS, before booter_load: GSP-RM never started, the daemon closes
+static_assert(kNVDStatePhase == kGuardStatePhase && kNVDStateInFlight == kGuardStateInFlight && kNVDStateLastSubmitted == kGuardStateLastSubmitted &&
+              kNVDStateSeq == kGuardStateSeq && kNVDStateKeeper == kGuardStateKeeper && kNVDStateWords == kNVDStateWordsGuard, "the guard's state page");
+static_assert(kNVDPhaseDispatch == kGuardPhaseDispatch && kNVDPhaseTeardown == kGuardPhaseTeardown && kNVDPhaseGspInit == kGuardPhaseGspInit &&
+              kNVDPhaseFlcnInit == kGuardPhaseFlcnInit, "the guard's phases");
 
 // TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5):
 // this side unloads the GPU at fini, on tinygrad's ported GSP queue and falcon primitives, and the daemon only exits; runtime:
@@ -290,6 +299,7 @@ struct NVDTeardown {
     NVTeardownImages images;     // nv_init_helper's FWSEC-SB and Booter Unload, if the teardown is on
     bool cot = false;            // GB20x's COT boot (plan step B2): the unload, then the RISC-V halt wait; no falcon ucode
     std::string chip_name;       // NVDev.chip_name
+    int queues_fd = -1;          // the queues' TinyGPU.app sysmem fd, kept for the crash guard (plan step C10)
 };
 
 // C++ dispatch state (see "C++ dispatch" below); null on the daemon path.
@@ -300,6 +310,10 @@ struct NVDispatchState {
     size_t map_sizes[4] = {};    // ... and their sizes
     std::unique_ptr<NVMemState> mem;   // BEAGLE_NV_CPP_LEVEL=vram or sysmem: tinygrad's memory manager, taken over (plan step C6)
     int signal_fd = -1;          // ... at sysmem: the timeline's TinyGPU.app fd, for the daemon's EOF path (nvdTimeline)
+    int state_fd = -1;           // the state page's fd, kept for the crash guard (plan step C10)
+    uint64_t bar0_size = 0;      // level rm and up: BAR0's size, as the daemon mapped it
+    int guard_ctl = -1;          // level flcn_hw: the crash guard's socketpair, once it keeps the GPU (plan step C10)
+    pid_t guard_pid = 0;
     std::unique_ptr<NVBar0> bar0;      // BEAGLE_NV_CPP_LEVEL=rm (plan step C7): the GSP from the boot on, NV_GSP's RM client, the NVDevice
     std::unique_ptr<NVFalcon> flcn;
     std::unique_ptr<NVGsp> gsp;
@@ -318,10 +332,12 @@ struct NVDispatchState {
     NVDTeardown td;              // BEAGLE_NV_CPP_LEVEL=teardown (plan step C5)
 };
 static NVDispatchState* g_nvd = nullptr;
+static void nv_test_kill(const char* point, NVDispatchState* d = nullptr);   // plan step C10's test hook (below)
 
 // The C++ runtime (see the top of this file): BEAGLE_NV_USE_DAEMON=0, or, with neither BEAGLE_NV_USE_DAEMON nor
 // BEAGLE_NV_CPP_DISPATCH set, the default on Ada (TODO.md plan decision 16: AD10x, whose PCI device IDs are 0x26xx-0x28xx
-// in tinygrad's PCIIface family list, ops_nv.py:559). Blackwell keeps the daemon until plan step B2, and Ampere never ran.
+// in tinygrad's PCIIface family list, ops_nv.py:559) and on the GB205 (0x2fxx, since plan step B2 ran every level on it, the
+// user's choice of 2026-09-27). The other Blackwell families (0x2bxx-0x2dxx) keep the daemon, untested, and Ampere never ran.
 // First asked in NvSetDevice, after Initialize read the device ID.
 static bool nv_cpp_runtime() {
     static const bool on = [] {
@@ -329,9 +345,9 @@ static bool nv_cpp_runtime() {
         if (v) return strcmp(v, "0") == 0;
         if (getenv("BEAGLE_NV_CPP_DISPATCH")) return false;
         uint16_t family = tg_pci_device_id() & 0xff00;
-        bool ada = family == 0x2600 || family == 0x2700 || family == 0x2800;
-        if (ada) fprintf(stderr, "TinyGPU/NV: the C++ runtime, the default on this GPU (BEAGLE_NV_USE_DAEMON=1 selects the daemon)\n");
-        return ada;
+        bool cpp = family == 0x2600 || family == 0x2700 || family == 0x2800 || family == 0x2f00;
+        if (cpp) fprintf(stderr, "TinyGPU/NV: the C++ runtime, the default on this GPU (BEAGLE_NV_USE_DAEMON=1 selects the daemon)\n");
+        return cpp;
     }();
     return on;
 }
@@ -398,7 +414,7 @@ static void nvFlushLaunchQueue(NVInstance& in) {
 // NVIDIA's teardown if it ran (on unless BEAGLE_NV_TEARDOWN=0; plan steps P2, P3) or else whether the next boot needs a
 // power cycle, and whether the daemon keeps its copy of the TinyGPU.app connection open because the GPU may still use
 // memory behind it (the unload was not confirmed, or a frame to TinyGPU.app was cut mid-send). Returns that last one.
-static bool nv_report_unload(const std::string& resp) {
+static bool nv_report_unload(const std::string& resp, const char* who = "the daemon") {
     uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
     bool unload_ok = nv_json_bool(resp, "unload_ok");
     if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
@@ -416,8 +432,8 @@ static bool nv_report_unload(const std::string& resp) {
                 unload_ok ? "WPR2 is still up" : "the GPU did not confirm its unload");
     bool hold = nv_json_bool(resp, "hold") && nvd_json_u64(resp, "pid", pid);
     if (hold)
-        fprintf(stderr, "TinyGPU/NV: the daemon (pid %llu) keeps the TinyGPU.app connection open because the GPU may still use "
-                "memory behind it. Unplug the eGPU first, then kill %llu.\n", (unsigned long long)pid, (unsigned long long)pid);
+        fprintf(stderr, "TinyGPU/NV: %s (pid %llu) keeps the TinyGPU.app connection open because the GPU may still use "
+                "memory behind it. Unplug the eGPU first, then kill %llu.\n", who, (unsigned long long)pid, (unsigned long long)pid);
     return hold;
 }
 
@@ -569,6 +585,7 @@ static void nvdFlushLaunches(std::vector<NVPendingLaunch>& pending) {
     nvd_qmd_release(h, prev, h.signal.va, value);
     g_nvd->timeline = value + 1;
     nvd_submit(h.compute, pb);
+    nv_test_kill("batch");   // plan step C10's test: killed with this batch on the GPU
     nv_profile_end("launch_batch", t0);
     g_nvProfileLaunches += launched;
 }
@@ -589,6 +606,7 @@ static void nvdCopyIn(uint64_t dst, const void* src, size_t sz) {
         nvd_push_copy(pb, h, dst + i, h.staging.va + off, n);
         nvd_push_dma_signal(pb, h, h.signal.va, value);
         nvd_submit(h.copy, pb);
+        nv_test_kill("copy");   // plan step C10's test: killed with this copy on the GPU
     }
     nv_profile_end("h2d", t0);
 }
@@ -648,6 +666,8 @@ static void nvd_unmap(NVDispatchState* d) {
     if (d->signal_fd >= 0) { close(d->signal_fd); d->signal_fd = -1; }
     if (d->state) { munmap(d->state, kNVDStateWords * 8); d->state = nullptr; }
     if (d->td.queues) { munmap(d->td.queues, d->td.queues_size); d->td.queues = nullptr; }
+    if (d->state_fd >= 0) { close(d->state_fd); d->state_fd = -1; }
+    if (d->td.queues_fd >= 0) { close(d->td.queues_fd); d->td.queues_fd = -1; }
 }
 
 // BEAGLE_NV_CPP_LEVEL=vram or sysmem (TODO.md plan step C6): tinygrad's memory manager, as the daemon exported it with the
@@ -809,14 +829,15 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
     __atomic_store_n(&st[kNVDStatePhase], phase, __ATOMIC_RELEASE);
     nv_send_msg(cmd_sock, "{\"cmd\":\"state_page\"}");
     bool sent = nv_send_fds(cmd_sock, &fd, 1);
-    close(fd);
     std::string js = sent ? nv_recv_msg(cmd_sock) : "";
     if (js.empty() || !nv_json_ok(js)) {
         fprintf(stderr, "TinyGPU/NV: state page failed: %s\n", js.c_str());
         munmap(m, size);
+        close(fd);
         return false;
     }
     d.state = st;
+    d.state_fd = fd;   // for the crash guard (plan step C10)
     return true;
 }
 
@@ -825,7 +846,7 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
 // command queue's sequence number), what the CPU sequencer and the falcon resets need, and nv_init_helper's two teardown
 // images; on a COT boot (Blackwell, plan step B2) no images: its teardown is the unload and the RISC-V halt wait. Without it
 // (a refusal, another chip) the daemon unloads the GPU at fini, as at level runtime.
-// cmd_teardown_export's fields (also in cmd_rm_export's reply) and the GSP queues, mapped from their fd (closed here): an empty
+// cmd_teardown_export's fields (also in cmd_rm_export's reply) and the GSP queues, mapped from their fd (kept for the crash guard): an empty
 // string, or what was missing
 static std::string nvdParseTeardown(const std::string& js, int fd, NVDTeardown& t) {
     std::string err;
@@ -855,7 +876,8 @@ static std::string nvdParseTeardown(const std::string& js, int fd, NVDTeardown& 
         if (q == MAP_FAILED) err = std::string("mmap of the GSP queues: ") + strerror(errno);
         else t.queues = (uint8_t*)q;
     }
-    if (fd >= 0) close(fd);
+    if (fd >= 0 && err.empty()) t.queues_fd = fd;   // for the crash guard (plan step C10)
+    else if (fd >= 0) close(fd);
     if (!err.empty()) return err;
     t.chip_id = (uint32_t)v[0]; t.queues_size = v[1]; t.cmdq_off = v[2]; t.statq_off = v[3]; t.queue_size = v[4];
     t.seq = (uint32_t)v[5]; t.libos_args_sysmem = v[6];
@@ -982,6 +1004,7 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     }
     if (err.empty()) {
         tg_transport().seed_bar(0, w[0]);   // the daemon mapped BAR0 in its boot
+        d->bar0_size = w[0];
         d->bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
         d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id, t.cot);   // cot: level rm's GSP client, then the COT teardown
         d->flcn->chip_name = t.chip_name;
@@ -1047,6 +1070,94 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     return d;
 }
 
+// TODO.md plan step C10's offline tests (test_c10.sh): BEAGLE_NV_TEST_KILL=<point> kills this process there with SIGKILL, as a
+// crash would, so the crash guard's decisions can be checked (at "frame", with the state page saying a frame is in flight;
+// at "batch" and "copy", right after the first launch batch's or copy's submission, with the GPU still running it; at "handover",
+// with the keeper word set and the release not asked for).
+// Never set outside the harness.
+static void nv_test_kill(const char* point, NVDispatchState* d) {
+    static const char* k = getenv("BEAGLE_NV_TEST_KILL");
+    if (!k || strcmp(k, point) != 0) return;
+    if (d && d->state && strcmp(point, "frame") == 0) __atomic_store_n(&d->state[kNVDStateInFlight], 1, __ATOMIC_RELEASE);
+    tg_log("BEAGLE_NV_TEST_KILL=%s: SIGKILL", point);
+    fflush(stderr);
+    kill(getpid(), SIGKILL);
+}
+
+// Plan step C10: the crash guard's executable: BEAGLE_NV_GUARD, or beagle-tinygpu-guard next to this plugin; "" (BEAGLE_NV_GUARD=0)
+// keeps the daemon as the keeper
+static std::string nv_guard_path() {
+    const char* e = getenv("BEAGLE_NV_GUARD");
+    if (e && strcmp(e, "0") == 0) return "";
+    if (e && e[0]) return e;
+    Dl_info info;
+    if (!dladdr((void*)&nv_guard_path, &info) || !info.dli_fname) return "";
+    std::string so = info.dli_fname;
+    return so.substr(0, so.rfind('/') + 1) + "beagle-tinygpu-guard";
+}
+
+// TODO.md plan step C10: at level flcn_hw the crash guard (beagle-tinygpu-guard, tinygpu_guard.cpp) takes the daemon's keeper role
+// over once the NVDevice and its timeline exist. Spawned (TinyGPUHybridNVGuard.h) with the TinyGPU.app connection, its lock, the
+// GSP queues, the state page and the timeline, it says ready; then this side marks the state page's keeper word, the daemon exits
+// (cmd_release) without a word to the GPU, and this side's command socket closes. If anything fails before that, or the daemon
+// refuses the release, the word goes back, the daemon stays the keeper and the guard stands down, having sent nothing.
+static void nvGuardTakeover(NVHybridState* g, NVDispatchState& d) {
+    const std::string path = nv_guard_path();
+    if (path.empty()) { fprintf(stderr, "TinyGPU/NV: the daemon stays the keeper (BEAGLE_NV_GUARD=0)\n"); return; }
+    int ctl = -1;
+    pid_t pid = 0;
+    std::string err = guard_spawn(path, ctl, pid);
+    if (!err.empty()) { fprintf(stderr, "TinyGPU/NV: the crash guard is unavailable (%s): the daemon stays the keeper\n", err.c_str()); return; }
+    const NVDTeardown& t = d.td;
+    GuardSetup s{};
+    s.magic = kGuardMagic;
+    s.size = sizeof(s);
+    s.queues_size = t.queues_size; s.cmdq_off = t.cmdq_off; s.statq_off = t.statq_off; s.queue_size = t.queue_size;
+    s.libos_args_sysmem = t.libos_args_sysmem; s.bar0_size = d.bar0_size; s.signal_size = d.h.signal.size;
+    s.chip_id = t.chip_id; s.cot = t.cot; s.level0 = t.level0; s.parent_pid = (uint32_t)getpid(); s.images = t.images;
+    snprintf(s.chip_name, sizeof(s.chip_name), "%s", t.chip_name.c_str());
+    snprintf(s.level_name, sizeof(s.level_name), "flcn_hw");
+    const int fds[kGuardFds] = {d.tg_sock, tg_transport().lock_fd(), t.queues_fd, d.state_fd, d.signal_fd};
+    char r = 0;
+    struct pollfd pfd = {ctl, POLLIN, 0};
+    if (!guard_send_setup(ctl, s, fds)) err = std::string("its setup: ") + strerror(errno);
+    else if (poll(&pfd, 1, 10000) != 1 || read(ctl, &r, 1) != 1 || r != 'R') err = "it never said ready";
+    if (err.empty()) {
+        nv_test_kill("ready");
+        // The keeper word first. The guard and the daemon read it only after this side's last write of it (at its death, or at
+        // the release), so they agree: from here a death leaves the decision to the guard, and the daemon exits without a word.
+        __atomic_store_n(&d.state[kNVDStateKeeper], kGuardKeeperGuard, __ATOMIC_RELEASE);
+        nv_test_kill("handover");
+        nv_send_msg(g->cmd_sock, "{\"cmd\":\"release\"}");
+        std::string js = nv_recv_msg(g->cmd_sock);
+        if (js.empty()) fprintf(stderr, "TinyGPU/NV: the daemon went away without a release reply: the guard keeps the keeper role\n");
+        else if (!nv_json_ok(js)) err = "the daemon's release: " + nv_json_str(js, "error");
+    }
+    if (!err.empty()) {   // the daemon keeps the role (the word says so again); the guard, which has sent nothing, stands down
+        __atomic_store_n(&d.state[kNVDStateKeeper], kGuardKeeperDaemon, __ATOMIC_RELEASE);
+        const char x = 'X';
+        if (write(ctl, &x, 1) != 1) {}
+        close(ctl);
+        int i = 0;
+        for (; i < 50 && waitpid(pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
+        if (i == 50) { kill(pid, SIGKILL); waitpid(pid, nullptr, 0); }
+        fprintf(stderr, "TinyGPU/NV: the crash guard is unavailable (%s): the daemon stays the keeper\n", err.c_str());
+        return;
+    }
+    nv_test_kill("released");
+    for (int i = 0; i < 50 && g->daemon_pid > 0; ++i) {   // the daemon exits after its reply
+        if (waitpid(g->daemon_pid, nullptr, WNOHANG) > 0) g->daemon_pid = 0;
+        else usleep(100000);
+    }
+    close(g->cmd_sock);
+    g->cmd_sock = -1;
+    d.guard_ctl = ctl;
+    d.guard_pid = pid;
+    fprintf(stderr, "TinyGPU/NV: the guard (pid %d) keeps the keeper role; the daemon released it%s\n", (int)pid,
+            g->daemon_pid ? " (and has not exited yet)" : " and exited");
+    tg_log("the crash guard (pid %d) keeps the keeper role; the daemon released it", (int)pid);
+}
+
 // TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives
 // (TinyGPUHybridNVGsp.h, TinyGPUHybridNVFalcon.h), in NVDev.fini's order: the GSP unload (nv_init_helper's suspend wait
 // included), then, only if the GSP confirmed it, NVIDIA's teardown; on the COT boot (plan step B2), NV_FLCN_COT.fini_hw's
@@ -1057,6 +1168,7 @@ static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string&
     auto t0 = std::chrono::steady_clock::now();
     NVDTeardown& t = d.td;
     __atomic_store_n(&d.state[kNVDStatePhase], kNVDPhaseTeardown, __ATOMIC_RELEASE);
+    nv_test_kill("teardown");
     tg_log("C++ GPU teardown: the %s unload RPC (seq %u), the suspend wait%s", t.level0 ? "LEVEL_0" : "FAST_UNLOAD",
            d.gsp ? d.gsp->cmd_q.seq : t.seq, t.cot ? ", then the RISC-V halt wait (COT)" : t.images.present ? ", then NVIDIA's teardown" :
            "; the teardown is off");
@@ -1088,6 +1200,7 @@ static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string&
         hold = !diag.unload_ok;
     }
     if (diag.cot && !diag.halted) hold = true;   // COT: the FMC and the ACR may still use the boot structures in sysmem
+    if (!diag.unload_ok) hold = true;            // the daemon's rule too (_cpp_fini); the crash guard's comes from here
     secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     tg_log("C++ GPU teardown done in %.3f s: %s", secs, diag.json().c_str());
     report = diag.json();
@@ -1334,6 +1447,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
         bool hung = false;
         g_nvd = nvDispatchRM(g->cmd_sock, tg_fd, hung, nv_cpp_level());
         if (!g_nvd) nv_safe_exit(1, hung);
+        if (nv_cpp_level() == kNVLevelFlcnHw) nvGuardTakeover(g, *g_nvd);   // plan step C10: the crash guard keeps the GPU from here
         g->arch = g_nvd->dev.arch;
         nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);
         nvRuntimePrograms(in, cubin);
@@ -1358,10 +1472,16 @@ static void nvFiniDevice() {
     int tg_sock = -1;
     std::string cpp_fini, cpp_report;   // BEAGLE_NV_CPP_LEVEL=teardown: this side's own GPU teardown and its report (plan step C5)
     double cpp_secs = 0;
+    int guard_ctl = -1;                 // plan step C10: the crash guard keeps the GPU (the daemon is gone)
+    pid_t guard_pid = 0;
     if (g_nvd) {  // let the GPU finish before it is torn down
         nvd_idle();
+        nv_test_kill("idle", g_nvd);
+        nv_test_kill("frame", g_nvd);
         if (g_nvd->runtime) tg_sock = g_nvd->tg_sock;
-        if (g_nvd->td.ready && g_nv->cmd_sock >= 0) {
+        guard_ctl = g_nvd->guard_ctl;
+        guard_pid = g_nvd->guard_pid;
+        if (g_nvd->td.ready && (g_nv->cmd_sock >= 0 || guard_ctl >= 0)) {
             tg_transport().marker(TGM_FINI, 0);
             cpp_fini = nvdCppTeardown(*g_nvd, cpp_secs, cpp_report);
         }
@@ -1374,6 +1494,19 @@ static void nvFiniDevice() {
         if (nv_profile_enabled()) fprintf(stderr, "TinyGPU/NV: [profile]   kernel %s n=%lld\n", kv.first.c_str(), kv.second);
     g_nvKernelLaunches.clear();
     bool hold = false;
+    if (guard_ctl >= 0) {   // plan step C10: this side's report, as the daemon's reply would carry it; then clean or hold to the guard
+        hold = cpp_fini.empty() || nv_json_bool(cpp_fini, "hold");
+        std::string resp = "{\"ok\": true" + (cpp_report.size() > 2 ? ", " + cpp_report.substr(1, cpp_report.size() - 2) : std::string()) +
+                           (hold ? ", \"hold\": true, \"pid\": " + std::to_string(guard_pid) : std::string()) + "}";
+        nv_report_unload(resp, "the crash guard");
+        const char m = hold ? 'H' : 'C';
+        if (write(guard_ctl, &m, 1) != 1)
+            fprintf(stderr, "TinyGPU/NV: the crash guard (pid %d) did not take the %s: it decides as at a crash\n", (int)guard_pid,
+                    hold ? "hold" : "clean exit");
+        close(guard_ctl);
+        for (int i = 0; i < 50 && !hold && waitpid(guard_pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
+        if (nv_profile_enabled()) fprintf(stderr, "TinyGPU/NV: fini %.3f s: the C++ GSP unload and teardown (the crash guard keeps the role)\n", cpp_secs);
+    }
     if (g_nv->cmd_sock >= 0) {
         if (cpp_fini.empty()) tg_transport().marker(TGM_FINI, 0);
         // The daemon tears the GPU down now (GSP unload, then a wait for the GSP to report itself suspended) and

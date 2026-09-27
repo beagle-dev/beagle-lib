@@ -42,6 +42,7 @@ if [ -n "$FAKE_TG_PROXY" ]; then
         "$(basename "$TEST_BIN")" "$(IFS=$'\x1f'; echo "${ENVS[*]}")" "$@" > "$SOCKDIR/run.json"
 fi
 env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
+    BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" BEAGLE_NV_USE_DAEMON=0 "${ENVS[@]}" \
     "$TEST_BIN" "$@" > "$OUT" 2>&1 &
 TST=$!
@@ -62,6 +63,20 @@ if [ -n "$DPID" ]; then
     for i in $(seq 50); do kill -0 "$DPID" 2>/dev/null || break; sleep 0.1; done
     kill -0 "$DPID" 2>/dev/null && { echo "[$LABEL] the daemon (pid $DPID) held the fake connection; ending it"; kill -KILL "$DPID"; }
 fi   # the daemon exits after fini
+# plan step C10's crash guard (level flcn_hw): it exits at the plugin's clean, or once its own decision tore the GPU down; one that
+# holds (its log says whom to kill) keeps the fake's connection as it would the eGPU's, so it is ended here
+GPID=$(cat "$SOCKDIR/guard.pid" 2>/dev/null)
+if [ -n "$GPID" ]; then
+    for i in $(seq 600); do
+        kill -0 "$GPID" 2>/dev/null || break
+        grep -q "then kill $GPID\." "$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" 2>/dev/null && break
+        sleep 0.1
+    done
+    if kill -0 "$GPID" 2>/dev/null; then
+        echo "[$LABEL] the guard (pid $GPID) held the fake connection; ending it"; kill -KILL "$GPID"
+        for i in $(seq 50); do kill -0 "$GPID" 2>/dev/null || break; sleep 0.1; done   # not this shell's child: polled, not waited for
+    fi
+fi
 if [ -n "$PRX" ]; then
     kill -TERM $PRX 2>/dev/null
     for i in $(seq 100); do kill -0 $PRX 2>/dev/null || break; sleep 0.1; done

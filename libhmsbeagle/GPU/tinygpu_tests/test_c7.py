@@ -190,7 +190,7 @@ def fini_rig(seq=None, last=0, signal=None, in_flight=0):
     impl.gsp.fini_hw = lambda: (seqs.append(impl.gsp.cmd_q.seq), fini_hw())
     dm.handed_off = dm.rm_exported = True
     if seq is not None:
-        dm._state = memoryview(bytearray(struct.pack("<4Q", d._PHASE_DISPATCH, in_flight, last, seq))).cast("Q")
+        dm._state = memoryview(bytearray(struct.pack("<5Q", d._PHASE_DISPATCH, in_flight, last, seq, 0))).cast("Q")
         if signal is not None: dm._cpp_signal = d.ops_nv.NVSignal(base_buf=dm._handoff_bufs["signal"], owner=dm.dev, virt=True)
     del dm._handoff_bufs
     return a, dm, calls, seqs

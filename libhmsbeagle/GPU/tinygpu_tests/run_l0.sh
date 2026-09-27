@@ -34,9 +34,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 [[ "$LABEL" =~ ^[a-z0-9_]+$ ]] && [[ "$N" =~ ^[0-9]+$ ]] && [[ "$REPS" =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE"; exit 2; }
-# what can hold the GPU: the daemon (here started as tgdaemon.py), nv_teardown_diag, or a proxy that stopped forwarding
-DAEMON_RE="(nv_dispatch_daemon|tgdaemon)\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$"
-pgrep -f "$DAEMON_RE" > /dev/null && { echo "a daemon or nv_teardown_diag is still running (it may hold the GPU); not running"; exit 2; }
+# what can hold the GPU: the daemon (here started as tgdaemon.py), nv_teardown_diag, the crash guard (beagle-tinygpu-guard, plan
+# step C10), or a proxy that stopped forwarding
+DAEMON_RE="(nv_dispatch_daemon|tgdaemon)\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$|(^|/)beagle-tinygpu-guard$"
+pgrep -f "$DAEMON_RE" > /dev/null && { echo "a daemon, nv_teardown_diag or crash guard is still running (it may hold the GPU); not running"; exit 2; }
 pgrep -f "replay/tgproxy\.py" > /dev/null && { echo "a recording proxy is still running (it may hold the GPU); not running"; exit 2; }
 hw_begin
 DRY=${L0_DRY_RUN:-0}; OFFLINE_ENV=()

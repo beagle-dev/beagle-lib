@@ -64,7 +64,7 @@ def rig(fini=CONFIRMED, dev=True, signal=0, advance_to=None, fault=False, error_
 
 def with_page(dm, in_flight, last, phase=1):   # the page as cmd_state_page leaves it
     dm.handed_off = True
-    dm._state = memoryview(bytearray(struct.pack("<4Q", phase, in_flight, last, 0))).cast("Q")
+    dm._state = memoryview(bytearray(struct.pack("<5Q", phase, in_flight, last, 0, 0))).cast("Q")
     dm._cpp_signal = d.ops_nv.NVSignal(base_buf=dm._handoff_bufs["signal"], owner=dm.dev, virt=True)
 
 def run(a, dm, send=b""):
@@ -93,7 +93,7 @@ def test_state_page():
         assert r["ok"] is ok and (dm._state is not None) is ok and fini["ok"], (handed_off, phase, r, fini)
         if ok:
             struct.pack_into("<2Q", mine, 8, 1, 7)
-            assert list(dm._state) == [1, 1, 7, 0] and dm._cpp_signal.value == 6, list(dm._state)   # live words; the C++ signal as tinygrad reads it
+            assert list(dm._state) == [1, 1, 7, 0, 0] and dm._cpp_signal.value == 6, list(dm._state)   # live words (the keeper word 0: the daemon); the C++ signal as tinygrad reads it
             assert struct.unpack_from("<Q", mem, 0)[0] == 6                                     # NVSignal(virt=True) wrote nothing
             assert "C++ state page: phase 1, frame_in_flight 0, last_submitted 0, seq 0, C++ timeline signal 6" in err.getvalue(), err.getvalue()
     print("state page: taken before any check (refusals before the handoff or with phase 0 keep the stream framed), read live, "

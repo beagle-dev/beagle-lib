@@ -132,6 +132,16 @@ public:
         return "";
     }
 
+    // Plan step C10's guard: a connection (and its lock) another process of this session opened, whose BARs it mapped (seed_bar):
+    // no connect and no lock of its own; the guard sends nothing on it while that process lives.
+    void adopt(int sock, int lock_fd) {
+        sock_ = sock;
+        lock_fd_ = lock_fd;
+        lost_ = false;
+        int one = 1;
+        setsockopt(sock_, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+    }
+
     // Plan step V1: with BEAGLE_TG_MARKERS=1, a step marker for the recording proxy and the replay server, which answer it
     // themselves and never forward it: a CFG_READ of the vendor ID with dev_id 'BEAG' (0x42454147), the marker's id as the BAR
     // and its argument as arg2. TinyGPU.app never reads dev_id (server.c:216-220), so there it is a harmless config read. Its

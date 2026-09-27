@@ -60,6 +60,14 @@ install(TARGETS hmsbeagle-tinygpu-hybrid
     COMPONENT tinygpu-hybrid
     )
 
+# TODO.md plan step C10: the crash guard the plugin spawns at level flcn_hw, which looks for it next to itself
+add_executable(beagle-tinygpu-guard ../tinygpu_guard.cpp ../TinyGPUHybridNVGuard.h)
+add_dependencies(hmsbeagle-tinygpu-hybrid beagle-tinygpu-guard)
+install(TARGETS beagle-tinygpu-guard
+    DESTINATION ${BEAGLE_INSTALL_DIR}
+    COMPONENT tinygpu-hybrid
+    )
+
 SET_TARGET_PROPERTIES(hmsbeagle-tinygpu-hybrid
     PROPERTIES
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"

@@ -37,6 +37,10 @@ results+=("C++ falcon boot (C9): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see 
 # their replays under the guard and tgcanon, and the guard's refusals on MMU v3
 "$TG_TESTS/test_b2.sh" > "$TINYGPU_TEST_WORK/test_b2_e2e.log" 2>&1
 results+=("GB205 levels and V1 tools (B2): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_b2_e2e.log)")")
+# plan step C10: the crash guard at level flcn_hw (the daemon's keeper role handed over; the plugin killed idle, mid-frame, in its
+# own teardown, around the handover; a silent GSP), on the fake AD107 and the fake GB205
+"$TG_TESTS/test_c10.sh" > "$TINYGPU_TEST_WORK/test_c10_e2e.log" 2>&1
+results+=("crash guard (C10): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c10_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
@@ -151,8 +155,9 @@ for m in "daemon BEAGLE_NV_CPP_DISPATCH=0" "dispatch BEAGLE_NV_CPP_DISPATCH=1"; 
     else results+=("fake p5_refuse_$1: FAIL (see $out)"); fi
 done
 
-# plan decision 16: with no mode variable the plugin picks the C++ runtime on Ada (the fake RTX 4060) and the daemon path on
-# other GPUs (the fake GB205); BEAGLE_NV_USE_DAEMON=1 picks the daemon path on Ada (run_fake_runtime.sh expects the same modes)
+# plan decision 16: with no mode variable the plugin picks the C++ runtime on Ada (the fake RTX 4060) and on the GB205 (the fake
+# GB205, since 2026-09-27), the daemon path on other GPUs; BEAGLE_NV_USE_DAEMON=1 picks the daemon path (run_fake_runtime.sh
+# expects the same modes)
 default_case() {   # <label> <runtime|daemon> [VAR=value ...]: the mode chosen, every stage of it, and a clean teardown
     local label=$1 want=$2; shift 2
     "$TG_TESTS/run_fake_runtime.sh" "$label" "$@" -- --reps 5 > "$TINYGPU_TEST_WORK/fake_$label.summary" 2>&1
@@ -164,7 +169,7 @@ default_case() {   # <label> <runtime|daemon> [VAR=value ...]: the mode chosen, 
     else results+=("fake $label: FAIL (see $TINYGPU_TEST_WORK/fake_$label.summary)"); fi
 }
 default_case default_ada runtime
-FAKE_NV_CHIP=gb205 default_case default_gb205 daemon
+FAKE_NV_CHIP=gb205 default_case default_gb205 runtime
 default_case daemon_explicit daemon BEAGLE_NV_USE_DAEMON=1
 
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames

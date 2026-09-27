@@ -102,7 +102,7 @@ def gsp_rig(seq, phase):
     """A level-gsp_hw daemon after cmd_rm_export whose GSP never ran init_hw (no status queue), the state page at seq and phase."""
     a, dm, calls, seqs = c7.fini_rig(seq=seq)
     dm.rm_level = "gsp_hw"
-    dm._state = memoryview(bytearray(struct.pack("<4Q", phase, 0, 0, seq))).cast("Q")
+    dm._state = memoryview(bytearray(struct.pack("<5Q", phase, 0, 0, seq, 0))).cast("Q")
     impl = dm.dev.iface.dev_impl
     impl.gsp._m, impl.gsp.cmd_q_view, impl.gsp.stat_q_view = queue_views()
     seen = {}

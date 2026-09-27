@@ -25,6 +25,10 @@ request; the client's stop is then the test's (plan step C7: the C++ side must s
 the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and the daemon must hold).
 FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; booter_load returns MAILBOX0 0x29 and starts
 nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
+FAKE_GSP_SILENT_UNLOAD=1 (plan step C10): the GSP never answers the unload RPC (its client times out, and must hold).
+FAKE_GPU_LAG_MS=<ms> (plan step C10): the GPU runs each doorbell's work that long after the doorbell, in order, whether or not
+the client sends more (a client killed right after a submission leaves its timeline behind); an unload RPC that arrives before
+all of it ran is an error (its client did not wait for its timeline).
 FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
 MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
@@ -33,7 +37,7 @@ does WPR2 come down (R23). A session that ends before that halt is an error: the
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
 It prints "fake TinyGPU.app (AD107 device) listening" (GB205 with FAKE_NV_CHIP=gb205), and after each session its counts and
 NO ERRORS or the errors."""
-import os, sys, json, mmap, glob, socket, struct, ctypes, types, collections
+import os, sys, json, mmap, glob, time, socket, select, struct, ctypes, types, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -66,6 +70,7 @@ RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_REC
 RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
 FALCON_FAIL = os.environ.get("FAKE_FALCON_FAIL", "")
+LAG = int(os.environ.get("FAKE_GPU_LAG_MS", "0")) / 1000
 
 def err(msg):
     errors.append(msg)
@@ -127,6 +132,7 @@ class Device:
         self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
         self.unloaded = False    # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload
         self.halt_in = None      # GB205, after the unload: RISCV_CPUCTL reads left before the core halts and WPR2 comes down
+        self.lagged = collections.deque()   # FAKE_GPU_LAG_MS: (due time, doorbell value) of work not yet run, oldest first
         self.emem, self.emem_ptr, self.emem_inc = bytearray(0x800), 0, False   # GB205: the FSP's EMEM, as NV_PFSP_EMEMC set it
         self.memory = tggpu.Memory(self.vram, self.sys_rw, R, mmu_ver=3 if GB205 else 2)
         self.channels = tggpu.Channels()
@@ -174,7 +180,10 @@ class Device:
         if a == A.QUEUE_HEAD:
             if self.gsp: self.gsp.run()
             return
-        if a == A.DOORBELL: self.frontend.doorbell(v); return
+        if a == A.DOORBELL:
+            if LAG: self.lagged.append((time.monotonic() + LAG, v))
+            else: self.frontend.doorbell(v)
+            return
         if GB205:
             if a == A.EMEMC:
                 f = R.NV_PFSP_EMEMC.decode(v)
@@ -192,6 +201,11 @@ class Device:
             st = self.falcon[GSP_BASE if a == A.GSP_ENGINE else SEC2_BASE]
             st["halted"] = False
             if a == A.GSP_ENGINE: st["riscv_active"] = False
+
+    def run_due(self):   # FAKE_GPU_LAG_MS: the lagged doorbells whose time has come, in order (outside serve's try: errors here)
+        while self.lagged and self.lagged[0][0] <= time.monotonic():
+            try: self.frontend.doorbell(self.lagged.popleft()[1])
+            except Exception as e: err(f"a lagged doorbell: {type(e).__name__}: {e}")
 
     def fsp_message(self):
         """GB205: the FSP takes the message tinygrad put in its EMEM (kfsp_send_msg: an MCTP header, an NVDM header, the payload,
@@ -298,6 +312,12 @@ class Gsp:
             return self.post(fn, msg[:24] + self.control(c, msg[24:24 + c.paramsSize]))
         if fn == nv.NV_VGPU_MSG_FUNCTION_SET_PAGE_DIRECTORY: return self.post(fn, msg)   # the root is in self.dev.memory
         if fn == nv.NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER:
+            if self.dev.lagged:
+                err(f"the unload RPC reached the GSP with {len(self.dev.lagged)} doorbell(s) of submitted work not yet run "
+                    "(FAKE_GPU_LAG_MS): its client did not wait for its timeline")
+            if os.environ.get("FAKE_GSP_SILENT_UNLOAD") == "1":
+                counts["unload RPC left unanswered (FAKE_GSP_SILENT_UNLOAD)"] += 1
+                return
             self.post(fn, msg)
             self.dev.regs[addr(FALCON_REGS["MAILBOX0"], GSP_BASE)] = 0x80000000   # suspended (kernel_gsp_tu102.c:1116-1139)
             if GB205: self.dev.halt_in = 2   # the core halts, and WPR2 comes down, a little later (R23: 7 polls)
@@ -351,9 +371,17 @@ def recv_exact(conn, n):
 
 def bar_ok(bar, off, n): return bar in (0, 1) and off + n <= BARS[bar][1] and n <= (64 << 20)
 
+def next_header(conn, dev):
+    """The next request's header; until it comes (FAKE_GPU_LAG_MS) the GPU runs the lagged doorbells as they fall due."""
+    while dev.lagged:
+        readable = select.select([conn], [], [], max(0.0, dev.lagged[0][0] - time.monotonic()))[0]
+        dev.run_due()
+        if readable: break
+    return recv_exact(conn, 33)
+
 def serve(conn, dev):
     """One client, as server.c's handle_client (:185-257), over the device."""
-    while (hdr := recv_exact(conn, 33)) is not None:
+    while (hdr := next_header(conn, dev)) is not None:
         cmd, _, bar, a0, a1, a2 = REQ.unpack(hdr)
         counts[f"cmd {cmd}"] += 1
         if RECORD: RECORD.write(hdr)
@@ -396,6 +424,8 @@ def serve(conn, dev):
     if dev.gsp is not None: err("the session ended while the GSP was live: on the eGPU that unwires memory it still uses (DART)")
     if dev.halt_in is not None:
         err("the session ended before the GSP's RISC-V core halted: on a COT boot the FMC's images are in sysmem (DART)")
+    if dev.lagged: err(f"the session ended with {len(dev.lagged)} doorbell(s) of submitted GPU work not yet run (FAKE_GPU_LAG_MS)")
+    dev.lagged.clear()
     for s in dev.sysmem: s.close()   # server.c's cleanup (:171-183)
     dev.sysmem, dev.gsp = [], None
     print(f"fake TinyGPU.app ({NAME} device): client done: " + json.dumps(dict(sorted(counts.items()))), flush=True)

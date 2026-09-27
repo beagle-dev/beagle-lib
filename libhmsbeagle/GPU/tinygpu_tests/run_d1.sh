@@ -25,10 +25,11 @@ RUNS="$BEAGLE_TINYGPU_DATA/runs"
 # with no computer tag predate it (2026-09-24, the old Mac's RTX 4060) and are not checked.
 prev=$(ls -t "$RUNS"/*_${HW_HOST}_d1_$LABEL.out 2>/dev/null | head -1)
 [ -z "$prev" ] || [ "$D1_REPLUGGED" = 1 ] || { echo "$LABEL already ran on this card ($prev): its results may still be in VRAM; power-cycle the eGPU, then rerun with D1_REPLUGGED=1; not running"; exit 2; }
-# what can hold the GPU: the daemon (<python> .../nv_dispatch_daemon.py <fd> [<fd>]) or a holding <python> .../nv_teardown_diag.py;
-# anchored at the end of the command line, so a shell or editor that merely mentions either script does not match
-DAEMON_RE="nv_dispatch_daemon\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$"
-pgrep -f "$DAEMON_RE" > /dev/null && { echo "an nv_dispatch_daemon or nv_teardown_diag is still running (it may hold the GPU); not running"; exit 2; }
+# what can hold the GPU: the daemon (<python> .../nv_dispatch_daemon.py <fd> [<fd>]), a holding <python> .../nv_teardown_diag.py,
+# or the crash guard (.../beagle-tinygpu-guard, plan step C10); anchored at the end of the command line, so a shell or editor
+# that merely mentions one of them does not match
+DAEMON_RE="nv_dispatch_daemon\.py [0-9]+( [0-9]+)?$|nv_teardown_diag\.py$|(^|/)beagle-tinygpu-guard$"
+pgrep -f "$DAEMON_RE" > /dev/null && { echo "an nv_dispatch_daemon, nv_teardown_diag or crash guard is still running (it may hold the GPU); not running"; exit 2; }
 # TinyGPU.app serves one client: a second BEAGLE example would hang in tg_cfg_read (plan decision 8's ps check)
 pgrep -f "^[^ ]*/examples/(tinygpuhybridtest|synthetictest|hmctest)( |$)" > /dev/null && { echo "another BEAGLE example is running; not running"; exit 2; }
 hw_begin

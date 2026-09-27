@@ -36,6 +36,17 @@ require_no_launch_guard() {
 # run_point.sh's stop rule (TODO.md plan step P3), on the plugin's output (GPUInterfaceTinyGPUHybridNV.cpp nv_report_unload):
 # exactly one fini report, WPR2_HI 0 in it, and the teardown line saying the next boot needs no power cycle. Reads a file
 # and runs nothing, so run_offline.sh checks it on the fakes' output.
+# TODO.md plan step C10: after run_point.sh --kill the plugin printed no fini report, and the crash guard's TinyGPULog lines (<file>,
+# this run's) decide as fini_verdict does: the guard saw the plugin's EOF, its teardown confirmed the unload, WPR2 is down and
+# the teardown succeeded ("teardown_ok", which the plugin's "the next boot needs no power cycle" reads; on COT no "halted":
+# false), it closed the connection, and nothing held.
+guard_verdict() {
+    grep -q "guard [0-9]*: the plugin went away without fini (EOF)" "$1" \
+        && grep -E 'guard: the GPU teardown: \{"unload_ok": true' "$1" | grep -E '"wpr2_hi": 0[,}]' | grep -q '"teardown_ok": true' \
+        && ! grep -qE 'guard: the GPU teardown: \{.*"halted": false' "$1" \
+        && grep -q "guard [0-9]*: the GPU is torn down; closing the TinyGPU.app connection" "$1" && ! grep -q "HOLDING" "$1"
+}
+
 fini_verdict() {
     [ "$(grep -c "TinyGPU/NV: GPU teardown: " "$1")" -eq 1 ] && grep -q "TinyGPU/NV: GPU teardown: .*WPR2_HI=0x00000000)" "$1" \
         && grep -q "TinyGPU/NV: teardown: .*the next boot needs no power cycle" "$1"
@@ -66,7 +77,7 @@ hw_begin() {
              BEAGLE_NV_FILL_LAUNCH_DIMS BEAGLE_NV_CHAIN_LAUNCHES BEAGLE_NV_USE_NVJITLINK PTXAS HCQDEV_WAIT_TIMEOUT_MS \
              DISABLE_HTTP_CACHE PMA PROFILE VIZ REMOTE GMMU \
              BEAGLE_TG_OFFLINE BEAGLE_TG_MUTATE BEAGLE_TG_RECORD BEAGLE_TG_RECORD_LOG BEAGLE_TG_MARKERS BEAGLE_TG_DAEMON_PIDFILE \
-             BEAGLE_NV_CPP_LEVEL BEAGLE_TINYGPU_LOG; do   # plan V1's harness; plan C5's level (the scripts set it) and log
+             BEAGLE_NV_CPP_LEVEL BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do   # plan V1's harness; plan C5's level (the scripts set it) and log; C10's test kill (run_point.sh --kill) and guard
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     # the firmware is staged, so no boot downloads inside the daemon (decision 5; macOS may purge tinygrad's cache): offline,
@@ -104,6 +115,6 @@ hw_hold_check() {
     local pid p
     pid=$(pgrep -f "$DAEMON_RE") || return 0
     for p in $pid; do nohup caffeinate -ims -w $p > /dev/null 2>&1 & done
-    echo "STOP: pid $pid (nv_dispatch_daemon or nv_teardown_diag) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"
+    echo "STOP: pid $pid (nv_dispatch_daemon, nv_teardown_diag or the crash guard) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"
     return 1
 }
