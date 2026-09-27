@@ -90,10 +90,15 @@ class Memory:
 
 class Channels:
     """GPFIFO channels (from the GPFIFO rm_alloc parameters) and their work-submit tokens (the GSP's channel ids; tinygrad
-    adds the runlist in bits 16 and up, ip.py:589-591, so a doorbell is matched on the low 16 bits)."""
-    def __init__(self): self.by_handle, self.by_id = {}, {}
-    def add(self, handle, ring_va, entries): self.by_handle[handle] = dict(ring=ring_va, entries=entries, get=0)
+    adds the runlist in bits 16 and up, ip.py:589-591, so a doorbell is matched on the low 16 bits). A token may come before
+    its channel: a recording can hold the GSP's replies ahead of the requests that asked for them (the proxy takes its diffs
+    as it reads each request, and an MMIO write has no reply, so a fast client, the C++ runtime, runs ahead of it)."""
+    def __init__(self): self.by_handle, self.by_id, self.tokens = {}, {}, {}
+    def add(self, handle, ring_va, entries):
+        self.by_handle[handle] = dict(ring=ring_va, entries=entries, get=0)
+        if handle in self.tokens: self.token(handle, self.tokens[handle])
     def token(self, handle, token):
+        self.tokens[handle] = token
         if handle in self.by_handle: self.by_id[token & 0xffff] = self.by_handle[handle]
     def for_doorbell(self, value): return self.by_id.get(value & 0xffff)
 

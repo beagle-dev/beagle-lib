@@ -335,7 +335,8 @@ class Session:
             show = lambda seq: w.marker_name(*seq[k]) if k < len(seq) else "(none)"
             mk = f"differ ({len(markers_got)} here, {len(markers_rec)} recorded; first at #{k}: here {show(markers_got)}, recorded {show(markers_rec)})"
         stats = dict(st, markers=mk,
-                     info=dict(self.info), diffs_unlike_here=self.diff_bad, pages_unlike=self.page_bad[:5], **({"guard": self.guard.stats} if self.guard else {}))
+                     info=dict(self.info), diffs_unlike_here=self.diff_bad, pages_unlike=self.page_bad[:5], **({"guard": self.guard.stats} if self.guard else {}),
+                     **({"gpu_errors": self.gpu_errors[:3]} if self.gpu_errors else {}))   # also when the session diverged: often its cause
         for al in self.allocs.values(): al.close()   # TinyGPU.app unwires a session's sysmem at its end
         if rp.out: rp.out.note(time.monotonic_ns(), dict(event="session end", n=sess.n, ok=not self.why, why=self.why))
         return dict(n=sess.n, ok=not self.why, why=self.why, stats=stats, report=self.report)
@@ -344,6 +345,7 @@ class Session:
 MUTATIONS = {
     "diff-late": "the GSP's first reply to an RPC the client waits on is applied only after the client's next request, which, waiting, it never sends (tinygrad times out)",
     "rpc-fail": "the first GSP_RM_ALLOC reply in the status queue carries rpc_result 0x1f (tinygrad raises)",
+    "diff-early": "the GSP's writes for the RPCs of the first channel given a work-submit token, its GPFIFO rm_alloc through the token, are recorded as already there when the rm_alloc reaches the queue head, as a C++ runtime's recording can hold them (the proxy takes its diffs as it reads each request, and the runtime, sending none while it waits, runs ahead of it; STATUS.md R41): the replay must PASS all the same",
 }
 
 def mutate(events, name):
@@ -369,6 +371,28 @@ def mutate(events, name):
                     events[k] = e._replace(f=dict(e.f, after=bytes(a)))
                     return
         raise SystemExit("tgreplay: rpc-fail: no GSP_RM_ALLOC reply in the recording's status-queue writes")
+    elif name == "diff-early":
+        def msgs(k):   # (function, payload) of each RPC message in status diff k (rpc_message_header_v at element + 0x30, as above)
+            a = events[k].f["after"]
+            return [(struct.unpack_from("<I", a, o + 0x3c)[0], a[o + 0x50:]) for o in range(0, len(a) - 0x50 + 1, 16)
+                    if struct.unpack_from("<I", a, o + 0x34)[0] == 0x43505256]
+        nv, nv_gpu = tggpu.nv, tggpu.nv_gpu
+        gpfifos, first = {}, None   # a GPFIFO's handle: the status diff with its rm_alloc reply (the golden image's channel gets no token)
+        for k in status:
+            for fn, p in msgs(k):
+                if fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_ALLOC and len(p) >= 16 \
+                        and struct.unpack_from("<I", p, 12)[0] in (nv_gpu.AMPERE_CHANNEL_GPFIFO_A, nv_gpu.BLACKWELL_CHANNEL_GPFIFO_A):
+                    gpfifos.setdefault(struct.unpack_from("<I", p, 8)[0], k)   # rpc_gsp_rm_alloc_v: hClient, hParent, hObject, hClass
+                elif fn == nv.NV_VGPU_MSG_FUNCTION_GSP_RM_CONTROL and len(p) >= 12 and struct.unpack_from("<I", p, 4)[0] in gpfifos \
+                        and struct.unpack_from("<I", p, 8)[0] == nv_gpu.NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN:   # hClient, hObject, cmd
+                    first, last = gpfifos[struct.unpack_from("<I", p, 4)[0]], k
+                    break
+            if first is not None: break
+        if first is None: raise SystemExit("tgreplay: diff-early: no GPFIFO rm_alloc and work-submit token replies in the recording's status-queue writes")
+        head = max(e.seq for e in events if e.kind == w.K_REQ and e.seq < events[first].seq and e.f["req"][0] == w.MMIO_WRITE
+                   and e.f["req"][2] == 0 and w.reg_name(e.f["req"][3]) == "NV_PGSP_QUEUE_HEAD[0]")   # the rm_alloc's queue head
+        for k in status:
+            if events[first].seq <= events[k].seq <= events[last].seq: events[k] = events[k]._replace(seq=head)
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])

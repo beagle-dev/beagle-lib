@@ -58,6 +58,11 @@ for m in diff-late rpc-fail; do
     a=$(replay_line v1_rm_${m}_1 | sed -E 's/ \{.*//'); b=$(replay_line v1_rm_${m}_2 | sed -E 's/ \{.*//')
     check "the $m recording mutation fails the reference, identically twice ($a)" "[ -n \"$a\" ] && [ \"$a\" = \"$b\" ] && echo \"$a\" | grep -q FAIL"
 done
+# ... and the GSP's replies ahead of the requests that asked for them, as a C++ runtime's recording can hold them (STATUS.md
+#     R41): the reference must pass all the same
+"$TG_TESTS/run_replay.sh" "$W/rec" v1_diff_early --mutate diff-early > "$W/replay_diff_early.txt" 2>&1
+check "the diff-early recording mutation (a channel's replies before its rm_alloc reaches the queue head) replays exactly" \
+    "replay_line v1_diff_early | grep -q 'PASS'"
 
 # 7. the guard, live behind the proxy: a clean boot passes, and each defect is refused before it reaches the device
 FAKE_TG_GUARD=1 FAKE_TG_PROXY="$W/guard_clean" "$TG_TESTS/run_fake_device.sh" v1_guard -- --state-count 4 --reps 3 > "$W/guard_clean.txt" 2>&1
