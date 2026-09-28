@@ -1,9 +1,8 @@
 #!/bin/bash
 # TODO.md plan step C12, end to end with no eGPU: the Python-free default, and a library that returns errors instead of exiting
 # its host. On fake_nv_device.py, the fake AD107 and (where it says so) the fake GB205:
-#   - with no level set the plugin boots at level boot, with no daemon, and the device receives exactly the bytes it receives at
-#     level boot; so does a GB202's device ID on the fake GB205 (every GB20x family boots in C++ by default since 2026-09-28; the
-#     routing itself is run_offline.sh's, since run_fake_device.sh sets BEAGLE_NV_USE_DAEMON=0);
+#   - the plugin boots at level boot, with no daemon; so does a GB202's device ID on the fake GB205, the device receiving the
+#     GB205's bytes (every GB20x family boots in C++ since 2026-09-28; the refusal of the other GPUs is test_c13.sh's);
 #   - the finalize order: with the GPU running each doorbell's work 20 ms late (FAKE_GPU_LAG_MS), the plugin's teardown at exit
 #     waits for its timeline before the unload RPC, then runs NVIDIA's teardown (FWSEC-SB, then Booter Unload) or, on COT, the
 #     RISC-V halt wait, and only then closes the connection: NO ERRORS;
@@ -18,9 +17,10 @@
 #   - a failed instance on a healthy GPU (a 1 MiB VRAM pool, BEAGLE_NV_DATA_MB=1): an error from beagleCreateInstance, and the
 #     GPU is still torn down at exit;
 #   - a GPU that hangs mid-run (FAKE_GPU_HANG_AT): the plugin's timeline wait times out, the GPU is lost, BEAGLE returns errors,
-#     and the guard, whose own timeline wait then fails, sends only the unload RPC and holds.
-# (Plan decision 16's routing of the other GB20x families to the daemon is run_offline.sh's, on the fake daemon.)
-# The test exits 1 on the fakes (their logL is wrong by design): "exits normally" is a status below 128, not a signal's.
+#     and the guard, whose own timeline wait then fails, sends only the unload RPC and holds; run_point.sh's stop rule fails it.
+# The test exits 1 on the fakes (their logL is wrong by design): "exits normally" is a status below 128, not a signal's. After
+# exit() from another thread, BEAGLE's core may still crash the main thread, which finalizes its instance on state exit()
+# destroyed (getBeagleInstance); that crash comes after the plugin's teardown, so there any status after it counts.
 # One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
@@ -50,12 +50,10 @@ for chip in ad107 gb205; do
     if [ $chip = gb205 ]; then export FAKE_NV_CHIP=gb205; else unset FAKE_NV_CHIP; fi
     C=$(echo $chip | tr a-z A-Z)
 
-    # 1. the default: no level set
-    run c12_${chip}_unset BEAGLE_NV_CPP_LEVEL=; r1=$?
-    run c12_${chip}_boot BEAGLE_NV_CPP_LEVEL=boot; r2=$?
-    check "$C: with no level set the plugin boots at level boot, PASS with no daemon, and the device received the bytes of level boot" \
-        "[ $r1 -eq 0 ] && [ $r2 -eq 0 ] && grep -q 'built the NVDevice after the C++ boot, with no daemon' '$(out c12_${chip}_unset)' \
-         && ! grep -q 'spawning nv_dispatch_daemon' '$(out c12_${chip}_unset)' && cmp -s '$W/c12_${chip}_unset.bin' '$W/c12_${chip}_boot.bin'"
+    # 1. the default
+    run c12_${chip}_default; r1=$?
+    check "$C: the plugin boots at level boot, PASS with no daemon" \
+        "[ $r1 -eq 0 ] && grep -q 'built the NVDevice after the C++ boot, with no daemon' '$(out c12_${chip}_default)'"
 
     # 2. the finalize order, with the GPU behind its doorbells
     FAKE_GPU_LAG_MS=20 run c12_${chip}_lag; r=$?
@@ -72,17 +70,17 @@ for chip in ad107 gb205; do
 
     # 4. exit() from another thread, 300 ms into the evaluations
     run c12_${chip}_exit -- --state-count 4 --reps 20000 --exit-after 300
-    check "$C: exit() from another thread mid-run: the plugin's atexit tears the GPU down (NO ERRORS), and the test exits 0" \
-        "[ \"\$(status c12_${chip}_exit)\" = 0 ] && grep -q '^exit() from another thread, 300 ms into the evaluations' '$(out c12_${chip}_exit)' \
+    check "$C: exit() from another thread mid-run: the plugin's atexit tears the GPU down (NO ERRORS), and the test exits 0 (or BEAGLE's core crashes after the teardown)" \
+        "{ [ \"\$(status c12_${chip}_exit)\" = 0 ] || [ \"\$(status c12_${chip}_exit)\" -ge 128 ]; } && grep -q '^exit() from another thread, 300 ms into the evaluations' '$(out c12_${chip}_exit)' \
          && device c12_${chip}_exit | grep -q 'NO ERRORS' && counts c12_${chip}_exit | grep -q '$UNLOAD' && glog c12_${chip}_exit | grep -q '$CLEAN'"
 done
 unset FAKE_NV_CHIP
 
 # 1b. the other GB20x families: a GB202's device ID on the fake GB205 boots at level boot too
-FAKE_NV_CHIP=gb205 FAKE_PCI_DEVICE_ID=2b85 run c12_gb202_unset BEAGLE_NV_CPP_LEVEL=; r=$?
-check "GB202 (device ID 0x2b85 on the fake GB205): level boot with no level set, PASS with no daemon, and the device received the GB205's bytes" \
-    "[ $r -eq 0 ] && grep -q 'PCI id = 10de:2b85' '$(out c12_gb202_unset)' \
-     && grep -q 'built the NVDevice after the C++ boot, with no daemon' '$(out c12_gb202_unset)' && cmp -s '$W/c12_gb202_unset.bin' '$W/c12_gb205_boot.bin'"
+FAKE_NV_CHIP=gb205 FAKE_PCI_DEVICE_ID=2b85 run c12_gb202_default; r=$?
+check "GB202 (device ID 0x2b85 on the fake GB205): level boot, PASS with no daemon, and the device received the GB205's bytes" \
+    "[ $r -eq 0 ] && grep -q 'PCI id = 10de:2b85' '$(out c12_gb202_default)' \
+     && grep -q 'built the NVDevice after the C++ boot, with no daemon' '$(out c12_gb202_default)' && cmp -s '$W/c12_gb202_default.bin' '$W/c12_gb205_default.bin'"
 
 # 5. SIGINT to the test's process group mid-run, as a terminal's Ctrl-C: the test stops and finalizes, the plugin tears the GPU
 #    down at exit, and the guard, in its own session, survives the SIGINT to see the clean
@@ -112,12 +110,12 @@ check "AD107: a 1 MiB VRAM pool: beagleCreateInstance returns an error, and the 
 
 # 9. a GPU that hangs mid-run (two 30 s timeline waits: the plugin's, then the guard's)
 FAKE_GPU_HANG_AT=100 run c12_hang -- --state-count 4 --reps 1000
-check "AD107: a GPU that hangs mid-run: the timeline wait times out, the GPU is lost, BEAGLE returns errors, the guard unloads only and holds" \
+check "AD107: a GPU that hangs mid-run: the timeline wait times out, the GPU is lost, BEAGLE returns errors, the guard unloads only and holds, and the stop rule fails it" \
     "[ \"\$(status c12_hang)\" = 1 ] && grep -q 'timeline wait timed out' '$(out c12_hang)' && grep -q 'the GPU is lost to this process (it hung)' '$(out c12_hang)' \
      && glog c12_hang | grep -q 'the hung path' && glog c12_hang | grep -q 'HOLDING the TinyGPU.app connection (the GPU did not confirm its teardown)' \
-     && counts c12_hang | grep -q '$UNLOAD' && ! counts c12_hang | grep -q 'FWSEC-SB'"
+     && counts c12_hang | grep -q '$UNLOAD' && ! counts c12_hang | grep -q 'FWSEC-SB' && ! fini_verdict '$(out c12_hang)'"
 
-left=$(ps -axo command | grep -cE "Python .*(tgdaemon|tgproxy|tgreplay|fake_nv_device)\.py|[b]eagle-tinygpu-guard")
+left=$(ps -axo command | grep -cE "Python .*(tgproxy|tgreplay|fake_nv_device)\.py|[b]eagle-tinygpu-guard")
 check "no harness process or guard is left running" "[ $left -eq 0 ]"
 echo; [ $fails -eq 0 ] && echo "test_c12: PASS" || echo "test_c12: $fails FAILED"
 [ $fails -eq 0 ]

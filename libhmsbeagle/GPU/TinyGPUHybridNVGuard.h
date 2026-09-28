@@ -2,30 +2,19 @@
  * TinyGPUHybridNVGuard.h -- what the plugin and beagle-tinygpu-guard (tinygpu_guard.cpp, TODO.md plan step C10) share: the
  * setup message, the state page's layout, and the guard's spawn.
  *
- * The setup comes in one of two ways. At level flcn_hw the plugin spawns the guard once the NVDevice and its timeline exist
- * and sends everything at once (kGuardSetupFull, five fds). At level boot (plan step C11) there is no daemon: the plugin
- * spawns the guard before its first request to the GPU with what holding takes (kGuardSetupHold: the connection, its lock
- * and the state page, three fds), and once the NVDevice is built it sends 'S' and the rest (kGuardSetupRest: the queues and
- * the timeline, two fds, with the teardown's parameters). Until the rest arrives a guard can only hold, which is what a
- * death during the boot needs: the state page says a frame is in flight throughout, or that the falcons' boot has not begun
- * (flcn_init), in which case the guard closes.
+ * The setup comes in two stages (plan step C11). The plugin spawns the guard before its first request to the GPU with what
+ * holding takes (kGuardSetupHold: the connection, its lock and the state page, three fds), and once the NVDevice is built it
+ * sends 'S' and the rest (kGuardSetupRest: the queues and the timeline, two fds, with the teardown's parameters). Until the
+ * rest arrives a guard can only hold, which is what a death during the boot needs: the state page says a frame is in flight
+ * throughout, or that the falcons' boot has not begun (flcn_init), in which case the guard closes.
  *
  * The plugin creates a socketpair and spawns the guard with posix_spawn (POSIX_SPAWN_SETSID: its own session, so a terminal's
  * Ctrl-C or hangup does not reach it; POSIX_SPAWN_CLOEXEC_DEFAULT: no fd of the host but its end of the pair, as fd 3, and
  * stderr; stdin and stdout are /dev/null, so no fd it receives later takes a standard number that a stray print would write
- * to). Over the
- * pair it sends one GuardSetup with five fds (SCM_RIGHTS): the TinyGPU.app connection, its lock, the GSP queues' sysmem, the
- * state page and the C++ timeline's sysmem. The guard replies 'R' once it has mapped them. Later the plugin sends 'C' (clean:
- * it tore the GPU down itself), 'H' (hold: its unload was not confirmed), 'X' (stand down: the daemon kept the keeper role) or
- * 'N' (level boot: the boot stopped before GSP-RM started, so nothing is to be unloaded);
- * an EOF without any of them means the plugin is gone.
- *
- * The keeper role passes from the daemon to the guard through the state page's keeper word, which the plugin sets to
- * kGuardKeeperGuard once the guard is ready, before it asks the daemon to release the role (cmd_release: the daemon replies and
- * exits without a word to the GPU). The guard and the daemon read the word only after the plugin's last write of it (at the
- * plugin's death, or at the release), so at the plugin's death exactly one of them acts: the guard if the word says so (the
- * daemon, at the release or at its command socket's EOF, exits without a word), else the daemon (the guard exits). If the
- * daemon refuses the release, the plugin sets the word back before it tells the guard to stand down.
+ * to). Over the pair each stage is one GuardSetup and its fds (SCM_RIGHTS). The guard replies 'R' once it has mapped the
+ * first. Later the plugin sends 'C' (clean: it tore the GPU down itself), 'H' (hold: its unload was not confirmed) or 'N' (the
+ * boot stopped before GSP-RM started, so nothing is to be unloaded); an EOF without any of them means the plugin is gone, or
+ * lost the GPU (plan step C12), and the guard decides from the state page.
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGUARD_H
@@ -51,26 +40,25 @@ namespace tinygpu_device {
 constexpr int kGuardFd = 3;   // the guard's end of the socketpair
 enum { kGuardTinyGPU, kGuardLock, kGuardQueues, kGuardState, kGuardSignal, kGuardFds };
 // the state page (GPUInterfaceTinyGPUHybridNV.cpp's kNVDState* and kNVDPhase*, which static_assert they match these)
-enum { kGuardStatePhase, kGuardStateInFlight, kGuardStateLastSubmitted, kGuardStateSeq, kGuardStateKeeper, kNVDStateWordsGuard };
+enum { kGuardStatePhase, kGuardStateInFlight, kGuardStateLastSubmitted, kGuardStateSeq, kNVDStateWordsGuard };
 constexpr uint64_t kGuardPhaseDispatch = 1, kGuardPhaseTeardown = 2, kGuardPhaseGspInit = 3, kGuardPhaseFlcnInit = 4;
-constexpr uint64_t kGuardKeeperDaemon = 0, kGuardKeeperGuard = 1;   // the keeper word
 
-// What the guard's teardown needs: the plugin's NVDTeardown (cmd_rm_export's reply, or at level boot the C++ boot's) and
-// BAR0's size. A kGuardSetupHold setup carries only the chip and level names; its rest comes with kGuardSetupRest.
-enum : uint32_t { kGuardSetupFull, kGuardSetupHold, kGuardSetupRest };
+// What the guard's teardown needs: the plugin's NVDTeardown, from the C++ boot, and BAR0's size. A kGuardSetupHold setup
+// carries only the plugin's pid; the rest comes with kGuardSetupRest.
+enum : uint32_t { kGuardSetupHold = 1, kGuardSetupRest = 2 };
 struct GuardSetup {
     uint32_t magic, size;   // kGuardMagic, sizeof(GuardSetup): a guard built from other sources refuses the setup
-    uint32_t kind, nfds;    // kGuardSetup*, and how many fds come with it (5, 3 or 2)
+    uint32_t kind, nfds;    // kGuardSetup*, and how many fds come with it (3 or 2)
     uint64_t queues_size, cmdq_off, statq_off, queue_size, libos_args_sysmem, bar0_size, signal_size;
     uint32_t chip_id, cot, level0, parent_pid;
     NVTeardownImages images;
-    char chip_name[16], level_name[16];
+    char chip_name[16];
 };
 constexpr uint32_t kGuardMagic = 0x44475447;   // "GTGD"
 
-// the fds each kind of setup carries, in this order: Full the five of the kGuard* enum, Hold the connection, its lock and the
-// state page, Rest the queues and the timeline
-inline uint32_t guard_setup_nfds(uint32_t kind) { return kind == kGuardSetupFull ? 5 : kind == kGuardSetupHold ? 3 : 2; }
+// the fds each kind of setup carries, in this order: Hold the connection, its lock and the state page; Rest the queues and
+// the timeline
+inline uint32_t guard_setup_nfds(uint32_t kind) { return kind == kGuardSetupHold ? 3 : 2; }
 
 // sendmsg of the setup and its fds, in one message
 inline bool guard_send_setup(int sock, const GuardSetup& g, const int* fds) {
@@ -104,11 +92,11 @@ inline std::string guard_recv_setup(int sock, GuardSetup& g, int (&fds)[kGuardFd
     while ((n = recvmsg(sock, &mh, MSG_WAITALL)) < 0 && errno == EINTR) {}
     if (n != (ssize_t)sizeof(g)) return "a setup of " + std::to_string(n) + " bytes, not " + std::to_string(sizeof(g));
     if (g.magic != kGuardMagic || g.size != sizeof(g)) return "a setup from other sources (magic or size differs)";
-    if (g.kind > kGuardSetupRest || g.nfds != guard_setup_nfds(g.kind)) return "a setup of an unknown kind";
+    if ((g.kind != kGuardSetupHold && g.kind != kGuardSetupRest) || g.nfds != guard_setup_nfds(g.kind)) return "a setup of an unknown kind";
     struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
     if (!c || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * g.nfds)) return "the setup came without its fds";
     memcpy(fds, CMSG_DATA(c), sizeof(int) * g.nfds);
-    g.chip_name[sizeof(g.chip_name) - 1] = g.level_name[sizeof(g.level_name) - 1] = 0;
+    g.chip_name[sizeof(g.chip_name) - 1] = 0;
     return "";
 }
 

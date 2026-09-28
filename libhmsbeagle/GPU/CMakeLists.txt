@@ -86,7 +86,7 @@ if(BUILD_TINYGPU_HYBRID)
 endif()
 
 if(BUILD_TINYGPU_HYBRID)
-	message(STATUS "TinyGPUHybrid backend enabled (tinygrad init + C++ dispatch)")
+	message(STATUS "TinyGPUHybrid backend enabled (NV: the C++ boot; AMD: tinygrad init + C++ dispatch)")
 	# The C++ runtime's ahead-of-time cubins (TODO.md plan step C1, decision
 	# 15): the SP modules kept above, compiled with ptxas for sm_86, sm_89 and
 	# sm_120 and embedded in the plugin by kernels/BeagleTinyGPU_cubins.S.

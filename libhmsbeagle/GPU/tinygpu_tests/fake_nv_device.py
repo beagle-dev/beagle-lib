@@ -1,7 +1,8 @@
 """A fake TinyGPU.app that plays an RTX 4060 (AD107) at the register level, for tinygrad's real boot (TODO.md plan step
 V1: the offline stand-in for the eGPU behind the recording proxy and the replay tools, and later for the C++ boot ports).
-The real daemon (nv_dispatch_daemon.py: tinygrad's NVDev, NV_FLCN, NV_GSP and NVDevice, with nv_init_helper's patches and
-the P2 teardown) boots it, the C++ runtime dispatches on it, and the daemon unloads it, over TinyGPU.app's protocol.
+The plugin boots it with the C++ boot (plan steps C11-C13), dispatches on it and unloads it, over TinyGPU.app's protocol, as
+tinygrad's own boot did (the oracle's nv_dispatch_daemon.py: tinygrad's NVDev, NV_FLCN, NV_GSP and NVDevice, with
+nv_init_helper's patches and the P2 teardown).
 
 What it models, and nothing more:
   - BAR0: the chip ids, the VRAM size, the VBIOS window (a captured AD107 VBIOS, $BEAGLE_TINYGPU_DATA/vbios), falcons that
@@ -22,7 +23,7 @@ constants, not the RTX 4060's: plan step V1's L0 recordings are the reference fo
 A session that ends while the GSP is live is an error: on the eGPU that unwires memory the GSP still uses (DART).
 FAKE_RM_FAIL=<class>: the GSP refuses every rm_alloc of that class (rpc_result NV_ERR_INVALID_CLASS), as GSP-RM refuses a bad
 request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission). FAKE_NO_INIT_DONE=1:
-the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and the daemon must hold).
+the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and its keeper must hold).
 FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; booter_load returns MAILBOX0 0x29 and starts
 nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
 FAKE_GSP_SILENT_UNLOAD=1 (plan step C10): the GSP never answers the unload RPC (its client times out, and must hold).
@@ -32,10 +33,14 @@ ring only as far as it was then (plan step C12: a client's later entries, which 
 own doorbells); an unload RPC that arrives before all of it ran is an error (its client did not wait for its timeline).
 FAKE_WPR2_UP=1 (plan step C11): the GPU starts warm, WPR2 up as a previous boot left it; a client must refuse it before any write.
 Plan step C12's exit matrix: FAKE_PCI_DEVICE_ID=<hex> puts another device ID in the config space, the chip staying as FAKE_NV_CHIP
-says (a GB202's 0x2b85, which the plugin routes to the daemon); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
+says (a GB202's 0x2b85, which the plugin boots as a GB20x; an Ampere's 0x2204, which it refuses); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
 nothing (a hang); FAKE_DROP_AT=<k>: from the k-th doorbell on, at the first doorbell its client waits for (nothing more comes
 within 50 ms), TinyGPU.app quits, closing the connection before the GPU runs that doorbell's work: the client's wait ends, and
 its next write fails with EPIPE.
+Plan step C13c, for the checks that ran on the fake daemon: FAKE_SM_VERSION=<hex> reports another SM version in the GR info
+(0x705: sm_75, which no embedded cubin serves); FAKE_NO_HALT=1: on the GB205 the RISC-V core never halts after the unload;
+FAKE_COPY_LOG=<file> appends each copy-engine copy (its destination VA and length, 8 bytes each, then the bytes), so a check can
+read what the client uploaded (check_upload.py).
 FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
 MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
@@ -66,13 +71,16 @@ CFG = {0: 0x2f0410de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x89e71043} if GB205 e
       {0: 0x288210de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x88861458}   # 10de:2f04 or 10de:2882, command/status, class+revision, subsystem
 GSP_BASE, SEC2_BASE = 0x110000, 0x840000
 IOVA_BASE, IOVA_STRIDE = 0x40_0000_0000, 0x4000_0000
-# as fake_nv_daemon: a GB205 reports sm_version 0xa04 and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
+# a GB205 reports sm_version 0xa04 and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
 GR_INFO = {"num_gpcs": 12 if GB205 else 3, "num_tpc_per_gpc": 8 if GB205 else 4, "num_sm_per_tpc": 2, "max_warps_per_sm": 48,
            "sm_version": 0xa04 if GB205 else 0x809}
+if os.environ.get("FAKE_SM_VERSION"): GR_INFO["sm_version"] = int(os.environ["FAKE_SM_VERSION"], 16)
+NO_HALT = os.environ.get("FAKE_NO_HALT") == "1"
+COPY_LOG = open(os.environ["FAKE_COPY_LOG"], "ab") if os.environ.get("FAKE_COPY_LOG") else None
 WPR2_UP, WPR2_DOWN = (0x02ee2200, 0x02fad000), (0x7ffffe00, 0)   # a GB205's WPR2_LO/HI while GSP-RM runs, and at reset (R22, R23)
 CTX_BUF = (0x20000, 0x1000)                     # every GR context buffer's (size, alignment)
 errors, counts = [], collections.Counter()
-# FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (as fake_tinygpu_server.py; plan step V1's proxy check)
+# FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (plan step V1's proxy check)
 RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
 if os.environ.get("FAKE_PCI_DEVICE_ID"): CFG[0] = int(os.environ["FAKE_PCI_DEVICE_ID"], 16) << 16 | 0x10de
 HANG_AT, DROP_AT = int(os.environ.get("FAKE_GPU_HANG_AT", "0")), int(os.environ.get("FAKE_DROP_AT", "0"))
@@ -149,6 +157,7 @@ class Device:
         self.channels = tggpu.Channels()
         self.frontend = tggpu.Frontend(self.memory, self.channels, counts, err,
                                        compute_class=nv_gpu.BLACKWELL_COMPUTE_B if GB205 else nv_gpu.ADA_COMPUTE_A)
+        if COPY_LOG: self.frontend.on_copy = lambda dst, data: (COPY_LOG.write(struct.pack("<QQ", dst, len(data)) + bytes(data)), COPY_LOG.flush())
 
     # sysmem by device address
     def sys_rw(self, iova, n, data=None):
@@ -339,7 +348,8 @@ class Gsp:
                 return
             self.post(fn, msg)
             self.dev.regs[addr(FALCON_REGS["MAILBOX0"], GSP_BASE)] = 0x80000000   # suspended (kernel_gsp_tu102.c:1116-1139)
-            if GB205: self.dev.halt_in = 2   # the core halts, and WPR2 comes down, a little later (R23: 7 polls)
+            if GB205 and not NO_HALT: self.dev.halt_in = 2   # the core halts, and WPR2 comes down, a little later (R23: 7 polls)
+            elif GB205: self.dev.halt_in = float("inf")      # FAKE_NO_HALT: it never does
             else: self.dev.falcon[GSP_BASE]["riscv_active"] = False
             self.dev.unloaded, self.dev.gsp = True, None
             return

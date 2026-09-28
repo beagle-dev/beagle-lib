@@ -21,7 +21,7 @@ set(BASTA_EXTENSION "BIT")
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
-option(BUILD_TINYGPU_HYBRID "Build beagle with TinyGPUHybrid library (tinygrad init + C++ dispatch)" ON)
+option(BUILD_TINYGPU_HYBRID "Build beagle with TinyGPUHybrid library (an eGPU through TinyGPU.app, booted in C++)" ON)
 option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
 option(BUILD_SSE "Build beagle with SSE library" ON)

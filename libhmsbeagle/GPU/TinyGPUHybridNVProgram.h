@@ -6,8 +6,7 @@
  * multi-kernel-ELF fixes (BeagleNVProgram in nv_dispatch_daemon.py), plus the
  * device-side sizing NVProgram.__init__ triggers (NVDevice's
  * _ensure_has_local_memory, and where tinygrad would place each VRAM
- * allocation), for the C++ runtime (BEAGLE_NV_USE_DAEMON=0, the revived legacy
- * path; TODO.md "Runtime roadmap", Step 3). It produces the same per-kernel
+ * allocation), for the C++ runtime (TODO.md "Runtime roadmap", Step 3). It produces the same per-kernel
  * records the daemon's build_handoff does (NVDKernel: QMD template, cbuf0
  * prefix, kernargs layout) plus the relocated program image. The code follows
  * tinygrad's statement by statement. QMD field positions come from
@@ -319,9 +318,9 @@ struct NVDRuntime {
     NVDBuffer pool;
 };
 
-// Returns an empty string on success, otherwise what was missing. Without pool (BEAGLE_NV_CPP_LEVEL=vram or sysmem, plan
-// step C6) the pool is not in the reply: this side allocates it.
-static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& rt, bool pool = true) {
+// Returns an empty string on success, otherwise what was missing. (The daemon's runtime reply, which the goldens parse from
+// the oracle.)
+static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& rt) {
     std::string missing;
     auto u64 = [&](const char* key) -> uint64_t {
         uint64_t v = 0;
@@ -332,7 +331,7 @@ static inline std::string nvd_parse_runtime(const std::string& js, NVDRuntime& r
     rt.shared_mem_window = u64("shared_mem_window");       rt.local_mem_window = u64("local_mem_window");
     rt.num_gpcs = (uint32_t)u64("num_gpcs");               rt.num_tpc_per_gpc = (uint32_t)u64("num_tpc_per_gpc");
     rt.num_sm_per_tpc = (uint32_t)u64("num_sm_per_tpc");   rt.max_warps_per_sm = (uint32_t)u64("max_warps_per_sm");
-    if (pool) { rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size"); }
+    rt.pool.va = u64("pool_va");  rt.pool.size = u64("pool_size");
     return missing.empty() ? "" : "missing " + missing;
 }
 

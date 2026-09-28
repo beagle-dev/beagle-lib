@@ -1,13 +1,13 @@
 /*
  * TinyGPUHybridNVDispatch.h
  *
- * NV command encoding for C++ dispatch after the daemon handoff
- * (BEAGLE_NV_CPP_DISPATCH=1; TODO.md "Runtime roadmap", Step 3). The daemon
- * boots the GPU and prepares every program with tinygrad hcq1, then hands
- * over, per kernel, the QMD template and cbuf0 prefix it would have used,
- * plus QMD field positions and method/flag words computed from tinygrad's own
- * tables (nv_dispatch_daemon.py build_handoff), so this file hardcodes none
- * of them. Everything here encodes into caller-provided memory; the transport
+ * NV command encoding for the C++ runtime (TODO.md "Runtime roadmap", Step 3).
+ * It began after the daemon's handoff, which gave, per kernel, the QMD
+ * template and cbuf0 prefix tinygrad hcq1 would have used, plus QMD field
+ * positions and method/flag words computed from tinygrad's own tables
+ * (nv_dispatch_daemon.py build_handoff, now the harness's oracle); the plugin
+ * now builds the same records itself (TinyGPUHybridNVProgram.h,
+ * TinyGPUHybridNVDevice.h), so this file still hardcodes none of them. Everything here encodes into caller-provided memory; the transport
  * (TinyGPU.app socket, shared buffers, polling) lives in
  * GPUInterfaceTinyGPUHybridNV.cpp. Each function names the hcq1 code it
  * mirrors (tinygrad/runtime/ops_nv.py and support/hcq.py at a9830e2b4).
@@ -94,9 +94,9 @@ static inline bool nvd_json_u64s(const std::string& js, const char* key, std::ve
     }
 }
 
-// Returns an empty string on success, otherwise what was missing or malformed. Without buffers (BEAGLE_NV_CPP_LEVEL=sysmem,
-// plan step C6) the four buffers are not in the reply: this side allocates them.
-static inline std::string nvd_parse_handoff(const std::string& js, const std::vector<uint8_t>& blob, NVDHandoff& h, bool buffers = true) {
+// Returns an empty string on success, otherwise what was missing or malformed. (The daemon's handoff reply, which the goldens
+// parse from the oracle; the plugin builds its NVDHandoff itself, nvd_handoff_from_device.)
+static inline std::string nvd_parse_handoff(const std::string& js, const std::vector<uint8_t>& blob, NVDHandoff& h) {
     std::string missing;
     auto u64 = [&](const char* key) -> uint64_t {
         uint64_t v = 0;
@@ -137,7 +137,7 @@ static inline std::string nvd_parse_handoff(const std::string& js, const std::ve
     h.f_sem_release = u32("f_sem_release");  h.m_non_stall_interrupt = u32("m_non_stall_interrupt");
     fifo("c", h.compute);  fifo("d", h.copy);
     h.db_bar = u32("db_bar");  h.db_off = u64("db_off");
-    if (buffers) { buffer("cmdq", h.cmdq);  buffer("kargs", h.kargs);  buffer("staging", h.staging);  buffer("signal", h.signal); }
+    buffer("cmdq", h.cmdq);  buffer("kargs", h.kargs);  buffer("staging", h.staging);  buffer("signal", h.signal);
     uint32_t nkernels = u32("nkernels");
     if (!missing.empty()) return "missing " + missing;
     // SEND_PCAS_A and dependent_qmd0_pointer carry QMD address >> 8 in 32 bits, and a GPFIFO entry carries a

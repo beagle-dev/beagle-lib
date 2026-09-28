@@ -15,7 +15,8 @@ TEST_LIBS="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid:$BEAGLE_BUILD/libh
 # their runs/ files with this computer's name and keep their lock on this computer
 HW_HOST=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 # plan step V1's L0 recordings (STATUS.md R32): the C++ runtime's cold boot, a warm boot and a warm boot at 64 states on the
-# RTX 4060, each with its run and teardown, in $BEAGLE_TINYGPU_DATA/recordings (they hold NVIDIA firmware: never in git)
+# RTX 4060, each with its run and teardown, in $BEAGLE_TINYGPU_DATA/recordings (they hold NVIDIA firmware: never in git). They
+# and the GB205's were made through the daemon, tinygrad's own boot: the C++ boot makes the same requests (test_c11.sh, test_b2.sh)
 TG_L0="20260925-204611_mittag-leffler_cold 20260925-204652_mittag-leffler_warm 20260925-204737_mittag-leffler_warm64"
 # plan step B2's GB205 recordings (STATUS.md R45-R48): the GB20x L0 (level runtime), then rungs H1 (vram), H2 (sysmem), T
 # (teardown, the plugin's COT teardown), H3 (rm, the plugin's NVDevice) and H4 (gsp_hw, the plugin's GSP-RM boot) behind the
@@ -58,30 +59,26 @@ fini_verdict() {
 # stdout and stderr share one file). Prints the first failed check.
 d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     local got; got=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | xargs)
-    [ "$(grep -c "TinyGPU/NV: daemon booted" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
+    [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
     grep -q "Rsrc Name : TinyGPU-NV-Hybrid" "$1" || { echo "not the TinyGPU resource"; return 1; }
     grep -q "TinyGPU/NV: C++ runtime: embedded cubin SP_" "$2" || { echo "not the C++ runtime with an embedded cubin"; return 1; }
     ! grep -qE "not launched|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected or a step failed"; return 1; }
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }
 
-# The hardware scripts' shared protections (run_point.sh, run_d1.sh; plan steps P3, D1). hw_begin: nothing else changes what
-# the plugin or the daemon does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
+# The hardware scripts' shared protections (run_point.sh, run_d1.sh, run_l0.sh; plan steps P3, D1). hw_begin: nothing else
+# changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
 # exit; it is in $TMPDIR, next to tinygrad's nv_usb4.lock, so a computer sharing $BEAGLE_TINYGPU_DATA runs its own eGPU freely).
 hw_begin() {
     local v
-    # also BEAGLE's dispatch and compile knobs, and tinygrad's that change a boot: PMA/PROFILE/VIZ start its profiler setup (a
-    # Blackwell branch that never ran on this card), DISABLE_HTTP_CACHE re-downloads the firmware inside the boot, REMOTE swaps
-    # the device list, HCQDEV_WAIT_TIMEOUT_MS the timeline timeout, GMMU every GPU mapping (plan step B1)
-    for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_DATA_MB BEAGLE_NV_DISPATCH_DAEMON APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_NV_MEM FAKE_TEST_BIN \
-             BEAGLE_NV_FILL_LAUNCH_DIMS BEAGLE_NV_CHAIN_LAUNCHES BEAGLE_NV_USE_NVJITLINK PTXAS HCQDEV_WAIT_TIMEOUT_MS \
-             DISABLE_HTTP_CACHE PMA PROFILE VIZ REMOTE GMMU \
-             BEAGLE_TG_OFFLINE BEAGLE_TG_MUTATE BEAGLE_TG_RECORD BEAGLE_TG_RECORD_LOG BEAGLE_TG_MARKERS BEAGLE_TG_DAEMON_PIDFILE \
-             BEAGLE_NV_CPP_LEVEL BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do   # plan V1's harness; plan C5's level (the scripts set it) and log; C10's test kill (run_point.sh --kill) and guard
+    # the plugin's knobs, and the harness's (plan V1's markers and fakes, the log, C10's test kill, run_point.sh --kill, and the
+    # guard's path); since plan step C13c no Python runs, so tinygrad's own variables change nothing
+    for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_DATA_MB APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_TEST_BIN BEAGLE_NV_FILL_LAUNCH_DIMS \
+             BEAGLE_TG_MARKERS BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
-    # the firmware is staged, so no boot downloads inside the daemon (decision 5; macOS may purge tinygrad's cache): offline,
-    # re-staging from $BEAGLE_TINYGPU_DATA/fw if needed
+    # the firmware is staged where the boot looks for it (decision 5; macOS may purge tinygrad's cache): offline, re-staging
+    # from $BEAGLE_TINYGPU_DATA/fw if needed
     "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware_hw.log" 2>&1 \
         || { cat "$TINYGPU_TEST_WORK/check_firmware_hw.log"; echo "firmware not staged (check_firmware.py failed); not running"; exit 2; }
     # the one allowed knob: plan step B1's fallback unload (LEVEL_0 when 0), announced so the run's output says so
@@ -110,11 +107,14 @@ hw_logstream_stop() {
     kill -0 $LSP 2>/dev/null || return 1
     sleep 2; kill $LSP 2>/dev/null
 }
-# hw_hold_check: a remaining daemon or nv_teardown_diag may hold the GPU: keep the Mac awake while it holds, and say what to do
+# what can hold the GPU after a run: the crash guard (.../beagle-tinygpu-guard, plan step C10), anchored at the end of the
+# command line, so a shell or editor that merely mentions it does not match
+GUARD_RE="(^|/)beagle-tinygpu-guard$"
+# hw_hold_check: a remaining crash guard may hold the GPU: keep the Mac awake while it holds, and say what to do
 hw_hold_check() {
     local pid p
-    pid=$(pgrep -f "$DAEMON_RE") || return 0
+    pid=$(pgrep -f "$GUARD_RE") || return 0
     for p in $pid; do nohup caffeinate -ims -w $p > /dev/null 2>&1 & done
-    echo "STOP: pid $pid (nv_dispatch_daemon, nv_teardown_diag or the crash guard) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"
+    echo "STOP: pid $pid (the crash guard) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"
     return 1
 }

@@ -137,6 +137,7 @@ class Frontend:
     """On a doorbell, the channel's GPFIFO entries from GPGet to GPPut, as ops_nv.py submits them (NVCommandQueue._submit_to_gpfifo)."""
     def __init__(self, memory, channels, counts, err, compute_class=nv_gpu.ADA_COMPUTE_A):   # BLACKWELL_COMPUTE_B: QMD v5
         self.mem, self.channels, self.counts, self.err = memory, channels, counts, err
+        self.on_copy = None   # (destination VA, the bytes copied), for each copy-engine copy (fake_nv_device.py's FAKE_COPY_LOG)
         f = ops_nv.nv_flags
         self.m = types.SimpleNamespace(   # the words build_handoff takes from tinygrad too (nv_dispatch_daemon.py)
             sem_addr_lo=nv_gpu.NVC56F_SEM_ADDR_LO,
@@ -194,7 +195,8 @@ class Frontend:
             elif subc == 4 and mthd == m.dma_line_length_in: st["n"] = args[0]
             elif subc == 4 and mthd == m.dma_sem_a: st["sem"], st["val"] = args[0] << 32 | args[1], args[2]
             elif subc == 4 and mthd == m.dma_launch and args[0] == m.dma_copy:
-                mem.write(st["dst"], mem.read(st["src"], st["n"])); self.counts["copies"] += 1
+                data = mem.read(st["src"], st["n"]); mem.write(st["dst"], data); self.counts["copies"] += 1
+                if self.on_copy: self.on_copy(st["dst"], data)
             elif subc == 4 and mthd == m.dma_launch and args[0] == m.dma_sem: self.release(st["sem"], st["val"])
             else: self.counts[f"method {subc}:{mthd:#x}"] += 1   # setup methods (objects, windows, local memory, invalidates): no effect here
 

@@ -1,15 +1,14 @@
 /*
  * TinyGPUHybridNVCubins.h
  *
- * The C++ runtime's ahead-of-time cubins (BEAGLE_NV_USE_DAEMON=0; TODO.md plan
- * step C1). The build compiles the single-precision PTX modules for every
+ * The C++ runtime's ahead-of-time cubins (TODO.md plan step C1). The build compiles the single-precision PTX modules for every
  * supported architecture with the daemon's own ptxas command line and links
  * the cubins into the plugin (kernels/make_tinygpu_cubins.sh, which generates
  * their table, kTinyGPUNVCubins in kernels/TinyGPUNVCubins.h). This picks the
  * cubin for a state count and GPU, checks its ELF header, and lists its
  * kernels, in place of the daemon's run-time ptxas (cmd_compile_all). The
- * architecture name is tinygrad's own (NVDevice.arch, ops_nv.py:631), taken
- * from the daemon's boot reply. There is no run-time fallback (decision 15).
+ * architecture name is tinygrad's own (NVDevice.arch, ops_nv.py:631), from the
+ * C++ boot's NVDevice. There is no run-time fallback (decision 15).
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVCUBINS_H

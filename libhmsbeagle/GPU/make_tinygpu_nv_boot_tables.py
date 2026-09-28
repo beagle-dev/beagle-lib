@@ -37,8 +37,8 @@ INCLUDES = {
 }
 GROUPS = [f"NV_MMU_VER{v}_{g}" for v in (2, 3) for g in ("PDE", "DUAL_PDE", "PTE")]   # the names nvdev.py:128-129 builds
 
-HELPER = "libhmsbeagle/GPU/nv_init_helper.py"
-SCANNED = [TINYGRAD / "tinygrad/runtime/support/nv/ip.py", TINYGRAD / "tinygrad/runtime/support/nv/nvdev.py", HERE / "nv_init_helper.py"]
+HELPER = "libhmsbeagle/GPU/tinygpu_tests/oracle/nv_init_helper.py"
+SCANNED = [TINYGRAD / "tinygrad/runtime/support/nv/ip.py", TINYGRAD / "tinygrad/runtime/support/nv/nvdev.py", HERE / "tinygpu_tests/oracle/nv_init_helper.py"]
 SKIP = {("nv", "rpc_fns"), ("nv", "rpc_events")}   # name tables for log lines (ip.py:81, nv_init_helper.py:169)
 
 # ops_nv.py's PCIIface path (ops_nv.py:556-760): PCIIface.__init__, NVDevice.__init__, _new_gpu_fifo without its video

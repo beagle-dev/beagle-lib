@@ -1,11 +1,13 @@
 
-# TinyGPUHybrid backend — Python-assisted GPU init (tinygrad) + C++ hot-path dispatch.
+# TinyGPUHybrid backend: an eGPU through TinyGPU.app. NV: the C++ boot and
+# runtime, with no Python (../TinyGPUHybrid.md); AMD: tinygrad's Python init
+# (amd_dispatch_daemon.py) + C++ hot-path dispatch.
 #
 # Prerequisites:
 #   - macOS with TinyGPU.app installed in /Applications/
-#   - Python 3 with tinygrad on PYTHONPATH (or TINYGRAD_PATH set)
-#   - ptxas (from CUDA toolkit) at build time for the C++ runtime's embedded
-#     cubins, and on PATH at runtime for the daemon modes' compile_all
+#   - for AMD: Python 3 with tinygrad on PYTHONPATH (or TINYGRAD_PATH set)
+#   - nvcc and ptxas (CUDA 12.8) at build time, for the kernels header and the
+#     C++ runtime's embedded cubins
 #
 # Build:  cmake -DBUILD_TINYGPU_HYBRID=ON ..
 
@@ -56,7 +58,8 @@ install(TARGETS hmsbeagle-tinygpu-hybrid
     COMPONENT tinygpu-hybrid
     )
 
-# TODO.md plan step C10: the crash guard the plugin spawns at level flcn_hw, which looks for it next to itself
+# TODO.md plan steps C10 and C11: the crash guard the plugin spawns before its boot's first request to the GPU; the plugin
+# looks for it next to itself
 add_executable(beagle-tinygpu-guard ../tinygpu_guard.cpp ../TinyGPUHybridNVGuard.h)
 add_dependencies(hmsbeagle-tinygpu-hybrid beagle-tinygpu-guard)
 install(TARGETS beagle-tinygpu-guard

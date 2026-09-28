@@ -166,10 +166,8 @@ class RaisingMMIO(FakeMMIO):
 
 def test_not_halted_by_default():
     """On COT the unload's report says halted false from its first line on, so every way out before the halt wait holds:
-    the suspend wait's own CPUCTL read failing (NVDev.fini then never reaches flcn.fini_hw), in fini, EOF, the hung path and
-    the failed-boot unload. Ada's report gains no key."""
-    import test_p3 as p3
-    from tinygrad import Device
+    the suspend wait's own CPUCTL read failing (NVDev.fini then never reaches flcn.fini_hw), and the failed-boot unload. Ada's
+    report gains no key."""
     dev = fake_cot_nvdev({MBX0: 0x80000000}); dev.mmio = RaisingMMIO({MBX0: 0x80000000}, CPUCTL)
     gsp = NV_GSP.__new__(NV_GSP); gsp.nvdev = dev
     with orig("gsp_fini_hw", lambda self: None), quiet():
@@ -189,17 +187,8 @@ def test_not_halted_by_default():
         with orig("gsp_fini_hw", lambda self: None), quiet(): r = h.unload_after_failed_boot()
         assert r["unload_ok"] and r["halted"] is False, r
     finally: h._BOOTING[0] = saved
-    real, Device._opened_devices = Device._opened_devices, set()
-    try:
-        for hung in (False, True):   # the daemon's _fini with its device's unload raising after that report (fini, EOF, hung)
-            a, dm, calls, _, _ = p3.rig()
-            def failing(what=None): dm.dev.iface.dev_impl.beagle_fini = dict(dev.beagle_fini); raise RuntimeError("RPC failed: fake")
-            dm.dev.finalize, dm.dev.iface.dev_impl.gsp.fini_hw = failing, failing
-            with quiet(): r = dm._fini(hung)
-            assert r.get("hold") and r["pid"] == os.getpid() and r["halted"] is False and dm.dev is not None, (hung, r)
-    finally: Device._opened_devices = real
-    print("not halted by default: on COT the report starts halted false, so a failed CPUCTL read in the suspend wait holds in fini, "
-          "EOF, the hung path and the failed-boot unload; Ada's report is unchanged")
+    print("not halted by default: on COT the report starts halted false, so a failed CPUCTL read in the suspend wait holds, and "
+          "so does the failed-boot unload; Ada's report is unchanged")
 
 # ── the COT message, the failed-boot unload, the sequencer, the script refusal ─
 def test_cot_message_flag():
@@ -305,11 +294,8 @@ def test_script_refusal():
         fl = NV_FLCN.__new__(NV_FLCN); NV_FLCN.__init__(fl, dev)   # Ada's falcon: unaffected
     finally: h._REFUSE_FMC_BOOT[0] = saved
     assert dev.mmio.log == []
-    for script in ("nv_boot_only_diag.py", "nv_teardown_diag.py", "nv_real_kernel_probe.py", "nv_reference_test.py"):
-        src = open(os.path.join(tgpaths.GPU_DIR, script)).read()
-        assert src.index("import nv_init_helper") < src.index(f'nv_init_helper.refuse_fmc_boot("{script}")') < src.index('= Device["NV:0"]'), script
-    print("script refusal: the four tinygrad-only boot scripts refuse a COT chip when NV_FLCN_COT is made (after tinygrad's chip-id "
-          "reads, before boot memory); the daemon path and Ada are unaffected; no GPU access")
+    print("script refusal: a tinygrad-only boot script refuses a COT chip when NV_FLCN_COT is made (after tinygrad's chip-id reads, "
+          "before boot memory); the daemon path and Ada are unaffected; no GPU access (the four such probes went in plan step C13a)")
 
 def test_bar_check():
     def mmu(nbytes, vram_mb, large):
@@ -336,46 +322,6 @@ def test_layout_gate():
     assert r["pool_paddr_end"] <= r["vram_size"] - (512 << 20), (hex(r["pool_paddr_end"]), hex(r["vram_size"] - (512 << 20)))
     print(f"layout gate: on 12227 MiB (MMU v3) the GPFIFO area ends at 0x{r['gpfifo_paddr'] + r['gpfifo_size']:x} (< 256 MiB of BAR1), "
           f"no BAR1 write dropped, the default pool ends at 0x{r['pool_paddr_end']:x} (< vram_size - 512 MiB)")
-
-# ── the daemon's decisions ───────────────────────────────────────────────────
-def test_daemon_holds():
-    import test_p3 as p3
-    import nv_dispatch_daemon as d
-    from tinygrad import Device
-    real, Device._opened_devices = Device._opened_devices, set()   # never the real registry (STATUS.md R16)
-    try:
-        not_halted = {"unload_ok": True, "mailbox0": 0x80000000, "halted": False, "teardown_ok": False}
-        halted = {**not_halted, "halted": True, "teardown_ok": True}
-        for fini, hold in ((not_halted, True), (halted, False), (p3.CONFIRMED, False)):   # CONFIRMED: Ada, no halted key
-            a, dm, calls, _, _ = p3.rig(fini=fini); a.sendall(p3.msg({"cmd": "fini"}))
-            try:
-                with quiet(): dm.run()
-                held = False
-            except p3.Held: held = True
-            a.settimeout(5); r = p3.recv_reply(a)
-            assert held is hold and bool(r.get("hold")) is hold and (r.get("pid") == os.getpid()) is hold, (fini, r)
-            assert (dm.dev is None) is (not hold), fini   # torn down only when it may close
-            a, dm, calls, _, _ = p3.rig(fini=fini); held, _ = p3.run(a, dm)   # EOF decides the same
-            assert held is hold and calls == ["finalize"] + (["hold"] if hold else []), (fini, calls)
-        # a failed boot after the COT message: the daemon's failed-boot branch holds unless the GSP halted
-        for fini, hold in ((not_halted, True), (halted, False)):
-            a, b = socket.socketpair()
-            dm = d.Daemon(b); dm._hold = lambda: (_ for _ in ()).throw(p3.Held())
-            saved_patch, saved_unload, saved_get = d._apply_boot_safety_patches, h.unload_after_failed_boot, type(Device).__getitem__
-            d._apply_boot_safety_patches, h.unload_after_failed_boot = lambda: None, lambda: dict(fini)
-            def boom(self, ix): raise RuntimeError("fake boot failure after the COT message")
-            type(Device).__getitem__ = boom
-            try:
-                try:
-                    with quiet(): dm.cmd_boot({})
-                    held = False
-                except p3.Held: held = True
-            finally: d._apply_boot_safety_patches, h.unload_after_failed_boot, type(Device).__getitem__ = saved_patch, saved_unload, saved_get
-            a.settimeout(5); r = p3.recv_reply(a)
-            assert held is hold and r["ok"] is False and bool(r.get("hold")) is hold and (r.get("pid") == os.getpid()) is hold, (fini, r)
-    finally: Device._opened_devices = real
-    print("daemon: fini, EOF and a failed boot hold (reply with hold and pid) when the GSP's RISC-V did not halt, and close when it "
-          "did; Ada's replies (no halted key) decide as before")
 
 # ── tinygrad's real boot path on a scripted GB205 (subprocess scenarios) ───────
 def boot_scenario(kind):
@@ -475,7 +421,7 @@ if __name__ == "__main__":
         boot_scenario(sys.argv[2]); sys.exit(0)
     for t in (test_pin, test_registers, test_riscv_include, test_halt_wait, test_unload_then_halt, test_not_halted_by_default,
               test_cot_message_flag, test_failed_boot_unload, test_sequencer_guard, test_compile_ptx_raises, test_level0_logged,
-              test_script_refusal, test_bar_check, test_layout_gate, test_daemon_holds, test_gb205_boot, test_gb205_refusals,
+              test_script_refusal, test_bar_check, test_layout_gate, test_gb205_boot, test_gb205_refusals,
               test_ada_unchanged):
         t()
     print("B1 COT: all passed")

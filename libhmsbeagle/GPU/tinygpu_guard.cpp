@@ -1,21 +1,15 @@
 /*
- * tinygpu_guard.cpp -- beagle-tinygpu-guard, TODO.md plan step C10: the crash guard that replaces the daemon's keeper role
- * (inv:transport-teardown#7). The plugin spawns it (posix_spawn, a new session, no fd but its end of a socketpair: never a
- * fork, since BEAST hosts a JVM) at level flcn_hw once the C++ NVDevice and its timeline exist, hands it the TinyGPU.app
- * connection, the lock, the GSP queues, the state page and the C++ timeline over SCM_RIGHTS with what the teardown needs
- * (GuardSetup), and waits for its "ready" before it sets the state page's keeper word and asks the daemon to hand the keeper
- * role over (TinyGPUHybridNVGuard.h).
- *
- * At level boot (plan step C11) there is no daemon: the plugin spawns the guard before its first request to the GPU, with the
- * connection, the lock and the state page only (TinyGPUHybridNVGuard.h's kGuardSetupHold), and sends 'S' and the rest (the
- * queues and the timeline) once the NVDevice is built. Until then the guard can only hold, or close in phase flcn_init.
+ * tinygpu_guard.cpp -- beagle-tinygpu-guard, TODO.md plan step C10: the crash guard (inv:transport-teardown#7). The plugin spawns
+ * it (posix_spawn, a new session, no fd but its end of a socketpair: never a fork, since BEAST hosts a JVM) before its first
+ * request to the GPU, with the TinyGPU.app connection, the lock and the state page (TinyGPUHybridNVGuard.h's kGuardSetupHold),
+ * waits for its "ready", and sends 'S' and the rest (the GSP queues and the C++ timeline, with what the teardown needs) once
+ * the NVDevice is built (plan step C11). Until then the guard can only hold, or close in phase flcn_init.
  *
  * While the plugin lives the guard sends nothing on the connection: two clients of one TinyGPU.app session must take turns,
  * and the plugin has it. At the plugin's own fini the plugin tears the GPU down itself and says "clean" (the guard exits) or
- * "hold" (its unload was not confirmed: the guard keeps the connection open), or "stand down" (the daemon kept the role). If
- * the socketpair ends without any of them, the plugin is gone (killed, crashed): unless the keeper word says the plugin handed
- * the role over, the daemon decides and the guard exits; otherwise the guard decides as the daemon's fini and EOF path did
- * (nv_dispatch_daemon.py _fini):
+ * "hold" (its unload was not confirmed: the guard keeps the connection open). If the socketpair ends without either, the
+ * plugin is gone (killed, crashed) or lost the GPU (plan step C12), and the guard decides as the daemon's fini and EOF path
+ * did (nv_dispatch_daemon.py _fini, now the harness's oracle):
  *   - phase flcn_init: nothing started (before booter_load or the COT message); closing is safe;
  *   - phase gsp_init or teardown, or a frame in flight: hold, sending nothing (GSP-RM may be live, or TinyGPU.app would read
  *     the guard's bytes as the rest of a cut frame);
@@ -82,12 +76,11 @@ int main() {
     int raw[kGuardFds], fds[kGuardFds] = {-1, -1, -1, -1, -1};
     std::string err = guard_recv_setup(ctl, g, raw);
     if (err.empty() && g.kind == kGuardSetupRest) err = "a setup's rest before the setup";
-    if (!err.empty()) {   // nothing was taken over: the plugin sees no "ready" and keeps the daemon
+    if (!err.empty()) {   // nothing was taken over: the plugin sees no "ready", and its boot fails before any request to the GPU
         tg_log("guard: no setup (%s); exiting", err.c_str());
         return 2;
     }
-    if (g.kind == kGuardSetupFull) memcpy(fds, raw, sizeof(fds));
-    else { fds[kGuardTinyGPU] = raw[0]; fds[kGuardLock] = raw[1]; fds[kGuardState] = raw[2]; }
+    fds[kGuardTinyGPU] = raw[0]; fds[kGuardLock] = raw[1]; fds[kGuardState] = raw[2];
     const size_t state_size = kNVDStateWordsGuard * 8;
     uint64_t* state = (uint64_t*)mmap(nullptr, state_size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[kGuardState], 0);
     uint8_t* queues = nullptr;
@@ -100,21 +93,19 @@ int main() {
         signal_page = (uint64_t*)s;
         return true;
     };
-    bool full = g.kind == kGuardSetupFull;
-    if (state == MAP_FAILED || (full && !map_rest())) {
-        tg_log("guard: mmap of the queues, the state page or the timeline failed: %s; exiting", strerror(errno));
+    bool full = false;   // the setup's rest came: the guard can tear the GPU down
+    if (state == MAP_FAILED) {
+        tg_log("guard: mmap of the state page failed: %s; exiting", strerror(errno));
         return 2;
     }
     TGTransport t;
     t.adopt(fds[kGuardTinyGPU], fds[kGuardLock]);
-    if (full) t.seed_bar(0, g.bar0_size);   // BAR0 was mapped in the boot
     const char ready = 'R';
     if (write(ctl, &ready, 1) != 1) {
         tg_log("guard: could not say ready: %s; exiting", strerror(errno));
         return 2;
     }
-    tg_log("guard %d: ready for plugin %d (%s%s, level %s)%s", (int)getpid(), (int)g.parent_pid, g.chip_name, g.cot ? ", COT" : "",
-           g.level_name, full ? "" : "; it can only hold until the plugin's boot is done");
+    tg_log("guard %d: ready for plugin %d; it can only hold until the plugin's boot is done", (int)getpid(), (int)g.parent_pid);
 
     // the plugin says "clean" or "hold", or sends the setup's rest, or goes away
     char msg = 0;
@@ -141,20 +132,13 @@ int main() {
         return 0;
     }
     if (n == 1 && msg == 'H') hold("the plugin's own GPU teardown was not confirmed");
-    if (n == 1 && msg == 'N') {   // level boot (plan step C11): a boot that stopped before GSP-RM started, as the daemon's flcn_init
+    if (n == 1 && msg == 'N') {   // plan step C11: a boot that stopped before GSP-RM started (the daemon's flcn_init, in the oracle)
         tg_log("guard %d: the plugin's boot stopped before GSP-RM started: nothing to unload, closing is safe; exiting", (int)getpid());
         return 0;
     }
-    if (n == 1 && msg == 'X') {
-        tg_log("guard %d: the daemon keeps the keeper role; exiting", (int)getpid());
-        return 0;
-    }
-    if (__atomic_load_n(&state[kGuardStateKeeper], __ATOMIC_ACQUIRE) != kGuardKeeperGuard) {
-        tg_log("guard %d: the plugin went away before it handed the keeper role over: the daemon decides; exiting", (int)getpid());
-        return 0;
-    }
 
-    // the plugin is gone without either: the daemon's fini decision (nv_dispatch_daemon.py _fini), on the state page
+    // the plugin is gone, or lost the GPU (plan step C12), without either: the oracle's fini decision (nv_dispatch_daemon.py
+    // _fini), on the state page
     const uint64_t phase = __atomic_load_n(&state[kGuardStatePhase], __ATOMIC_ACQUIRE);
     const uint64_t in_flight = __atomic_load_n(&state[kGuardStateInFlight], __ATOMIC_ACQUIRE);
     const uint64_t last = __atomic_load_n(&state[kGuardStateLastSubmitted], __ATOMIC_ACQUIRE);
