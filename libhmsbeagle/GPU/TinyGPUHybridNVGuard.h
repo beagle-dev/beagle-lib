@@ -2,13 +2,22 @@
  * TinyGPUHybridNVGuard.h -- what the plugin and beagle-tinygpu-guard (tinygpu_guard.cpp, TODO.md plan step C10) share: the
  * setup message, the state page's layout, and the guard's spawn.
  *
+ * The setup comes in one of two ways. At level flcn_hw the plugin spawns the guard once the NVDevice and its timeline exist
+ * and sends everything at once (kGuardSetupFull, five fds). At level boot (plan step C11) there is no daemon: the plugin
+ * spawns the guard before its first request to the GPU with what holding takes (kGuardSetupHold: the connection, its lock
+ * and the state page, three fds), and once the NVDevice is built it sends 'S' and the rest (kGuardSetupRest: the queues and
+ * the timeline, two fds, with the teardown's parameters). Until the rest arrives a guard can only hold, which is what a
+ * death during the boot needs: the state page says a frame is in flight throughout, or that the falcons' boot has not begun
+ * (flcn_init), in which case the guard closes.
+ *
  * The plugin creates a socketpair and spawns the guard with posix_spawn (POSIX_SPAWN_SETSID: its own session, so a terminal's
  * Ctrl-C or hangup does not reach it; POSIX_SPAWN_CLOEXEC_DEFAULT: no fd of the host but its end of the pair, as fd 3, and
  * stderr; stdin and stdout are /dev/null, so no fd it receives later takes a standard number that a stray print would write
  * to). Over the
  * pair it sends one GuardSetup with five fds (SCM_RIGHTS): the TinyGPU.app connection, its lock, the GSP queues' sysmem, the
  * state page and the C++ timeline's sysmem. The guard replies 'R' once it has mapped them. Later the plugin sends 'C' (clean:
- * it tore the GPU down itself), 'H' (hold: its unload was not confirmed) or 'X' (stand down: the daemon kept the keeper role);
+ * it tore the GPU down itself), 'H' (hold: its unload was not confirmed), 'X' (stand down: the daemon kept the keeper role) or
+ * 'N' (level boot: the boot stopped before GSP-RM started, so nothing is to be unloaded);
  * an EOF without any of them means the plugin is gone.
  *
  * The keeper role passes from the daemon to the guard through the state page's keeper word, which the plugin sets to
@@ -46,9 +55,12 @@ enum { kGuardStatePhase, kGuardStateInFlight, kGuardStateLastSubmitted, kGuardSt
 constexpr uint64_t kGuardPhaseDispatch = 1, kGuardPhaseTeardown = 2, kGuardPhaseGspInit = 3, kGuardPhaseFlcnInit = 4;
 constexpr uint64_t kGuardKeeperDaemon = 0, kGuardKeeperGuard = 1;   // the keeper word
 
-// What the guard's teardown needs: the plugin's NVDTeardown (cmd_rm_export's reply) and BAR0's size (the daemon mapped it).
+// What the guard's teardown needs: the plugin's NVDTeardown (cmd_rm_export's reply, or at level boot the C++ boot's) and
+// BAR0's size. A kGuardSetupHold setup carries only the chip and level names; its rest comes with kGuardSetupRest.
+enum : uint32_t { kGuardSetupFull, kGuardSetupHold, kGuardSetupRest };
 struct GuardSetup {
     uint32_t magic, size;   // kGuardMagic, sizeof(GuardSetup): a guard built from other sources refuses the setup
+    uint32_t kind, nfds;    // kGuardSetup*, and how many fds come with it (5, 3 or 2)
     uint64_t queues_size, cmdq_off, statq_off, queue_size, libos_args_sysmem, bar0_size, signal_size;
     uint32_t chip_id, cot, level0, parent_pid;
     NVTeardownImages images;
@@ -56,26 +68,30 @@ struct GuardSetup {
 };
 constexpr uint32_t kGuardMagic = 0x44475447;   // "GTGD"
 
-// sendmsg of the setup and the five fds, in one message
-inline bool guard_send_setup(int sock, const GuardSetup& g, const int (&fds)[kGuardFds]) {
+// the fds each kind of setup carries, in this order: Full the five of the kGuard* enum, Hold the connection, its lock and the
+// state page, Rest the queues and the timeline
+inline uint32_t guard_setup_nfds(uint32_t kind) { return kind == kGuardSetupFull ? 5 : kind == kGuardSetupHold ? 3 : 2; }
+
+// sendmsg of the setup and its fds, in one message
+inline bool guard_send_setup(int sock, const GuardSetup& g, const int* fds) {
     struct iovec iov = {(void*)&g, sizeof(g)};
     char ctl[CMSG_SPACE(sizeof(int) * kGuardFds)] = {};
     struct msghdr mh{};
     mh.msg_iov = &iov;
     mh.msg_iovlen = 1;
     mh.msg_control = ctl;
-    mh.msg_controllen = sizeof(ctl);
+    mh.msg_controllen = CMSG_SPACE(sizeof(int) * g.nfds);
     struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
     c->cmsg_level = SOL_SOCKET;
     c->cmsg_type = SCM_RIGHTS;
-    c->cmsg_len = CMSG_LEN(sizeof(int) * kGuardFds);
-    memcpy(CMSG_DATA(c), fds, sizeof(int) * kGuardFds);
+    c->cmsg_len = CMSG_LEN(sizeof(int) * g.nfds);
+    memcpy(CMSG_DATA(c), fds, sizeof(int) * g.nfds);
     ssize_t n;
     while ((n = sendmsg(sock, &mh, 0)) < 0 && errno == EINTR) {}
     return n == (ssize_t)sizeof(g);
 }
 
-// recvmsg of it: "" or why not
+// recvmsg of one, its fds in fds[0..nfds): "" or why not
 inline std::string guard_recv_setup(int sock, GuardSetup& g, int (&fds)[kGuardFds]) {
     struct iovec iov = {&g, sizeof(g)};
     char ctl[CMSG_SPACE(sizeof(int) * kGuardFds)] = {};
@@ -87,10 +103,11 @@ inline std::string guard_recv_setup(int sock, GuardSetup& g, int (&fds)[kGuardFd
     ssize_t n;
     while ((n = recvmsg(sock, &mh, MSG_WAITALL)) < 0 && errno == EINTR) {}
     if (n != (ssize_t)sizeof(g)) return "a setup of " + std::to_string(n) + " bytes, not " + std::to_string(sizeof(g));
-    struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
-    if (!c || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * kGuardFds)) return "the setup came without its five fds";
-    memcpy(fds, CMSG_DATA(c), sizeof(int) * kGuardFds);
     if (g.magic != kGuardMagic || g.size != sizeof(g)) return "a setup from other sources (magic or size differs)";
+    if (g.kind > kGuardSetupRest || g.nfds != guard_setup_nfds(g.kind)) return "a setup of an unknown kind";
+    struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
+    if (!c || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * g.nfds)) return "the setup came without its fds";
+    memcpy(fds, CMSG_DATA(c), sizeof(int) * g.nfds);
     g.chip_name[sizeof(g.chip_name) - 1] = g.level_name[sizeof(g.level_name) - 1] = 0;
     return "";
 }

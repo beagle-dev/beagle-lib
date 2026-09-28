@@ -85,6 +85,7 @@
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDevice.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridNVBoot.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
 
@@ -262,7 +263,7 @@ static_assert(kNVDPhaseDispatch == kGuardPhaseDispatch && kNVDPhaseTeardown == k
 // with its CPU sequencer) and init_golden_image, then builds the NVDevice: the default since rungs H3 and H4 passed on the
 // RTX 4060 (STATUS.md R41). flcn_hw (plan step C9): the daemon's boot stops after
 // both init_sw calls; this side runs NV_FLCN.init_hw too (FWSEC-FRTS, booter_load), on the images the daemon prepared.
-enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw, kNVLevelFlcnHw };
+enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw, kNVLevelFlcnHw, kNVLevelBoot };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
@@ -273,7 +274,8 @@ static NVCppLevel nv_cpp_level() {
         if (strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
         if (strcmp(v, "rm") == 0) return kNVLevelRm;
         if (strcmp(v, "flcn_hw") == 0) return kNVLevelFlcnHw;
-        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw, flcn_hw); "
+        if (strcmp(v, "boot") == 0) return kNVLevelBoot;
+        fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw, flcn_hw, boot); "
                 "using gsp_hw\n", v);
         return kNVLevelGspHw;
     }();
@@ -827,6 +829,11 @@ static bool nvdStatePage(int cmd_sock, NVDispatchState& d, uint32_t seq = 0, uin
     __atomic_store_n(&st[kNVDStateSeq], seq, __ATOMIC_RELEASE);
     __atomic_store_n(&st[kNVDStateInFlight], in_flight, __ATOMIC_RELEASE);
     __atomic_store_n(&st[kNVDStatePhase], phase, __ATOMIC_RELEASE);
+    if (cmd_sock < 0) {   // level boot (plan step C11): no daemon; the page is the crash guard's alone
+        d.state = st;
+        d.state_fd = fd;
+        return true;
+    }
     nv_send_msg(cmd_sock, "{\"cmd\":\"state_page\"}");
     bool sent = nv_send_fds(cmd_sock, &fd, 1);
     std::string js = sent ? nv_recv_msg(cmd_sock) : "";
@@ -920,6 +927,60 @@ static bool nvdTimeline(int cmd_sock, NVDispatchState& d) {
     return true;
 }
 
+// What the NVDevice's build starts from (plan steps C7-C9): the falcons' images at level flcn_hw, and NV_GSP's RM state (at
+// level rm also init_hw's and init_golden_image's), taken from the daemon's rm export (nvDispatchRM) or, at level boot, from
+// the C++ boot (nvDispatchBoot, plan step C11). The GSP queues and the teardown's arguments are in d->td.
+struct NVRMStart {
+    NVFlcnImages im;
+    NVCotImages cim;
+    uint64_t wpr_meta_sysmem = 0;
+    uint32_t next_handle = 0, gpfifo_class = 0, compute_class = 0, dma_class = 0, viddec_class = 0;
+    bool gb2 = false;
+    uint32_t priv_root = 0, subdevice = 0, device = 0;       // level rm
+    std::vector<uint64_t> runlists, chan_runlists, grctx;    // level rm
+};
+
+// The build from the falcons' init_hw on (flcn_hw: FWSEC-FRTS and booter_load, or the COT message), GSP-RM's init_hw and the
+// golden image (gsp_hw), then the NVDevice on this side's RM client. The state page's phase follows GSP-RM: gsp_init once it
+// may run, dispatch after its INIT_DONE. "" or what failed; hung once _setup_gpfifos had begun to submit.
+static std::string nvdBuildDevice(NVDispatchState* d, const NVRMStart& s, bool gsp_hw, bool flcn_hw, bool& hung) {
+    NVDTeardown& t = d->td;
+    std::string err;
+    d->bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
+    d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id, t.cot);   // cot: level rm's GSP client, then the COT teardown
+    d->flcn->chip_name = t.chip_name;
+    try {
+        auto phase = [d](uint64_t p) { __atomic_store_n(&d->state[kNVDStatePhase], p, __ATOMIC_RELEASE); };
+        if (flcn_hw && t.cot)   // GSP-RM may run from sysmem from the COT message's first EMEM write on (nv_init_helper)
+            d->flcn->cot_init_hw(s.cim, s.wpr_meta_sysmem, t.libos_args_sysmem, [&] { phase(kNVDPhaseGspInit); });
+        else if (flcn_hw)   // GSP-RM may run from sysmem once booter_load runs; a booter_load that failed left it unstarted
+            d->flcn->init_hw(s.im, t.libos_args_sysmem, s.wpr_meta_sysmem, [&] { phase(kNVDPhaseGspInit); },
+                             [&](uint32_t mbx0) { if (mbx0 != 0) phase(kNVDPhaseFlcnInit); });
+        // the GSP queues, as init_hw's first statements build them: the status queue is GSP-RM's, which sets its header up once
+        // booter_load started it (at flcn_hw, just now); the constructor waits for it
+        d->gsp = std::make_unique<NVGsp>(*d->bar0, *d->flcn, t.queues, t.cmdq_off, t.statq_off, t.queue_size, t.libos_args_sysmem, t.seq,
+                                         d->flcn->wait_ms);
+        d->gsp->after_rpc = [d](uint32_t seq) { __atomic_store_n(&d->state[kNVDStateSeq], seq, __ATOMIC_RELEASE); };
+        d->rm = std::make_unique<NVRMClient>(*d->gsp, *d->mem->mm);
+        NVRMClient& rm = *d->rm;
+        rm.next_handle = s.next_handle; rm.gpfifo_class = s.gpfifo_class; rm.compute_class = s.compute_class; rm.dma_class = s.dma_class;
+        rm.viddec_class = s.viddec_class; rm.gb2 = s.gb2;
+        if (!gsp_hw) { rm.priv_root = s.priv_root; rm.subdevice = s.subdevice; rm.device = s.device; }
+        for (size_t i = 0; i < s.runlists.size(); i += 2) rm.runlists[s.runlists[i]] = (uint32_t)s.runlists[i + 1];
+        for (size_t i = 0; i < s.chan_runlists.size(); i += 2) rm.chan_runlists[(uint32_t)s.chan_runlists[i]] = (uint32_t)s.chan_runlists[i + 1];
+        for (size_t i = 0; i < s.grctx.size(); i += 5)
+            rm.grctx_bufs.push_back({(uint16_t)s.grctx[i], {s.grctx[i + 1], s.grctx[i + 2] != 0, s.grctx[i + 3] != 0, s.grctx[i + 4] != 0}});
+        if (gsp_hw) nv_gsp_init_hw(rm, t.cot, [&] { phase(kNVDPhaseDispatch); });   // cot: the COT boot's second BAR1 block
+        nv_device_init(rm, d->dev);
+    } catch (const TGPyError& e) {
+        err = "building the NVDevice: " + e.py();
+    } catch (const NVError& e) {
+        err = "building the NVDevice: " + e.py();
+    }
+    hung = !err.empty() && d->dev.cmdq_allocator.ptr != 0;   // _setup_gpfifos had begun to submit
+    return err;
+}
+
 // TODO.md plan step C7 (BEAGLE_NV_CPP_LEVEL=rm): the daemon booted only the NVDev, the GSP included, and this side builds the
 // NVDevice with tinygrad's RM client ported (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h), then allocates what
 // nvDispatchHandoff allocates at level sysmem: so TinyGPU.app receives what it receives at sysmem, where the daemon builds the
@@ -1005,38 +1066,13 @@ static NVDispatchState* nvDispatchRM(int cmd_sock, int tg_sock, bool& hung, NVCp
     if (err.empty()) {
         tg_transport().seed_bar(0, w[0]);   // the daemon mapped BAR0 in its boot
         d->bar0_size = w[0];
-        d->bar0 = std::make_unique<NVBar0>(NVBar0{&tg_transport()});
-        d->flcn = std::make_unique<NVFalcon>(*d->bar0, t.chip_id, t.cot);   // cot: level rm's GSP client, then the COT teardown
-        d->flcn->chip_name = t.chip_name;
-        try {
-            auto phase = [d](uint64_t p) { __atomic_store_n(&d->state[kNVDStatePhase], p, __ATOMIC_RELEASE); };
-            if (flcn_hw && t.cot)   // GSP-RM may run from sysmem from the COT message's first EMEM write on (nv_init_helper)
-                d->flcn->cot_init_hw(cim, wpr_meta_sysmem, t.libos_args_sysmem, [&] { phase(kNVDPhaseGspInit); });
-            else if (flcn_hw)   // GSP-RM may run from sysmem once booter_load runs; a booter_load that failed left it unstarted
-                d->flcn->init_hw(im, t.libos_args_sysmem, wpr_meta_sysmem, [&] { phase(kNVDPhaseGspInit); },
-                                 [&](uint32_t mbx0) { if (mbx0 != 0) phase(kNVDPhaseFlcnInit); });
-            // the GSP queues, as init_hw's first statements build them: the status queue is GSP-RM's, which sets its header up once
-            // booter_load started it (at flcn_hw, just now); the constructor waits for it
-            d->gsp = std::make_unique<NVGsp>(*d->bar0, *d->flcn, t.queues, t.cmdq_off, t.statq_off, t.queue_size, t.libos_args_sysmem, t.seq,
-                                             d->flcn->wait_ms);
-            d->gsp->after_rpc = [d](uint32_t seq) { __atomic_store_n(&d->state[kNVDStateSeq], seq, __ATOMIC_RELEASE); };
-            d->rm = std::make_unique<NVRMClient>(*d->gsp, *d->mem->mm);
-            NVRMClient& rm = *d->rm;
-            rm.next_handle = (uint32_t)w[1]; rm.gpfifo_class = (uint32_t)w[2]; rm.compute_class = (uint32_t)w[3]; rm.dma_class = (uint32_t)w[4];
-            rm.viddec_class = (uint32_t)w[5]; rm.gb2 = w[6] != 0;
-            if (!gsp_hw) { rm.priv_root = (uint32_t)w[7]; rm.subdevice = (uint32_t)w[8]; rm.device = (uint32_t)w[9]; }
-            for (size_t i = 0; i < runlists.size(); i += 2) rm.runlists[runlists[i]] = (uint32_t)runlists[i + 1];
-            for (size_t i = 0; i < chan_runlists.size(); i += 2) rm.chan_runlists[(uint32_t)chan_runlists[i]] = (uint32_t)chan_runlists[i + 1];
-            for (size_t i = 0; i < grctx.size(); i += 5)
-                rm.grctx_bufs.push_back({(uint16_t)grctx[i], {grctx[i + 1], grctx[i + 2] != 0, grctx[i + 3] != 0, grctx[i + 4] != 0}});
-            if (gsp_hw) nv_gsp_init_hw(rm, t.cot, [&] { phase(kNVDPhaseDispatch); });   // cot: the COT boot's second BAR1 block
-            nv_device_init(rm, d->dev);
-        } catch (const TGPyError& e) {
-            err = "building the NVDevice: " + e.py();
-        } catch (const NVError& e) {
-            err = "building the NVDevice: " + e.py();
-        }
-        hung = !err.empty() && d->dev.cmdq_allocator.ptr != 0;   // _setup_gpfifos had begun to submit
+        NVRMStart st;
+        st.im = im; st.cim = cim; st.wpr_meta_sysmem = wpr_meta_sysmem;
+        st.next_handle = (uint32_t)w[1]; st.gpfifo_class = (uint32_t)w[2]; st.compute_class = (uint32_t)w[3]; st.dma_class = (uint32_t)w[4];
+        st.viddec_class = (uint32_t)w[5]; st.gb2 = w[6] != 0;
+        st.priv_root = (uint32_t)w[7]; st.subdevice = (uint32_t)w[8]; st.device = (uint32_t)w[9];
+        st.runlists = runlists; st.chan_runlists = chan_runlists; st.grctx = grctx;
+        err = nvdBuildDevice(d, st, gsp_hw, flcn_hw, hung);
     }
     if (cim.fmc_boot_args) munmap(cim.fmc_boot_args, cot_map_size);   // written once (cot_init_hw); the daemon keeps the page
     uint64_t pool_mb = 0;
@@ -1096,6 +1132,23 @@ static std::string nv_guard_path() {
     return so.substr(0, so.rfind('/') + 1) + "beagle-tinygpu-guard";
 }
 
+// The crash guard's setup (TinyGPUHybridNVGuard.h) from this side's teardown arguments (d.td) and buffers, of a kind that
+// carries them (kGuardSetupFull, kGuardSetupRest)
+static GuardSetup nvGuardSetup(const NVDispatchState& d, uint32_t kind, const char* level) {
+    const NVDTeardown& t = d.td;
+    GuardSetup s{};
+    s.magic = kGuardMagic;
+    s.size = sizeof(s);
+    s.kind = kind;
+    s.nfds = guard_setup_nfds(kind);
+    s.queues_size = t.queues_size; s.cmdq_off = t.cmdq_off; s.statq_off = t.statq_off; s.queue_size = t.queue_size;
+    s.libos_args_sysmem = t.libos_args_sysmem; s.bar0_size = d.bar0_size; s.signal_size = d.h.signal.size;
+    s.chip_id = t.chip_id; s.cot = t.cot; s.level0 = t.level0; s.parent_pid = (uint32_t)getpid(); s.images = t.images;
+    snprintf(s.chip_name, sizeof(s.chip_name), "%s", t.chip_name.c_str());
+    snprintf(s.level_name, sizeof(s.level_name), "%s", level);
+    return s;
+}
+
 // TODO.md plan step C10: at level flcn_hw the crash guard (beagle-tinygpu-guard, tinygpu_guard.cpp) takes the daemon's keeper role
 // over once the NVDevice and its timeline exist. Spawned (TinyGPUHybridNVGuard.h) with the TinyGPU.app connection, its lock, the
 // GSP queues, the state page and the timeline, it says ready; then this side marks the state page's keeper word, the daemon exits
@@ -1109,14 +1162,7 @@ static void nvGuardTakeover(NVHybridState* g, NVDispatchState& d) {
     std::string err = guard_spawn(path, ctl, pid);
     if (!err.empty()) { fprintf(stderr, "TinyGPU/NV: the crash guard is unavailable (%s): the daemon stays the keeper\n", err.c_str()); return; }
     const NVDTeardown& t = d.td;
-    GuardSetup s{};
-    s.magic = kGuardMagic;
-    s.size = sizeof(s);
-    s.queues_size = t.queues_size; s.cmdq_off = t.cmdq_off; s.statq_off = t.statq_off; s.queue_size = t.queue_size;
-    s.libos_args_sysmem = t.libos_args_sysmem; s.bar0_size = d.bar0_size; s.signal_size = d.h.signal.size;
-    s.chip_id = t.chip_id; s.cot = t.cot; s.level0 = t.level0; s.parent_pid = (uint32_t)getpid(); s.images = t.images;
-    snprintf(s.chip_name, sizeof(s.chip_name), "%s", t.chip_name.c_str());
-    snprintf(s.level_name, sizeof(s.level_name), "flcn_hw");
+    const GuardSetup s = nvGuardSetup(d, kGuardSetupFull, "flcn_hw");
     const int fds[kGuardFds] = {d.tg_sock, tg_transport().lock_fd(), t.queues_fd, d.state_fd, d.signal_fd};
     char r = 0;
     struct pollfd pfd = {ctl, POLLIN, 0};
@@ -1156,6 +1202,143 @@ static void nvGuardTakeover(NVHybridState* g, NVDispatchState& d) {
     fprintf(stderr, "TinyGPU/NV: the guard (pid %d) keeps the keeper role; the daemon released it%s\n", (int)pid,
             g->daemon_pid ? " (and has not exited yet)" : " and exited");
     tg_log("the crash guard (pid %d) keeps the keeper role; the daemon released it", (int)pid);
+}
+
+// TODO.md plan step C11 (level boot): the crash guard, spawned before this side's first request to the GPU with what holding
+// takes (the TinyGPU.app connection, its lock and the state page: TinyGPUHybridNVGuard.h's kGuardSetupHold). Before it said
+// ready nothing went to the GPU, so a failed start ends it.
+static std::string nvGuardBootStart(NVDispatchState& d) {
+    const std::string path = nv_guard_path();
+    if (path.empty()) return "BEAGLE_NV_GUARD=0, but level boot has no daemon to keep the GPU instead";
+    int ctl = -1;
+    pid_t pid = 0;
+    std::string err = guard_spawn(path, ctl, pid);
+    if (!err.empty()) return "the crash guard: " + err;
+    GuardSetup s{};
+    s.magic = kGuardMagic;
+    s.size = sizeof(s);
+    s.kind = kGuardSetupHold;
+    s.nfds = guard_setup_nfds(kGuardSetupHold);
+    s.parent_pid = (uint32_t)getpid();
+    snprintf(s.level_name, sizeof(s.level_name), "boot");
+    const int fds[3] = {d.tg_sock, tg_transport().lock_fd(), d.state_fd};
+    char r = 0;
+    struct pollfd pfd = {ctl, POLLIN, 0};
+    if (!guard_send_setup(ctl, s, fds)) err = std::string("its setup: ") + strerror(errno);
+    else if (poll(&pfd, 1, 10000) != 1 || read(ctl, &r, 1) != 1 || r != 'R') err = "it never said ready";
+    if (!err.empty()) {
+        close(ctl);
+        kill(pid, SIGKILL);
+        waitpid(pid, nullptr, 0);
+        return "the crash guard: " + err;
+    }
+    d.guard_ctl = ctl;
+    d.guard_pid = pid;
+    fprintf(stderr, "TinyGPU/NV: level boot: the crash guard (pid %d) keeps the GPU from here, holding it until the NVDevice is built\n", (int)pid);
+    tg_log("level boot: the crash guard (pid %d) keeps the GPU", (int)pid);
+    return "";
+}
+
+// ... and, once the NVDevice is built, the rest (kGuardSetupRest): the GSP queues, the timeline and the teardown's arguments
+static std::string nvGuardBootRest(NVDispatchState& d) {
+    const GuardSetup s = nvGuardSetup(d, kGuardSetupRest, "boot");
+    const int fds[2] = {d.td.queues_fd, d.signal_fd};
+    const char m = 'S';
+    if (write(d.guard_ctl, &m, 1) != 1 || !guard_send_setup(d.guard_ctl, s, fds)) return std::string("the crash guard's setup rest: ") + strerror(errno);
+    return "";
+}
+
+// TODO.md plan step C11 (BEAGLE_NV_CPP_LEVEL=boot): no daemon and no Python. This side boots the GPU with the C++ boot
+// (TinyGPUHybridNVBoot.h: NVDev.__init__'s software half as the daemon runs it at flcn_hw, nv_init_helper's patches included),
+// then builds the NVDevice as nvDispatchRM does at flcn_hw from the daemon's export (nvdBuildDevice) and allocates its buffers.
+// The crash guard keeps the GPU from before the first request to it; the keeper word names it from the start. The state page
+// says a frame is in flight until the NVDevice is built and the guard has the rest of its setup: a death before the falcons'
+// boot closes (phase flcn_init), one after it holds.
+static NVDispatchState* nvDispatchBoot(int tg_sock, bool& hung) {
+    auto t0 = nv_profile_start();
+    hung = false;
+    NVDispatchState* d = new NVDispatchState;
+    d->runtime = true;
+    d->tg_sock = tg_sock;
+    NVDTeardown& t = d->td;
+    std::string err = nvdStatePage(-1, *d, 0, kNVDPhaseFlcnInit, 1) ? "" : "no state page";
+    if (err.empty()) {
+        __atomic_store_n(&d->state[kNVDStateKeeper], kGuardKeeperGuard, __ATOMIC_RELEASE);
+        err = nvGuardBootStart(*d);
+    }
+    if (err.empty()) nv_test_kill("boot_guard");
+    NVBootDev bd;
+    bd.t = &tg_transport();
+    NVRMStart st;
+    NVBootMem fmc_args, fmc_image;
+    NVGspBoot gb;
+    if (err.empty()) {
+        try {
+            nv_boot_pci(bd);
+            nv_boot_early_ip_init(bd);
+            nv_boot_early_mmu_init(bd);
+            nv_boot_end_booting(bd);
+            if (bd.fmc_boot) nv_boot_cot_init_sw(bd, st.cim, fmc_args, fmc_image);
+            else nv_boot_flcn_init_sw(bd, st.im, t.images);
+            nv_boot_gsp_init_sw(bd, gb, bd.fmc_boot ? nullptr : &st.im);
+        } catch (const NVError& e) {
+            err = "the C++ boot: " + e.py();
+        } catch (const TGPyError& e) {
+            err = "the C++ boot: " + e.py();
+        } catch (const std::exception& e) {
+            err = std::string("the C++ boot: ") + e.what();
+        }
+    }
+    if (err.empty()) {   // what the daemon's rm export carries at flcn_hw (cmd_rm_export), from the boot
+        t.queues = gb.queues.sys.view; t.queues_fd = gb.queues_fd; t.queues_size = gb.queues.sys.mapped_size;
+        t.cmdq_off = gb.pt_size; t.statq_off = gb.pt_size + gb.queue_size; t.queue_size = gb.queue_size;
+        t.seq = gb.cmd_q->seq; t.libos_args_sysmem = gb.libos_args_sysmem; t.chip_id = bd.chip_id; t.cot = bd.fmc_boot;
+        t.chip_name = bd.chip_name;
+        const char* ul = getenv("BEAGLE_NV_UNLOAD_LEVEL");
+        t.level0 = ul && strcmp(ul, "0") == 0;
+        __atomic_store_n(&d->state[kNVDStateSeq], t.seq, __ATOMIC_RELEASE);
+        st.wpr_meta_sysmem = gb.wpr_meta_sysmem;
+        st.next_handle = gb.next_handle; st.gpfifo_class = gb.gpfifo_class; st.compute_class = gb.compute_class; st.dma_class = gb.dma_class;
+        st.viddec_class = gb.viddec_class; st.gb2 = bd.chip_name.compare(0, 3, "GB2") == 0;
+        d->mem = std::move(bd.mem);
+        d->mem->wpr_bound = bd.fmc_boot ? bd.vram_size - (512ull << 20) : gb.meta.gspFwRsvdStart;   // the daemon's _wpr_bound
+        uint64_t bar0_addr = 0;
+        std::string e;
+        tg_transport().bar_info(0, bar0_addr, d->bar0_size, e);   // cached: the boot mapped BAR0 first
+        nv_test_kill("boot_sw");
+        err = nvdBuildDevice(d, st, true, true, hung);
+    }
+    uint64_t pool_mb = 0;
+    if (const char* mb = getenv("BEAGLE_NV_DATA_MB")) pool_mb = strtoull(mb, nullptr, 10);
+    if (err.empty()) err = nvdOwnAllocations("", *d, pool_mb, true);
+    if (err.empty()) {
+        nvd_handoff_from_device(d->dev, d->rm->compute_class, d->h);
+        nvd_runtime_from_device(d->dev, d->rm->compute_class, d->rt);
+        nv_test_kill("boot_built");
+        err = nvGuardBootRest(*d);
+    }
+    if (!err.empty()) {
+        fprintf(stderr, "TinyGPU/NV: level boot: %s\n", err.c_str());
+        const bool started = d->state && __atomic_load_n(&d->state[kNVDStatePhase], __ATOMIC_ACQUIRE) != kNVDPhaseFlcnInit;
+        if (d->guard_ctl >= 0 && !started) {   // GSP-RM never started: nothing to unload, the guard may close
+            const char c = 'N';
+            if (write(d->guard_ctl, &c, 1) != 1) {}
+        }
+        return nullptr;   // the caller exits, and the guard decides from the state page (it holds once GSP-RM may run)
+    }
+    d->cmdq = (uint8_t*)d->maps[0];
+    d->kargs = (uint8_t*)d->maps[1];
+    d->staging = (uint8_t*)d->maps[2];
+    d->signal = (uint64_t*)d->maps[3];
+    t.ready = true;
+    nv_profile_end("handoff", t0);
+    tg_transport().marker(TGM_HANDOFF, d->runtime);
+    __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // built: from here nvd_submit keeps the word
+    fprintf(stderr, "TinyGPU/NV: C++ runtime: built the NVDevice after the C++ boot, with no daemon (level boot: %s, QMD v%u, VRAM pool %llu MiB)\n",
+            d->dev.arch.c_str(), d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
+    fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at fini (BEAGLE_NV_CPP_LEVEL=boot)\n",
+            t.cot ? " and the RISC-V halt wait (COT)" : t.images.present ? " and NVIDIA's teardown" : "");
+    return d;
 }
 
 // TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives
@@ -1330,6 +1513,27 @@ static void nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
 // runtime sends no "compile_all": it loads the embedded cubin for
 // paddedStateCount and the GPU the daemon booted (plan step C1). The handles
 // and programs are the first instance's, in (plan step P5). ─────────────────
+
+// TODO.md plan step C11 (BEAGLE_NV_CPP_LEVEL=boot): the C++ runtime's setup with no daemon (nvDispatchBoot): the C++ boot,
+// the NVDevice, then the programs from the embedded cubin, as nvDispatchDaemonSetup does at the rm levels
+static NVHybridState* nvBootSetup(int tg_fd, int paddedStateCount, bool dp, NVInstance& in) {
+    NVHybridState* g = new NVHybridState{};
+    g->cmd_sock = -1;
+    g->owner_pid = getpid();
+    g_nv = g;   // from here every exit is nv_safe_exit's, which with no daemon leaves the GPU to the crash guard
+    fprintf(stderr, "TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
+    auto t0 = nv_profile_start();
+    bool hung = false;
+    g_nvd = nvDispatchBoot(tg_fd, hung);
+    nv_profile_end("boot", t0);
+    if (!g_nvd) nv_safe_exit(1, hung);
+    g->arch = g_nvd->dev.arch;
+    NVDElf cubin;
+    nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);
+    nvRuntimePrograms(in, cubin);
+    fflush(stderr);
+    return g;
+}
 
 static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, int paddedStateCount, bool dp, NVInstance& in) {
     int sv[2];
@@ -1620,8 +1824,11 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     }
     NVInstance* in = new NVInstance;
     self->nvGspState = in;
-    g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd, paddedStateCount,
-                                 self->supportDoublePrecision, *in);
+    if (nv_cpp_runtime() && tg_fd >= 0 && nv_cpp_level() == kNVLevelBoot)   // plan step C11: no daemon
+        g_nv = nvBootSetup(tg_fd, paddedStateCount, self->supportDoublePrecision, *in);
+    else
+        g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd, paddedStateCount,
+                                     self->supportDoublePrecision, *in);
     if (!g_nv) { fprintf(stderr, "TinyGPU/NV: nvDispatchDaemonSetup failed\n"); nv_safe_exit(1); }
     if (tg_fd >= 0) {   // the daemon has its copies: no later child of the host may keep the connection or the lock
         fcntl(tg_fd, F_SETFD, fcntl(tg_fd, F_GETFD) | FD_CLOEXEC);

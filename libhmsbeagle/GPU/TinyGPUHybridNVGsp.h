@@ -41,6 +41,7 @@ public:
     NVRpcQueue(NVGsp* gsp, uint8_t* view, uint64_t view_size, uint8_t* completion, int wait_ms);
 
     uint32_t* rx_view = nullptr;   // this queue's read pointer, in the other queue's header (set for the command queue in init_hw)
+    std::function<void()> doorbell;   // with no GSP client (gsp null): the command queue NV_GSP.init_sw prefills (plan step C11)
     uint32_t seq = 0;              // the next RPC's GSP_MSG_QUEUE_ELEMENT.seqNum
     nv::msgqTxHeader tx{};         // the header as read at construction
 
@@ -306,6 +307,7 @@ inline void NVRpcQueue::send_rpc_record(uint32_t func, const std::vector<uint8_t
     std::atomic_thread_fence(std::memory_order_seq_cst);   // System.memory_barrier
 
     seq += 1;
+    if (!gsp_) { doorbell(); return; }   // init_sw's prequeued RPCs: NV_PGSP_QUEUE_HEAD[0], no GSP client yet (plan step C11)
     if (gsp_->after_rpc) gsp_->after_rpc(seq);   // before the doorbell: a command in the queue is always counted (the state page)
     gsp_->reg(nv_regs::NV_PGSP_QUEUE_HEAD)[0].write(0x0);
 }

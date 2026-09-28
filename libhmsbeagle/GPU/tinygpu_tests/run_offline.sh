@@ -41,6 +41,8 @@ results+=("GB205 levels and V1 tools (B2): $([ $? -eq 0 ] && echo PASS || echo "
 # own teardown, around the handover; a silent GSP), on the fake AD107 and the fake GB205
 "$TG_TESTS/test_c10.sh" > "$TINYGPU_TEST_WORK/test_c10_e2e.log" 2>&1
 results+=("crash guard (C10): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c10_e2e.log)")")
+"$TG_TESTS/test_c11.sh" > "$TINYGPU_TEST_WORK/test_c11_e2e.log" 2>&1
+results+=("full C++ boot (C11): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c11_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

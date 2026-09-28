@@ -6,6 +6,10 @@
  * (GuardSetup), and waits for its "ready" before it sets the state page's keeper word and asks the daemon to hand the keeper
  * role over (TinyGPUHybridNVGuard.h).
  *
+ * At level boot (plan step C11) there is no daemon: the plugin spawns the guard before its first request to the GPU, with the
+ * connection, the lock and the state page only (TinyGPUHybridNVGuard.h's kGuardSetupHold), and sends 'S' and the rest (the
+ * queues and the timeline) once the NVDevice is built. Until then the guard can only hold, or close in phase flcn_init.
+ *
  * While the plugin lives the guard sends nothing on the connection: two clients of one TinyGPU.app session must take turns,
  * and the plugin has it. At the plugin's own fini the plugin tears the GPU down itself and says "clean" (the guard exits) or
  * "hold" (its unload was not confirmed: the guard keeps the connection open), or "stand down" (the daemon kept the role). If
@@ -75,40 +79,72 @@ int main() {
     for (int s : {SIGINT, SIGHUP, SIGTERM, SIGPIPE}) signal(s, SIG_IGN);
     const int ctl = kGuardFd;
     GuardSetup g{};
-    int fds[kGuardFds];
-    std::string err = guard_recv_setup(ctl, g, fds);
+    int raw[kGuardFds], fds[kGuardFds] = {-1, -1, -1, -1, -1};
+    std::string err = guard_recv_setup(ctl, g, raw);
+    if (err.empty() && g.kind == kGuardSetupRest) err = "a setup's rest before the setup";
     if (!err.empty()) {   // nothing was taken over: the plugin sees no "ready" and keeps the daemon
         tg_log("guard: no setup (%s); exiting", err.c_str());
         return 2;
     }
+    if (g.kind == kGuardSetupFull) memcpy(fds, raw, sizeof(fds));
+    else { fds[kGuardTinyGPU] = raw[0]; fds[kGuardLock] = raw[1]; fds[kGuardState] = raw[2]; }
     const size_t state_size = kNVDStateWordsGuard * 8;
-    uint8_t* queues = (uint8_t*)mmap(nullptr, g.queues_size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[kGuardQueues], 0);
     uint64_t* state = (uint64_t*)mmap(nullptr, state_size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[kGuardState], 0);
-    uint64_t* signal_page = (uint64_t*)mmap(nullptr, g.signal_size, PROT_READ, MAP_SHARED, fds[kGuardSignal], 0);
-    if (queues == MAP_FAILED || state == MAP_FAILED || signal_page == MAP_FAILED) {
+    uint8_t* queues = nullptr;
+    uint64_t* signal_page = nullptr;
+    auto map_rest = [&] {   // the GSP queues and the C++ timeline: what an unload and its wait need
+        void* q = mmap(nullptr, g.queues_size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[kGuardQueues], 0);
+        void* s = mmap(nullptr, g.signal_size, PROT_READ, MAP_SHARED, fds[kGuardSignal], 0);
+        if (q == MAP_FAILED || s == MAP_FAILED) return false;
+        queues = (uint8_t*)q;
+        signal_page = (uint64_t*)s;
+        return true;
+    };
+    bool full = g.kind == kGuardSetupFull;
+    if (state == MAP_FAILED || (full && !map_rest())) {
         tg_log("guard: mmap of the queues, the state page or the timeline failed: %s; exiting", strerror(errno));
         return 2;
     }
     TGTransport t;
     t.adopt(fds[kGuardTinyGPU], fds[kGuardLock]);
-    t.seed_bar(0, g.bar0_size);   // the daemon mapped BAR0 in its boot
+    if (full) t.seed_bar(0, g.bar0_size);   // BAR0 was mapped in the boot
     const char ready = 'R';
     if (write(ctl, &ready, 1) != 1) {
         tg_log("guard: could not say ready: %s; exiting", strerror(errno));
         return 2;
     }
-    tg_log("guard %d: ready for plugin %d (%s%s, level %s)", (int)getpid(), (int)g.parent_pid, g.chip_name, g.cot ? ", COT" : "",
-           g.level_name);
+    tg_log("guard %d: ready for plugin %d (%s%s, level %s)%s", (int)getpid(), (int)g.parent_pid, g.chip_name, g.cot ? ", COT" : "",
+           g.level_name, full ? "" : "; it can only hold until the plugin's boot is done");
 
-    // the plugin says "clean" or "hold", or goes away
+    // the plugin says "clean" or "hold", or sends the setup's rest, or goes away
     char msg = 0;
     ssize_t n;
-    while ((n = read(ctl, &msg, 1)) < 0 && errno == EINTR) {}
+    for (;;) {
+        while ((n = read(ctl, &msg, 1)) < 0 && errno == EINTR) {}
+        if (!(n == 1 && msg == 'S' && !full)) break;
+        GuardSetup rest{};
+        err = guard_recv_setup(ctl, rest, raw);
+        if (err.empty() && rest.kind != kGuardSetupRest) err = "not a setup's rest";
+        if (err.empty()) {
+            fds[kGuardQueues] = raw[0];
+            fds[kGuardSignal] = raw[1];
+            g = rest;
+            if (!map_rest()) err = std::string("mmap of the queues or the timeline: ") + strerror(errno);
+        }
+        if (!err.empty()) { tg_log("guard %d: the setup's rest failed (%s): it can still only hold", (int)getpid(), err.c_str()); continue; }
+        t.seed_bar(0, g.bar0_size);
+        full = true;
+        tg_log("guard %d: the setup's rest (%s%s): from here it can tear the GPU down", (int)getpid(), g.chip_name, g.cot ? ", COT" : "");
+    }
     if (n == 1 && msg == 'C') {
         tg_log("guard %d: the plugin tore the GPU down itself; exiting", (int)getpid());
         return 0;
     }
     if (n == 1 && msg == 'H') hold("the plugin's own GPU teardown was not confirmed");
+    if (n == 1 && msg == 'N') {   // level boot (plan step C11): a boot that stopped before GSP-RM started, as the daemon's flcn_init
+        tg_log("guard %d: the plugin's boot stopped before GSP-RM started: nothing to unload, closing is safe; exiting", (int)getpid());
+        return 0;
+    }
     if (n == 1 && msg == 'X') {
         tg_log("guard %d: the daemon keeps the keeper role; exiting", (int)getpid());
         return 0;
@@ -125,7 +161,7 @@ int main() {
     const uint32_t seq = (uint32_t)__atomic_load_n(&state[kGuardStateSeq], __ATOMIC_ACQUIRE);
     tg_log("guard %d: the plugin went away without fini (%s); state page: phase %llu, frame_in_flight %llu, last_submitted %llu, "
            "seq %u, C++ timeline %llu", (int)getpid(), n == 0 ? "EOF" : "an unknown message", (unsigned long long)phase,
-           (unsigned long long)in_flight, (unsigned long long)last, seq, (unsigned long long)__atomic_load_n(signal_page, __ATOMIC_ACQUIRE));
+           (unsigned long long)in_flight, (unsigned long long)last, seq, signal_page ? (unsigned long long)__atomic_load_n(signal_page, __ATOMIC_ACQUIRE) : 0ull);
     if (phase == kGuardPhaseFlcnInit) {
         tg_log("guard: the plugin's falcon boot stopped before GSP-RM started: nothing to unload, closing is safe");
         return 0;
@@ -133,6 +169,7 @@ int main() {
     if (phase == kGuardPhaseGspInit) hold("the plugin did not finish booting GSP-RM");
     if (phase == kGuardPhaseTeardown) hold("the plugin's own GPU teardown did not finish");
     if (phase != kGuardPhaseDispatch || in_flight) hold("a frame may be cut mid-send");
+    if (!full) hold("the plugin's boot did not finish, and without its queues the guard cannot unload the GPU");
 
     NVBar0 bar0{&t};
     NVFalcon flcn(bar0, g.chip_id, g.cot != 0);

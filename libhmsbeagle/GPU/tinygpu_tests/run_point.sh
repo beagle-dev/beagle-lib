@@ -2,7 +2,7 @@
 # HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
 # written. Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
-#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]
+#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]
 # (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; default: no mode
 # variable, the plugin's own choice: the C++ runtime on Ada and the GB205, plan decision 16, with its own GSP unload and teardown at fini,
 # plan step C5, its own memory manager, plan step C6, NVDevice, plan step C7, and GSP-RM boot, plan step C8 (level gsp_hw); runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
@@ -10,7 +10,8 @@
 # the NVDevice, which the plugin builds with its own RM client after the daemon's NVDev-only boot, plan step C7's rung H3; gsp_hw:
 # also GSP-RM's init_hw and the golden image, after a daemon boot that stops once GSP-RM started, plan step C8's rung H4;
 # flcn_hw: also the falcons' init_hw (FWSEC-FRTS, booter_load), after a daemon boot that stops after both init_sw, plan step C9;
-# --kill idle, flcn_hw only: the plugin SIGKILLs itself at fini once the GPU is idle, as a crash would (BEAGLE_NV_TEST_KILL=idle),
+# boot: the whole boot in C++, with no daemon and no Python, plan step C11's rung H5;
+# --kill idle, flcn_hw or boot only: the plugin SIGKILLs itself at fini once the GPU is idle, as a crash would (BEAGLE_NV_TEST_KILL=idle),
 # and the crash guard tears the GPU down, plan step C10; the run then passes if the test died of the SIGKILL and the guard's
 # TinyGPULog lines say its teardown left the next boot needing no power cycle, guard_verdict, env.sh)
 # Waits for the eGPU to enumerate, runs from the build tree with --diag-compare-cpu under log stream, keeps the output,
@@ -19,7 +20,7 @@
 # stream saw nothing from the eGPU; 1 stops a chain of runs after a run, 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 N=$1; MODE=${2:-runtime}; REPS=${3:-200}; shift $(( $# < 3 ? $# : 3 ))
-USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]"
+USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]"
 FLAGS=(); KILL=
 while [ $# -gt 0 ]; do
     case $1 in
@@ -31,15 +32,15 @@ while [ $# -gt 0 ]; do
     shift
 done
 [[ "$N" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "$USAGE"; exit 2; }
-[ -z "$KILL" ] || [ "$MODE" = flcn_hw ] || { echo "--kill needs mode flcn_hw, the crash guard's level"; exit 2; }
+[ -z "$KILL" ] || [ "$MODE" = flcn_hw ] || [ "$MODE" = boot ] || { echo "--kill needs mode flcn_hw or boot, the crash guard's levels"; exit 2; }
 # the other modes boot once per instance (a second one is refused) and so tear down once per cycle, which fini_verdict
 # would call a bad report
-[[ " runtime teardown vram sysmem rm gsp_hw flcn_hw " == *" $MODE "* ]] || { [[ "$N" != *,* ]] && [[ " ${FLAGS[*]} " != *" --instances "* ]] && [[ " ${FLAGS[*]} " != *" --threads "* ]] \
+[[ " runtime teardown vram sysmem rm gsp_hw flcn_hw boot " == *" $MODE "* ]] || { [[ "$N" != *,* ]] && [[ " ${FLAGS[*]} " != *" --instances "* ]] && [[ " ${FLAGS[*]} " != *" --threads "* ]] \
     && [[ " ${FLAGS[*]} " != *" --cycles "* ]]; } || { echo "a state-count list, --instances, --threads and --cycles need the runtime mode"; exit 2; }
 case $MODE in
     cpp) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=1 ;;
     runtime) MODE_ENV="BEAGLE_NV_USE_DAEMON=0 BEAGLE_NV_CPP_LEVEL=runtime" ;;
-    teardown|vram|sysmem|rm|gsp_hw|flcn_hw) MODE_ENV="BEAGLE_NV_USE_DAEMON=0 BEAGLE_NV_CPP_LEVEL=$MODE" ;;
+    teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot) MODE_ENV="BEAGLE_NV_USE_DAEMON=0 BEAGLE_NV_CPP_LEVEL=$MODE" ;;
     daemon) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=0 ;;
     default) MODE_ENV= ;;
     *) echo "unknown mode $MODE"; exit 2 ;;

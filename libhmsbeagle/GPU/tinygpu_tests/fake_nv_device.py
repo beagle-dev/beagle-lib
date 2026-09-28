@@ -29,6 +29,7 @@ FAKE_GSP_SILENT_UNLOAD=1 (plan step C10): the GSP never answers the unload RPC (
 FAKE_GPU_LAG_MS=<ms> (plan step C10): the GPU runs each doorbell's work that long after the doorbell, in order, whether or not
 the client sends more (a client killed right after a submission leaves its timeline behind); an unload RPC that arrives before
 all of it ran is an error (its client did not wait for its timeline).
+FAKE_WPR2_UP=1 (plan step C11): the GPU starts warm, WPR2 up as a previous boot left it; a client must refuse it before any write.
 FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
 MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
@@ -71,6 +72,7 @@ RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
 FALCON_FAIL = os.environ.get("FAKE_FALCON_FAIL", "")
 LAG = int(os.environ.get("FAKE_GPU_LAG_MS", "0")) / 1000
+WARM = os.environ.get("FAKE_WPR2_UP") == "1"
 
 def err(msg):
     errors.append(msg)
@@ -127,7 +129,7 @@ class Sysmem:
 class Device:
     def __init__(self):
         self.vram, self.regs, self.sysmem, self.n_alloc = tggpu.Vram(), {}, [], 0
-        self.wpr2 = False
+        self.wpr2 = WARM
         self.falcon = {GSP_BASE: dict(halted=False, riscv_active=False), SEC2_BASE: dict(halted=False, riscv_active=False)}
         self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
         self.unloaded = False    # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload

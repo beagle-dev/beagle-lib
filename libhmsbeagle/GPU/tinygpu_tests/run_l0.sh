@@ -5,13 +5,14 @@
 # Everything else is run_point.sh's: the eGPU must be cold (power-cycled) or torn down by the previous run; never Ctrl-C or kill
 # a run; a hung or holding GPU (or a proxy that stopped forwarding) is unplugged before anything is killed. Run it under
 # caffeinate -ims, with the lid open.
-#   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw] [--guard]
+#   run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot] [--guard]
 # (the level, BEAGLE_NV_CPP_LEVEL, recorded in run.json: teardown, the plugin unloads the GPU and runs NVIDIA's teardown itself
 # at fini, plan step C5; runtime, the daemon does, as in the L0 recordings; vram and sysmem, the plugin also
 # allocates its VRAM pool, and its buffers, with its own memory manager, plan step C6; rm, the plugin also builds the NVDevice
 # with its own RM client after the daemon's NVDev-only boot, plan step C7; gsp_hw (the default), also GSP-RM's init_hw and the
 # golden image, after a daemon boot that stops once GSP-RM started, plan step C8; flcn_hw, also the falcons' init_hw (FWSEC-FRTS,
-# booter_load), after a daemon boot that stops after both init_sw, plan step C9; --guard runs the proxy in guard mode,
+# booter_load), after a daemon boot that stops after both init_sw, plan step C9; boot, the whole boot in C++ with no daemon (so
+# no recording shim either), plan step C11's rung H5; --guard runs the proxy in guard mode,
 # replay/tgguard.py, for a rung's first run: a trigger it refuses is not forwarded and the proxy holds, so unplug the eGPU)
 # L0_DRY_RUN=1 runs the same script offline, against fake_nv_device.py instead of TinyGPU.app (the daemon with tgharness_py's
 # offline patches), recording under $TINYGPU_TEST_WORK: a check of the script itself, which touches no eGPU.
@@ -21,14 +22,14 @@
 # next boot needs no power cycle, the daemon exited, log stream saw nothing from the eGPU) and the proxy ended every session
 # at its client's close; 1 stops the session's chain of runs; 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw] [--guard]"
+USAGE="usage: run_l0.sh <label> <state-count> [reps] [--poison] [--level runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot] [--guard]"
 LABEL=$1; N=$2; REPS=${3:-5}; FLAGS=(); LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=gsp_hw); GUARD=()
 set -- "${@:4}"
 while [ $# -gt 0 ]; do
     case $1 in
         --poison) FLAGS+=(--poison) ;;
         --guard) GUARD=(--guard) ;;
-        --level) [[ " runtime teardown vram sysmem rm gsp_hw flcn_hw " == *" $2 "* ]] || { echo "$USAGE"; exit 2; }; LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=$2); shift ;;
+        --level) [[ " runtime teardown vram sysmem rm gsp_hw flcn_hw boot " == *" $2 "* ]] || { echo "$USAGE"; exit 2; }; LEVEL_ENV=(BEAGLE_NV_CPP_LEVEL=$2); shift ;;
         *) echo "$USAGE"; exit 2 ;;
     esac
     shift
@@ -97,7 +98,8 @@ if kill -0 $PRX 2>/dev/null; then
     exit 1
 fi
 hw_logstream_stop; ls_ok=$?
-cp ~/Library/Logs/nv_dispatch_daemon.log "$RUNS/${STAMP}_L0_${LABEL}_daemon.log" 2>/dev/null
+BOOT=0; [ "${LEVEL_ENV[0]}" = BEAGLE_NV_CPP_LEVEL=boot ] && BOOT=1   # level boot (plan step C11): no daemon, so no daemon log and no shim
+[ $BOOT = 1 ] || cp ~/Library/Logs/nv_dispatch_daemon.log "$RUNS/${STAMP}_L0_${LABEL}_daemon.log" 2>/dev/null
 if [ -d "$REC" ]; then
     cp "$OUT" "$REC/test_output.txt"; cp "$SIDE" "$REC/shim.jsonl" 2>/dev/null; cp "$RUNS/${STAMP}_L0_${LABEL}_daemon.log" "$REC/daemon.log" 2>/dev/null
     "$BEAGLE_PYTHON" -c 'import json, sys; e = sys.argv[1].split(); json.dump(dict(test_bin="tinygpuhybridtest", envs=["BEAGLE_NV_USE_DAEMON=0"] + e, args=sys.argv[2:]), sys.stdout)' \
@@ -116,4 +118,4 @@ fini_verdict "$OUT" || { echo "STOP: bad fini report (lines above): replug the e
 grep -q "tgproxy: recording ended after" "$PLOG" && ! grep "tgproxy: session [0-9]* ended:" "$PLOG" | grep -qv " ended: eof;" \
     || { echo "STOP: the proxy did not end every session at its client's close ($PLOG)"; exit 1; }
 [ $rc -eq 0 ] || [ "$DRY" = 1 ] || { echo "STOP: the test failed (exit $rc); the teardown was clean"; exit 1; }   # the fake runs no kernels
-echo "OK: PASS, recorded; WPR2 is down, the next boot needs no power cycle. Replay it offline: run_replay.sh $REC l0_$LABEL --record"
+echo "OK: PASS, recorded; WPR2 is down, the next boot needs no power cycle. Replay it offline: run_replay.sh $REC l0_$LABEL $([ $BOOT = 1 ] && echo --level boot || echo --record)"

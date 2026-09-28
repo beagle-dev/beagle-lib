@@ -85,7 +85,9 @@ if [ -n "$PRX" ]; then
 fi
 sleep 0.3; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 [ -n "$FAKE_TG_PROXY" ] && [ -d "$FAKE_TG_PROXY" ] && cp "$SOCKDIR/run.json" "$FAKE_TG_PROXY/run.json"
-cp ~/Library/Logs/nv_dispatch_daemon.log "$TINYGPU_TEST_WORK/run_device_${LABEL}_daemon.log" 2>/dev/null
+# the daemon's log, if this run had a daemon (level boot, plan step C11, has none: no stale log from an earlier run)
+if [ -n "$DPID" ]; then cp ~/Library/Logs/nv_dispatch_daemon.log "$TINYGPU_TEST_WORK/run_device_${LABEL}_daemon.log" 2>/dev/null
+else rm -f "$TINYGPU_TEST_WORK/run_device_${LABEL}_daemon.log"; fi
 echo "[$LABEL] tinygpuhybridtest exit=$RC (output: $OUT, daemon log: run_device_${LABEL}_daemon.log)"
 grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600
 if [ -n "$TRIP" ]; then   # the run stopped at a refusal: its verdict is whether that refusal was the one expected
@@ -96,7 +98,7 @@ fi
 [ -n "$FAKE_EXPECT_TRIP" ] && { echo "[$LABEL] FAIL: expected a refusal matching '$FAKE_EXPECT_TRIP'; none came"; exit 1; }
 missing=()
 need() { grep -qE "$1" "$OUT" || missing+=("$2"); }
-need "TinyGPU/NV: daemon booted" "daemon boot"
+need "TinyGPU/NV: (daemon booted|C\+\+ runtime: built the NVDevice after the C\+\+ boot, with no daemon)" "a boot"
 need "C\+\+ runtime: [1-9][0-9]* kernels loaded" "C++ program loading"
 need "^per evaluation:" "timed evaluations"
 fini_verdict "$OUT" || missing+=("a clean fini report")
