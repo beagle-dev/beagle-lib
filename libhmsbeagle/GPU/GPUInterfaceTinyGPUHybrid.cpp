@@ -7,10 +7,7 @@
  * functions: GPUInterfaceTinyGPUHybridNV.cpp (the C++ runtime by default on
  * Ada GPUs, or with BEAGLE_NV_USE_DAEMON=0; the daemon path on other GPUs, or
  * with BEAGLE_NV_USE_DAEMON=1; C++ dispatch with BEAGLE_NV_CPP_DISPATCH=1) and
- * GPUInterfaceTinyGPUHybridAMD.cpp.
- *
- * Drop-in replacement for GPUInterfaceTinyGPU.cpp when built with -DFW_TINYGPU.
- * Select this file in CMakeLists instead of GPUInterfaceTinyGPU.cpp.
+ * GPUInterfaceTinyGPUHybridAMD.cpp. Built with -DFW_TINYGPU.
  *
  * The NV path this file used to hand-roll here (nv_init_helper.py boot, then
  * its own QMDs, GPFIFO and BAR1 copies) was replaced by the C++ runtime, which
@@ -53,7 +50,7 @@ static uint16_t       g_tgDeviceId = 0;
 static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
 static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
 
-// ── KernelResource loader (mirrors GPUInterfaceTinyGPU.cpp §LOAD_KERNEL_INTO_RESOURCE) ──
+// ── KernelResource loader (LOAD_KERNEL_INTO_RESOURCE) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
@@ -73,14 +70,7 @@ namespace tinygpu_device {
 
 uint16_t tg_pci_device_id() { return g_tgDeviceId; }
 
-GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0),
-    isNVIDIA(true), vramKernelTop(0), vramDataTop(0),
-    amdRingVram(0), amdRingWptr(0), amdRptrAddr(0), amdWptrAddr(0),
-    amdEopAddr(0), amdEopSignal(0), amdCompletionHost(nullptr),
-    amdCompletionMapped(0), amdCompletionFd(-1),
-    nvGspState(nullptr), nvWorkToken(0), nvGpfifoHost(nullptr),
-    nvUserdGpPut(nullptr), nvGpfifoEntries(0), nvGpfifoPut(0),
-    nvCubinVramBase(0), nvCubinSize(0), amdFbBase(0), amdPartialBoot(false),
+GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0), isNVIDIA(true), nvGspState(nullptr),
     kernelResource(nullptr), resourceMap(nullptr), supportDoublePrecision(false)
 {}
 

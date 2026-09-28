@@ -119,70 +119,8 @@ private:
     uint32_t tgpuDevId;
     bool     isNVIDIA;    // true = NV (CUDA driver path), false = AMD (PM4 path)
 
-    // PCI BAR info cached from MAP_BAR at Initialize() time.
-    struct BarInfo { uint64_t addr; uint64_t size; } tgpuBars[6];
-
-    // Device descriptors.
-    struct DeviceInfo { uint32_t dev_id; uint16_t pci_vendor; uint16_t pci_device; bool supports_dp; char chip_name[16]; };
-    std::vector<DeviceInfo> tgpuDevices;
-
-    // ── VRAM allocators (AMD path) ───────────────────────────────────────────
-    uint64_t vramKernelTop;  // next free offset for kernel binaries
-    uint64_t vramDataTop;    // next free offset for data buffers
-
-    // ── AMD compute queue state ──────────────────────────────────────────────
-    uint64_t amdRingVram;       // VRAM byte offset of PM4 ring buffer
-    uint32_t amdRingWptr;       // ring write pointer (in bytes)
-    uint64_t amdRptrAddr;       // host VA: GPU writes rptr here
-    uint64_t amdWptrAddr;       // host VA: CPU writes wptr here for GPU polling
-    uint64_t amdEopAddr;        // host VA: GPU writes EOP signal value here
-    uint64_t amdEopSignal;      // expected value at amdEopAddr after completion
-    void*    amdCompletionHost; // mmap'd control page
-    size_t   amdCompletionMapped;
-    int      amdCompletionFd;
-
-    // ── NVIDIA GSP state (open-source path, macOS + Linux) ──────────────────
-    // nvGspState is the primary owner of all GSP boot/channel/RPC state.
-    // The mirror fields below are set by nvSetup() for use by LaunchKernelImpl
-    // and SynchronizeHost without needing to cast nvGspState on every call.
-    void*    nvGspState = nullptr; // opaque NVGSPState* (defined in .cpp)
-    uint32_t nvWorkToken = 0;      // per-channel workSubmitToken
-    uint64_t* nvGpfifoHost = nullptr;          // CPU VA of GPFIFO ring
-    volatile uint32_t* nvUserdGpPut = nullptr; // USERD GPPut register
-    uint32_t nvGpfifoEntries = 0;
-    uint32_t nvGpfifoPut = 0;
-    uint64_t nvCubinVramBase = 0;  // VRAM byte offset of compiled cubin
-    size_t   nvCubinSize = 0;
-
-    // ── Pinned host memory bookkeeping ───────────────────────────────────────
-    struct PinnedBuf { void* host_ptr; size_t mapped_size; int fd; };
-    std::vector<PinnedBuf> tgpuPinned;
-
-    // ── Per-kernel entries (vendor-neutral, keyed by kernel name) ────────────
-    struct KernelEntry {
-        uint64_t    code_vaddr;  // GPU address or VRAM offset
-        uint32_t    rsrc1, rsrc2, rsrc3;
-        bool        wave32;
-        std::string name;
-        void*       cu_func;     // CUfunction (NV)
-    };
-    std::map<std::string, KernelEntry*> tgpuKernels;
-
-    // GPU VRAM physical base (read from FB_LOCATION_BASE at SetDevice time)
-    uint64_t amdFbBase;
-    bool     amdPartialBoot;  // true = GPU was previously initialized (macOS + TinyGPU case)
-
-    // ── Private setup helpers ────────────────────────────────────────────────
-    void nvSetup();
-    void amdSetup();
-
-    // AMD AM boot sequence (ported from tinygrad/runtime/support/am/ip.py)
-    void amdBuildPageTables(uint64_t fb_base);  // identity-map VRAM in GPU VA space
-    void amdGMCInit(uint64_t fb_base, uint64_t fb_end);  // GCVM L2 + VM_CONTEXT0 registers
-    void amdTlbFlush(uint32_t vmid);            // GCVM_INVALIDATE_ENG17 sequence
-    void amdMecReset();                          // soft-reset CP+CPC, re-enable MEC
-    void amdGFXInit();                           // RLC, SH_MEM, doorbell range setup
-    void amdParseHsaco(const uint8_t* elf, size_t elf_sz, uint64_t code_vram_base);
+    // The NV path's per-instance state: its NVInstance (GPUInterfaceTinyGPUHybridNV.cpp; TODO.md plan step P5)
+    void*    nvGspState = nullptr;
 
     void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                           int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);

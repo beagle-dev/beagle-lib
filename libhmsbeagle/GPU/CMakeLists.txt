@@ -55,10 +55,9 @@ if(BUILD_CUDA)
 	endif(CUDA_FOUND)
 endif(BUILD_CUDA)
 
-if(BUILD_TINYGPU OR BUILD_TINYGPU_HYBRID)
-	# Both backends #include kernels/BeagleTinyGPU_kernels.h (see GPUInterface.h,
-	# FW_TINYGPU branch) — generated once here (not per-subdirectory) so enabling
-	# both doesn't register two custom-command rules for the same output file.
+if(BUILD_TINYGPU_HYBRID)
+	# The backend #includes kernels/BeagleTinyGPU_kernels.h (see GPUInterface.h,
+	# FW_TINYGPU branch), generated here.
 	# Plain nvcc (12.8). An nvcc11 build once hung kernelMatrixMulADB
 	# (STATUS.md §24), before the launch-dims fix (STATUS.md §203); not
 	# re-tested since.
@@ -85,11 +84,6 @@ if(BUILD_TINYGPU OR BUILD_TINYGPU_HYBRID)
 			VERBATIM)
 	add_custom_target(TinyGPUKernels DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h")
 endif()
-
-if(BUILD_TINYGPU)
-	message(STATUS "TinyGPU backend enabled (USB4/Thunderbolt eGPU via TinyGPU.app)")
-	add_subdirectory("CMake_TinyGPU")
-endif(BUILD_TINYGPU)
 
 if(BUILD_TINYGPU_HYBRID)
 	message(STATUS "TinyGPUHybrid backend enabled (tinygrad init + C++ dispatch)")

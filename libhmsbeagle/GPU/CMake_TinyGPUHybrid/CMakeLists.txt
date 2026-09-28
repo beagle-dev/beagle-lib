@@ -1,10 +1,6 @@
 
 # TinyGPUHybrid backend — Python-assisted GPU init (tinygrad) + C++ hot-path dispatch.
 #
-# Differs from CMake_TinyGPU in one source file: GPUInterfaceTinyGPUHybrid.cpp
-# replaces GPUInterfaceTinyGPU.cpp.  Everything else (BeagleGPUImpl, KernelLauncher,
-# plugin system) is identical.
-#
 # Prerequisites:
 #   - macOS with TinyGPU.app installed in /Applications/
 #   - Python 3 with tinygrad on PYTHONPATH (or TINYGRAD_PATH set)
