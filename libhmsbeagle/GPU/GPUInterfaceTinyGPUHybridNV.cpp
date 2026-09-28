@@ -673,11 +673,38 @@ static std::string nvGuardBootRest(NVDispatchState& d) {
     return "";
 }
 
+static std::string nvdCppTeardown(NVDispatchState& d, double& secs, std::string& report);
+
+// This side's teardown report (nvdCppTeardown's; none means its teardown did not run), then clean or hold to the crash guard
+// (plan step C10). True if the guard holds.
+static bool nvGuardReport(int guard_ctl, pid_t guard_pid, const std::string& cpp_fini, const std::string& cpp_report) {
+    const bool hold = cpp_fini.empty() || nv_json_bool(cpp_fini, "hold");
+    std::string resp = "{\"ok\": true" + (cpp_report.size() > 2 ? ", " + cpp_report.substr(1, cpp_report.size() - 2) : std::string()) +
+                       (hold ? ", \"hold\": true, \"pid\": " + std::to_string(guard_pid) : std::string()) + "}";
+    nv_report_unload(resp, "the crash guard");
+    const char m = hold ? 'H' : 'C';
+    if (write(guard_ctl, &m, 1) != 1)
+        fprintf(stderr, "TinyGPU/NV: the crash guard (pid %d) did not take the %s: it decides as at a crash\n", (int)guard_pid,
+                hold ? "hold" : "clean exit");
+    return hold;
+}
+
+// A boot that failed after GSP-RM's INIT_DONE (plan step C13's follow-up: the GSP refused the NVDevice's RM calls or the golden
+// image's, or the VRAM pool was refused) with nothing left running on the GPU: the NVDevice's setup work, if it was
+// submitted, completed. GSP-RM then answers, so this side can unload it and run NVIDIA's teardown, as the daemon did from the
+// plugin's count, instead of leaving the guard to hold (a power cycle).
+static bool nvd_boot_failed_idle(NVDispatchState& d) {
+    if (!d.state || __atomic_load_n(&d.state[kNVDStatePhase], __ATOMIC_ACQUIRE) != kNVDPhaseDispatch || !d.gsp || !d.flcn) return false;
+    NVDeviceState& dev = d.dev;
+    return dev.timeline_value == 1 || *nv_signal_host(dev, dev.timeline_signal) >= dev.timeline_value - 1;
+}
+
 // TODO.md plan step C11 (level boot): no daemon and no Python. This side boots the GPU with the C++ boot (TinyGPUHybridNVBoot.h:
 // NVDev.__init__'s software half as the oracle's daemon runs it, nv_init_helper's patches included), then builds the NVDevice
 // (nvdBuildDevice) and allocates its buffers. The crash guard keeps the GPU from before the first request to it. The state page
 // says a frame is in flight until the NVDevice is built and the guard has the rest of its setup: a death before the falcons'
-// boot closes (phase flcn_init), one after it holds. A failed boot ends the guard's socketpair as a death would (plan step C12).
+// boot closes (phase flcn_init), one after it holds. A failed boot ends the guard's socketpair as a death would (plan step C12),
+// after this side's own unload and teardown if GSP-RM answers and the GPU is idle (nvd_boot_failed_idle).
 static NVDispatchState* nvDispatchBoot(int tg_sock) {
     auto t0 = nv_profile_start();
     NVDispatchState* d = new NVDispatchState;
@@ -742,6 +769,12 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
         if (d->guard_ctl >= 0 && !started) {   // GSP-RM never started: nothing to unload, the guard may close
             const char c = 'N';
             if (write(d->guard_ctl, &c, 1) != 1) {}
+        } else if (d->guard_ctl >= 0 && nvd_boot_failed_idle(*d)) {   // GSP-RM answers: unload it here, then clean or hold
+            double secs = 0;
+            std::string fini, report;
+            try { fini = nvdCppTeardown(*d, secs, report); }
+            catch (...) {}   // a transport failure mid-teardown: the state page says teardown, so the guard holds
+            if (!fini.empty()) nvGuardReport(d->guard_ctl, d->guard_pid, fini, report);
         }
         // Plan step C12: the guard decides now, from the state page (it holds once GSP-RM may run), and the host goes on. The
         // boot's own mappings are this process's views only: the guard keeps the connection, and the sysmem behind them.
@@ -966,14 +999,7 @@ static void nvFiniDevice() {
         if (nv_profile_enabled()) fprintf(stderr, "TinyGPU/NV: [profile]   kernel %s n=%lld\n", kv.first.c_str(), kv.second);
     g_nvKernelLaunches.clear();
     if (guard_ctl >= 0) {   // plan step C10: this side's report, then clean or hold to the guard
-        const bool hold = cpp_fini.empty() || nv_json_bool(cpp_fini, "hold");
-        std::string resp = "{\"ok\": true" + (cpp_report.size() > 2 ? ", " + cpp_report.substr(1, cpp_report.size() - 2) : std::string()) +
-                           (hold ? ", \"hold\": true, \"pid\": " + std::to_string(guard_pid) : std::string()) + "}";
-        nv_report_unload(resp, "the crash guard");
-        const char m = hold ? 'H' : 'C';
-        if (write(guard_ctl, &m, 1) != 1)
-            fprintf(stderr, "TinyGPU/NV: the crash guard (pid %d) did not take the %s: it decides as at a crash\n", (int)guard_pid,
-                    hold ? "hold" : "clean exit");
+        const bool hold = nvGuardReport(guard_ctl, guard_pid, cpp_fini, cpp_report);
         close(guard_ctl);
         for (int i = 0; i < 50 && !hold && waitpid(guard_pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
         if (nv_profile_enabled()) fprintf(stderr, "TinyGPU/NV: fini %.3f s: the C++ GSP unload and teardown\n", cpp_secs);

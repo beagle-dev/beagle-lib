@@ -60,9 +60,12 @@ reach it) holds copies of the connection. If the host dies, or the plugin loses 
 
 - nothing started yet (before the firmware booted): it closes;
 - the GPU idle, or catching up: it waits for BEAGLE's work, unloads the GPU and runs the teardown, then closes;
-- a frame cut mid-send, a boot cut short, a hang, or an unload the GPU does not confirm: it **holds**, sending nothing,
-  because closing could unmap memory the GPU still uses. It says so on stderr and in the log:
-  `holding the TinyGPU.app connection (...). Unplug the eGPU first, then kill <pid>.`
+- a frame cut mid-send, a boot cut short (the plugin killed in it, or GSP-RM never ready), a hang, or an unload the GPU
+  does not confirm: it **holds**, sending nothing, because closing could unmap memory the GPU still uses. It says so on
+  stderr and in the log: `holding the TinyGPU.app connection (...). Unplug the eGPU first, then kill <pid>.`
+
+A boot that fails once GSP-RM is up (an RM call refused, or a VRAM pool too big for `BEAGLE_NV_DATA_MB`) is torn down by
+BEAGLE itself, as at exit, so it needs no power cycle.
 
 Power-cycle the eGPU (unplug it, then plug it in again) only then, and always before killing a holding guard. A GPU left
 warm by an earlier process that was not torn down (WPR2 still up) is refused with nothing written:

@@ -15,8 +15,10 @@
 #   - BEAGLE_NV_TEARDOWN=0: the unload only, and the report says a power cycle is needed (run_point.sh's stop rule fails it);
 #   - the GB205's RISC-V core never halting after the unload (FAKE_NO_HALT): the teardown fails, and the guard holds;
 #   - the boot failing: booter_load's MAILBOX0 0x29, before GSP-RM started (the guard closes); a GSP core that is not active
-#     after booter_load (GSP-RM may run: the guard holds); the GSP refusing the channel group while the NVDevice is built (the
-#     guard holds, as for any failure once GSP-RM runs, though an unload could be tried there: TODO.md plan step C13c's notes);
+#     after booter_load (GSP-RM may run: the guard holds); once GSP-RM posted INIT_DONE, the GSP refusing the channel group (both
+#     fakes) or the WPR check refusing the VRAM pool (BEAGLE_NV_DATA_MB=7900): the plugin unloads GSP-RM and runs the teardown
+#     itself, and the guard exits at its clean, but a GPU that hangs in the NVDevice's setup work (FAKE_GPU_HANG_AT=1) still
+#     holds;
 #   - the plugin killed mid-frame and inside its own teardown (the guard holds, sending nothing), right after a launch batch's or
 #     a copy's submission with the GPU behind (the guard waits for the timeline, then tears the GPU down), and idle with a GSP
 #     that never answers the unload (the guard's unload times out, and it holds): on the fake AD107 and the fake GB205.
@@ -144,11 +146,22 @@ check "booter_load ran but the GSP core is not active: GSP-RM may run, and the g
     "grep -q 'level boot: building the NVDevice: AssertionError: GSP Core is not active' '$(out c13_core)' \
      && glog c13_core | grep -q 'HOLDING the TinyGPU.app connection (the plugin did not finish booting GSP-RM)' \
      && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_core.txt'"
-FAKE_RM_FAIL=0xa06c run c13_rmfail
-check "the GSP refuses the channel group while the NVDevice is built: the boot fails with its status, nothing is submitted, and the guard holds" \
-    "grep -q 'level boot: building the NVDevice: RuntimeError: RPC call 103 failed with result 34' '$(out c13_rmfail)' \
-     && counts c13_rmfail | grep -q '\"rm_alloc refused (FAKE_RM_FAIL)\": 1' && ! counts c13_rmfail | grep -q 'doorbells' \
-     && glog c13_rmfail | grep -q 'HOLDING the TinyGPU.app connection' && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_rmfail.txt'"
+for chip in ad107 gb205; do
+    C=$(echo $chip | tr a-z A-Z)
+    FAKE_NV_CHIP=$([ $chip = gb205 ] && echo gb205) FAKE_RM_FAIL=0xa06c run c13_${chip}_rmfail
+    check "$C: the GSP refuses the channel group while the NVDevice is built: the boot fails with its status, nothing is submitted, the plugin unloads GSP-RM and tears the GPU down itself, and the guard exits at its clean (device NO ERRORS)" \
+        "grep -q 'level boot: building the NVDevice: RuntimeError: RPC call 103 failed with result 34' '$(out c13_${chip}_rmfail)' \
+         && counts c13_${chip}_rmfail | grep -q '\"rm_alloc refused (FAKE_RM_FAIL)\": 1' && ! counts c13_${chip}_rmfail | grep -q 'doorbells' \
+         && fini_verdict '$(out c13_${chip}_rmfail)' && device c13_${chip}_rmfail | grep -q 'NO ERRORS' && glog c13_${chip}_rmfail | grep -q '$CLEAN'"
+done
+run c13_pool7900 BEAGLE_NV_DATA_MB=7900
+check "a VRAM pool that reaches GSP-RM's reserved region, refused after the NVDevice is built: the plugin unloads GSP-RM and tears the GPU down itself, and the guard exits at its clean (device NO ERRORS)" \
+    "grep -q 'level boot: VRAM allocations end at 0x[0-9a-f]*, above the WPR bound' '$(out c13_pool7900)' && fini_verdict '$(out c13_pool7900)' \
+     && device c13_pool7900 | grep -q 'NO ERRORS' && glog c13_pool7900 | grep -q '$CLEAN'"
+FAKE_GPU_HANG_AT=1 run c13_setup_hang
+check "a GPU that hangs in the NVDevice's setup work: the boot fails on its timeline, the plugin sends no unload, and the guard holds" \
+    "grep -q 'level boot: building the NVDevice: RuntimeError: Wait timeout' '$(out c13_setup_hang)' && ! grep -q 'GPU teardown' '$(out c13_setup_hang)' \
+     && glog c13_setup_hang | grep -q 'HOLDING the TinyGPU.app connection' && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_setup_hang.txt'"
 
 # 10. the plugin killed: mid-frame, in its own teardown, mid-batch and mid-copy with the GPU behind, and idle with a silent GSP
 for chip in ad107 gb205; do
