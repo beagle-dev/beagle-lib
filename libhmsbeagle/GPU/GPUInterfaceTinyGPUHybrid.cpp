@@ -249,7 +249,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction fn, Dim3Int block, Dim3Int
 
 GPUPtr GPUInterface::AllocateMemory(size_t sz) {
     if (!isNVIDIA) return AmdAllocateMemory(sz);
-    return NvAllocateMemory(sz);
+    return NvAllocateMemory(this, sz);
 }
 
 GPUPtr GPUInterface::AllocateRealMemory(size_t n)  { return AllocateMemory(n * sizeof(double)); }
@@ -311,6 +311,9 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
     return isNVIDIA ? BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU : BEAGLE_TINYGPU_DEVICE_AMD_GPU;
 }
 bool GPUInterface::GetSupportsDoublePrecision(int) { return false; }
+// TODO.md plan step C12 (the NV path only; the AMD path is unchanged)
+bool GPUInterface::GetDeviceLost() { return isNVIDIA && NvDeviceLost(this); }
+
 size_t GPUInterface::GetAvailableMemory() {
     if (!isNVIDIA) return AmdGetAvailableMemory();
     return NvGetAvailableMemory();

@@ -150,11 +150,15 @@ class Frontend:
         self.qmd = ops_nv.QMD(types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=compute_class)))
         self.ctl = nv_gpu.AmpereAControlGPFifo
 
-    def doorbell(self, value):
+    def gpput(self, value):   # the doorbell's channel's GPPut, in its USERD right after the ring (NVDevice._new_gpu_fifo, ops_nv.py:647)
+        ch = self.channels.for_doorbell(value)
+        return None if ch is None else struct.unpack("<I", self.mem.read(ch["ring"] + ch["entries"] * 8 + getattr(self.ctl, "GPPut").offset, 4))[0]
+
+    def doorbell(self, value, put=None):   # put: run the ring only that far (a lagged doorbell's own entries), not to GPPut now
         ch = self.channels.for_doorbell(value)
         if ch is None: self.err(f"doorbell with token {value:#x}, which no channel was given"); return
-        userd = ch["ring"] + ch["entries"] * 8   # NVDevice._new_gpu_fifo's USERD, right after the ring (ops_nv.py:647)
-        put = struct.unpack("<I", self.mem.read(userd + getattr(self.ctl, "GPPut").offset, 4))[0]
+        userd = ch["ring"] + ch["entries"] * 8
+        if put is None: put = self.gpput(value)
         while ch["get"] % ch["entries"] != put:
             entry = struct.unpack("<Q", self.mem.read(ch["ring"] + (ch["get"] % ch["entries"]) * 8, 8))[0]
             if not entry >> 41 & 1: self.err(f"GPFIFO entry {entry:#x} lacks bit 41")

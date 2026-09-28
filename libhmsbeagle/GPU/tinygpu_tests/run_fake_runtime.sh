@@ -21,7 +21,8 @@ ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [
 printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS=(BEAGLE_NV_CPP_LEVEL=runtime "${ENVS[@]}")
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
 # the plugin's choice: BEAGLE_NV_USE_DAEMON=0 the C++ runtime, BEAGLE_NV_CPP_DISPATCH=1 C++ dispatch, either variable set
-# otherwise the daemon path; neither: the C++ runtime, on the fake RTX 4060 and the fake GB205 alike (plan decision 16)
+# otherwise the daemon path; neither: the C++ runtime, on the fake RTX 4060 and the fake GB205 alike (plan decision 16), and the
+# daemon path on a device ID outside Ada's and Blackwell's families (FAKE_PCI_DEVICE_ID, plan step C12: an Ampere's)
 MODE=; SET=
 for e in "${ENVS[@]}"; do
     case $e in BEAGLE_NV_USE_DAEMON=*|BEAGLE_NV_CPP_DISPATCH=*) SET=1 ;; esac
@@ -29,7 +30,8 @@ for e in "${ENVS[@]}"; do
     [ "$e" = BEAGLE_NV_USE_DAEMON=0 ] && MODE=runtime
 done
 if [ -z "$MODE" ]; then
-    if [ -n "$SET" ]; then MODE=daemon; else MODE=runtime; fi
+    if [ -n "$SET" ]; then MODE=daemon
+    else case ${FAKE_PCI_DEVICE_ID:-2882} in 26??|27??|28??|2[bBcCdDfF]??) MODE=runtime ;; *) MODE=daemon ;; esac; fi
 fi
 
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX"); SOCK="$SOCKDIR/fk.sock"

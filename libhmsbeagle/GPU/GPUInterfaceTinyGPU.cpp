@@ -3819,6 +3819,9 @@ void GPUInterface::FreeMemory(GPUPtr /*dPtr*/) {
     // Bump allocator — no individual free for either vendor.
 }
 
+// TODO.md plan step C12's check in BeagleGPUImpl: this legacy backend never reports a lost device
+bool GPUInterface::GetDeviceLost() { return false; }
+
 size_t GPUInterface::GetAvailableMemory() {
     if (isNVIDIA) {
         auto* g = (NVGSPState*)nvGspState;

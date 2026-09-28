@@ -66,6 +66,10 @@
  *   --fork-exit           After the instances are created (the GPU booted), a
  *                         forked child calls exit(); the parent then runs as
  *                         usual on a GPU the child must not have torn down.
+ *   --exit-after MS       MS milliseconds into the --reps evaluations, another
+ *                         thread calls exit(0) while this one goes on using
+ *                         the GPU, as a host's shutdown would (TODO.md plan
+ *                         step C12's exit matrix).
  *   --diag-compare-cpu    Mirror every step onto a second CPU-resource
  *                         instance and compare transition matrices,
  *                         post-peeling partials, and site log-likelihoods
@@ -97,6 +101,7 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -288,6 +293,19 @@ static bool compareArrays(const char* label, const double* gpuVals, const double
 static volatile sig_atomic_t gStopSignal = 0;
 static void onStopSignal(int sig) { gStopSignal = sig; }
 
+// --exit-after MS (TODO.md plan step C12's exit matrix): MS milliseconds after the --reps evaluations start, another thread
+// calls exit(0) while they go on, as a host's shutdown (a JVM's System.exit) would
+static std::atomic<bool> gEvaluating(false);
+static void exitAfter(int ms) {
+    std::thread([ms] {
+        while (!gEvaluating) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        printf("exit() from another thread, %d ms into the evaluations\n", ms);
+        fflush(stdout);
+        exit(0);
+    }).detach();
+}
+
 // ── Several instances in one process (--instances, --threads, --cycles; TODO.md plan step P5) ──
 // The TinyGPU instances share one boot. Each runs the default pipeline against its own CPU-resource instance; BEAGLE
 // instances are created and finalized on the main thread only.
@@ -398,6 +416,7 @@ static void evaluateRun(InstanceRun& r, bool poison, int reps) {
     ok &= compareArrays("siteLogL", g.data(), c.data(), np, 1e-3, out);
     std::vector<double> ms;   // as main, --reps runs whenever the evaluation itself succeeded
     int nDiffer = 0;
+    gEvaluating = true;
     for (int i = 0; i < reps && rc >= 0 && !gStopSignal; ++i) {
         double repLogL = 0.0;
         auto s0 = std::chrono::steady_clock::now();
@@ -540,6 +559,7 @@ int main(int argc, char** argv) {
     std::vector<int> stateCounts;   // --state-count's list: each of --instances takes the next (plan step P5)
     int instances = 0, cycles = 1;
     bool forkExit = false;   // --fork-exit (plan step P5's review)
+    int exitAfterMs = -1;    // --exit-after (plan step C12)
     bool threads = false;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -557,6 +577,8 @@ int main(int argc, char** argv) {
             cycles = atoi(argv[++i]);
         else if (a == "--fork-exit")
             forkExit = true;
+        else if (a == "--exit-after" && i + 1 < argc)
+            exitAfterMs = atoi(argv[++i]);
         else if (a == "--reps" && i + 1 < argc)
             reps = atoi(argv[++i]);
         else if (a == "--poison")
@@ -570,7 +592,7 @@ int main(int argc, char** argv) {
         else if (a == "--diag-matmul-ground-truth")
             diagMatmulGroundTruth = true;
         else {
-            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N[,N...]] [--instances K] [--threads] [--cycles C] [--fork-exit] [--reps N] [--poison] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
+            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N[,N...]] [--instances K] [--threads] [--cycles C] [--fork-exit] [--exit-after MS] [--reps N] [--poison] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
             return 1;
         }
     }
@@ -611,6 +633,7 @@ int main(int argc, char** argv) {
     sa.sa_flags = SA_RESTART;
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
+    if (exitAfterMs >= 0) exitAfter(exitAfterMs);
 
     // ── Step 1: Enumerate all BEAGLE resources ────────────────────────────────
     printf("=== TinyGPUHybrid backend test ===\n\n");
@@ -1037,6 +1060,7 @@ int main(int argc, char** argv) {
         std::vector<double> ms(reps);
         int nDiffer = 0;
         double maxDiff = 0.0;
+        gEvaluating = true;
         for (int r = 0; r < reps; ++r) {
             if (gStopSignal) {
                 fprintf(stderr, "--reps: interrupted by signal %d after %d of %d repeats; finalizing the instance\n",

@@ -35,6 +35,14 @@
 #include "libhmsbeagle/GPU/Precision.h"
 #include "BeagleGPUImpl.h"
 
+// TinyGPU (TODO.md plan step C12): an instance whose GPU is lost, or whose setup failed, copies back NaN instead of results, so
+// createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost)
+#ifdef FW_TINYGPU
+#define BEAGLE_GPU_RETURN_IF_LOST() do { if (gpu->GetDeviceLost()) return BEAGLE_ERROR_GENERAL; } while (0)
+#else
+#define BEAGLE_GPU_RETURN_IF_LOST() do {} while (0)
+#endif
+
 namespace beagle {
 namespace gpu {
 
@@ -804,6 +812,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 #endif
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -1060,6 +1069,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getPartials\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -1664,6 +1674,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getTransitionMatrix\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -3546,6 +3557,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -3704,6 +3716,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoodsByPartition\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4054,6 +4067,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4283,6 +4297,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoodsByPartition\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4309,6 +4324,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogLikelihood(double* outSumLogLikelih
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getLogLikelihood\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4340,6 +4356,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getDerivatives(double* outSumFirstDerivat
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getDerivatives\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4369,6 +4386,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikel
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4393,6 +4411,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteDerivatives(double* outFirstDeriva
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteDerivatives\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4502,6 +4521,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
         }
     }
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4620,6 +4640,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                      kStateCount);
     }
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 

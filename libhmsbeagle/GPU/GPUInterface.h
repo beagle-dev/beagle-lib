@@ -111,6 +111,8 @@ private:
     friend void NvMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
     friend void NvMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
     friend void NvFini(GPUInterface*);
+    friend GPUPtr NvAllocateMemory(GPUInterface*, size_t);
+    friend bool NvDeviceLost(GPUInterface*);
 
     // ── TinyGPU socket ──────────────────────────────────────────────────────
     int      tgpuSock;
@@ -235,6 +237,13 @@ public:
     void* AllocatePinnedHostMemory(size_t memSize,
                                    bool writeCombined,
                                    bool mapped);
+
+#ifdef FW_TINYGPU
+    // TODO.md plan step C12: true once this instance's GPU work cannot be trusted (its setup or an allocation failed, or the
+    // GPU hung or its connection broke): its calls then do nothing, instead of exiting the host, and BeagleGPUImpl returns
+    // errors from createInstance and from the calls that copy results back
+    bool GetDeviceLost();
+#endif
 
 #ifdef FW_OPENCL
     void* MapMemory(GPUPtr dPtr,

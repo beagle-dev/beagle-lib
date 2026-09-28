@@ -43,6 +43,10 @@ results+=("GB205 levels and V1 tools (B2): $([ $? -eq 0 ] && echo PASS || echo "
 results+=("crash guard (C10): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c10_e2e.log)")")
 "$TG_TESTS/test_c11.sh" > "$TINYGPU_TEST_WORK/test_c11_e2e.log" 2>&1
 results+=("full C++ boot (C11): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c11_e2e.log)")")
+# plan step C12: level boot by default, and a library that returns errors instead of exiting its host (the finalize order, a
+# silent GSP, exit() from another thread, SIGINT, TinyGPU.app gone, a warm GPU, a failed instance, a hang)
+"$TG_TESTS/test_c12.sh" > "$TINYGPU_TEST_WORK/test_c12_e2e.log" 2>&1
+results+=("default boot and error returns (C12): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c12_e2e.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
@@ -158,7 +162,8 @@ for m in "daemon BEAGLE_NV_CPP_DISPATCH=0" "dispatch BEAGLE_NV_CPP_DISPATCH=1"; 
 done
 
 # plan decision 16: with no mode variable the plugin picks the C++ runtime on Ada (the fake RTX 4060) and on the GB205 (the fake
-# GB205, since 2026-09-27), the daemon path on other GPUs; BEAGLE_NV_USE_DAEMON=1 picks the daemon path (run_fake_runtime.sh
+# GB205, since 2026-09-27) and the other GB20x families (the fake GB205 as a GB202, device ID 0x2b85, since 2026-09-28), the
+# daemon path on other GPUs (an Ampere's device ID, 0x2204); BEAGLE_NV_USE_DAEMON=1 picks the daemon path (run_fake_runtime.sh
 # expects the same modes)
 default_case() {   # <label> <runtime|daemon> [VAR=value ...]: the mode chosen, every stage of it, and a clean teardown
     local label=$1 want=$2; shift 2
@@ -172,6 +177,8 @@ default_case() {   # <label> <runtime|daemon> [VAR=value ...]: the mode chosen, 
 }
 default_case default_ada runtime
 FAKE_NV_CHIP=gb205 default_case default_gb205 runtime
+FAKE_NV_CHIP=gb205 FAKE_PCI_DEVICE_ID=2b85 default_case default_gb202 runtime
+FAKE_PCI_DEVICE_ID=2204 default_case default_ga102 daemon
 default_case daemon_explicit daemon BEAGLE_NV_USE_DAEMON=1
 
 # the C++ side's cmdq ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames

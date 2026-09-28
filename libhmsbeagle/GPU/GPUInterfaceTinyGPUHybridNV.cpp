@@ -33,8 +33,9 @@
  * plugin's own TinyGPU.app connection (see "C++ dispatch" below).
  *
  * BEAGLE_NV_USE_DAEMON=0, the C++ runtime (the revived legacy path), and the
- * default on Ada (AD10x) GPUs when neither variable is set (TODO.md plan
- * decision 16; BEAGLE_NV_USE_DAEMON=1 selects the daemon path): the
+ * default on Ada (AD10x) and Blackwell (GB20x) GPUs when neither variable is
+ * set (TODO.md plan decision 16; BEAGLE_NV_USE_DAEMON=1 selects the daemon
+ * path; since plan step C12 both variables are harness switches): the
  * daemon only boots, and hands over right away. This file then also loads
  * the programs (TinyGPUHybridNVProgram.h, a port of tinygrad's program
  * loader) from the cubin built for this GPU and linked into the plugin
@@ -43,7 +44,10 @@
  * modes), and allocates from a VRAM pool the daemon mapped, so Python does
  * nothing after boot until "fini" (see "C++ runtime" below). Every instance
  * in the process shares that one boot, which lasts until exit (TODO.md plan
- * step P5).
+ * step P5). By default (TODO.md plan step C12) there is no daemon either: at
+ * level boot this file boots the GPU itself (TinyGPUHybridNVBoot.h, plan
+ * step C11), and the crash guard (tinygpu_guard.cpp) keeps it if this
+ * process dies.
  */
 
 #ifdef FW_TINYGPU
@@ -217,6 +221,7 @@ struct NVHybridState {
     pid_t daemon_pid;
     std::string arch;   // the boot reply's: later instances pick their cubins for it (plan step P5)
     pid_t owner_pid;    // the process that booted; a child forked from it shares its connections and must never tear down
+    bool lost = false;  // plan step C12: the GPU went to its keeper (nv_gpu_lost); nothing more is sent to it, and no instance uses it
 };
 
 struct NVKernelHandle {
@@ -231,7 +236,7 @@ static NVHybridState* g_nv = nullptr;
 static std::map<std::string, long long> g_nvKernelLaunches;   // released instances' launches per kernel, for the profile report
 
 // Plan step P5: one lock around everything the instances share, so a frame to TinyGPU.app never interleaves with another
-// thread's and the rings, timeline and pool stay consistent. Recursive, because nv_safe_exit takes it on paths that
+// thread's and the rings, timeline and pool stay consistent. Recursive, because nv_gpu_lost takes it on paths that
 // already hold it; timed, for nvAtExit. Never destroyed: a GPUInterface may be destroyed after the static destructors ran.
 static std::recursive_timed_mutex& nv_mutex() {
     static std::recursive_timed_mutex* m = new std::recursive_timed_mutex;
@@ -253,31 +258,33 @@ static_assert(kNVDStatePhase == kGuardStatePhase && kNVDStateInFlight == kGuardS
 static_assert(kNVDPhaseDispatch == kGuardPhaseDispatch && kNVDPhaseTeardown == kGuardPhaseTeardown && kNVDPhaseGspInit == kGuardPhaseGspInit &&
               kNVDPhaseFlcnInit == kGuardPhaseFlcnInit, "the guard's phases");
 
-// TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes (removed in C12). teardown (plan step C5):
+// TODO.md plan decision 11: BEAGLE_NV_CPP_LEVEL says how far the C++ runtime goes: a harness switch since plan step C12 (its C12d,
+// the user's choice), removed with the daemon-booted levels in a plan step C13 group of their own. teardown (plan step C5):
 // this side unloads the GPU at fini, on tinygrad's ported GSP queue and falcon primitives, and the daemon only exits; runtime:
 // the daemon unloads it, as before C5. vram (plan step C6, rung H1): also, at the handoff this side takes tinygrad's memory
 // manager over (TinyGPUMemory.h, TinyGPUHybridNVMemory.h) and allocates its VRAM pool itself; sysmem (rung H2): its four
 // buffers too. rm (plan step C7, rung H3): the daemon boots
 // only the NVDev, and this side builds the NVDevice with tinygrad's RM client ported (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h).
 // gsp_hw (plan step C8, rung H4): the daemon's boot stops once GSP-RM started; this side runs NV_GSP.init_hw (GSP-RM's INIT_DONE,
-// with its CPU sequencer) and init_golden_image, then builds the NVDevice: the default since rungs H3 and H4 passed on the
-// RTX 4060 (STATUS.md R41). flcn_hw (plan step C9): the daemon's boot stops after
+// with its CPU sequencer) and init_golden_image, then builds the NVDevice: the default from the RTX 4060's rungs H3 and H4
+// (STATUS.md R41) until plan step C12. flcn_hw (plan step C9): the daemon's boot stops after
 // both init_sw calls; this side runs NV_FLCN.init_hw too (FWSEC-FRTS, booter_load), on the images the daemon prepared.
+// boot (plan step C11): no daemon and no Python, the whole boot here: the default since plan step C12.
 enum NVCppLevel { kNVLevelRuntime, kNVLevelTeardown, kNVLevelVram, kNVLevelSysmem, kNVLevelRm, kNVLevelGspHw, kNVLevelFlcnHw, kNVLevelBoot };
 static NVCppLevel nv_cpp_level() {
     static const NVCppLevel level = [] {
         const char* v = getenv("BEAGLE_NV_CPP_LEVEL");
-        if (!v || !v[0] || strcmp(v, "gsp_hw") == 0) return kNVLevelGspHw;
+        if (!v || !v[0] || strcmp(v, "boot") == 0) return kNVLevelBoot;
         if (strcmp(v, "runtime") == 0) return kNVLevelRuntime;
         if (strcmp(v, "teardown") == 0) return kNVLevelTeardown;
         if (strcmp(v, "vram") == 0) return kNVLevelVram;
         if (strcmp(v, "sysmem") == 0) return kNVLevelSysmem;
         if (strcmp(v, "rm") == 0) return kNVLevelRm;
+        if (strcmp(v, "gsp_hw") == 0) return kNVLevelGspHw;
         if (strcmp(v, "flcn_hw") == 0) return kNVLevelFlcnHw;
-        if (strcmp(v, "boot") == 0) return kNVLevelBoot;
         fprintf(stderr, "TinyGPU/NV: BEAGLE_NV_CPP_LEVEL=%s is not a level this build has (runtime, teardown, vram, sysmem, rm, gsp_hw, flcn_hw, boot); "
-                "using gsp_hw\n", v);
-        return kNVLevelGspHw;
+                "using boot\n", v);
+        return kNVLevelBoot;
     }();
     return level;
 }
@@ -338,16 +345,19 @@ static void nv_test_kill(const char* point, NVDispatchState* d = nullptr);   // 
 
 // The C++ runtime (see the top of this file): BEAGLE_NV_USE_DAEMON=0, or, with neither BEAGLE_NV_USE_DAEMON nor
 // BEAGLE_NV_CPP_DISPATCH set, the default on Ada (TODO.md plan decision 16: AD10x, whose PCI device IDs are 0x26xx-0x28xx
-// in tinygrad's PCIIface family list, ops_nv.py:559) and on the GB205 (0x2fxx, since plan step B2 ran every level on it, the
-// user's choice of 2026-09-27). The other Blackwell families (0x2bxx-0x2dxx) keep the daemon, untested, and Ampere never ran.
-// First asked in NvSetDevice, after Initialize read the device ID.
+// in tinygrad's PCIIface family list, ops_nv.py:559) and on Blackwell (GB20x, 0x2bxx-0x2dxx and 0x2fxx): the GB205 since plan
+// step B2 ran every level on it (the user's choice of 2026-09-27), the other GB20x families, untested, since 2026-09-28 (the
+// user's choice: the C++ boot is tinygrad's for every GB20x). Ampere (0x22xx-0x25xx) keeps the daemon, and never ran. Both
+// variables are harness switches since plan step C12 (its C12d, the user's choice). First asked in NvSetDevice, after
+// Initialize read the device ID.
 static bool nv_cpp_runtime() {
     static const bool on = [] {
         const char* v = getenv("BEAGLE_NV_USE_DAEMON");
         if (v) return strcmp(v, "0") == 0;
         if (getenv("BEAGLE_NV_CPP_DISPATCH")) return false;
         uint16_t family = tg_pci_device_id() & 0xff00;
-        bool cpp = family == 0x2600 || family == 0x2700 || family == 0x2800 || family == 0x2f00;
+        bool cpp = family == 0x2600 || family == 0x2700 || family == 0x2800 || family == 0x2b00 || family == 0x2c00 || family == 0x2d00 ||
+                   family == 0x2f00;
         if (cpp) fprintf(stderr, "TinyGPU/NV: the C++ runtime, the default on this GPU (BEAGLE_NV_USE_DAEMON=1 selects the daemon)\n");
         return cpp;
     }();
@@ -380,12 +390,22 @@ struct NVInstance {
     std::map<std::string, NVKernelHandle*> kernels;  // GetFunction's handles
     std::map<std::string, NVDKernel> templates;      // the C++ runtime: this instance's programs, at its own lib_va
     std::vector<NVPendingLaunch> pending;            // launches queued since this instance last flushed
+    bool failed = false;   // plan step C12: its setup failed, or an allocation (BEAGLE would hand address 0 to the GPU)
 };
+
+// TODO.md plan step C12: nothing of an instance reaches the GPU once its setup failed or the GPU is lost; its calls do nothing
+// and BeagleGPUImpl returns errors (GPUInterface::GetDeviceLost)
+static bool nv_failed(const NVInstance& in) { return in.failed || !g_nv || g_nv->lost; }
+
+// Plan step C12: a GPU that stopped making progress, or whose TinyGPU.app stream broke, found deep in a launch, a copy or a
+// wait. Thrown there, caught at the GPUInterface entry points, which hand the GPU to its keeper (nv_gpu_lost) and return.
+struct NVGpuLost { bool hung; };
 
 static void nvdFlushLaunches(std::vector<NVPendingLaunch>& pending);
 
 static void nvFlushLaunchQueue(NVInstance& in) {
-    if (!g_nv || in.pending.empty()) return;
+    if (nv_failed(in)) { in.pending.clear(); return; }
+    if (in.pending.empty()) return;
     if (g_nvd) { nvdFlushLaunches(in.pending); return; }
     auto t0 = nv_profile_start();
     std::string cmd = "{\"cmd\":\"launch_batch\",\"launches\":[";
@@ -445,30 +465,44 @@ static void nv_report_no_fini_reply() {
             "power-cycle the eGPU before the next boot\n");
 }
 
-// hung: the GPU stopped making progress, so the daemon sends only the GSP unload RPC (no synchronize, no teardown).
-// The lock keeps every other thread off the TinyGPU.app connection the daemon uses for that (plan step P5). A child
-// forked after the boot sends nothing: the GPU is its parent's.
-[[noreturn]] static void nv_safe_exit(int code, bool hung = false) {
+// TODO.md plan step C12, which replaced this library's _exit (nv_safe_exit): the GPU is lost to this process, because it hung,
+// its TinyGPU.app stream broke, or its setup failed after the boot. Its keeper takes it as it would at an exit: the daemon's
+// fini (hung: the GPU stopped making progress, so the daemon sends only the GSP unload RPC, no synchronize, no teardown), or
+// the crash guard, at the end of its socketpair, as the state page says (after a hang its timeline wait fails, and it sends
+// only the unload and holds). Then this process closes its copies of the connections and sends the GPU nothing more, and
+// every instance's calls return errors: the host goes on. The lock keeps every other thread off the connection meanwhile (plan
+// step P5). A child forked after the boot sends nothing: the GPU is its parent's.
+static void nv_gpu_lost(bool hung) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    if (!g_nv || g_nv->lost) return;
+    g_nv->lost = true;
+    if (g_nv->owner_pid != getpid()) return;
     fflush(stderr);
-    if (g_nv && g_nv->owner_pid == getpid()) {
-        bool hold = false;
-        if (g_nv->cmd_sock >= 0) {
-            nv_send_msg(g_nv->cmd_sock, hung ? "{\"cmd\":\"fini\",\"hung\":true}" : "{\"cmd\":\"fini\"}");
-            std::string resp = nv_recv_msg(g_nv->cmd_sock);
-            if (resp.empty()) nv_report_no_fini_reply();
-            hold = nv_report_unload(resp);
-        }
-        if (g_nv->daemon_pid > 0 && !hold) {
-            for (int i = 0; i < 100; ++i) {
-                int st = 0;
-                if (waitpid(g_nv->daemon_pid, &st, WNOHANG) > 0) break;
-                usleep(100000);
-            }
-        }
-        if (g_nv->cmd_sock >= 0) close(g_nv->cmd_sock);
+    bool hold = false;
+    if (g_nv->cmd_sock >= 0) {
+        nv_send_msg(g_nv->cmd_sock, hung ? "{\"cmd\":\"fini\",\"hung\":true}" : "{\"cmd\":\"fini\"}");
+        std::string resp = nv_recv_msg(g_nv->cmd_sock);
+        if (resp.empty()) nv_report_no_fini_reply();
+        hold = nv_report_unload(resp);
     }
-    _exit(code);
+    if (g_nv->daemon_pid > 0 && !hold) {
+        for (int i = 0; i < 100; ++i) {
+            int st = 0;
+            if (waitpid(g_nv->daemon_pid, &st, WNOHANG) > 0) { g_nv->daemon_pid = 0; break; }
+            usleep(100000);
+        }
+    }
+    if (g_nv->cmd_sock >= 0) { close(g_nv->cmd_sock); g_nv->cmd_sock = -1; }
+    if (g_nvd && g_nvd->guard_ctl >= 0) {   // the guard decides now, as at this process's death
+        close(g_nvd->guard_ctl);
+        g_nvd->guard_ctl = -1;
+        fprintf(stderr, "TinyGPU/NV: the crash guard (pid %d) keeps the GPU: it tears it down, or holds it and says so (its lines are "
+                "in %s)\n", (int)g_nvd->guard_pid, tg_log_path().c_str());
+    }
+    tg_transport().close();
+    fprintf(stderr, "TinyGPU/NV: the GPU is lost to this process%s: nothing more is sent to it, and BEAGLE's calls on it return "
+            "errors\n", hung ? " (it hung)" : "");
+    tg_log("the GPU is lost to this process%s (plan step C12): nothing more is sent to it", hung ? " (it hung)" : "");
 }
 
 // ── C++ dispatch (BEAGLE_NV_CPP_DISPATCH=1; TODO.md "Runtime roadmap",
@@ -483,7 +517,7 @@ static void nv_report_no_fini_reply() {
 // first waits for the one before it. ────────────────────────────────────────
 
 // HCQSignal.wait on the timeline. A GPU making no progress for 30 s (hcq1's
-// default timeout) is fatal, as it would be in the daemon.
+// default timeout) is lost, as it would be in the daemon (plan step C12: NVGpuLost, not an exit).
 static void nvd_wait(uint64_t value) {
     auto start = std::chrono::steady_clock::now();
     for (uint64_t spin = 0; __atomic_load_n(g_nvd->signal, __ATOMIC_ACQUIRE) < value; ++spin) {
@@ -492,7 +526,7 @@ static void nvd_wait(uint64_t value) {
         if (waited > std::chrono::seconds(30)) {
             fprintf(stderr, "TinyGPU/NV: timeline wait timed out (want %llu, have %llu); GPU hung?\n",
                     (unsigned long long)value, (unsigned long long)__atomic_load_n(g_nvd->signal, __ATOMIC_ACQUIRE));
-            nv_safe_exit(1, true);
+            throw NVGpuLost{true};
         }
         if (waited > std::chrono::milliseconds(2)) usleep(20);
     }
@@ -525,15 +559,15 @@ static void nvd_submit(NVDFifo& f, const std::vector<uint32_t>& pb) {
                               {f.gpput_bar, f.gpput_off, &gpput, 4},
                               {g_nvd->h.db_bar, g_nvd->h.db_off, &f.token, 4}};
     // State page: in flight, then the value this frame's work signals (every caller took it from the timeline already),
-    // then "not in flight" once the whole frame is out. A frame cut mid-send ends this process with the flag still set,
-    // so the daemon holds and sends TinyGPU.app nothing more (it would read those bytes as the rest of this frame).
+    // then "not in flight" once the whole frame is out. A frame cut mid-send loses the GPU with the flag still set, so its
+    // keeper holds and sends TinyGPU.app nothing more (it would read those bytes as the rest of this frame).
     __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 1, __ATOMIC_RELEASE);
     __atomic_store_n(&g_nvd->state[kNVDStateLastSubmitted], g_nvd->timeline - 1, __ATOMIC_RELEASE);
     std::string err;
     if (!tg_transport().bulk_write_frame(frame, 3, err)) {
         fprintf(stderr, "TinyGPU/NV: TinyGPU.app write %s: %s\n", tg_transport().lost() ? "cut mid-frame" : "refused", err.c_str());
         if (!tg_transport().lost()) __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // nothing went out
-        nv_safe_exit(1);
+        throw NVGpuLost{false};
     }
     __atomic_store_n(&g_nvd->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);
     ++f.put;
@@ -1253,10 +1287,10 @@ static std::string nvGuardBootRest(NVDispatchState& d) {
 // then builds the NVDevice as nvDispatchRM does at flcn_hw from the daemon's export (nvdBuildDevice) and allocates its buffers.
 // The crash guard keeps the GPU from before the first request to it; the keeper word names it from the start. The state page
 // says a frame is in flight until the NVDevice is built and the guard has the rest of its setup: a death before the falcons'
-// boot closes (phase flcn_init), one after it holds.
-static NVDispatchState* nvDispatchBoot(int tg_sock, bool& hung) {
+// boot closes (phase flcn_init), one after it holds. A failed boot ends the guard's socketpair as a death would (plan step C12).
+static NVDispatchState* nvDispatchBoot(int tg_sock) {
     auto t0 = nv_profile_start();
-    hung = false;
+    bool hung = false;   // nvdBuildDevice's: with no daemon the guard's timeline wait finds a hang itself
     NVDispatchState* d = new NVDispatchState;
     d->runtime = true;
     d->tg_sock = tg_sock;
@@ -1324,7 +1358,12 @@ static NVDispatchState* nvDispatchBoot(int tg_sock, bool& hung) {
             const char c = 'N';
             if (write(d->guard_ctl, &c, 1) != 1) {}
         }
-        return nullptr;   // the caller exits, and the guard decides from the state page (it holds once GSP-RM may run)
+        // Plan step C12: the guard decides now, from the state page (it holds once GSP-RM may run), and the host goes on. The
+        // boot's own mappings are this process's views only: the guard keeps the connection, and the sysmem behind them.
+        if (d->guard_ctl >= 0) close(d->guard_ctl);
+        nvd_unmap(d);
+        delete d;
+        return nullptr;
     }
     d->cmdq = (uint8_t*)d->maps[0];
     d->kargs = (uint8_t*)d->maps[1];
@@ -1474,19 +1513,20 @@ static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& n
 }
 
 // The C++ runtime's embedded cubin for an instance's state count and the booted GPU (plan step C1), and a handle per
-// kernel in it. Its programs load after the handoff (nvRuntimePrograms).
-static void nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, const std::string& arch, NVDElf& cubin) {
+// kernel in it. Its programs load after the handoff (nvRuntimePrograms). False: none serves them (the instance fails).
+static bool nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, const std::string& arch, NVDElf& cubin) {
     const TinyGPUNVCubin* c = nullptr;
     std::string err = nvd_find_cubin(kTinyGPUNVCubins, sizeof(kTinyGPUNVCubins) / sizeof(kTinyGPUNVCubins[0]),
                                      paddedStateCount, dp, arch, c);
     if (err.empty()) err = nvd_elf_load(c->begin, (size_t)(c->end - c->begin), 128, cubin);  // NVProgram's force_section_align
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/NV: C++ runtime: %s\n", err.c_str());
-        nv_safe_exit(1);
+        return false;
     }
     for (const std::string& kname : nvd_kernel_names(cubin)) in.kernels[kname] = new NVKernelHandle{kname};
     fprintf(stderr, "TinyGPU/NV: C++ runtime: embedded cubin SP_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", paddedStateCount,
             arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
+    return true;
 }
 
 // Each handle's launch template: the handoff's (C++ dispatch) or the instance's own programs (C++ runtime).
@@ -1497,11 +1537,12 @@ static void nvLinkTemplates(NVInstance& in, const std::map<std::string, NVDKerne
     }
 }
 
-static void nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
+static bool nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
     std::vector<std::string> names;
     for (auto& kv : in.kernels) names.push_back(kv.first);
-    if (!nvdLoadPrograms(cubin, names, in.templates)) nv_safe_exit(1);
+    if (!nvdLoadPrograms(cubin, names, in.templates)) return false;
     nvLinkTemplates(in, in.templates);
+    return true;
 }
 
 // ── nvDispatchDaemonSetup: spawn nv_dispatch_daemon.py over a dedicated
@@ -1514,23 +1555,19 @@ static void nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
 // paddedStateCount and the GPU the daemon booted (plan step C1). The handles
 // and programs are the first instance's, in (plan step P5). ─────────────────
 
-// TODO.md plan step C11 (BEAGLE_NV_CPP_LEVEL=boot): the C++ runtime's setup with no daemon (nvDispatchBoot): the C++ boot,
-// the NVDevice, then the programs from the embedded cubin, as nvDispatchDaemonSetup does at the rm levels
-static NVHybridState* nvBootSetup(int tg_fd, int paddedStateCount, bool dp, NVInstance& in) {
+// TODO.md plan step C11 (BEAGLE_NV_CPP_LEVEL=boot): the C++ runtime's setup with no daemon (nvDispatchBoot): the C++ boot and
+// the NVDevice; NvSetDevice then loads the programs from the embedded cubin, as for an instance that shares the boot. Null if
+// the boot failed, when the crash guard has the GPU already (plan step C12).
+static NVHybridState* nvBootSetup(int tg_fd) {
+    fprintf(stderr, "TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
+    auto t0 = nv_profile_start();
+    g_nvd = nvDispatchBoot(tg_fd);
+    nv_profile_end("boot", t0);
+    if (!g_nvd) return nullptr;
     NVHybridState* g = new NVHybridState{};
     g->cmd_sock = -1;
     g->owner_pid = getpid();
-    g_nv = g;   // from here every exit is nv_safe_exit's, which with no daemon leaves the GPU to the crash guard
-    fprintf(stderr, "TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
-    auto t0 = nv_profile_start();
-    bool hung = false;
-    g_nvd = nvDispatchBoot(tg_fd, hung);
-    nv_profile_end("boot", t0);
-    if (!g_nvd) nv_safe_exit(1, hung);
     g->arch = g_nvd->dev.arch;
-    NVDElf cubin;
-    nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);
-    nvRuntimePrograms(in, cubin);
     fflush(stderr);
     return g;
 }
@@ -1577,7 +1614,7 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     NVHybridState* g = new NVHybridState{};
     g->cmd_sock = sv[0];
     g->owner_pid = getpid();
-    int one = 1;  // a gone daemon shows up as EPIPE, so nv_safe_exit still reports, instead of SIGPIPE ending the host
+    int one = 1;  // a gone daemon shows up as EPIPE, so nv_gpu_lost still reports, instead of SIGPIPE ending the host
     setsockopt(g->cmd_sock, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
     g->daemon_pid = pid;
 
@@ -1593,7 +1630,11 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     if (resp.empty() || !nv_json_ok(resp)) {
         std::string err = nv_json_str(resp, "error");
         fprintf(stderr, "TinyGPU/NV: boot failed: %s\n", err.empty() ? resp.c_str() : err.c_str());
-        nv_report_unload(resp);   // a boot that failed after GSP-RM started: the daemon unloaded it, and may hold
+        // a boot that failed after GSP-RM started: the daemon unloaded it, and may hold. Plan step C12: the host goes on, so
+        // the daemon's EOF comes now (it exits, or keeps holding), and one that does not hold is waited for.
+        bool hold = nv_report_unload(resp);
+        close(g->cmd_sock);
+        for (int i = 0; i < 100 && !hold && waitpid(pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
         delete g;
         return nullptr;
     }
@@ -1602,11 +1643,12 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
         fprintf(stderr, "TinyGPU/NV: daemon booted the NVDev (level %s)\n", strcmp(boot_level, "flcn_hw") == 0 ? "flcn_hw: the images prepared"
                 : strcmp(boot_level, "gsp_hw") == 0 ? "gsp_hw: GSP-RM started" : "rm");
     else fprintf(stderr, "TinyGPU/NV: daemon booted — arch=%s\n", g->arch.c_str());
-    g_nv = g;   // from here on every exit, a GPU hang during setup included, tears the GPU down through the daemon
+    g_nv = g;   // from here on a lost GPU, a hang during setup included, is torn down through the daemon (nv_gpu_lost)
 
     NVDElf cubin;
     if (nv_cpp_runtime() && tg_fd >= 0) {
-        if (!rm_level) nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);
+        // plan step C12: no cubin fails the instance before the handoff, so NvFini has the daemon tear the GPU down
+        if (!rm_level && !nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin)) { in.failed = true; return g; }
     } else if (kernel_code && kernel_code[0]) {
         char ptx_path[256];
         snprintf(ptx_path, sizeof(ptx_path), "/tmp/beagle_nv_all_%d.ptx", getpid());
@@ -1623,7 +1665,8 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
         unlink(ptx_path);
         if (resp.empty() || !nv_json_ok(resp)) {
             fprintf(stderr, "TinyGPU/NV: compile_all failed: %s\n", resp.c_str());
-            nv_safe_exit(1);
+            in.failed = true;   // plan step C12: NvFini has the daemon tear the GPU down
+            return g;
         }
         // Register a lightweight handle per kernel name found in the reply's
         // "kernels" array so GetFunction() has something to hand back.
@@ -1650,17 +1693,16 @@ static NVHybridState* nvDispatchDaemonSetup(const char* kernel_code, int tg_fd, 
     if (tg_fd >= 0 && rm_level) {
         bool hung = false;
         g_nvd = nvDispatchRM(g->cmd_sock, tg_fd, hung, nv_cpp_level());
-        if (!g_nvd) nv_safe_exit(1, hung);
+        if (!g_nvd) { nv_gpu_lost(hung); return g; }
         if (nv_cpp_level() == kNVLevelFlcnHw) nvGuardTakeover(g, *g_nvd);   // plan step C10: the crash guard keeps the GPU from here
         g->arch = g_nvd->dev.arch;
-        nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin);
-        nvRuntimePrograms(in, cubin);
+        if (!nvRuntimeCubin(in, paddedStateCount, dp, g->arch, cubin) || !nvRuntimePrograms(in, cubin)) in.failed = true;
     } else if (tg_fd >= 0) {
         g_nvd = nvDispatchHandoff(g->cmd_sock, tg_fd, nv_cpp_runtime());
-        if (!g_nvd || (!g_nvd->state && !nvdStatePage(g->cmd_sock, *g_nvd))) nv_safe_exit(1);   // at vram and sysmem the handoff sent it
+        if (!g_nvd || (!g_nvd->state && !nvdStatePage(g->cmd_sock, *g_nvd))) { nv_gpu_lost(false); return g; }   // at vram and sysmem the handoff sent it
         if (g_nvd->runtime && nv_cpp_level() >= kNVLevelTeardown) nvdTeardownExport(g->cmd_sock, *g_nvd);
-        if (g_nvd->runtime) nvRuntimePrograms(in, cubin);
-        else nvLinkTemplates(in, g_nvd->h.kernels);
+        if (g_nvd->runtime && !nvRuntimePrograms(in, cubin)) in.failed = true;
+        else if (!g_nvd->runtime) nvLinkTemplates(in, g_nvd->h.kernels);
     }
     fflush(stderr);
     return g;
@@ -1753,14 +1795,14 @@ static void nvFiniDevice() {
 // handler, the daemon's socket and the TinyGPU.app connection, and returns at once: the GPU is its parent's (checked
 // before the lock, which a fork can copy held).
 static void nvAtExit() {
-    if (!g_nv || g_nv->owner_pid != getpid()) return;
+    if (!g_nv || g_nv->owner_pid != getpid() || g_nv->lost) return;   // a lost GPU is its keeper's already (plan step C12)
     std::unique_lock<std::recursive_timed_mutex> lk(nv_mutex(), std::defer_lock);
     if (!lk.try_lock_for(std::chrono::seconds(35))) {
-        fprintf(stderr, "TinyGPU/NV: another thread is still using the GPU at exit; not tearing it down from here: the "
-                "daemon does at EOF, or holds, as the state page says\n");
+        fprintf(stderr, "TinyGPU/NV: another thread is still using the GPU at exit; not tearing it down from here: its "
+                "keeper (the crash guard, or the daemon) does at EOF, or holds, as the state page says\n");
         return;
     }
-    nvFiniDevice();
+    try { nvFiniDevice(); } catch (const NVGpuLost& e) { nv_gpu_lost(e.hung); }   // hung before the teardown
 }
 
 // Plan step P5: an instance created while another has the GPU booted shares that boot, since TinyGPU.app serves one
@@ -1769,6 +1811,10 @@ static void nvAtExit() {
 int NvAttachShared(GPUInterface* self) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     if (!g_nv) return 0;
+    if (g_nv->lost) {   // plan step C12: its keeper has it; this process boots no other
+        fprintf(stderr, "TinyGPU/NV: the GPU was lost earlier in this process; no instance can use it until the process restarts\n");
+        return -1;
+    }
     if (!(g_nvd && g_nvd->runtime)) {
         fprintf(stderr, "TinyGPU/NV: another BEAGLE instance in this process has the GPU; sharing it needs the C++ runtime "
                 "(BEAGLE_NV_USE_DAEMON=0): the daemon and C++ dispatch modes boot it for one instance at a time\n");
@@ -1816,21 +1862,27 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         self->kernelResource->flags                = flags;
     }
 
-    if (shared) {
-        NVDElf cubin;
-        nvRuntimeCubin(*shared, paddedStateCount, self->supportDoublePrecision, g_nv->arch, cubin);
-        nvRuntimePrograms(*shared, cubin);
-        return;
-    }
-    NVInstance* in = new NVInstance;
+    NVInstance* in = shared ? shared : new NVInstance;
     self->nvGspState = in;
-    if (nv_cpp_runtime() && tg_fd >= 0 && nv_cpp_level() == kNVLevelBoot)   // plan step C11: no daemon
-        g_nv = nvBootSetup(tg_fd, paddedStateCount, self->supportDoublePrecision, *in);
-    else
-        g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd, paddedStateCount,
-                                     self->supportDoublePrecision, *in);
-    if (!g_nv) { fprintf(stderr, "TinyGPU/NV: nvDispatchDaemonSetup failed\n"); nv_safe_exit(1); }
-    if (tg_fd >= 0) {   // the daemon has its copies: no later child of the host may keep the connection or the lock
+    const bool boot = !shared && nv_cpp_runtime() && tg_fd >= 0 && nv_cpp_level() == kNVLevelBoot;   // plan step C11: no daemon
+    try {
+        if (boot) g_nv = nvBootSetup(tg_fd);
+        else if (!shared)
+            g_nv = nvDispatchDaemonSetup(self->kernelResource ? self->kernelResource->kernelCode : nullptr, tg_fd, paddedStateCount,
+                                         self->supportDoublePrecision, *in);
+        NVDElf cubin;   // the programs of an instance that shares the boot, or of level boot's first
+        if ((shared || boot) && !nv_failed(*in) &&
+            (!nvRuntimeCubin(*in, paddedStateCount, self->supportDoublePrecision, g_nv->arch, cubin) || !nvRuntimePrograms(*in, cubin)))
+            in->failed = true;
+    } catch (const NVGpuLost& e) {   // a hang or a broken stream in the setup's GPU work
+        nv_gpu_lost(e.hung);
+    }
+    if (nv_failed(*in)) {   // plan step C12: beagleCreateInstance returns an error (BeagleGPUImpl), and the host goes on
+        in->failed = true;
+        fprintf(stderr, "TinyGPU/NV: this instance's setup failed%s\n", !g_nv ? " (the boot failed)" : g_nv->lost ? " (the GPU is lost)" : "");
+    }
+    if (shared) return;
+    if (tg_fd >= 0 && tg_transport().fd() == tg_fd) {   // the daemon has its copies: no later child of the host may keep the connection or the lock
         fcntl(tg_fd, F_SETFD, fcntl(tg_fd, F_GETFD) | FD_CLOEXEC);
         int lock_fd = tg_transport().lock_fd();
         if (lock_fd >= 0) fcntl(lock_fd, F_SETFD, fcntl(lock_fd, F_GETFD) | FD_CLOEXEC);
@@ -1847,19 +1899,25 @@ GPUFunction NvGetFunction(GPUInterface* self, const char* name) {
     if (!in) return nullptr;
     auto it = in->kernels.find(name);
     if (it != in->kernels.end()) return it->second;
-    fprintf(stderr, "TinyGPU/NV: GetFunction(%s): kernel not found in precompiled cache — exiting\n", name);
-    nv_safe_exit(1);
+    if (!in->failed) fprintf(stderr, "TinyGPU/NV: GetFunction(%s): kernel not found in precompiled cache; this instance fails\n", name);
+    in->failed = true;   // plan step C12: beagleCreateInstance returns an error, not an exit
+    return nullptr;
 }
 
 void NvSynchronizeHost(GPUInterface* self) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     NVInstance* in = (NVInstance*)self->nvGspState;
-    if (!g_nv || !in) return;
-    nvFlushLaunchQueue(*in);  // otherwise queued-but-unsent launches wouldn't be submitted yet to wait for
+    if (!in || nv_failed(*in)) return;
     auto t0 = nv_profile_start();
-    if (g_nvd) {
-        nvd_idle();
-        nv_profile_end("sync", t0);
+    try {
+        nvFlushLaunchQueue(*in);  // otherwise queued-but-unsent launches wouldn't be submitted yet to wait for
+        if (g_nvd) {
+            nvd_idle();
+            nv_profile_end("sync", t0);
+            return;
+        }
+    } catch (const NVGpuLost& e) {   // plan step C12
+        nv_gpu_lost(e.hung);
         return;
     }
     nv_send_msg(g_nv->cmd_sock, "{\"cmd\":\"sync\"}");
@@ -1869,15 +1927,16 @@ void NvSynchronizeHost(GPUInterface* self) {
         fprintf(stderr, "TinyGPU/NV: sync failed: %s\n", resp.c_str());
 }
 
-GPUPtr NvAllocateMemory(size_t sz) {
+GPUPtr NvAllocateMemory(GPUInterface* self, size_t sz) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
-    if (!g_nv) return 0;
+    NVInstance* in = (NVInstance*)self->nvGspState;
+    if (!in || nv_failed(*in)) return 0;
     if (g_nvd && g_nvd->runtime) {
         uint64_t va = nvd_pool_alloc(g_nvd->rt.pool, g_nvd->pool_pos, sz);
         if (!va) {   // BEAGLE does not check: address 0 would reach the GPU. The pool is never reclaimed (plan step P5).
-            fprintf(stderr, "TinyGPU/NV: alloc(%zu): VRAM pool exhausted (%llu MiB; set BEAGLE_NV_DATA_MB)\n", sz,
+            fprintf(stderr, "TinyGPU/NV: alloc(%zu): VRAM pool exhausted (%llu MiB; set BEAGLE_NV_DATA_MB); this instance fails\n", sz,
                     (unsigned long long)(g_nvd->rt.pool.size >> 20));
-            nv_safe_exit(1);
+            in->failed = true;   // plan step C12: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error
         }
         return (GPUPtr)va;
     }
@@ -1897,9 +1956,14 @@ GPUPtr NvAllocateMemory(size_t sz) {
 void NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     NVInstance* in = (NVInstance*)self->nvGspState;
-    if (!g_nv || !in || !src || !sz) return;
-    nvFlushLaunchQueue(*in);  // preserve ordering: queued launches must be submitted before this write
-    if (g_nvd) { nvdCopyIn(dst, src, sz); return; }
+    if (!in || nv_failed(*in) || !src || !sz) return;
+    try {
+        nvFlushLaunchQueue(*in);  // preserve ordering: queued launches must be submitted before this write
+        if (g_nvd) { nvdCopyIn(dst, src, sz); return; }
+    } catch (const NVGpuLost& e) {   // plan step C12
+        nv_gpu_lost(e.hung);
+        return;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"h2d\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)dst, sz);
     auto t0 = nv_profile_start();
@@ -1914,9 +1978,17 @@ void NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_
 void NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     NVInstance* in = (NVInstance*)self->nvGspState;
-    if (!g_nv || !in || !dst || !sz) return;
-    nvFlushLaunchQueue(*in);  // preserve ordering: queued launches must complete before this read
-    if (g_nvd) { nvdCopyOut(dst, src, sz); return; }
+    if (!in || !dst || !sz) return;
+    // plan step C12: a failed instance or a lost GPU reads back NaN (all bits set), so nothing it returns looks like a result
+    if (nv_failed(*in)) { memset(dst, 0xff, sz); return; }
+    try {
+        nvFlushLaunchQueue(*in);  // preserve ordering: queued launches must complete before this read
+        if (g_nvd) { nvdCopyOut(dst, src, sz); return; }
+    } catch (const NVGpuLost& e) {
+        nv_gpu_lost(e.hung);
+        memset(dst, 0xff, sz);
+        return;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"d2h\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)src, sz);
     auto t0 = nv_profile_start();
@@ -1928,6 +2000,14 @@ void NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_
     }
     nv_recv_all(g_nv->cmd_sock, dst, sz);
     nv_profile_end("d2h", t0);
+}
+
+// TODO.md plan step C12, for BeagleGPUImpl (GPUInterface::GetDeviceLost): true once nothing this instance computes can be
+// trusted: its setup or an allocation failed, or the GPU is lost
+bool NvDeviceLost(GPUInterface* self) {
+    std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    NVInstance* in = (NVInstance*)self->nvGspState;
+    return !in || nv_failed(*in);
 }
 
 size_t NvGetAvailableMemory() {
@@ -1948,19 +2028,26 @@ void NvFini(GPUInterface* self) {
     NVInstance* in = (NVInstance*)self->nvGspState;
     if (!in) return;
     self->nvGspState = nullptr;
-    nvFlushLaunchQueue(*in);  // don't silently drop queued-but-unsent launches
+    try {
+        nvFlushLaunchQueue(*in);  // don't silently drop queued-but-unsent launches
+    } catch (const NVGpuLost& e) {   // plan step C12
+        nv_gpu_lost(e.hung);
+    }
     for (auto& kv : in->kernels) {   // reported with the GPU teardown, so not once it is done (nor after static destructors)
         if (g_nv && kv.second->launches) g_nvKernelLaunches[kv.first] += kv.second->launches;
         delete kv.second;
     }
     delete in;
-    if (!(g_nvd && g_nvd->runtime)) nvFiniDevice();
+    if (g_nv && g_nv->lost) return;   // its keeper has it (plan step C12)
+    if (!(g_nvd && g_nvd->runtime)) {
+        try { nvFiniDevice(); } catch (const NVGpuLost& e) { nv_gpu_lost(e.hung); }   // hung before the teardown
+    }
 }
 
 void NvLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                          int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
     NVInstance* in = (NVInstance*)self->nvGspState;
-    if (!in || !fn) return;
+    if (!in || !fn || in->failed) return;
     NVKernelHandle* ke = (NVKernelHandle*)fn;
     int nInt = nTotal - nPtr;
     ++ke->launches;

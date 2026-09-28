@@ -168,7 +168,9 @@ def serve(conn):  # one client at a time, like TinyGPU.app; GPU state is loaded 
         if RECORD: RECORD.write(hdr); RECORD.flush()
         if os.path.exists(f"{MEM}/fini"): errors.append(f"command {cmd} after the daemon's GSP unload")   # plan step P3
         if cmd == CFG_READ:   # 10de:2882, an RTX 4060, or with FAKE_NV_CHIP=gb205 10de:2f04, an RTX 5070 (plan step B1)
-            conn.sendall(struct.pack(RESP, 0, 0x2f0410de if os.environ.get("FAKE_NV_CHIP") == "gb205" else 0x288210de, 0))
+            dev_id = 0x2f04 if os.environ.get("FAKE_NV_CHIP") == "gb205" else 0x2882
+            if os.environ.get("FAKE_PCI_DEVICE_ID"): dev_id = int(os.environ["FAKE_PCI_DEVICE_ID"], 16)   # plan step C12: another device ID
+            conn.sendall(struct.pack(RESP, 0, dev_id << 16 | 0x10de, 0))
         elif cmd == MMIO_WRITE:
             data = recv_exact(conn, a1)
             if RECORD and data: RECORD.write(data); RECORD.flush()

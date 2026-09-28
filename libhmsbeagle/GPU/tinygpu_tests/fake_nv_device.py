@@ -27,9 +27,15 @@ FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; b
 nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
 FAKE_GSP_SILENT_UNLOAD=1 (plan step C10): the GSP never answers the unload RPC (its client times out, and must hold).
 FAKE_GPU_LAG_MS=<ms> (plan step C10): the GPU runs each doorbell's work that long after the doorbell, in order, whether or not
-the client sends more (a client killed right after a submission leaves its timeline behind); an unload RPC that arrives before
-all of it ran is an error (its client did not wait for its timeline).
+the client sends more (a client killed right after a submission leaves its timeline behind); each doorbell runs its channel's
+ring only as far as it was then (plan step C12: a client's later entries, which wait for the other channel, wait for their
+own doorbells); an unload RPC that arrives before all of it ran is an error (its client did not wait for its timeline).
 FAKE_WPR2_UP=1 (plan step C11): the GPU starts warm, WPR2 up as a previous boot left it; a client must refuse it before any write.
+Plan step C12's exit matrix: FAKE_PCI_DEVICE_ID=<hex> puts another device ID in the config space, the chip staying as FAKE_NV_CHIP
+says (a GB202's 0x2b85, which the plugin routes to the daemon); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
+nothing (a hang); FAKE_DROP_AT=<k>: from the k-th doorbell on, at the first doorbell its client waits for (nothing more comes
+within 50 ms), TinyGPU.app quits, closing the connection before the GPU runs that doorbell's work: the client's wait ends, and
+its next write fails with EPIPE.
 FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
 MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
@@ -68,6 +74,8 @@ CTX_BUF = (0x20000, 0x1000)                     # every GR context buffer's (siz
 errors, counts = [], collections.Counter()
 # FAKE_TG_RECORD=<file>: every byte a client sends is appended to it (as fake_tinygpu_server.py; plan step V1's proxy check)
 RECORD = open(os.environ["FAKE_TG_RECORD"], "ab") if os.environ.get("FAKE_TG_RECORD") else None
+if os.environ.get("FAKE_PCI_DEVICE_ID"): CFG[0] = int(os.environ["FAKE_PCI_DEVICE_ID"], 16) << 16 | 0x10de
+HANG_AT, DROP_AT = int(os.environ.get("FAKE_GPU_HANG_AT", "0")), int(os.environ.get("FAKE_DROP_AT", "0"))
 RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
 FALCON_FAIL = os.environ.get("FAKE_FALCON_FAIL", "")
@@ -134,7 +142,8 @@ class Device:
         self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
         self.unloaded = False    # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload
         self.halt_in = None      # GB205, after the unload: RISCV_CPUCTL reads left before the core halts and WPR2 comes down
-        self.lagged = collections.deque()   # FAKE_GPU_LAG_MS: (due time, doorbell value) of work not yet run, oldest first
+        self.lagged = collections.deque()   # FAKE_GPU_LAG_MS: (due time, doorbell value, GPPut then) of work not yet run, oldest first
+        self.doorbells, self.drop, self.conn = 0, False, None   # FAKE_GPU_HANG_AT, FAKE_DROP_AT: the doorbells so far; closed; the client
         self.emem, self.emem_ptr, self.emem_inc = bytearray(0x800), 0, False   # GB205: the FSP's EMEM, as NV_PFSP_EMEMC set it
         self.memory = tggpu.Memory(self.vram, self.sys_rw, R, mmu_ver=3 if GB205 else 2)
         self.channels = tggpu.Channels()
@@ -183,7 +192,15 @@ class Device:
             if self.gsp: self.gsp.run()
             return
         if a == A.DOORBELL:
-            if LAG: self.lagged.append((time.monotonic() + LAG, v))
+            self.doorbells += 1
+            if HANG_AT and self.doorbells >= HANG_AT:
+                counts["doorbells the hung GPU ignored (FAKE_GPU_HANG_AT)"] += 1
+                return
+            if DROP_AT and self.doorbells >= DROP_AT and not self.drop and not select.select([self.conn], [], [], 0.05)[0]:
+                counts["connection closed at a doorbell its client waited for (FAKE_DROP_AT)"] += 1
+                self.conn.close()
+                self.drop = True
+            if LAG: self.lagged.append((time.monotonic() + LAG, v, self.frontend.gpput(v)))
             else: self.frontend.doorbell(v)
             return
         if GB205:
@@ -206,7 +223,7 @@ class Device:
 
     def run_due(self):   # FAKE_GPU_LAG_MS: the lagged doorbells whose time has come, in order (outside serve's try: errors here)
         while self.lagged and self.lagged[0][0] <= time.monotonic():
-            try: self.frontend.doorbell(self.lagged.popleft()[1])
+            try: self.frontend.doorbell(*self.lagged.popleft()[1:])
             except Exception as e: err(f"a lagged doorbell: {type(e).__name__}: {e}")
 
     def fsp_message(self):
@@ -383,7 +400,8 @@ def next_header(conn, dev):
 
 def serve(conn, dev):
     """One client, as server.c's handle_client (:185-257), over the device."""
-    while (hdr := next_header(conn, dev)) is not None:
+    dev.conn = conn
+    while not dev.drop and (hdr := next_header(conn, dev)) is not None:
         cmd, _, bar, a0, a1, a2 = REQ.unpack(hdr)
         counts[f"cmd {cmd}"] += 1
         if RECORD: RECORD.write(hdr)
@@ -428,6 +446,7 @@ def serve(conn, dev):
         err("the session ended before the GSP's RISC-V core halted: on a COT boot the FMC's images are in sysmem (DART)")
     if dev.lagged: err(f"the session ended with {len(dev.lagged)} doorbell(s) of submitted GPU work not yet run (FAKE_GPU_LAG_MS)")
     dev.lagged.clear()
+    dev.drop = False
     for s in dev.sysmem: s.close()   # server.c's cleanup (:171-183)
     dev.sysmem, dev.gsp = [], None
     print(f"fake TinyGPU.app ({NAME} device): client done: " + json.dumps(dict(sorted(counts.items()))), flush=True)

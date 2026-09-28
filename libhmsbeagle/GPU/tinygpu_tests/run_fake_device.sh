@@ -1,11 +1,13 @@
 #!/bin/bash
 # Offline end-to-end run of the real plugin AND the real daemon (tinygrad's boot, nv_init_helper's patches, the P2 teardown)
-# against fake_nv_device.py, a fake TinyGPU.app playing an AD107 at the register level (TODO.md plan step V1). No GPU and no
+# against fake_nv_device.py, a fake TinyGPU.app playing an AD107 at the register level (TODO.md plan step V1); at level boot,
+# the default, the plugin alone (plan step C11: no daemon). No GPU and no
 # TinyGPU.app: BEAGLE_TINYGPU_NO_LAUNCH=1, a short per-run socket, and the daemon started through replay/tgdaemon.py with
 # BEAGLE_TG_OFFLINE=1 (tgharness_py's pre-connect patches). FAKE_TG_PROXY=<new recording dir> puts the recording proxy in
 # between; BEAGLE_TG_RECORD=1 adds the recording shim. FAKE_TG_GUARD=1 runs that proxy in guard mode (replay/tgguard.py): a
 # refusal ends the run at once (the proxy holds, as it would on the eGPU; offline everything is then ended), and the run
-# passes only if FAKE_EXPECT_TRIP=<regex> is set and matches the guard's reason.
+# passes only if FAKE_EXPECT_TRIP=<regex> is set and matches the guard's reason. FAKE_SIGINT_AFTER=<regex> (plan step C12) runs
+# the test in its own process group and, once its output matches, sends that group SIGINT, as a terminal's Ctrl-C would.
 #   run_fake_device.sh <label> [VAR=value ...] -- [tinygpuhybridtest args ...]
 # Exit status 0 only if the test booted once, ran in the C++ runtime, the teardown says the next boot needs no power cycle
 # (fini_verdict), and the fake device reports NO ERRORS (and the proxy, if any, ended every session cleanly). Kernels are not
@@ -14,8 +16,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 LABEL=$1; shift
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
-# the level is always explicit, and so recorded in run.json (plan step C5): the plugin's default, gsp_hw, unless given
-printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS+=(BEAGLE_NV_CPP_LEVEL=gsp_hw)
+# the level is always explicit, and so recorded in run.json (plan step C5): the plugin's default, boot (plan step C12: no
+# daemon), unless given
+printf '%s\n' "${ENVS[@]}" | grep -q '^BEAGLE_NV_CPP_LEVEL=' || ENVS+=(BEAGLE_NV_CPP_LEVEL=boot)
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build tinygpuhybridtest first"; exit 2; }
 SOCKDIR=$(mktemp -d /tmp/tgd.XXXXXX); SOCK="$SOCKDIR/dev.sock"
 MEM="$TINYGPU_TEST_WORK/fake_device_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
@@ -41,7 +44,8 @@ if [ -n "$FAKE_TG_PROXY" ]; then
     "$BEAGLE_PYTHON" -c 'import json, sys; json.dump(dict(test_bin=sys.argv[1], envs=[e for e in sys.argv[2].split("\x1f") if e], args=sys.argv[3:]), sys.stdout)' \
         "$(basename "$TEST_BIN")" "$(IFS=$'\x1f'; echo "${ENVS[*]}")" "$@" > "$SOCKDIR/run.json"
 fi
-env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
+# (with FAKE_SIGINT_AFTER, perl comes before env: macOS strips DYLD_LIBRARY_PATH from a system binary's environment)
+${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" BEAGLE_NV_DISPATCH_DAEMON="$TG_TESTS/replay/tgdaemon.py" BEAGLE_TG_OFFLINE=1 BEAGLE_TG_DAEMON_PIDFILE="$SOCKDIR/daemon.pid" \
     BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
     BEAGLE_NV_PROFILE=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" BEAGLE_NV_USE_DAEMON=0 "${ENVS[@]}" \
     "$TEST_BIN" "$@" > "$OUT" 2>&1 &
@@ -49,6 +53,9 @@ TST=$!
 TRIP=""
 for i in $(seq ${FAKE_RUN_TIMEOUT:-300}); do
     kill -0 $TST 2>/dev/null || break
+    if [ -n "$FAKE_SIGINT_AFTER" ] && grep -qE "$FAKE_SIGINT_AFTER" "$OUT"; then   # its group is its own pid (setpgrp above)
+        FAKE_SIGINT_AFTER=; kill -INT -- -$TST; echo "[$LABEL] SIGINT sent to the test's process group"
+    fi
     if [ -n "$FAKE_TG_PROXY" ] && grep -q "FAIL-STOP" "$PLOG" 2>/dev/null; then   # the guard (or the proxy) stopped forwarding
         TRIP=$(grep -m1 "ended: failstop" "$PLOG" | sed 's/.*ended: failstop: //'); kill -KILL $TST 2>/dev/null; break
     fi

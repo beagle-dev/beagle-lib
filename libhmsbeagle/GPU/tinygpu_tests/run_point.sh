@@ -2,10 +2,11 @@
 # HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
 # written. Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
-#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]
-# (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; default: no mode
-# variable, the plugin's own choice: the C++ runtime on Ada and the GB205, plan decision 16, with its own GSP unload and teardown at fini,
-# plan step C5, its own memory manager, plan step C6, NVDevice, plan step C7, and GSP-RM boot, plan step C8 (level gsp_hw); runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
+#   run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS]
+# (the list, --instances, --threads and --cycles: several instances in one process, TODO.md plan step P5; --exit-after MS: MS
+# into the evaluations another thread calls exit(0), as a host's shutdown would, plan step C12; default: no mode
+# variable, the plugin's own choice: the C++ runtime on Ada and the GB205, plan decision 16, at level boot, plan step C12;
+# runtime: the C++ runtime with the daemon's teardown, BEAGLE_NV_CPP_LEVEL=runtime; teardown: the plugin's,
 # BEAGLE_NV_CPP_LEVEL=teardown; vram and sysmem: also the plugin's own memory manager, plan step C6's rungs H1 and H2; rm: also
 # the NVDevice, which the plugin builds with its own RM client after the daemon's NVDev-only boot, plan step C7's rung H3; gsp_hw:
 # also GSP-RM's init_hw and the golden image, after a daemon boot that stops once GSP-RM started, plan step C8's rung H4;
@@ -20,12 +21,13 @@
 # stream saw nothing from the eGPU; 1 stops a chain of runs after a run, 2 means nothing was started.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 N=$1; MODE=${2:-runtime}; REPS=${3:-200}; shift $(( $# < 3 ? $# : 3 ))
-USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle]"
+USAGE="usage: run_point.sh <state-count>[,<state-count>...] [cpp|daemon|runtime|teardown|vram|sysmem|rm|gsp_hw|flcn_hw|boot|default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS]"
 FLAGS=(); KILL=
 while [ $# -gt 0 ]; do
     case $1 in
         --poison|--threads) FLAGS+=("$1") ;;
         --instances|--cycles) [[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE"; exit 2; }; FLAGS+=("$1" "$2"); shift ;;
+        --exit-after) [[ "$2" =~ ^[0-9]+$ ]] || { echo "$USAGE"; exit 2; }; FLAGS+=("$1" "$2"); shift ;;
         --kill) [ "$2" = idle ] || { echo "$USAGE"; exit 2; }; KILL=$2; shift ;;
         *) echo "$USAGE"; exit 2 ;;
     esac
@@ -34,8 +36,8 @@ done
 [[ "$N" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "$USAGE"; exit 2; }
 [ -z "$KILL" ] || [ "$MODE" = flcn_hw ] || [ "$MODE" = boot ] || { echo "--kill needs mode flcn_hw or boot, the crash guard's levels"; exit 2; }
 # the other modes boot once per instance (a second one is refused) and so tear down once per cycle, which fini_verdict
-# would call a bad report
-[[ " runtime teardown vram sysmem rm gsp_hw flcn_hw boot " == *" $MODE "* ]] || { [[ "$N" != *,* ]] && [[ " ${FLAGS[*]} " != *" --instances "* ]] && [[ " ${FLAGS[*]} " != *" --threads "* ]] \
+# would call a bad report (default: level boot on Ada and the GB205, plan step C12)
+[[ " runtime teardown vram sysmem rm gsp_hw flcn_hw boot default " == *" $MODE "* ]] || { [[ "$N" != *,* ]] && [[ " ${FLAGS[*]} " != *" --instances "* ]] && [[ " ${FLAGS[*]} " != *" --threads "* ]] \
     && [[ " ${FLAGS[*]} " != *" --cycles "* ]]; } || { echo "a state-count list, --instances, --threads and --cycles need the runtime mode"; exit 2; }
 case $MODE in
     cpp) MODE_ENV=BEAGLE_NV_CPP_DISPATCH=1 ;;

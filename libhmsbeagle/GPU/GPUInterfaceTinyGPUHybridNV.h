@@ -28,11 +28,14 @@ GPUFunction NvGetFunction(GPUInterface* self, const char* name);
 void       NvLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                                int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 void       NvSynchronizeHost(GPUInterface* self);
-GPUPtr     NvAllocateMemory(size_t sz);
+GPUPtr     NvAllocateMemory(GPUInterface* self, size_t sz);
 void       NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
 void       NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     NvGetAvailableMemory();
 void       NvFini(GPUInterface* self);   // called from the destructor: releases self's instance
+// TODO.md plan step C12: true once self's setup or an allocation failed or the GPU is lost; its calls then do nothing, and
+// BeagleGPUImpl returns errors
+bool       NvDeviceLost(GPUInterface* self);
 
 // Implemented in GPUInterfaceTinyGPUHybrid.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
 uint16_t   tg_pci_device_id();

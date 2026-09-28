@@ -87,9 +87,10 @@ check "tgcanon: a recording is equivalent to itself" "[ $c1 -eq 0 ]"
 check "tgcanon: with and without the shim and markers, equivalent (markers aside)" "[ $c2 -eq 0 ] && grep -q 'markers differ' '$W/canon_shim.txt'"
 check "tgcanon: a changed RPC field is a different GSP reply and different queue pages" "[ $c3 -ne 0 ] && grep -q 'GSP replies differ' '$W/canon_rpc.txt' && grep -q 'sysmem pages differ' '$W/canon_rpc.txt'"
 
-# 9. run_l0.sh itself, in its dry run (the fake AD107 in place of TinyGPU.app), and the offline replay of what it recorded
+# 9. run_l0.sh itself, in its dry run (the fake AD107 in place of TinyGPU.app), and the offline replay of what it recorded; at
+#    level gsp_hw, where the daemon runs the shim (at the default level, boot, there is no daemon: plan step C12)
 rm -rf "$TINYGPU_TEST_WORK/l0_dry"
-L0_DRY_RUN=1 "$TG_TESTS/run_l0.sh" v1dry 4 3 > "$W/l0_dry.txt" 2>&1
+L0_DRY_RUN=1 "$TG_TESTS/run_l0.sh" v1dry 4 3 --level gsp_hw > "$W/l0_dry.txt" 2>&1
 R=$(ls -d "$TINYGPU_TEST_WORK"/l0_dry/recordings/*_v1dry 2>/dev/null | head -1)
 check "run_l0.sh dry run: PASS, the recording with its run.json, shim log and test output" \
     "tail -1 '$W/l0_dry.txt' | grep -q '^OK: PASS, recorded' && [ -f '$R/run.json' ] && [ -f '$R/shim.jsonl' ] && [ -f '$R/test_output.txt' ]"
