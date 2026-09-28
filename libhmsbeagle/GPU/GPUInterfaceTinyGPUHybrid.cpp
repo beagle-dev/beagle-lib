@@ -49,11 +49,12 @@ static uint16_t       g_tgDeviceId = 0;
 static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
 static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
 
-// ── KernelResource loader (LOAD_KERNEL_INTO_RESOURCE) ──
+// ── KernelResource loader (LOAD_KERNEL_INTO_RESOURCE): the block sizes, and no kernel code, which only the CUDA and OpenCL
+// backends read (the NV path loads its embedded cubins, TinyGPUHybridNVCubins.h, and the AMD path its OpenCL source) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
-            (char*) KERNELS_STRING_##prec##_##state, \
+            (char*) "", \
             PATTERN_BLOCK_SIZE_##prec##_##state, \
             MATRIX_BLOCK_SIZE_##prec##_##state, \
             BLOCK_PEELING_SIZE_##prec##_##state, \

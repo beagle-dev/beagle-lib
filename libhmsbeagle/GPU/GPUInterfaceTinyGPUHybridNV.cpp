@@ -57,8 +57,8 @@
 #include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
 
-// The embedded cubins were compiled from the PTX this plugin embeds (TODO.md plan step C1): make_tinygpu_cubins.sh copies
-// the stamp of the kernels header whose PTX it compiled.
+// The embedded cubins were compiled from the current kernels header's PTX (TODO.md plan step C1): make_tinygpu_cubins.sh
+// copies the stamp of the header whose PTX it compiled, and GPUInterface.h includes that header's stamp (plan step C13).
 static_assert(std::string_view(TINYGPU_CUBINS_KERNELS_STAMP) == TINYGPU_KERNELS_STAMP,
               "kernels/TinyGPUNVCubins.h is from another BeagleTinyGPU_kernels.h: rebuild the TinyGPUCubins target");
 

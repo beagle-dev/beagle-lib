@@ -56,8 +56,10 @@ if(BUILD_CUDA)
 endif(BUILD_CUDA)
 
 if(BUILD_TINYGPU_HYBRID)
-	# The backend #includes kernels/BeagleTinyGPU_kernels.h (see GPUInterface.h,
-	# FW_TINYGPU branch), generated here.
+	# kernels/BeagleTinyGPU_kernels.h, generated here, is the PTX the cubins
+	# below are compiled from. The plugin includes only its stamp
+	# (kernels/BeagleTinyGPU_kernels_stamp.h, see GPUInterface.h's FW_TINYGPU
+	# branch), not its PTX (TODO.md plan step C13, decision 15).
 	# Plain nvcc (12.8). An nvcc11 build once hung kernelMatrixMulADB
 	# (STATUS.md §24), before the launch-dims fix (STATUS.md §203); not
 	# re-tested since.
@@ -82,7 +84,15 @@ if(BUILD_TINYGPU_HYBRID)
 			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh"
 			COMMENT "Building TinyGPU-specific kernel PTX (-DCUDA -DFW_TINYGPU)"
 			VERBATIM)
-	add_custom_target(TinyGPUKernels DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h")
+	add_custom_command(
+			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels_stamp.h"
+			COMMAND sh -c "grep -q '^#define TINYGPU_KERNELS_STAMP ' BeagleTinyGPU_kernels.h && { echo '// auto-generated: the stamp of BeagleTinyGPU_kernels.h, the PTX the embedded cubins are compiled from'; grep '^#define TINYGPU_KERNELS_STAMP ' BeagleTinyGPU_kernels.h; } > BeagleTinyGPU_kernels_stamp.h"
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
+			DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h"
+			COMMENT "Extracting the TinyGPU kernel header's stamp"
+			VERBATIM)
+	add_custom_target(TinyGPUKernels DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h"
+			"${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels_stamp.h")
 endif()
 
 if(BUILD_TINYGPU_HYBRID)

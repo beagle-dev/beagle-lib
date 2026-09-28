@@ -58,14 +58,13 @@
 
     namespace opencl_device {
 #elif defined(FW_TINYGPU)
-    // TinyGPU-specific PTX (compiled with -DCUDA -DFW_TINYGPU; see
-    // kernels/make_tinygpu_kernels.sh). Same kernels as the CUDA backend;
-    // the default PTX is byte-identical to a plain -DCUDA build (TODO.md
-    // Phase 140).
+    // Only the stamp of the TinyGPU-specific PTX (kernels/BeagleTinyGPU_kernels.h, compiled with -DCUDA -DFW_TINYGPU by
+    // kernels/make_tinygpu_kernels.sh): the NV path runs the cubins compiled from it at build time, the AMD path its
+    // OpenCL source (TODO.md plan step C13, decision 15).
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
 #   else
-        #include "libhmsbeagle/GPU/kernels/BeagleTinyGPU_kernels.h"
+        #include "libhmsbeagle/GPU/kernels/BeagleTinyGPU_kernels_stamp.h"
 #   endif
     // GPUPtr: byte offset into VRAM (BAR2 offset used in MMIO_READ/WRITE).
     typedef uint64_t GPUPtr;

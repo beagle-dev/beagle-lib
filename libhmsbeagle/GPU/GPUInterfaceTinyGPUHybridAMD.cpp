@@ -52,30 +52,9 @@
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
 
-// GPUInterface.h's FW_TINYGPU branch (included above) already pulled in
-// kernels/BeagleTinyGPU_kernels.h, whose KERNELS_STRING_<PREC>_<N> macros are
-// PTX (the NV path's compile input). The AMD path needs the real OpenCL-C
-// source instead -- see the plan's compiler-backend decision (comgr
-// compiles BEAGLE's existing FW_OPENCL kernels unmodified, not a HIP port).
-// Same macro names, different header; #undef the PTX versions first.
-#undef KERNELS_STRING_SP_4
-#undef KERNELS_STRING_SP_16
-#undef KERNELS_STRING_SP_32
-#undef KERNELS_STRING_SP_48
-#undef KERNELS_STRING_SP_64
-#undef KERNELS_STRING_SP_80
-#undef KERNELS_STRING_SP_128
-#undef KERNELS_STRING_SP_192
-#undef KERNELS_STRING_SP_256
-#undef KERNELS_STRING_DP_4
-#undef KERNELS_STRING_DP_16
-#undef KERNELS_STRING_DP_32
-#undef KERNELS_STRING_DP_48
-#undef KERNELS_STRING_DP_64
-#undef KERNELS_STRING_DP_80
-#undef KERNELS_STRING_DP_128
-#undef KERNELS_STRING_DP_192
-#undef KERNELS_STRING_DP_256
+// The AMD path compiles the real OpenCL-C source -- see the plan's compiler-backend decision (comgr compiles BEAGLE's
+// existing FW_OPENCL kernels unmodified, not a HIP port). Its KERNELS_STRING_<PREC>_<N> macros are the only ones in the
+// plugin: GPUInterface.h's FW_TINYGPU branch includes only the PTX's stamp (TODO.md plan step C13).
 #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
 
 namespace tinygpu_device {
