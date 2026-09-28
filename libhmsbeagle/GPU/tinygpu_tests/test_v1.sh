@@ -50,10 +50,17 @@ done
 check "the diff-early recording mutation (a channel's replies before its rm_alloc reaches the queue head) replays exactly" \
     "replay_line v1_diff_early | grep -q 'PASS'"
 
-# 5. the guard, live behind the proxy: a clean boot passes (its refusals were checked on BEAGLE_TG_MUTATE's defects, which were
-#    in the daemon's Python: plan step C13c removed them with it)
+# 5. the guard, live behind the proxy: a clean boot passes; and in the replay each defect put into its inputs alone, just before
+#    the audit that must catch it, is refused there (tgreplay's GUARD_DEFECTS: what BEAGLE_TG_MUTATE's defects in the daemon's
+#    Python were, before plan step C13c removed them with it)
 FAKE_TG_GUARD=1 FAKE_TG_PROXY="$W/guard_clean" "$TG_TESTS/run_fake_device.sh" v1_guard -- --state-count 4 --reps 3 > "$W/guard_clean.txt" 2>&1
 check "the guard passes a clean boot and its teardown" "tail -1 '$W/guard_clean.txt' | grep -q PASS"
+for m in "pte-sys-bad|the PTE for VA .* points at device address .*, not a live sysmem page" "mailbox-bad|SEC2.s mailboxes point at 0x1000" \
+         "rpc-corrupt|NV_PGSP_QUEUE_HEAD.*has a bad checksum"; do
+    IFS='|' read -r d rx <<< "$m"
+    "$TG_TESTS/run_replay.sh" "$W/rec" v1_gd_$d --guard --guard-defect $d > "$W/replay_gd_$d.txt" 2>&1
+    check "the guard refuses the $d defect in the replay" "replay_line v1_gd_$d | grep -qE 'FAIL: the guard refused .*$rx'"
+done
 
 # 6. the comparator: a recording is equivalent to itself and to the same boot recorded without the markers (markers aside), and
 #    not to a run at another state count
@@ -76,10 +83,14 @@ check "run_l0.sh dry run: PASS, the recording with its run.json and test output"
 check "the dry run's recording replays exactly, markers equal, under the guard" \
     "replay_line v1_l0dry | grep -q 'PASS' && replay_line v1_l0dry | grep -q '\"markers\": \"equal\"'"
 
-# 8. the L0 recordings, where $BEAGLE_TINYGPU_DATA has them: the three are one boot (through the program load: the tests differ
-#    after it) and one teardown under tgcanon's masks (test_c11.sh replays each to the plugin)
+# 8. the L0 recordings, where $BEAGLE_TINYGPU_DATA has them: the guard refuses a corrupt RPC in the cold boot's replay (on the
+#    RTX 4060's own data), and the three are one boot (through the program load: the tests differ after it) and one teardown
+#    under tgcanon's masks (test_c11.sh replays each to the plugin)
 L0=(); for r in $TG_L0; do [ -f "$BEAGLE_TINYGPU_DATA/recordings/$r/events.bin" ] && L0+=("$BEAGLE_TINYGPU_DATA/recordings/$r"); done
 if [ ${#L0[@]} -eq 3 ]; then
+    "$TG_TESTS/run_replay.sh" "${L0[0]}" l0_gd_rpc --guard --guard-defect rpc-corrupt > "$W/replay_l0_gd_rpc.txt" 2>&1
+    check "the guard refuses the rpc-corrupt defect in the L0 cold boot's replay" \
+        "replay_line l0_gd_rpc | grep -q 'FAIL: the guard refused NV_PGSP_QUEUE_HEAD.*has a bad checksum'"
     for p in "0 1" "1 2" "0 2"; do
         set -- $p; a=${L0[$1]}; b=${L0[$2]}
         "$P" "$TG_TESTS/replay/tgcanon.py" "$a" "$b" --until-marker 0x101 > "$W/canon_l0_$1$2_boot.txt" 2>&1; c1=$?

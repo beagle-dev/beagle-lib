@@ -4,7 +4,7 @@
 # (run.json in the recording; the harness's own, and the mode variables plan step C13c removed, are not replayed). Nothing
 # reaches TinyGPU.app or the eGPU: BEAGLE_TINYGPU_NO_LAUNCH=1, the plugin's lock in a private TMPDIR. A recording made through
 # the daemon (the L0 recordings, before plan step C11) replays to the C++ boot as it is: the same requests.
-#   run_replay.sh <recording dir> [label] [--mutate NAME] [--guard] [--record] [--out <replay recording dir>]
+#   run_replay.sh <recording dir> [label] [--mutate NAME] [--guard [--guard-defect NAME]] [--record] [--out <replay recording dir>]
 # --record adds the plugin's markers (for a recording made with them: the markers are then compared). Exit status 0 only if
 # every recorded session replayed exactly (tgreplay's verdict); the test's own result is not used (the replay does not
 # reproduce what the GPU wrote into big buffers, e.g. results, so logL can be wrong).
@@ -17,6 +17,7 @@ while [ $# -gt 0 ]; do
     case $1 in
         --mutate) XARGS+=(--mutate "$2"); shift ;;
         --guard) XARGS+=(--guard) ;;
+        --guard-defect) XARGS+=(--guard-defect "$2"); shift ;;
         --out) XARGS+=(--out "$2"); shift ;;
         --record) RECORD_ENV=(BEAGLE_TG_MARKERS=1) ;;
         *) echo "unknown option $1"; exit 2 ;;

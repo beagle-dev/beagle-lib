@@ -22,8 +22,10 @@ from the recording's session of the same number:
     0.1 s between an engine reset's two writes (NV_FLCN.reset, ip.py:273-275); markers, as an ordered sequence, listed.
 A session passes if every request matched, the client closed after the last one, and no client-written page differs.
 With --mutate the recording is changed before it is served (plan V1's differential replay; see MUTATIONS). With --guard the
-guard (tgguard.py) audits every trigger as the proxy's guard mode would, and a refusal fails the session there.
-    python tgreplay.py --listen <socket> --rec <recording dir> --mem <dir> [--out <replay recording>] [--mutate NAME] [--guard]
+guard (tgguard.py) audits every trigger as the proxy's guard mode would, and a refusal fails the session there; with
+--guard-defect NAME too, a defect goes into the guard's inputs alone just before its trigger's audit (GUARD_DEFECTS), so the
+replay stays exact and only the guard can catch it.
+    python tgreplay.py --listen <socket> --rec <recording dir> --mem <dir> [--out <replay recording>] [--mutate NAME] [--guard [--guard-defect NAME]]
 It prints "tgreplay listening", a line per session ("replay session N: PASS" or FAIL with the reason), and exits after
 the recording's last session, 0 only if every session passed."""
 import os, sys, time, json, mmap, zlib, socket, select, signal, struct, argparse, pathlib, hashlib, collections
@@ -139,6 +141,7 @@ class Session:
         if rp.a.guard:
             import tgguard
             self.guard = tgguard.Guard(log=rp.log)
+        self.defect = rp.a.guard_defect   # not yet put in (GUARD_DEFECTS)
 
     def set_chip(self, boot42):   # the boot's NV_PMC_BOOT_42 read: the chip's MMU and QMD versions (tggpu.chip)
         name, mmu_ver, compute = tggpu.chip(boot42)
@@ -280,8 +283,10 @@ class Session:
                     msg = e.f["why"].encode()
                     conn.sendall(w.RESP.pack(1, len(msg), 0) + msg)
                 elif cmd == w.MMIO_WRITE:
-                    if self.guard and bar == 0 and a0 in rp.triggers and (gwhy := self.guard.check_trigger(a0, payload)):
-                        self.diverge(e.seq, f"the guard refused {rp.triggers[a0]}: {gwhy}"); break
+                    if self.guard and bar == 0 and a0 in rp.triggers:
+                        if self.defect and put_guard_defect(self.guard, self.defect, a0, payload): self.defect = None
+                        if (gwhy := self.guard.check_trigger(a0, payload)):
+                            self.diverge(e.seq, f"the guard refused {rp.triggers[a0]}: {gwhy}"); break
                     if self.guard: self.guard.on_write(bar, a0, payload)
                     if bar == 1: self.vram.write(a0, payload)
                     elif bar == 0 and len(payload) == 4:
@@ -349,6 +354,43 @@ class Session:
         if rp.out: rp.out.note(time.monotonic_ns(), dict(event="session end", n=sess.n, ok=not self.why, why=self.why))
         return dict(n=sess.n, ok=not self.why, why=self.why, stats=stats, report=self.report)
 
+# ── the guard's own checks (plan step C13c): what the daemon's deliberate defects were, in its inputs alone ─────────────
+GUARD_DEFECTS = {
+    "pte-sys-bad": "at the first MMU invalidate whose page tables hold a sysmem PTE, the guard no longer knows the sysmem pages allocated so far: that PTE points at memory it does not know",
+    "mailbox-bad": "at SEC2's first start, its mailboxes point at device address 0x1000, which no allocation holds: a WPR meta nowhere known",
+    "rpc-corrupt": "at the first command-queue head write with an element queued since the last, a byte of that element's RPC header flips: a bad checksum",
+}
+
+def put_guard_defect(g, name, off, data):
+    """Puts the named defect (GUARD_DEFECTS) into the guard's inputs if this trigger is its; True once it did."""
+    reg = w.reg_name(off)
+    v = struct.unpack("<I", data)[0] if len(data) == 4 else 0
+    if name == "pte-sys-bad":
+        if reg != "NV_VIRTUAL_FUNCTION_PRIV_MMU_INVALIDATE" or g.root is None or not g.iova_pages: return False
+        known = set(g.iova_pages)
+        g.iova_pages.clear()
+        if g.audit_page_tables() is None:   # no sysmem PTE yet (the guard's own walk): wait for a later invalidate
+            g.iova_pages |= known
+            return False
+        return True
+    if name == "mailbox-bad":
+        if not (reg == "SEC2.NV_PFALCON_FALCON_CPUCTL" and g.R.NV_PFALCON_FALCON_CPUCTL.decode(v)["startcpu"] or
+                reg == "SEC2.NV_PFALCON_FALCON_CPUCTL_ALIAS" and v & 0x2): return False
+        base = next(b for b, f in w.FALCONS.items() if f == "SEC2")
+        g.regs[base + g.reg_off("MAILBOX0")], g.regs[base + g.reg_off("MAILBOX1")] = 0x1000, 0
+        return True
+    if name == "rpc-corrupt":
+        if reg != "NV_PGSP_QUEUE_HEAD[0]" or g.cmdq is None: return False
+        q = g.cmdq
+        tx = q.header()
+        if tx.entryOff == 0 or tx.msgSize == 0 or q.rp == tx.writePtr: return False
+        # rpc_message_header_v's rpc_result_private, 20 bytes into the RPC header after the 0x30-byte element: not a field
+        # the parse reads, but inside the checksum
+        at = (q.rp * tx.msgSize + 0x30 + 20) % (tx.msgSize * tx.msgCount)
+        q.mm[q.q + tx.entryOff + at] ^= 0xff
+        return True
+    raise SystemExit(f"tgreplay: unknown guard defect {name}")
+
 # ── differential replay (plan V1): the recording changed before it is served ─────────────────────────────────────────
 MUTATIONS = {
     "diff-late": "the GSP's first reply to an RPC the client waits on is applied only after the client's next request, which, waiting, it never sends (tinygrad times out)",
@@ -410,7 +452,9 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--mutate")
     ap.add_argument("--guard", action="store_true")
+    ap.add_argument("--guard-defect", choices=sorted(GUARD_DEFECTS))
     a = ap.parse_args()
+    if a.guard_defect and not a.guard: ap.error("--guard-defect needs --guard")
     os.makedirs(a.mem, exist_ok=True)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     sys.exit(Replay(a).run())

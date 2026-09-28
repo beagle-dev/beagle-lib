@@ -5,7 +5,7 @@
 # dry run, plain and through the guard; each recording replays exactly under the guard (MMU v3 walks, the COT start and
 # teardown), and the two are equivalent (tgcanon). The GB205's own recordings (TG_GB20X), made through the daemon, are each
 # equivalent to the L0 (tgcanon), and each replays exactly under the guard to the C++ boot and the plugin's COT teardown. (The
-# guard's refusals on MMU v3 were checked on BEAGLE_TG_MUTATE's defects in the daemon's Python, which plan step C13c removed.)
+# guard refuses a PTE to memory it does not know, and a corrupt RPC, on MMU v3: each put into its inputs alone in the replay.)
 # One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
@@ -42,6 +42,11 @@ for m in plain guard; do
 done
 "$BEAGLE_PYTHON" "$TG_TESTS/replay/tgcanon.py" "$(rec plain)" "$(rec guard)" > "$W/canon_guard.txt" 2>&1
 check "tgcanon: the recording through the guard is equivalent to the plain one" "[ $? -eq 0 ]"
+for m in "pte-sys-bad|the PTE for VA .* points at device address .*, not a live sysmem page" "rpc-corrupt|NV_PGSP_QUEUE_HEAD.*has a bad checksum"; do
+    IFS='|' read -r d rx <<< "$m"
+    "$TG_TESTS/run_replay.sh" "$(rec plain)" b2_gd_$d --guard --guard-defect $d > "$W/replay_gd_$d.txt" 2>&1
+    check "the guard refuses the $d defect on MMU v3 (in the replay)" "replay_line b2_gd_$d | grep -qE 'FAIL: the guard refused .*$rx'"
+done
 
 # 3. the GB205's own recordings, where $BEAGLE_TINYGPU_DATA has them: H1's to H4's are equivalent to the L0 (the COT boot's GSP
 #    log buffer masked), and each replays exactly to the C++ boot and the plugin's COT teardown under the guard: on the card's
