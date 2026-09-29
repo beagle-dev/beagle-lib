@@ -66,8 +66,8 @@ jobs:
         APPLE_INSTALLER_IDENTITY_SHA: ${{ secrets.APPLE_INSTALLER_SIGNER }}       
       run: |
         export KEYCHAIN_NAME="my-notary-profile"
-        export INITIAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin.pkg"
-        export FINAL_FILE_NAME="BEAGLE-BIT-4.1.0-Darwin-signed.pkg"
+        export INITIAL_FILE_NAME="BEAGLE-BIT-4.1.1-Darwin.pkg"
+        export FINAL_FILE_NAME="BEAGLE-BIT-4.1.1-Darwin-signed.pkg"
         cd build
         ../project/beagle-macos/macos_signing.sh
         
@@ -87,18 +87,18 @@ jobs:
         APPLE_INSTALLER_IDENTITY_SHA: ${{ secrets.APPLE_INSTALLER_SIGNER }}       
       run: |
         export KEYCHAIN_NAME="my-notary-profile"
-        export INITIAL_FILE_NAME="BEAGLE-4.1.0-Darwin.pkg"
-        export FINAL_FILE_NAME="BEAGLE-4.1.0-Darwin-signed.pkg"
+        export INITIAL_FILE_NAME="BEAGLE-4.1.1-Darwin.pkg"
+        export FINAL_FILE_NAME="BEAGLE-4.1.1-Darwin-signed.pkg"
         cd build
         ../project/beagle-macos/macos_signing.sh        
         
     - name: Test installation
       run: |
-        sudo installer -pkg "build/BEAGLE-4.1.0-Darwin.pkg" -target /
+        sudo installer -pkg "build/BEAGLE-4.1.1-Darwin.pkg" -target /
                             
     - name: Upload BIT package
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: Mac_BIT_installer
-        path: build/BEAGLE*-4.1.0-Darwin*      
+        path: build/BEAGLE*-4.1.1-Darwin*      
