@@ -245,6 +245,12 @@ protected:
                                   unsigned int startPattern, unsigned int endPattern,
                                   int rescale, int streamIndex, int waitIndex);
 
+    // Degree-2 (single-child) nodes, a second child or sibling of BEAGLE_OP_NONE, are only supported on the CPU
+    void exitOnSingleChild(const int* operations,
+                           int operationCount,
+                           int numOps,
+                           const char* caller);
+
 public:
     BeagleGPUImpl();
 

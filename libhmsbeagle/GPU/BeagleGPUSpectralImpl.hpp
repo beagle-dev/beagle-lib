@@ -391,6 +391,8 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
         const int* operations, int operationCount,
         int cumulativeScaleIndex, BeaglePartialsType partialsType) {
+    this->exitOnSingleChild(operations, operationCount, 7, "updatePrePartials");
+
     bool isTop = (partialsType == BEAGLE_PARTIALS_TOP);
     for (int op = 0; op < operationCount; op++) {
         const int parIndex          = operations[op * 7 + 0];

@@ -2403,6 +2403,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         numOps = BEAGLE_PARTITION_OP_COUNT;
     }
 
+    exitOnSingleChild(operations, operationCount, numOps, "updatePartials");
+
     int gridLaunches = 0;
     int* gridStartOp;
     int* gridOpType;
@@ -2898,10 +2900,28 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
                                                      int operationCount,
                                                      int cumulativeScaleIndex,
                                                      BeaglePartialsType partialsType) {
+    exitOnSingleChild(inOperations, operationCount, byPartition ? BEAGLE_PARTITION_OP_COUNT : BEAGLE_OP_COUNT,
+                      "updatePrePartials");
+
     if (partialsType == BEAGLE_PARTIALS_TOP) {
         return upPrePartialsTop(byPartition, inOperations, operationCount, cumulativeScaleIndex);
     } else {
         return upPrePartialsBottom(byPartition, inOperations, operationCount, cumulativeScaleIndex);
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::exitOnSingleChild(const int* operations,
+                                                         int operationCount,
+                                                         int numOps,
+                                                         const char* caller) {
+    for (int op = 0; op < operationCount; op++) {
+        if (operations[op * numOps + 5] == BEAGLE_OP_NONE) {
+            fprintf(stderr, "BEAGLE error: %s on the GPU does not support degree-2 (single-child) nodes, "
+                            "i.e. a second child of BEAGLE_OP_NONE (operation %d); use a CPU implementation\n",
+                    caller, op);
+            exit(-1);
+        }
     }
 }
 
