@@ -5902,21 +5902,16 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTopRoot(REALTYPE*
     matrixIncr += T_PAD;
 
     int stateCountModFour = (kStateCount / 4) * 4;
-    REALTYPE* tmpdestPtr = destP;
-    //clean up the partial first, set every entry to 0
-    std::fill(tmpdestPtr, tmpdestPtr + kPartialsSize, 0); // TOD unnecessary when parent is root
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+        int v = l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*startPattern;
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
         const REALTYPE* partials2Ptr = &partials2[v];
         REALTYPE* destPtr = &destP[v];
-        tmpdestPtr = destPtr;
         for (int k = startPattern; k < endPattern; k++) {
             for (int i = 0; i < kStateCount; i++) {
-                const REALTYPE* matrices1Ptr = (matrices1 != NULL) ? matrices1 + matrixOffset + i * matrixIncr : NULL;
                 const REALTYPE* matrices2Ptr = matrices2 + matrixOffset + i * matrixIncr;
 
                 REALTYPE sum2A = 0.0, sum2B = 0.0;
@@ -5932,10 +5927,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTopRoot(REALTYPE*
                     sum2A += matrices2Ptr[j] * partials2Ptr[j];
                 }
 
-                *(destPtr++) += (sum2A + sum2B) * partials1Ptr[i];
+                *(destPtr++) = (sum2A + sum2B) * partials1Ptr[i];
             }
 
-            destPtr +=kPartialsPaddedStateCount;
+            destPtr += P_PAD;
             partials1Ptr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
         }
@@ -6190,23 +6185,21 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTopRoot(REALTYPE* d
 
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
-        int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
-        int matrixOffset = l*kMatrixSize;
+        int v = l*kPartialsPaddedStateCount*kPaddedPatternCount + kPartialsPaddedStateCount*startPattern;
         const REALTYPE* partials1Ptr = &partials1[v];
 
         REALTYPE* destPtr = &destP[v];
-        REALTYPE* tmpdestPtr = destPtr;
 
         for (int k = startPattern; k < endPattern; k++) {
             int w = l * kMatrixSize;
             int state2 = states2[k];
             for (int i = 0; i < kStateCount; i++) {
 
-                *(tmpdestPtr++) += matrices2[w + state2] * partials1Ptr[i];
+                destPtr[i] = matrices2[w + state2] * partials1Ptr[i];
 
                 w += matrixIncr;
             }
-            destPtr +=kPartialsPaddedStateCount;
+            destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
         }
     }
