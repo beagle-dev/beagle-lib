@@ -421,6 +421,11 @@ int rankResourceImplementationPairs(long preferenceFlags,
 
     possibleResources->sort(compareOnFirst); // Attempt in rank order, lowest score wins
 
+    // A spectral-representation implementation changes how transition matrices are represented, so it is only a
+    // candidate when asked for; otherwise it can tie with the standard implementation and win on list order
+    const bool spectralRequested =
+            ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) != 0;
+
     // Score each resource-implementation pair given preferences
 
     for(PairedList::iterator it = possibleResources->begin();
@@ -442,6 +447,7 @@ int rankResourceImplementationPairs(long preferenceFlags,
             if ( ((requirementFlags & factoryFlags) >= requirementFlags) // Factory meets requirementFlags
                 && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
                 && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
+                && (spectralRequested || !(factoryFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) // Spectral only if asked
                 ) {
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                 // Penalize unrequested factory capabilities so a minimal
