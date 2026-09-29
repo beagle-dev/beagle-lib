@@ -361,8 +361,8 @@ BeagleResourceList* beagleGetResourceList() {
 
 int scoreFlags(long flags1, long flags2) {
     int score = 0;
-    int trait = 1;
-    for(int bits=0; bits<32; bits++) {
+    long trait = 1;
+    for(int bits=0; bits<62; bits++) {
         if ( (flags1 & trait) &&
              (flags2 & trait) )
             score++;
