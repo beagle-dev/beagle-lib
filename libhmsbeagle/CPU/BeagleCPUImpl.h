@@ -823,6 +823,25 @@ protected:
                                          int startPattern,
                                          int endPattern);
 
+    // Degree-2 (single-child) nodes, signalled by a second child (post-order) or sibling (pre-order) of
+    // BEAGLE_OP_NONE. First is States or Partials; with FixedScaling the result is divided by scaleFactors.
+    template <typename First, bool FixedScaling>
+    void calcDegree2Partials(REALTYPE* destP,
+                             const int* states1,
+                             const REALTYPE* partials1,
+                             const REALTYPE* matrices1,
+                             const REALTYPE* scaleFactors,
+                             int startPattern,
+                             int endPattern);
+
+    // Pre-order partials through a single branch: destP = matrices1^T partials1; a copy of partials1 when
+    // matrices1 is NULL (top partials below the root).
+    void calcDegree2PrePartials(REALTYPE* destP,
+                                const REALTYPE* partials1,
+                                const REALTYPE* matrices1,
+                                int startPattern,
+                                int endPattern);
+
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
                                         const int stateFrequenciesIndex,

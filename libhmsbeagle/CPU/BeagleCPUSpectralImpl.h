@@ -205,6 +205,27 @@ namespace beagle {
                                        int endPattern,
                                        int currentPartition);
 
+            // Degree-2 (single-child) nodes, signalled by a second child (post-order) or sibling (pre-order) of
+            // BEAGLE_OP_NONE. First is States or Partials; T is NoScaling or WithScaling.
+            template <typename First, typename T>
+            void calcDegree2Partials(REALTYPE *destP,
+                                     const int *states1,
+                                     const REALTYPE *partials1,
+                                     const int branchEigenIndex1,
+                                     const REALTYPE* scaleFactors,
+                                     int startPattern,
+                                     int endPattern,
+                                     int currentPartition);
+
+            // Pre-order partials through the single branch branchEigenIndex1 (transposed); a copy of partials1
+            // when branchEigenIndex1 is negative (top partials below the root).
+            void calcDegree2PrePartials(REALTYPE *destP,
+                                        const REALTYPE *partials1,
+                                        const int branchEigenIndex1,
+                                        int startPattern,
+                                        int endPattern,
+                                        int currentPartition);
+
 
             // template <typename T>
             // void calcPrePartialsPartialsRoot(REALTYPE *destP,

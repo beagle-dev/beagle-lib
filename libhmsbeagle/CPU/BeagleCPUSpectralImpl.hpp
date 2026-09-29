@@ -193,11 +193,14 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 cumulativeScaleBuffer = NULL;
         }
 
+        // a second child of BEAGLE_OP_NONE makes this a degree-2 (single-child) node
+        const bool singleChild = (child2Index == BEAGLE_OP_NONE);
+
         const REALTYPE* partials1 = gPartials[child1Index];
-        const REALTYPE* partials2 = gPartials[child2Index];
+        const REALTYPE* partials2 = singleChild ? NULL : gPartials[child2Index];
 
         const int* tipStates1 = gTipStates[child1Index];
-        const int* tipStates2 = gTipStates[child2Index];
+        const int* tipStates2 = singleChild ? NULL : gTipStates[child2Index];
 
         const int branchEigenIndex1 = child1TransMatIndex;
         const int branchEigenIndex2 = child2TransMatIndex;
@@ -240,7 +243,33 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                      << " readIndex = " << readScalingIndex << "\n";
         }
 
-        if (tipStates1 != NULL) {
+        if (singleChild) {
+            // auto-scaling (rescale == 2) is not applied to a single child, which is left unscaled
+            if (tipStates1 != NULL) {
+                if (rescale == 0) {
+                    calcDegree2Partials<States, WithScaling>(destPartials, tipStates1, nullptr, branchEigenIndex1,
+                                                             scalingFactors, startPattern, endPattern, currentPartition);
+                } else {
+                    calcDegree2Partials<States, NoScaling>(destPartials, tipStates1, nullptr, branchEigenIndex1,
+                                                           nullptr, startPattern, endPattern, currentPartition);
+                }
+            } else {
+                if (rescale == 0) {
+                    calcDegree2Partials<Partials, WithScaling>(destPartials, nullptr, partials1, branchEigenIndex1,
+                                                               scalingFactors, startPattern, endPattern, currentPartition);
+                } else {
+                    calcDegree2Partials<Partials, NoScaling>(destPartials, nullptr, partials1, branchEigenIndex1,
+                                                             nullptr, startPattern, endPattern, currentPartition);
+                }
+            }
+            if (rescale == 1) { // Recompute scaleFactors
+                if (byPartition) {
+                    rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
+                } else {
+                    rescalePartials(destPartials,scalingFactors,cumulativeScaleBuffer,0);
+                }
+            }
+        } else if (tipStates1 != NULL) {
             if (tipStates2 != NULL ) {
                 if (rescale == 0) { // Use fixed scaleFactors
                     calcStatesStates<WithScaling>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
@@ -396,11 +425,14 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             currentPartition = operations[op * numOps + 7];
         }
 
+        // a sibling of BEAGLE_OP_NONE makes the parent a degree-2 (single-child) node
+        const bool singleChild = (siblingIndex == BEAGLE_OP_NONE);
+
         /// non-root nodes, can be a tip
         const REALTYPE *partials1 = gPartials[parentIndex];
-        const REALTYPE *partials2 = gPartials[siblingIndex];
+        const REALTYPE *partials2 = singleChild ? NULL : gPartials[siblingIndex];
 
-        const int *tipStates2 = gTipStates[siblingIndex];
+        const int *tipStates2 = singleChild ? NULL : gTipStates[siblingIndex];
 
         const int branchEigenIndex1 = parentTransMatIndex;
         const int branchEigenIndex2 = siblingTransMatIndex;
@@ -414,7 +446,10 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             endPattern = gPatternPartitionsStartPatterns[currentPartition + 1];
         }
 
-        if (tipStates2 != NULL) {
+        if (singleChild) {
+            calcDegree2PrePartials(destPartials, partials1, branchEigenIndex1,
+                                   startPattern, endPattern, currentPartition);
+        } else if (tipStates2 != NULL) {
             if constexpr (std::is_same_v<T, Top>) {
                 if (branchEigenIndex1 < 0) { // Parent node is root
                     calcPrePartialsStates<T, Root>(destPartials, partials1, 0, tipStates2, branchEigenIndex2,
@@ -1153,6 +1188,112 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
             }
 
             // end
+            destPtr += kPartialsPaddedStateCount;
+            partials1Ptr += kPartialsPaddedStateCount;
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE template <typename First, typename T>
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcDegree2Partials(
+        REALTYPE* destPartials,
+        const int* states1,
+        const REALTYPE* partials1,
+        const int branchEigenIndex1,
+        const REALTYPE* scaleFactors,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    static_assert(std::is_same_v<First, States> || std::is_same_v<First, Partials>, "Unsupported child type");
+
+    const BranchEigenInfo& info_1 = gBranchEigenInfo[branchEigenIndex1];
+    const REALTYPE* eigenVectors1 = gEigenDecomposition->getEigenVectorsPtr(info_1.eigenIndex);
+    const REALTYPE* inverseEigenVectors1 = gEigenDecomposition->getInverseEigenVectorsPtr(info_1.eigenIndex);
+
+    const int matrixIncr = kStateCount + T_PAD;
+
+#if defined(_OPENMP)
+#pragma omp parallel for num_threads(kCategoryCount)
+#endif
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE* partials1Ptr = std::is_same_v<First, Partials> ? &partials1[v] : nullptr;
+        REALTYPE* destPtr = &destPartials[v];
+
+        REALTYPE* __restrict__ tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state1 = std::is_same_v<First, States> ? states1[k] : 0;
+
+            expScaledMatrixVectorMultiple2<First,None,Forward>(
+                tmp1, nullptr,
+                partials1Ptr, state1, info_1, inverseEigenVectors1,
+                nullptr, 0, info_1, nullptr,
+                matrixIncr, l * kPartialsPaddedStateCount);
+
+            if constexpr (T::useScaleFactors) {
+                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                MATRIX_VECTOR_SINGLE(destPtr[i] = sum1 * oneOverScaleFactor, eigenVectors1, tmp1, sum1);
+            } else {
+                MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, tmp1, sum1);
+            }
+
+            destPtr += kPartialsPaddedStateCount;
+            if constexpr (std::is_same_v<First, Partials>) {
+                partials1Ptr += kPartialsPaddedStateCount;
+            }
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcDegree2PrePartials(
+        REALTYPE* destPartials,
+        const REALTYPE* partials1,
+        const int branchEigenIndex1,
+        int startPattern,
+        int endPattern,
+        int currentPartition) {
+
+    if (branchEigenIndex1 < 0) { // top partials below the root: nothing to propagate through
+        for (int l = 0; l < kCategoryCount; l++) {
+            const int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * startPattern;
+            std::copy(partials1 + v, partials1 + v + kPartialsPaddedStateCount * (endPattern - startPattern),
+                      destPartials + v);
+        }
+        return;
+    }
+
+    const BranchEigenInfo& info_1 = gBranchEigenInfo[branchEigenIndex1];
+    const REALTYPE* eigenVectors1 = gEigenDecomposition->getBackwardsEigenVectorsPtr(info_1.eigenIndex);
+    const REALTYPE* inverseEigenVectors1 = gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(info_1.eigenIndex);
+
+    const int matrixIncr = kStateCount + T_PAD;
+
+#if defined(_OPENMP)
+    #pragma omp parallel for num_threads(kCategoryCount)
+#endif
+    for (int l = 0; l < kCategoryCount; l++) {
+        int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * startPattern;
+
+        const REALTYPE* __restrict__ partials1Ptr = &partials1[v];
+        REALTYPE* __restrict__ destPtr = &destPartials[v];
+
+        REALTYPE* __restrict__ intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            expScaledMatrixVectorMultiple2<Partials,None,Backward>(
+                intermediate, nullptr,
+                partials1Ptr, 0, info_1, inverseEigenVectors1,
+                nullptr, 0, info_1, nullptr,
+                matrixIncr, l * kPartialsPaddedStateCount);
+
+            MATRIX_VECTOR_SINGLE(destPtr[i] = sum1, eigenVectors1, intermediate, sum1);
+
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
         }
