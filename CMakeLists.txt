@@ -187,11 +187,12 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 	endif()
 endif()
 
+# Must precede add_subdirectory(libhmsbeagle): libhmsbeagle/GPU adds tests/opencl
+enable_testing()
+
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
-
-enable_testing()
 
 add_subdirectory(examples)
 

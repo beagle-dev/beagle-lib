@@ -60,5 +60,5 @@ jobs:
         cmake -S . -B build -DBUILD_OPENCL=ON -DBUILD_CUDA=OFF -DBUILD_JNI=OFF
         cmake --build build --target test_opencl_discovery test_opencl_cpu_instance
     - name: Run OpenCL discovery tests
-      run: ctest --test-dir build --output-on-failure -R 'opencl_.*'
+      run: ctest --test-dir build --output-on-failure --no-tests=error -R 'opencl_.*'
         
