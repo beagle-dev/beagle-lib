@@ -1222,10 +1222,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                         destPtr[i] = sum1 * sum2 * oneOverScaleFactor;
                         // *(destPtr++) = sum1 * sum2 * oneOverScaleFactor;
                     });
-
-
-                fprintf(stderr, "Hit a scaling factor: %.4e\n", scaleFactors[k]);
-                exit(-1);
             } else {
                 matVecDual<Partials, Partials>(
                     eigenVectors1, tmp1, 0,
@@ -1249,9 +1245,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
 
             // fprintf(stderr, "pat %d\n", k);
         }
-        // fprintf(stderr, "Done\n");
-        // exit(-1);
-        // }
     }
 }
 
@@ -1266,9 +1259,6 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
         int startPattern,
         int endPattern,
         int currentPartition) {
-
-            fprintf(stderr, "calcStatesPartials\n");
-            exit(-1);
 
     INIT(info,
          eigenValuesReal, eigenValuesImag,
