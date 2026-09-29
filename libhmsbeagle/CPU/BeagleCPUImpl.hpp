@@ -2632,22 +2632,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
 
         if (singleChild) {
             // auto-scaling (rescale == 2) is not applied to a single child, which is left unscaled
+            const REALTYPE* fixedScaleFactors = (rescale == 0) ? scalingFactors : NULL;
             if (tipStates1 != NULL) {
-                if (rescale == 0) {
-                    calcDegree2Partials<States, true>(destPartials, tipStates1, NULL, matrices1, scalingFactors,
-                                                      startPattern, endPattern);
-                } else {
-                    calcDegree2Partials<States, false>(destPartials, tipStates1, NULL, matrices1, NULL,
-                                                       startPattern, endPattern);
-                }
+                calcStatesDegree2(destPartials, tipStates1, matrices1, fixedScaleFactors, startPattern, endPattern);
             } else {
-                if (rescale == 0) {
-                    calcDegree2Partials<Partials, true>(destPartials, NULL, partials1, matrices1, scalingFactors,
-                                                        startPattern, endPattern);
-                } else {
-                    calcDegree2Partials<Partials, false>(destPartials, NULL, partials1, matrices1, NULL,
-                                                         startPattern, endPattern);
-                }
+                calcPartialsDegree2(destPartials, partials1, matrices1, fixedScaleFactors, startPattern, endPattern);
             }
             if (rescale == 1) { // Recompute scaleFactors
                 if (byPartition) {
@@ -6202,6 +6191,34 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTopRoot(REALTYPE* d
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
         }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcStatesDegree2(REALTYPE* destP,
+                                                          const int* states1,
+                                                          const REALTYPE* matrices1,
+                                                          const REALTYPE* scaleFactors,
+                                                          int startPattern,
+                                                          int endPattern) {
+    if (scaleFactors != NULL) {
+        calcDegree2Partials<States, true>(destP, states1, NULL, matrices1, scaleFactors, startPattern, endPattern);
+    } else {
+        calcDegree2Partials<States, false>(destP, states1, NULL, matrices1, NULL, startPattern, endPattern);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPartialsDegree2(REALTYPE* destP,
+                                                            const REALTYPE* partials1,
+                                                            const REALTYPE* matrices1,
+                                                            const REALTYPE* scaleFactors,
+                                                            int startPattern,
+                                                            int endPattern) {
+    if (scaleFactors != NULL) {
+        calcDegree2Partials<Partials, true>(destP, NULL, partials1, matrices1, scaleFactors, startPattern, endPattern);
+    } else {
+        calcDegree2Partials<Partials, false>(destP, NULL, partials1, matrices1, NULL, startPattern, endPattern);
     }
 }
 

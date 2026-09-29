@@ -110,6 +110,36 @@ public:
                                        int startPattern,
                                        int endPattern);
 
+    virtual void calcStatesDegree2(REALTYPE* destP,
+                                   const int* states1,
+                                   const REALTYPE* matrices1,
+                                   const REALTYPE* scaleFactors,
+                                   int startPattern,
+                                   int endPattern);
+
+    virtual void calcPartialsDegree2(REALTYPE* destP,
+                                     const REALTYPE* partials1,
+                                     const REALTYPE* matrices1,
+                                     const REALTYPE* scaleFactors,
+                                     int startPattern,
+                                     int endPattern);
+
+    virtual void calcDegree2PrePartials(REALTYPE* destP,
+                                        const REALTYPE* partials1,
+                                        const REALTYPE* matrices1,
+                                        int startPattern,
+                                        int endPattern);
+
+    // First is States or Partials; with FixedScaling the result is divided by scaleFactors
+    template <typename First, bool FixedScaling>
+    void calcDegree2Partials4(REALTYPE* destP,
+                              const int* states1,
+                              const REALTYPE* partials1,
+                              const REALTYPE* matrices1,
+                              const REALTYPE* scaleFactors,
+                              int startPattern,
+                              int endPattern);
+
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
                                               const REALTYPE *preOrderPartial,
                                               const int firstDerivativeIndex,
