@@ -66,7 +66,12 @@ typedef double VecEl_t;
 #	endif
 #	define VEC_SPLAT(a)			_mm_set1_pd(a)
 #	define VEC_ADD(a, b)		_mm_add_pd(a, b)
+#	define VEC_SUB(a, b)		_mm_sub_pd((a), (b))
 #	define VEC_MAX(a, b)		_mm_max_pd((a), (b)) /* b if either is NaN on x86 */
+#	define VEC_CMPLT(a, b)		_mm_cmplt_pd((a), (b))
+#	define VEC_AND(a, b)		_mm_and_pd((a), (b))
+#	define VEC_ANDNOT(a, b)		_mm_andnot_pd((a), (b)) /* (~a) & b */
+#	define VEC_OR(a, b)			_mm_or_pd((a), (b))
 #   define VEC_SWAP(a)			_mm_shuffle_pd(a, a, _MM_SHUFFLE2(0,1))
 # 	define VEC_SETZERO()		_mm_setzero_pd()
 #	define VEC_SET1(a)			_mm_set_sd((a))

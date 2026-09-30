@@ -45,6 +45,11 @@ protected:
     using Base::kPaddedPatternCount;
     using Base::kPartialsPaddedStateCount;
     using Base::kPartitionCount;
+    using Base::kPatternCount;
+    using Base::kEigenDecompCount;
+    using Base::gPartials;
+    using Base::gTipStates;
+    using Base::gPatternWeights;
     using typename Base::BranchEigenInfo;
     using Base::gBranchEigenInfo;
 
@@ -68,6 +73,11 @@ public:
                        long requirementFlags) override;
 
     int setCPUThreadCount(int threadCount) override;
+
+    int setEigenDecomposition(int eigenIndex,
+                              const double* inEigenVectors,
+                              const double* inInverseEigenVectors,
+                              const double* inEigenValues) override;
 
 protected:
     void spectralPartialsPartials(double* destP,
@@ -111,6 +121,25 @@ protected:
                                 int endPattern,
                                 int currentPartition) override;
 
+    // Adjoint gradient of the rate matrix in the eigen basis; with rescaled partials (scale indices) the scalar
+    // implementation is used
+    void calcAdjointCrossProductsRange(const int* postBufferIndices,
+                                       const int* preBufferIndices,
+                                       const int* branchEigenIndices,
+                                       const double* categoryRates,
+                                       const double* categoryWeights,
+                                       const double* perSiteLikelihoods,
+                                       double* buffer,
+                                       int startNode,
+                                       int endNode,
+                                       int startPattern,
+                                       int endPattern,
+                                       int currentPartition,
+                                       const int* postScaleIndices,
+                                       const int* preScaleIndices,
+                                       const int cumulativeScaleIndex,
+                                       double* branchMarginalLk) override;
+
 private:
     // Per partition: u, y and a third vector (z1 or w), each kSimdTmpStride doubles, room for a full last vector
     // when S is odd
@@ -118,6 +147,34 @@ private:
     int kSimdTmpStride;
 
     double* simdTmp(int currentPartition) { return gSimdTmp.data() + currentPartition * 3 * kSimdTmpStride; }
+
+    // Per eigen decomposition, for the adjoint integral kernel: its real eigenvalues and the first index of each
+    // complex conjugate pair, and a table of reciprocals that depend only on the eigenvalues (row stride
+    // kAdjointStride): 1 / (lambda_l - lambda_r) for two real eigenvalues, the reciprocal denominator of a
+    // block with a complex pair, 0 where that block is degenerate
+    struct AdjointPlan {
+        bool allReal;
+        std::vector<int> realIndices;
+        std::vector<int> pairIndices;
+        std::vector<double> reciprocals;
+        // Real eigenvalues only: the pairs (l, r) with lambda_l == lambda_r, including l == r (reciprocal 0), and
+        // the smallest distance between two different eigenvalues. When time * that distance >= 1e-12 the
+        // degenerate kernel entries are exactly the equal pairs.
+        std::vector<std::pair<int, int>> equalPairs;
+        double smallestDistance;
+    };
+    std::vector<AdjointPlan> gAdjointPlans;
+    int kAdjointStride;
+    // Per partition: the outer product of several patterns, S rows of kAdjointStride
+    std::vector<double> gAdjointOuterTmp;
+
+    void prepareAdjointPlan(int eigenIndex);
+
+    // gradient += (outer product of the branch's pre- and post-order partials in the eigen basis) times the
+    // integral kernel of the branch; View gives entries (l, r) and (l, r + 1) of that outer product
+    template <typename View>
+    void adjointKernel(double* gradient, const View& view, const AdjointPlan& plan, const double* eval,
+                       const BranchEigenInfo& info, int infoOffset, double time);
 
     // y = exp(D t) V^{-1} x for one child and category, from its partials x or, when x is null, its tip state
     void forwardEigenBasis(double* y, double* u, const double* x, const int state,
