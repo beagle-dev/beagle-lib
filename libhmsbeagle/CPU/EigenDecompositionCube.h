@@ -9,6 +9,7 @@
 #define EIGENDECOMPOSITIONCUBE_H_
 
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
+#include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 
 namespace beagle {
 namespace cpu {
@@ -27,6 +28,10 @@ class EigenDecompositionCube : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERI
 
 protected:
     REALTYPE** gCMatrices;
+
+    // V, V^{-1}, their transposes and the integral plan in the layout of the spectral representation, which
+    // BeagleCPUImpl's adjoint gradient reads
+    EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC> gAdjointStorage;
 
 public:
 	EigenDecompositionCube(int decompositionCount, 
@@ -60,6 +65,26 @@ public:
 
     virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const {
         return gEigenValues[eigenIndex];
+    }
+
+    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage.getEigenVectorsPtr(eigenIndex);
+    }
+
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage.getInverseEigenVectorsPtr(eigenIndex);
+    }
+
+    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage.getBackwardsEigenVectorsPtr(eigenIndex);
+    }
+
+    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage.getBackwardsInverseEigenVectorsPtr(eigenIndex);
+    }
+
+    virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const {
+        return gAdjointStorage.getAdjointMethodsPtr(eigenIndex);
     }
 };
 

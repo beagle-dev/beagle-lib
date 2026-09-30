@@ -8,11 +8,39 @@
 #ifndef EIGENDECOMPOSITIONSPECTRAL_H_
 #define EIGENDECOMPOSITIONSPECTRAL_H_
 
+#include <memory>
+#include <vector>
+
 #include "EigenDecomposition.h"
+#include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/AdjointMethods.h"
 
 namespace beagle {
 namespace cpu {
+
+// Flags for an EigenDecompositionSpectral that another decomposition fills with the inverse eigenvectors in the
+// standard layout, whatever the instance's layout
+inline long standardInverseFlags(const long flags) {
+    return (flags & ~BEAGLE_FLAG_INVEVEC_TRANSPOSED) | BEAGLE_FLAG_INVEVEC_STANDARD;
+}
+
+// Hands storage (an EigenDecompositionSpectral) the inverse eigenvectors in the standard layout
+template <typename Storage>
+inline void setStandardEigenDecomposition(Storage& storage, const int eigenIndex, const int stateCount,
+                                          const double* inEigenVectors, const double* inInverseEigenVectors,
+                                          const bool inverseTransposed, const double* inEigenValues) {
+    if (!inverseTransposed) {
+        storage.setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors, inEigenValues);
+        return;
+    }
+    std::vector<double> inverse(stateCount * stateCount);
+    for (int i = 0; i < stateCount; i++) {
+        for (int j = 0; j < stateCount; j++) {
+            inverse[i * stateCount + j] = inInverseEigenVectors[j * stateCount + i];
+        }
+    }
+    storage.setEigenDecomposition(eigenIndex, inEigenVectors, inverse.data(), inEigenValues);
+}
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 class EigenDecompositionSpectral : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC> {

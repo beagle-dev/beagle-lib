@@ -27,7 +27,9 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int dec
 											         : EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,
 																				stateCount,
 																				categoryCount,
-                                                                                    flags) {
+                                                                                    flags),
+                                                       gAdjointStorage(decompositionCount, stateCount, categoryCount,
+                                                                       standardInverseFlags(flags)) {
     gEigenValues = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
     if (gEigenValues == NULL)
         throw std::bad_alloc();
@@ -97,6 +99,8 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int
         }
     }
 
+    setStandardEigenDecomposition(gAdjointStorage, eigenIndex, kStateCount, inEigenVectors, inInverseEigenVectors,
+                                  !(kFlags & BEAGLE_FLAG_INVEVEC_STANDARD), inEigenValues);
 }
 
 #define UNROLL

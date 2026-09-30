@@ -9,6 +9,7 @@
 #define EIGENDECOMPOSITIONSQUARE_H_
 
 #include "EigenDecomposition.h"
+#include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 
 namespace beagle {
 namespace cpu {
@@ -28,6 +29,10 @@ protected:
     REALTYPE** gIMatrices; // kStateCount^2 flattened array
     bool isComplex;
     int kEigenValuesSize;
+
+    // V, V^{-1}, their transposes and the integral plan in the layout of the spectral representation, which
+    // BeagleCPUImpl's adjoint gradient reads
+    EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC> gAdjointStorage;
 
 public:
 	EigenDecompositionSquare(int decompositionCount,
@@ -61,9 +66,16 @@ public:
 
     virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const;
 
+    // in the spectral layout (rows of stride kStateCount + T_PAD), not gEMatrices / gIMatrices
     virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const;
 
-    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;                                 
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const;
+
+    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const;
+
+    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const;
+
+    virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const;
 };
 
 }

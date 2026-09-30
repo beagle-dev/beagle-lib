@@ -25,7 +25,8 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
 											       int stateCount,
 											       int categoryCount,
 											       long flags)
-	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags) {
+	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags),
+	  gAdjointStorage(decompositionCount, stateCount, categoryCount, standardInverseFlags(flags)) {
 
 	isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
@@ -104,6 +105,9 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(i
 	beagleMemCpy(gIMatrices[eigenIndex],inInverseEigenVectors,len);
     if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
+
+    setStandardEigenDecomposition(gAdjointStorage, eigenIndex, kStateCount, inEigenVectors, inInverseEigenVectors,
+                                  (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) != 0, inEigenValues);
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
@@ -192,12 +196,29 @@ const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenValu
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenVectorsPtr(int eigenIndex) const {
-    return gEMatrices[eigenIndex];
+    return gAdjointStorage.getEigenVectorsPtr(eigenIndex);
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getInverseEigenVectorsPtr(int eigenIndex) const {
-    return gIMatrices[eigenIndex];
+    return gAdjointStorage.getInverseEigenVectorsPtr(eigenIndex);
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenVectorsPtr(int eigenIndex) const {
+    return gAdjointStorage.getBackwardsEigenVectorsPtr(eigenIndex);
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsInverseEigenVectorsPtr(
+        int eigenIndex) const {
+    return gAdjointStorage.getBackwardsInverseEigenVectorsPtr(eigenIndex);
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+AdjointIntegralPlan<REALTYPE>* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getAdjointMethodsPtr(
+        int eigenIndex) const {
+    return gAdjointStorage.getAdjointMethodsPtr(eigenIndex);
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
