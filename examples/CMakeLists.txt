@@ -119,6 +119,21 @@ if(BUILD_SPECTRAL)
     add_test(spectralcomplextest spectralcomplextest)
 endif(BUILD_SPECTRAL)
 
+if(BUILD_SSE)
+    # SIMD CPU implementations against their scalar counterparts
+    add_executable(simdtest
+            simdtest/simdtest.cpp)
+    target_link_libraries(simdtest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-sse
+            ${CMAKE_DL_LIBS})
+    if(BUILD_SPECTRAL)
+        target_link_libraries(simdtest hmsbeagle-cpu-spectral)
+    endif(BUILD_SPECTRAL)
+    add_test(simdtest simdtest)
+endif(BUILD_SSE)
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)
