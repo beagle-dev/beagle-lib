@@ -8,6 +8,9 @@
 #ifndef EIGENDECOMPOSITIONCUBE_H_
 #define EIGENDECOMPOSITIONCUBE_H_
 
+#include <memory>
+#include <vector>
+
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
 #include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 
@@ -30,8 +33,11 @@ protected:
     REALTYPE** gCMatrices;
 
     // V, V^{-1}, their transposes and the integral plan in the layout of the spectral representation, which
-    // BeagleCPUImpl's adjoint gradient reads
-    EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC> gAdjointStorage;
+    // BeagleCPUImpl's adjoint gradient reads. Built on the first gradient after setEigenDecomposition
+    // (prepareAdjoint) from copies of that call's arguments: V, V^{-1} as given, then the eigenvalues.
+    std::unique_ptr<EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>> gAdjointStorage;
+    std::vector<std::vector<double>> gAdjointInput;
+    std::vector<bool> gAdjointStale;
 
 public:
 	EigenDecompositionCube(int decompositionCount, 
@@ -68,24 +74,26 @@ public:
     }
 
     virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const {
-        return gAdjointStorage.getEigenVectorsPtr(eigenIndex);
+        return gAdjointStorage ? gAdjointStorage->getEigenVectorsPtr(eigenIndex) : nullptr;
     }
 
     virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const {
-        return gAdjointStorage.getInverseEigenVectorsPtr(eigenIndex);
+        return gAdjointStorage ? gAdjointStorage->getInverseEigenVectorsPtr(eigenIndex) : nullptr;
     }
 
     virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const {
-        return gAdjointStorage.getBackwardsEigenVectorsPtr(eigenIndex);
+        return gAdjointStorage ? gAdjointStorage->getBackwardsEigenVectorsPtr(eigenIndex) : nullptr;
     }
 
     virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const {
-        return gAdjointStorage.getBackwardsInverseEigenVectorsPtr(eigenIndex);
+        return gAdjointStorage ? gAdjointStorage->getBackwardsInverseEigenVectorsPtr(eigenIndex) : nullptr;
     }
 
     virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const {
-        return gAdjointStorage.getAdjointMethodsPtr(eigenIndex);
+        return gAdjointStorage ? gAdjointStorage->getAdjointMethodsPtr(eigenIndex) : nullptr;
     }
+
+    virtual void prepareAdjoint(int eigenIndex);
 };
 
 }

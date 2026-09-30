@@ -7,6 +7,8 @@
 #ifndef _EigenDecompositionCube_hpp_
 #define _EigenDecompositionCube_hpp_
 
+#include <algorithm>
+
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
 
 
@@ -28,8 +30,8 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int dec
 																				stateCount,
 																				categoryCount,
                                                                                     flags),
-                                                       gAdjointStorage(decompositionCount, stateCount, categoryCount,
-                                                                       standardInverseFlags(flags)) {
+                                                       gAdjointInput(decompositionCount),
+                                                       gAdjointStale(decompositionCount, false) {
     gEigenValues = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
     if (gEigenValues == NULL)
         throw std::bad_alloc();
@@ -99,8 +101,30 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int
         }
     }
 
-    setStandardEigenDecomposition(gAdjointStorage, eigenIndex, kStateCount, inEigenVectors, inInverseEigenVectors,
-                                  !(kFlags & BEAGLE_FLAG_INVEVEC_STANDARD), inEigenValues);
+    // for the adjoint gradient's matrices, built on first use (prepareAdjoint)
+    const int size = kStateCount * kStateCount;
+    std::vector<double>& input = gAdjointInput[eigenIndex];
+    input.resize(2 * size + kStateCount);
+    std::copy(inEigenVectors, inEigenVectors + size, input.begin());
+    std::copy(inInverseEigenVectors, inInverseEigenVectors + size, input.begin() + size);
+    std::copy(inEigenValues, inEigenValues + kStateCount, input.begin() + 2 * size);
+    gAdjointStale[eigenIndex] = true;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::prepareAdjoint(int eigenIndex) {
+    if (!gAdjointStale[eigenIndex]) {
+        return;
+    }
+    if (!gAdjointStorage) {
+        gAdjointStorage.reset(new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
+                kEigenDecompCount, kStateCount, kCategoryCount, standardInverseFlags(kFlags)));
+    }
+    const int size = kStateCount * kStateCount;
+    const double* input = gAdjointInput[eigenIndex].data();
+    setStandardEigenDecomposition(*gAdjointStorage, eigenIndex, kStateCount, input, input + size,
+                                  !(kFlags & BEAGLE_FLAG_INVEVEC_STANDARD), input + 2 * size);
+    gAdjointStale[eigenIndex] = false;
 }
 
 #define UNROLL

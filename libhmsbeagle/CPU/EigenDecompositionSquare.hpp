@@ -26,7 +26,7 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
 											       int categoryCount,
 											       long flags)
 	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags),
-	  gAdjointStorage(decompositionCount, stateCount, categoryCount, standardInverseFlags(flags)) {
+	  gAdjointStale(decompositionCount, false) {
 
 	isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
@@ -106,8 +106,25 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(i
     if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
 
-    setStandardEigenDecomposition(gAdjointStorage, eigenIndex, kStateCount, inEigenVectors, inInverseEigenVectors,
-                                  (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) != 0, inEigenValues);
+    gAdjointStale[eigenIndex] = true; // the adjoint gradient's matrices are built on first use (prepareAdjoint)
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::prepareAdjoint(int eigenIndex) {
+    if (!gAdjointStale[eigenIndex]) {
+        return;
+    }
+    if (!gAdjointStorage) {
+        gAdjointStorage.reset(new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
+                kEigenDecompCount, kStateCount, kCategoryCount, standardInverseFlags(kFlags)));
+    }
+    // gIMatrices is in the standard layout already
+    const int size = kStateCount * kStateCount;
+    const std::vector<double> vectors(gEMatrices[eigenIndex], gEMatrices[eigenIndex] + size);
+    const std::vector<double> inverse(gIMatrices[eigenIndex], gIMatrices[eigenIndex] + size);
+    const std::vector<double> values(gEigenValues[eigenIndex], gEigenValues[eigenIndex] + kEigenValuesSize);
+    gAdjointStorage->setEigenDecomposition(eigenIndex, vectors.data(), inverse.data(), values.data());
+    gAdjointStale[eigenIndex] = false;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
@@ -196,29 +213,29 @@ const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenValu
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenVectorsPtr(int eigenIndex) const {
-    return gAdjointStorage.getEigenVectorsPtr(eigenIndex);
+    return gAdjointStorage ? gAdjointStorage->getEigenVectorsPtr(eigenIndex) : nullptr;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getInverseEigenVectorsPtr(int eigenIndex) const {
-    return gAdjointStorage.getInverseEigenVectorsPtr(eigenIndex);
+    return gAdjointStorage ? gAdjointStorage->getInverseEigenVectorsPtr(eigenIndex) : nullptr;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenVectorsPtr(int eigenIndex) const {
-    return gAdjointStorage.getBackwardsEigenVectorsPtr(eigenIndex);
+    return gAdjointStorage ? gAdjointStorage->getBackwardsEigenVectorsPtr(eigenIndex) : nullptr;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsInverseEigenVectorsPtr(
         int eigenIndex) const {
-    return gAdjointStorage.getBackwardsInverseEigenVectorsPtr(eigenIndex);
+    return gAdjointStorage ? gAdjointStorage->getBackwardsInverseEigenVectorsPtr(eigenIndex) : nullptr;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 AdjointIntegralPlan<REALTYPE>* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getAdjointMethodsPtr(
         int eigenIndex) const {
-    return gAdjointStorage.getAdjointMethodsPtr(eigenIndex);
+    return gAdjointStorage ? gAdjointStorage->getAdjointMethodsPtr(eigenIndex) : nullptr;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE

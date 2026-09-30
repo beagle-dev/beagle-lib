@@ -122,6 +122,9 @@ protected:
                                 int endPattern,
                                 int currentPartition) override;
 
+    // Builds the adjoint plans of the eigen decompositions set since the last gradient
+    void prepareAdjoint(const int* branchEigenIndices, int count) override;
+
     // Adjoint gradient of the rate matrix in the eigen basis; with rescaled partials (scale indices) the scalar
     // implementation is used
     void calcAdjointCrossProductsRange(const int* postBufferIndices,
@@ -171,6 +174,7 @@ private:
         std::vector<std::array<int, 3>> degenerateBlocks;
     };
     std::vector<AdjointPlan> gAdjointPlans;
+    std::vector<bool> gAdjointPlanStale; // set by setEigenDecomposition, built on the next gradient
     int kAdjointStride;
     // Per partition: the outer product of several patterns, S rows of kAdjointStride
     std::vector<double> gAdjointOuterTmp;

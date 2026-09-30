@@ -228,6 +228,7 @@ int BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::createInstance(int tipCount,
 
     kAdjointStride = kStateCount + (kStateCount & 1);
     gAdjointPlans.assign(kEigenDecompCount, AdjointPlan());
+    gAdjointPlanStale.assign(kEigenDecompCount, false);
     gAdjointOuterTmp.assign(kStateCount * kAdjointStride * kPartitionCount, 0.0);
     kAdjointPairTmpStride = kStateCount / 2 + 2;
     gAdjointPairTmp.assign(2 * kAdjointPairTmpStride * kPartitionCount, 0.0);
@@ -252,9 +253,21 @@ int BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::setEigenDecomposition(int eigenIndex
     const int returnCode = Base::setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors,
                                                        inEigenValues);
     if (returnCode == BEAGLE_SUCCESS) {
-        prepareAdjointPlan(eigenIndex);
+        gAdjointPlanStale[eigenIndex] = true; // built by the next adjoint gradient that uses it
     }
     return returnCode;
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::prepareAdjoint(const int* branchEigenIndices, int count) {
+    Base::prepareAdjoint(branchEigenIndices, count);
+    for (int i = 0; i < count; ++i) {
+        const int eigenIndex = gBranchEigenInfo[branchEigenIndices[i]].eigenIndex;
+        if (gAdjointPlanStale[eigenIndex]) {
+            prepareAdjointPlan(eigenIndex);
+            gAdjointPlanStale[eigenIndex] = false;
+        }
+    }
 }
 
 template <int T_PAD, int P_PAD>

@@ -1749,6 +1749,13 @@ void computePerSiteLikelihoods(
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::prepareAdjoint(const int *branchEigenIndices, int count) {
+    for (int i = 0; i < count; ++i) {
+        gEigenDecomposition->prepareAdjoint(gBranchEigenInfo[branchEigenIndices[i]].eigenIndex);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postBufferIndices,
                                                                 const int *preBufferIndices,
                                                                 const int *transitionIndices,
@@ -1764,6 +1771,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
                                                                 const int cumulativeScaleIndex) {
 
     int returnCode = BEAGLE_SUCCESS;
+
+    prepareAdjoint(transitionIndices, count);
 
     const double *categoryRates    = gCategoryRates[categoryRatesIndices[0]];
     const REALTYPE *categoryWeights = gCategoryWeights[categoryWeightsIndices[0]];

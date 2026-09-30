@@ -622,6 +622,10 @@ protected:
                                   double *outSumDerivatives,
                                   double *outSumSquaredDerivatives);
 
+    // Before an adjoint gradient over these branches starts any thread: lets the eigen decomposition (and a
+    // subclass) build what the gradient reads on first use
+    virtual void prepareAdjoint(const int *branchEigenIndices, int count);
+
     virtual int calcAdjointCrossProducts(const int *postBufferIndices,
                                          const int *preBufferIndices,
                                          const int *eigenIndices,

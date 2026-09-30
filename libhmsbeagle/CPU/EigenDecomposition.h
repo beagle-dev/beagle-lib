@@ -100,6 +100,10 @@ public:
     virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
 
     virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const { return nullptr; };
+
+    // Builds what the adjoint gradient reads for eigenIndex (the accessors above) if a decomposition builds it
+    // on first use; called once per gradient, before any thread starts
+    virtual void prepareAdjoint(int eigenIndex) { };
 };
 
 }
