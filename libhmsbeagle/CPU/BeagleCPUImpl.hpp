@@ -691,7 +691,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int *bufferIndic
             for (int l = 0; l < kCategoryCount; l++) {
                 for (int i = 0; i < kPatternCount; i++) {
                     beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-                    tmpRealPartialsOffset += kPartialsPaddedStateCount;
+                    tmpRealPartialsOffset += kStateCount;
+                    // Pad extra buffer with zeros
+                    for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
+                        *tmpRealPartialsOffset++ = 0;
+                    }
                 }
                 // Pad extra buffer with zeros
                 for (int k = 0; k < kPartialsPaddedStateCount * (kPaddedPatternCount - kPatternCount); k++) {
