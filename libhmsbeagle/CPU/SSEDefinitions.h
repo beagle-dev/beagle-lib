@@ -52,6 +52,7 @@ typedef double VecEl_t;
 	typedef __m128d	V_Real;
 #	define REALS_PER_VEC	2	/* number of elements per vector */
 #	define VEC_LOAD(a)			_mm_load_pd(a)
+#	define VEC_LOADU(a)			_mm_loadu_pd(a)
 #	define VEC_LOAD_SCALAR(a)	_mm_load1_pd(a)
 #	define VEC_STORE(a, b)		_mm_store_pd((a), (b))
 #   define VEC_STORE_SCALAR(a, b) _mm_store_sd((a), (b))
@@ -65,6 +66,7 @@ typedef double VecEl_t;
 #	endif
 #	define VEC_SPLAT(a)			_mm_set1_pd(a)
 #	define VEC_ADD(a, b)		_mm_add_pd(a, b)
+#	define VEC_MAX(a, b)		_mm_max_pd((a), (b)) /* b if either is NaN on x86 */
 #   define VEC_SWAP(a)			_mm_shuffle_pd(a, a, _MM_SHUFFLE2(0,1))
 # 	define VEC_SETZERO()		_mm_setzero_pd()
 #	define VEC_SET1(a)			_mm_set_sd((a))

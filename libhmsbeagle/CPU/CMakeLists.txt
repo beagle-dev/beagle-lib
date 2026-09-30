@@ -68,6 +68,9 @@ add_library(hmsbeagle-cpu-spectral SHARED
         BeagleCPUSpectralImpl.hpp
         BeagleCPUSpectralPlugin.cpp
         BeagleCPUSpectralPlugin.h
+        BeagleCPUSpectralSSEImpl.h
+        BeagleCPUSpectralSSEImpl.hpp
+        SSEDefinitions.h
         EigenDecomposition.h
         EigenDecompositionSpectral.h
         EigenDecompositionSpectral.hpp

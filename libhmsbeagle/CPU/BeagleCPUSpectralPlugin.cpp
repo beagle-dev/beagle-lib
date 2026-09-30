@@ -7,6 +7,7 @@
 
 #include "libhmsbeagle/CPU/BeagleCPUSpectralPlugin.h"
 #include "libhmsbeagle/CPU/BeagleCPUSpectralImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUSpectralSSEImpl.h"
 #include <iostream>
 
 namespace beagle {
@@ -27,7 +28,7 @@ Plugin("CPU-Spectral", "CPU-Sprectral")
                                          BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                                          BEAGLE_FLAG_PROCESSOR_CPU |
                                          BEAGLE_FLAG_PRECISION_SINGLE | BEAGLE_FLAG_PRECISION_DOUBLE |
-                                         BEAGLE_FLAG_VECTOR_NONE |
+                                         BEAGLE_FLAG_VECTOR_NONE | BEAGLE_FLAG_VECTOR_SSE |
                                          BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                                          BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                                          BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
@@ -39,6 +40,7 @@ Plugin("CPU-Spectral", "CPU-Sprectral")
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories
+	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralSSEImplFactory());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralImplFactory<double>());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralImplFactory<float>());
 }
