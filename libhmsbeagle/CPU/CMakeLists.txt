@@ -46,6 +46,11 @@ add_library(hmsbeagle-cpu-sse SHARED
         EigenDecompositionSquare.hpp
         Precision.h
         SSEDefinitions.h
+        SSEKernels.h
+        BeagleCPUAdjointSSE.h
+        BeagleCPUAdjointSSE.hpp
+        BeagleCPUAdjoint4StateSSE.h
+        BeagleCPUAdjoint4StateSSE.hpp
         )
 
 install(TARGETS hmsbeagle-cpu-sse
@@ -73,6 +78,11 @@ add_library(hmsbeagle-cpu-spectral SHARED
         BeagleCPU4StateSpectralSSEImpl.h
         BeagleCPU4StateSpectralSSEImpl.hpp
         SSEDefinitions.h
+        SSEKernels.h
+        BeagleCPUAdjointSSE.h
+        BeagleCPUAdjointSSE.hpp
+        BeagleCPUAdjoint4StateSSE.h
+        BeagleCPUAdjoint4StateSSE.hpp
         EigenDecomposition.h
         EigenDecompositionSpectral.h
         EigenDecompositionSpectral.hpp
