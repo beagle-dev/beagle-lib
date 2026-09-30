@@ -35,8 +35,13 @@ namespace cpu {
 
 namespace spectral_sse {
 
-// Output vectors (two states each) kept in registers by one pass over the rows
+// Output vectors (two states each) kept in registers by one pass over the rows; each has two accumulators (even
+// and odd rows) to hide the latency of the multiply-adds. x86-64 has 16 vector registers, arm64 32.
+#if defined(__aarch64__)
 constexpr int kBlockVectors = 8;
+#else
+constexpr int kBlockVectors = 4;
+#endif
 
 /*
  * out = M^T x for an S x stride row-major M: for each block of outputs, acc += row_j * x_j over the rows j < S.
@@ -47,39 +52,56 @@ constexpr int kBlockVectors = 8;
 template <int NV, typename Epilogue>
 inline void axpyBlock(const double* __restrict rows, const int stride, const double* __restrict x, const int S,
                       const int i0, Epilogue& epilogue) {
-    V_Real acc[NV];
+    V_Real even[NV];
+    V_Real odd[NV];
     for (int v = 0; v < NV; ++v) {
-        acc[v] = VEC_SETZERO();
+        even[v] = VEC_SETZERO();
+        odd[v] = VEC_SETZERO();
     }
     const double* row = rows + i0;
-    for (int j = 0; j < S; ++j, row += stride) {
-        const V_Real xj = VEC_SPLAT(x[j]);
+    int j = 0;
+    for (; j + 1 < S; j += 2, row += 2 * stride) {
+        const V_Real x0 = VEC_SPLAT(x[j]);
+        const V_Real x1 = VEC_SPLAT(x[j + 1]);
         for (int v = 0; v < NV; ++v) {
-            acc[v] = VEC_MADD(VEC_LOADU(row + 2 * v), xj, acc[v]);
+            even[v] = VEC_MADD(VEC_LOADU(row + 2 * v), x0, even[v]);
+            odd[v] = VEC_MADD(VEC_LOADU(row + stride + 2 * v), x1, odd[v]);
+        }
+    }
+    if (j < S) {
+        const V_Real x0 = VEC_SPLAT(x[j]);
+        for (int v = 0; v < NV; ++v) {
+            even[v] = VEC_MADD(VEC_LOADU(row + 2 * v), x0, even[v]);
         }
     }
     for (int v = 0; v < NV; ++v) {
-        epilogue(i0 + 2 * v, acc[v]);
+        epilogue(i0 + 2 * v, VEC_ADD(even[v], odd[v]));
     }
 }
 
+// Blocks of nearly equal size, at most kBlockVectors vectors each
 template <typename Epilogue>
 inline void axpy(const double* __restrict rows, const int stride, const double* __restrict x, const int S,
                  Epilogue epilogue) {
     const int vectors = (S + 1) / 2;
-    int v0 = 0;
-    for (; v0 + kBlockVectors <= vectors; v0 += kBlockVectors) {
-        axpyBlock<kBlockVectors>(rows, stride, x, S, 2 * v0, epilogue);
-    }
-    switch (vectors - v0) {
-        case 1: axpyBlock<1>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 2: axpyBlock<2>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 3: axpyBlock<3>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 4: axpyBlock<4>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 5: axpyBlock<5>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 6: axpyBlock<6>(rows, stride, x, S, 2 * v0, epilogue); break;
-        case 7: axpyBlock<7>(rows, stride, x, S, 2 * v0, epilogue); break;
-        default: break;
+    const int blocks = (vectors + kBlockVectors - 1) / kBlockVectors;
+    const int size = vectors / blocks;
+    const int larger = vectors % blocks; // the first 'larger' blocks have size + 1 vectors
+    int i0 = 0;
+    for (int b = 0; b < blocks; ++b) {
+        switch (size + (b < larger ? 1 : 0)) {
+            case 1: axpyBlock<1>(rows, stride, x, S, i0, epilogue); i0 += 2; break;
+            case 2: axpyBlock<2>(rows, stride, x, S, i0, epilogue); i0 += 4; break;
+            case 3: axpyBlock<3>(rows, stride, x, S, i0, epilogue); i0 += 6; break;
+            case 4: axpyBlock<4>(rows, stride, x, S, i0, epilogue); i0 += 8; break;
+#if defined(__aarch64__)
+            case 5: axpyBlock<5>(rows, stride, x, S, i0, epilogue); i0 += 10; break;
+            case 6: axpyBlock<6>(rows, stride, x, S, i0, epilogue); i0 += 12; break;
+            case 7: axpyBlock<7>(rows, stride, x, S, i0, epilogue); i0 += 14; break;
+            case 8: axpyBlock<8>(rows, stride, x, S, i0, epilogue); i0 += 16; break;
+#endif
+            default: break;
+        }
     }
 }
 
