@@ -207,6 +207,8 @@ int BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::createInstance(int tipCount,
     kAdjointStride = kStateCount + (kStateCount & 1);
     gAdjointPlans.assign(kEigenDecompCount, AdjointPlan());
     gAdjointOuterTmp.assign(kStateCount * kAdjointStride * kPartitionCount, 0.0);
+    kAdjointPairTmpStride = kStateCount / 2 + 2;
+    gAdjointPairTmp.assign(2 * kAdjointPairTmpStride * kPartitionCount, 0.0);
 
     return returnCode;
 }
@@ -216,6 +218,7 @@ int BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::setCPUThreadCount(int threadCount) {
     const int returnCode = Base::setCPUThreadCount(threadCount);
     gSimdTmp.assign(3 * kSimdTmpStride * kPartitionCount, 0.0);
     gAdjointOuterTmp.assign(kStateCount * kAdjointStride * kPartitionCount, 0.0);
+    gAdjointPairTmp.assign(2 * kAdjointPairTmpStride * kPartitionCount, 0.0);
     return returnCode;
 }
 
@@ -279,12 +282,33 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::prepareAdjointPlan(int eigenIndex) 
             const double sr = eval[r] - eval[ls];
             table[ls * kAdjointStride + r] = reciprocal(sr * sr + li * li);
         }
-        for (int rs : plan.pairIndices) { // two conjugate pairs: sums and differences of the imaginary parts
+    }
+
+    const int pairCount = static_cast<int>(plan.pairIndices.size());
+    plan.pairStride = pairCount + (pairCount & 1);
+    plan.pairBlocks.assign(5 * plan.pairStride * pairCount, 0.0);
+    plan.degenerateBlocks.clear();
+    for (int pl = 0; pl < pairCount; ++pl) {
+        const int ls = plan.pairIndices[pl];
+        double* block = plan.pairBlocks.data() + 5 * plan.pairStride * pl;
+        for (int pr = 0; pr < pairCount; ++pr) {
+            const int rs = plan.pairIndices[pr];
             const double sr = eval[rs] - eval[ls];
-            const double sum = li + imag[rs];
-            const double difference = imag[rs] - li;
-            table[ls * kAdjointStride + rs]     = reciprocal(sr * sr + sum * sum);
-            table[ls * kAdjointStride + rs + 1] = reciprocal(sr * sr + difference * difference);
+            const double sum = imag[ls] + imag[rs];
+            const double difference = imag[rs] - imag[ls];
+            const double d1 = sr * sr + sum * sum;
+            const double d2 = sr * sr + difference * difference;
+            block[pr] = sr;
+            block[plan.pairStride + pr] = sum;
+            block[2 * plan.pairStride + pr] = difference;
+            block[3 * plan.pairStride + pr] = (d1 < 1e-12) ? 0.0 : 0.5 / d1;
+            block[4 * plan.pairStride + pr] = (d2 < 1e-12) ? 0.0 : 0.5 / d2;
+            if (d1 < 1e-12) {
+                plan.degenerateBlocks.push_back({pl, pr, 1});
+            }
+            if (d2 < 1e-12) {
+                plan.degenerateBlocks.push_back({pl, pr, 2});
+            }
         }
     }
 }
@@ -299,7 +323,7 @@ template <int T_PAD, int P_PAD> template <typename View>
 void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::adjointKernel(double* gradient, const View& view,
                                                           const AdjointPlan& plan, const double* eval,
                                                           const BranchEigenInfo& info, int infoOffset,
-                                                          double time) {
+                                                          double time, double* pairTmp) {
     const int S = kStateCount;
     const double* __restrict expat = info.expat + infoOffset;
     const double* __restrict table = plan.reciprocals.data();
@@ -447,40 +471,93 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::adjointKernel(double* gradient, con
             g1[ri] += p0 * a1 - p1 * a0;
         }
 
-        for (int rs : plan.pairIndices) {
-            const double sr = eval[rs] - lr;
-            const double sum = li + imag[rs];
-            const double difference = imag[rs] - li;
-            const double ecr = expatcosbt[rs];
-            const double esr = expatsinbt[rs];
+    }
 
-            double pr = er * time;
-            double pi = -ei * time;
-            if (reciprocals[rs] != 0.0) {
-                pr = (sr * ecr + sum * esr - sr * er + sum * ei) * reciprocals[rs];
-                pi = (sr * esr - sum * ecr + sum * er + sr * ei) * reciprocals[rs];
+    // Two conjugate pairs, two blocks of columns per vector. With A = mr + pr, B = mi + pi, C = pi - mi and
+    // D = mr - pr (halves folded into the reciprocals), rows ls and ls + 1 of a block of columns (rs, rs + 1) are
+    // g0 += A in0 + B sn(in0) + C in1 + D sn(in1) and g1 += A in1 + B sn(in1) - C in0 - D sn(in0), sn(v) = (v1, -v0).
+    const int pairCount = static_cast<int>(plan.pairIndices.size());
+    const int pairStride = plan.pairStride;
+    const int* pairIndices = plan.pairIndices.data();
+    double* EC = pairTmp;
+    double* ES = pairTmp + kAdjointPairTmpStride;
+    for (int p = 0; p < pairCount; ++p) {
+        EC[p] = expatcosbt[pairIndices[p]];
+        ES[p] = expatsinbt[pairIndices[p]];
+    }
+    EC[pairCount] = 0.0;
+    ES[pairCount] = 0.0;
+
+    auto applyBlock = [&](const typename View::Row& in0, const typename View::Row& in1,
+                          double* __restrict g0, double* __restrict g1, const int rs,
+                          const V_Real A, const V_Real B, const V_Real C, const V_Real D) {
+        const V_Real i0 = in0.pair(rs);
+        const V_Real i1 = in1.pair(rs);
+        const V_Real s0 = spectral_sse::swapNegate(i0);
+        const V_Real s1 = spectral_sse::swapNegate(i1);
+        VEC_STOREU(g0 + rs, VEC_ADD(VEC_LOADU(g0 + rs),
+                VEC_ADD(VEC_MADD(A, i0, VEC_MULT(B, s0)), VEC_MADD(C, i1, VEC_MULT(D, s1)))));
+        VEC_STOREU(g1 + rs, VEC_ADD(VEC_LOADU(g1 + rs),
+                VEC_SUB(VEC_MADD(A, i1, VEC_MULT(B, s1)), VEC_MADD(C, i0, VEC_MULT(D, s0)))));
+    };
+
+    for (int pl = 0; pl < pairCount; ++pl) {
+        const int ls = pairIndices[pl];
+        const auto in0 = view.row(ls);
+        const auto in1 = view.row(ls + 1);
+        double* __restrict g0 = gradient + ls * S;
+        double* __restrict g1 = g0 + S;
+        const double* __restrict sr = plan.pairBlocks.data() + 5 * pairStride * pl;
+        const double* __restrict sum = sr + pairStride;
+        const double* __restrict difference = sum + pairStride;
+        const double* __restrict half1 = difference + pairStride;
+        const double* __restrict half2 = half1 + pairStride;
+        const V_Real er = VEC_SPLAT(EC[pl]);
+        const V_Real ei = VEC_SPLAT(ES[pl]);
+
+        for (int pr = 0; pr < pairCount; pr += 2) {
+            const V_Real vsr = VEC_LOADU(sr + pr);
+            const V_Real vsum = VEC_LOADU(sum + pr);
+            const V_Real vdifference = VEC_LOADU(difference + pr);
+            const V_Real U = VEC_SUB(VEC_LOADU(EC + pr), er);
+            const V_Real esr = VEC_LOADU(ES + pr);
+            const V_Real W1 = VEC_ADD(esr, ei);
+            const V_Real W2 = VEC_SUB(esr, ei);
+            const V_Real h1 = VEC_LOADU(half1 + pr);
+            const V_Real h2 = VEC_LOADU(half2 + pr);
+            const V_Real prv = VEC_MULT(VEC_MADD(vsr, U, VEC_MULT(vsum, W1)), h1);
+            const V_Real piv = VEC_MULT(VEC_SUB(VEC_MULT(vsr, W1), VEC_MULT(vsum, U)), h1);
+            const V_Real mrv = VEC_MULT(VEC_MADD(vsr, U, VEC_MULT(vdifference, W2)), h2);
+            const V_Real miv = VEC_MULT(VEC_SUB(VEC_MULT(vsr, W2), VEC_MULT(vdifference, U)), h2);
+            const V_Real A = VEC_ADD(mrv, prv);
+            const V_Real B = VEC_ADD(miv, piv);
+            const V_Real C = VEC_SUB(piv, miv);
+            const V_Real D = VEC_SUB(mrv, prv);
+
+            applyBlock(in0, in1, g0, g1, pairIndices[pr],
+                       VEC_SHUFFLE0(A, A), VEC_SHUFFLE0(B, B), VEC_SHUFFLE0(C, C), VEC_SHUFFLE0(D, D));
+            if (pr + 1 < pairCount) {
+                applyBlock(in0, in1, g0, g1, pairIndices[pr + 1],
+                           VEC_SHUFFLE1(A, A), VEC_SHUFFLE1(B, B), VEC_SHUFFLE1(C, C), VEC_SHUFFLE1(D, D));
             }
-            double mr = er * time;
-            double mi = ei * time;
-            if (reciprocals[rs + 1] != 0.0) {
-                mr = (sr * ecr + difference * esr - sr * er - difference * ei) * reciprocals[rs + 1];
-                mi = (sr * esr - difference * ecr + difference * er - sr * ei) * reciprocals[rs + 1];
-            }
+        }
+    }
 
-            const V_Real A = VEC_SPLAT(0.5 * (mr + pr));
-            const V_Real B = VEC_SPLAT(0.5 * (mi + pi));
-            const V_Real C = VEC_SPLAT(0.5 * (pi - mi));
-            const V_Real D = VEC_SPLAT(0.5 * (mr - pr));
-
-            const V_Real p0 = in0.pair(rs);
-            const V_Real p1 = in1.pair(rs);
-            const V_Real sn0 = spectral_sse::swapNegate(p0);
-            const V_Real sn1 = spectral_sse::swapNegate(p1);
-
-            VEC_STOREU(g0 + rs, VEC_ADD(VEC_LOADU(g0 + rs),
-                    VEC_ADD(VEC_ADD(VEC_MULT(A, p0), VEC_MULT(B, sn0)), VEC_ADD(VEC_MULT(C, p1), VEC_MULT(D, sn1)))));
-            VEC_STOREU(g1 + rs, VEC_ADD(VEC_LOADU(g1 + rs),
-                    VEC_SUB(VEC_ADD(VEC_MULT(A, p1), VEC_MULT(B, sn1)), VEC_ADD(VEC_MULT(C, p0), VEC_MULT(D, sn0)))));
+    // degenerate blocks: the reciprocal was 0, and the integral of that term is t (halved as above)
+    for (const auto& block : plan.degenerateBlocks) {
+        const int ls = pairIndices[block[0]];
+        const int rs = pairIndices[block[1]];
+        const double x = 0.5 * EC[block[0]] * time;
+        const double y = 0.5 * ES[block[0]] * time;
+        const V_Real vx = VEC_SPLAT(x);
+        const V_Real vy = VEC_SPLAT(y);
+        const V_Real nx = VEC_SPLAT(-x);
+        const V_Real ny = VEC_SPLAT(-y);
+        double* g0 = gradient + ls * S;
+        if (block[2] == 1) { // pr = e cos t, pi = -e sin t
+            applyBlock(view.row(ls), view.row(ls + 1), g0, g0 + S, rs, vx, ny, ny, nx);
+        } else {             // mr = e cos t, mi = e sin t
+            applyBlock(view.row(ls), view.row(ls + 1), g0, g0 + S, rs, vx, vy, ny, vx);
         }
     }
 }
@@ -519,6 +596,7 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::calcAdjointCrossProductsRange(const
     double* lhs = simdTmp(currentPartition);
     double* rhs = lhs + kSimdTmpStride;
     double* outer = gAdjointOuterTmp.data() + currentPartition * S * kAdjointStride;
+    double* pairTmp = gAdjointPairTmp.data() + currentPartition * 2 * kAdjointPairTmpStride;
 
     for (int category = 0; category < kCategoryCount; ++category) {
         const double categoryRate = categoryRates[category];
@@ -565,7 +643,7 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::calcAdjointCrossProductsRange(const
 
                 if (onePattern) {
                     adjointKernel(buffer, spectral_sse::RankOneView{lhs, right}, plan, info.eval, info,
-                                  infoOffset, time);
+                                  infoOffset, time, pairTmp);
                 } else { // outer += lhs rhs^T, four rows per pass; for odd S the last vector reaches each row's pad
                     int l = 0;
                     for (; l + 4 <= S; l += 4) {
@@ -597,7 +675,7 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::calcAdjointCrossProductsRange(const
 
             if (!onePattern) {
                 adjointKernel(buffer, spectral_sse::DenseView{outer, kAdjointStride}, plan, info.eval, info,
-                              infoOffset, time);
+                              infoOffset, time, pairTmp);
             }
         }
     }

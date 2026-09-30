@@ -22,6 +22,7 @@
 
 #include "libhmsbeagle/CPU/BeagleCPUSpectralImpl.h"
 
+#include <array>
 #include <vector>
 
 namespace beagle {
@@ -162,11 +163,20 @@ private:
         // degenerate kernel entries are exactly the equal pairs.
         std::vector<std::pair<int, int>> equalPairs;
         double smallestDistance;
+        // Two conjugate pairs of rows and columns (pl, pr): for each pl, five arrays over pr with stride pairStride,
+        // padded with 0: the real part difference, the sum and the difference of the imaginary parts, and
+        // 0.5 / d1, 0.5 / d2 of the two denominators (0 where degenerate, listed as (pl, pr, 1 or 2))
+        int pairStride;
+        std::vector<double> pairBlocks;
+        std::vector<std::array<int, 3>> degenerateBlocks;
     };
     std::vector<AdjointPlan> gAdjointPlans;
     int kAdjointStride;
     // Per partition: the outer product of several patterns, S rows of kAdjointStride
     std::vector<double> gAdjointOuterTmp;
+    // Per partition: exp(a t) cos(b t) and exp(a t) sin(b t) of each conjugate pair, kAdjointPairTmpStride each
+    std::vector<double> gAdjointPairTmp;
+    int kAdjointPairTmpStride;
 
     void prepareAdjointPlan(int eigenIndex);
 
@@ -174,7 +184,7 @@ private:
     // integral kernel of the branch; View gives entries (l, r) and (l, r + 1) of that outer product
     template <typename View>
     void adjointKernel(double* gradient, const View& view, const AdjointPlan& plan, const double* eval,
-                       const BranchEigenInfo& info, int infoOffset, double time);
+                       const BranchEigenInfo& info, int infoOffset, double time, double* pairTmp);
 
     // y = exp(D t) V^{-1} x for one child and category, from its partials x or, when x is null, its tip state
     void forwardEigenBasis(double* y, double* u, const double* x, const int state,
