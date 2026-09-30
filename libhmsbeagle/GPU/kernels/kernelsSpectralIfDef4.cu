@@ -138,10 +138,12 @@
         sP2[patIdx][state] = (REAL)0;
 
 /* ── Pre-computed scaling denominators (scaling variants only) ───────────── */
+/* One per pattern, loaded by the state-0 thread of its row: PATTERN_BLOCK_SIZE
+ * (16) exceeds PADDED_STATE_COUNT (4), the threads of a row. */
 #define SPECTRAL_LOAD_SCALE_GPU() \
     KW_LOCAL_MEM REAL sScale[PATTERN_BLOCK_SIZE]; \
-    if (patIdx == 0 && state < PATTERN_BLOCK_SIZE) \
-        sScale[state] = scalingFactors[KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + state];
+    if (state == 0) \
+        sScale[patIdx] = scalingFactors[KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + patIdx];
 
 /* ── Per-category eigenvalue exponentials ───────────────────────────────── */
 /* patIdx-0 threads: one thread per eigenstate (state = k).
