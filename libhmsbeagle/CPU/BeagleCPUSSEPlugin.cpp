@@ -124,11 +124,11 @@ bool check_sse2()
     __asm__("mov %%ecx, %%eax;"
             "xor $200000, %%eax;"
             "xor %%ecx, %%eax;"
-            "je no;"
+            "je 1f;"
             "mov $1, %%eax;"
-            "jmp end;"
-            "no: mov $0, %%eax;"
-            "end:;"
+            "jmp 2f;"
+            "1: mov $0, %%eax;"   /* numeric local labels: the compiler may emit this asm more than once */
+            "2:;"
             : "=a" (res)
             :
             : "cc");
