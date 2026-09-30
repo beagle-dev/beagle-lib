@@ -58,7 +58,11 @@ typedef double VecEl_t;
 #   define VEC_STOREU(a, b)     _mm_storeu_pd((a), (b))
 #	define VEC_MULT(a, b)		_mm_mul_pd((a), (b))
 #	define VEC_DIV(a, b)		_mm_div_pd((a), (b))
-#	define VEC_MADD(a, b, c)	_mm_add_pd(_mm_mul_pd((a), (b)), (c))
+#	if defined(__aarch64__)
+#		define VEC_MADD(a, b, c)	vfmaq_f64((c), (a), (b)) /* fused (a * b) + c; __m128d is float64x2_t */
+#	else
+#		define VEC_MADD(a, b, c)	_mm_add_pd(_mm_mul_pd((a), (b)), (c))
+#	endif
 #	define VEC_SPLAT(a)			_mm_set1_pd(a)
 #	define VEC_ADD(a, b)		_mm_add_pd(a, b)
 #   define VEC_SWAP(a)			_mm_shuffle_pd(a, a, _MM_SHUFFLE2(0,1))
