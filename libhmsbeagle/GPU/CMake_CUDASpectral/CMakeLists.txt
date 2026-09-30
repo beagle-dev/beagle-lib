@@ -32,7 +32,8 @@ add_custom_command(
             "../kernels/kernelsX.cu"
             "../kernels/kernelsXDerivatives.cu"
             "../kernels/kernelsAll.cu"
-            "../kernels/kernelsSpectral.cu"
+            "../kernels/kernelsSpectralIfDef.cu"
+            "../kernels/kernelsSpectralIfDef4.cu"
         COMMENT "Building CUDA spectral kernels"
         VERBATIM)
 

@@ -1,15 +1,11 @@
 #!/bin/bash
 
 # Generates BeagleCUDASpectral_kernels.h.
-# Each KERNELS_STRING_SP_* / KERNELS_STRING_DP_* entry contains the regular
-# kernel PTX AND the spectral PTX concatenated in the same string.
-# The spectral PTX module header (.version / .target / .address_size) is
-# stripped before appending so the combined PTX remains a valid single module.
-#
-# 4-state sections use kernelsSpectral4.cu (peeling stride = PADDED_STATE_COUNT)
-# because BLOCK_PEELING_SIZE_SP/DP_4 = 8 > PADDED_STATE_COUNT = 4.
-# Generic sections use kernelsSpectral.cu (peeling stride = BLOCK_PEELING_SIZE),
-# which is correct for all state counts >= 16 where BLOCK_PEELING_SIZE <= PADDED_STATE_COUNT.
+# Each KERNELS_STRING_SP_* / KERNELS_STRING_DP_* entry is the PTX of the regular
+# kernels compiled with CUDA_SPECTRAL, which makes kernels4.cu include the 4-state
+# spectral kernels (kernelsSpectralIfDef4.cu) and kernelsX.cu the generic ones
+# (kernelsSpectralIfDef.cu): the same sources as the OpenCL spectral kernels
+# (make_opencl_spectral_kernels.sh), compiled as one module per state count.
 
 NVCC="$1"
 NVCCFLAGS="$2"
@@ -23,21 +19,17 @@ STATE_COUNT_LIST='16 32 48 64 80 128 192 256'
 
 srcdir="."
 
-REGULAR_PTX=BeagleCUDASpectral_regular.ptx
-SPECTRAL_PTX=BeagleCUDASpectral_spectral.ptx
+PTX=BeagleCUDASpectral_kernels.ptx
 
 echo "// auto-generated header file with CUDA spectral kernels PTX code" > BeagleCUDASpectral_kernels.h
 
 #
 # SP 4-state
 #
-${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 \
+${NVCC} -o ${PTX} --default-stream per-thread -ptx -DCUDA -DCUDA_SPECTRAL -DSTATE_COUNT=4 \
     $srcdir/kernels4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
-${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 \
-    $srcdir/kernelsSpectral4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
+cat ${PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 echo "\"" >> BeagleCUDASpectral_kernels.h
 
 #
@@ -45,26 +37,20 @@ echo "\"" >> BeagleCUDASpectral_kernels.h
 #
 for s in $STATE_COUNT_LIST; do
     echo "Making CUDA Spectral SP state count = $s"
-    ${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s \
+    ${NVCC} -o ${PTX} --default-stream per-thread -ptx -DCUDA -DCUDA_SPECTRAL -DSTATE_COUNT=$s \
         $srcdir/kernelsX.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
-    ${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s \
-        $srcdir/kernelsSpectral.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
     echo "#define KERNELS_STRING_SP_$s \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-    cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-    sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
+    cat ${PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
     echo "\"" >> BeagleCUDASpectral_kernels.h
 done
 
 #
 # DP 4-state
 #
-${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
+${NVCC} -o ${PTX} --default-stream per-thread -ptx -DCUDA -DCUDA_SPECTRAL -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
     $srcdir/kernels4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
-${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
-    $srcdir/kernelsSpectral4.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
 echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
+cat ${PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
 echo "\"" >> BeagleCUDASpectral_kernels.h
 
 #
@@ -72,14 +58,11 @@ echo "\"" >> BeagleCUDASpectral_kernels.h
 #
 for s in $STATE_COUNT_LIST; do
     echo "Making CUDA Spectral DP state count = $s"
-    ${NVCC} -o ${REGULAR_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
+    ${NVCC} -o ${PTX} --default-stream per-thread -ptx -DCUDA -DCUDA_SPECTRAL -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
         $srcdir/kernelsX.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
-    ${NVCC} -o ${SPECTRAL_PTX} --default-stream per-thread -ptx -DCUDA -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
-        $srcdir/kernelsSpectral.cu ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { \rm BeagleCUDASpectral_kernels.h; exit; }
     echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-    cat ${REGULAR_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
-    sed '1,/^\.address_size/d' ${SPECTRAL_PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
+    cat ${PTX} | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> BeagleCUDASpectral_kernels.h
     echo "\"" >> BeagleCUDASpectral_kernels.h
 done
 
-\rm -f ${REGULAR_PTX} ${SPECTRAL_PTX}
+\rm -f ${PTX}

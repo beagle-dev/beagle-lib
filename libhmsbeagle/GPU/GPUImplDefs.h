@@ -89,6 +89,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_GLOBAL_KERNEL __global__
     #define KW_DEVICE_FUNC   __device__
     #define KW_GLOBAL_VAR
+    #define KW_LOCAL_VAR
     #define KW_LOCAL_MEM     __shared__
     #define KW_LOCAL_FENCE   __syncthreads()
     #define KW_LOCAL_ID_0    threadIdx.x
@@ -110,6 +111,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_GLOBAL_KERNEL __kernel
     #define KW_DEVICE_FUNC
     #define KW_GLOBAL_VAR    __global
+    #define KW_LOCAL_VAR     __local
     #define KW_LOCAL_MEM     __local
     #define KW_LOCAL_FENCE   barrier(CLK_LOCAL_MEM_FENCE)
     #define KW_LOCAL_ID_0    get_local_id(0)

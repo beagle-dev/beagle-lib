@@ -10,10 +10,15 @@
  *
  * @author Marc Suchard
  *
- * Spectral partial-likelihood GPU kernels — OpenCL-compatible implementation
- * using C-preprocessor #ifdef directives to emulate C++ templates.
- *
- * Correspondence with KernelsSpectral.cu (CUDA / C++17):
+ * Spectral partial-likelihood GPU kernels for 4 states — one source for CUDA
+ * and OpenCL, as for the regular kernels: framework differences go through the
+ * KW_ macros of GPUImplDefs.h, and C-preprocessor #ifdef directives emulate
+ * C++ templates. Like kernels4Derivatives.cu, this file has no preamble of its
+ * own. For OpenCL, make_opencl_spectral_kernels.sh appends it to
+ * GPUImplDefs.h, kernelsAll.cu and kernels4.cu; for CUDA, kernels4.cu includes
+ * it (inside its extern "C") when CUDA_SPECTRAL is defined
+ * (make_cuda_spectral_kernels.sh). The other state counts are
+ * kernelsSpectralIfDef.cu, with kernelsX.cu.
  *
  *   C++ construct                        │ Preprocessor equivalent (this file)
  *   ─────────────────────────────────────┼────────────────────────────────────
@@ -35,7 +40,7 @@
  *   MODEL B — single-compilation named kernels:
  *     The six KW_GLOBAL_KERNEL functions at the bottom of this file invoke
  *     the phase macros directly, so all six variants coexist in one OpenCL
- *     program object — the model required by BEAGLE's OpenCL backend.
+ *     program object or CUDA module — the model BEAGLE's GPU backends load.
  *
  * Phase-macro building blocks (used in both models):
  *
@@ -51,16 +56,6 @@
  *   SPECTRAL_WRITE_NO_SCALE_GPU()
  *   SPECTRAL_WRITE_FIXED_SCALE_GPU()
  */
-
-#ifdef CUDA
-    #include "libhmsbeagle/GPU/GPUImplDefs.h"
-    extern "C" {
-#elif defined(FW_OPENCL)
-    #ifdef DOUBLE_PRECISION
-        #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-    #endif
-    #define __umul24(x, y) ((x) * (y))
-#endif
 
 /* ── FMA helper ─────────────────────────────────────────────────────────── */
 #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || \
@@ -307,15 +302,17 @@
 
 /* Auto-scaling: detect overflow/underflow per pattern, rescale if needed, and
  * write the per-pattern exponent to scalingFactors[matrix*totalPatterns+pattern]
- * as a signed char.  Reuses sQ1[patIdx][*] (free after Phase 3) as scratch for
- * the per-pattern max-exponent reduction.  Thread 0 of each pattern row does a
- * linear scan so correctness does not depend on PADDED_STATE_COUNT being a
- * power of two. */
+ * as a signed char.  Reuses sQ1[patIdx][*] as scratch for the per-pattern
+ * max-exponent reduction, after a fence: SPECTRAL_PHASE3_GPU has none,
+ * and the threads of a pattern row need not run in lockstep (CUDA since Volta).
+ * Thread 0 of each pattern row does a linear scan so correctness does not
+ * depend on PADDED_STATE_COUNT being a power of two. */
 #define SPECTRAL_WRITE_AUTO_SCALE_GPU() \
     { \
         REAL tmpPartial = sum1 * sum2; \
         int  expTmp; \
         REAL sigTmp = frexp(tmpPartial, &expTmp); \
+        KW_LOCAL_FENCE; \
         sQ1[patIdx][state] = (REAL)( \
             (pattern < totalPatterns && abs(expTmp) > SCALING_EXPONENT_THRESHOLD) \
             ? expTmp : 0); \
@@ -425,9 +422,6 @@ KW_DEVICE_FUNC void kernelSpectralBody(
  * Each kernel invokes the phase macros directly so that all six variants
  * coexist in one translation unit / OpenCL program object.  Each kernel has
  * a type-specific parameter list (no superfluous null pointers in the API).
- *
- * This mirrors the six extern "C" wrappers in KernelsSpectral.cu, but uses
- * macros in place of the C++ template device function.
  * ═══════════════════════════════════════════════════════════════════════════*/
 
 /* ── PartialsPartials ──────────────────────────────────────────────────── */
@@ -1228,7 +1222,3 @@ KW_GLOBAL_KERNEL void kernelAdjointMerged4(
         ADJOINT4_APPLY_COMPLEX(dGradient)
     }
 }
-
-#ifdef CUDA
-} /* extern "C" */
-#endif

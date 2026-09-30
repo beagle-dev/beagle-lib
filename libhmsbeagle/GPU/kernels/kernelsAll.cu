@@ -1973,10 +1973,6 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
         rootScaling[index] = total;
 }
 
-#ifdef CUDA // TODO change to: CUDA_SPECTRAL
-    #include "kkernelsSpectralIfDef.cu"
-#endif // CUDA_SPECTRAL
-
 #ifdef CUDA
 } // extern "C"
 #endif //CUDA

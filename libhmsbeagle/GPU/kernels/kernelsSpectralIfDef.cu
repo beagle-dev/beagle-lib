@@ -10,10 +10,14 @@
  *
  * @author Marc Suchard
  *
- * Spectral partial-likelihood GPU kernels — OpenCL-compatible implementation
- * using C-preprocessor #ifdef directives to emulate C++ templates.
- *
- * Correspondence with KernelsSpectral.cu (CUDA / C++17):
+ * Spectral partial-likelihood GPU kernels — one source for CUDA and OpenCL, as
+ * for the regular kernels: framework differences go through the KW_ macros of
+ * GPUImplDefs.h, and C-preprocessor #ifdef directives emulate C++ templates.
+ * Like kernelsXDerivatives.cu, this file has no preamble of its own. For
+ * OpenCL, make_opencl_spectral_kernels.sh appends it to GPUImplDefs.h,
+ * kernelsAll.cu and kernelsX.cu; for CUDA, kernelsX.cu includes it (inside its
+ * extern "C") when CUDA_SPECTRAL is defined (make_cuda_spectral_kernels.sh).
+ * The 4-state kernels are kernelsSpectralIfDef4.cu, with kernels4.cu.
  *
  *   C++ construct                        │ Preprocessor equivalent (this file)
  *   ─────────────────────────────────────┼────────────────────────────────────
@@ -35,7 +39,7 @@
  *   MODEL B — single-compilation named kernels:
  *     The six KW_GLOBAL_KERNEL functions at the bottom of this file invoke
  *     the phase macros directly, so all six variants coexist in one OpenCL
- *     program object — the model required by BEAGLE's OpenCL backend.
+ *     program object or CUDA module — the model BEAGLE's GPU backends load.
  *
  * Phase-macro building blocks (used in both models):
  *
@@ -51,16 +55,6 @@
  *   SPECTRAL_WRITE_NO_SCALE_GPU()
  *   SPECTRAL_WRITE_FIXED_SCALE_GPU()
  */
-
-#ifdef CUDA
-    #include "libhmsbeagle/GPU/GPUImplDefs.h"
-    extern "C" {
-#elif defined(FW_OPENCL)
-    #ifdef DOUBLE_PRECISION
-        #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-    #endif
-    #define __umul24(x, y) ((x) * (y))
-#endif
 
 /* ── FMA helper ─────────────────────────────────────────────────────────── */
 #if (!defined DOUBLE_PRECISION && defined FP_FAST_FMAF) || \
@@ -424,9 +418,6 @@ KW_DEVICE_FUNC void kernelSpectralBody(
  * Each kernel invokes the phase macros directly so that all six variants
  * coexist in one translation unit / OpenCL program object.  Each kernel has
  * a type-specific parameter list (no superfluous null pointers in the API).
- *
- * This mirrors the six extern "C" wrappers in KernelsSpectral.cu, but uses
- * macros in place of the C++ template device function.
  * ═══════════════════════════════════════════════════════════════════════════*/
 
 /* ── PartialsPartials ──────────────────────────────────────────────────── */
@@ -938,12 +929,12 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
  * own function/register-allocation scope is a diagnostic for whether it is
  * the specific miscompiled hot spot behind the PADDED_STATE_COUNT=32
  * get_local_id(0) corruption documented in CLUSTER_AGENT_FINDINGS.md §3. */
-__attribute__((noinline)) void adjointAccumRowRaw(
-        int tid, __local REAL* evectCol, bool isStates,
-        REAL* regOp, __local REAL* rawRow,
-        __global REAL* prePartials, __global REAL* postPartials,
-        __global int* tipStates, __global REAL* patternWeights, REAL sCatW,
-        __global REAL* perSiteLikelihoods, __local REAL* sRedBuf,
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointAccumRowRaw(
+        int tid, KW_LOCAL_VAR REAL* evectCol, bool isStates,
+        REAL* regOp, KW_LOCAL_VAR REAL* rawRow,
+        KW_GLOBAL_VAR REAL* prePartials, KW_GLOBAL_VAR REAL* postPartials,
+        KW_GLOBAL_VAR int* tipStates, KW_GLOBAL_VAR REAL* patternWeights, REAL sCatW,
+        KW_GLOBAL_VAR REAL* perSiteLikelihoods, KW_LOCAL_VAR REAL* sRedBuf,
         int totalPatterns, int catOff) {
     for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) regOp[_rs_a] = (REAL)0;
     for (int _k_a = tid; _k_a < totalPatterns; _k_a += ADJOINT_BLOCK_SP_N) {
@@ -991,8 +982,8 @@ __attribute__((noinline)) void adjointAccumRowRaw(
 /* Extracted into its own noinline helper for the same reason and as part of
  * the same §5.4 diagnostic as adjointAccumRowRaw() above — smaller than that
  * one but shares the `tid`-indexed pattern with its own KW_LOCAL_FENCE. */
-__attribute__((noinline)) void adjointRotateRow(
-        int tid, __local REAL* rawRow, __global REAL* ievc, __local REAL* rotated) {
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointRotateRow(
+        int tid, KW_LOCAL_VAR REAL* rawRow, KW_GLOBAL_VAR REAL* ievc, KW_LOCAL_VAR REAL* rotated) {
     const int _rrpt = (PADDED_STATE_COUNT + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
     for (int _m = 0; _m < _rrpt; _m++) {
         const int _rsp = tid + _m * ADJOINT_BLOCK_SP_N;
@@ -1042,20 +1033,20 @@ __attribute__((noinline)) void adjointRotateRow(
  * class documented above, not a BEAGLE logic bug. Keeping only the cheap
  * loop control (the `for` and the `_ri` branch dispatch) inlined and moving
  * the heavy arithmetic out-of-line avoids it, matching the CAS-loop fix. */
-__attribute__((noinline)) void adjointSingletonRealStep(
-        __global REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonRealStep(
+        KW_GLOBAL_VAR REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
         REAL _ea_c, REAL _la_c,
-        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sOpRow0) {
+        KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat, KW_LOCAL_VAR REAL* sOpRow0) {
     const REAL _co_c = (t * fabs(_la_c - sEvalR[_rs_c]) < (REAL)1e-12)
         ? t * _ea_c : (_ea_c - sExpat[_rs_c]) / (_la_c - sEvalR[_rs_c]);
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c], sOpRow0[_rs_c] * _co_c);
 }
 
-__attribute__((noinline)) void adjointSingletonComplexStep(
-        __global REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonComplexStep(
+        KW_GLOBAL_VAR REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
         REAL _ea_c, REAL _la_c, REAL _ri_c,
-        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sCosbt,
-        __local REAL* sSinbt, __local REAL* sOpRow0) {
+        KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat, KW_LOCAL_VAR REAL* sCosbt,
+        KW_LOCAL_VAR REAL* sSinbt, KW_LOCAL_VAR REAL* sOpRow0) {
     const REAL _sr_c = sEvalR[_rs_c] - _la_c;
     const REAL _dn_c = _sr_c*_sr_c + _ri_c*_ri_c;
     REAL _i0_c, _i1_c;
@@ -1071,10 +1062,10 @@ __attribute__((noinline)) void adjointSingletonComplexStep(
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c+1], -_c1_c*_n0_c+_c0_c*_n1_c);
 }
 
-__attribute__((noinline)) void adjointSingletonLoop(
-        int tid, int ls, REAL t, __global REAL* dGradient,
-        __local REAL* sEvalR, __local REAL* sEvalI, __local REAL* sExpat,
-        __local REAL* sCosbt, __local REAL* sSinbt, __local REAL* sOpRow0) {
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonLoop(
+        int tid, int ls, REAL t, KW_GLOBAL_VAR REAL* dGradient,
+        KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sEvalI, KW_LOCAL_VAR REAL* sExpat,
+        KW_LOCAL_VAR REAL* sCosbt, KW_LOCAL_VAR REAL* sSinbt, KW_LOCAL_VAR REAL* sOpRow0) {
     if (tid != 0) return;
     const int _S_c = PADDED_STATE_COUNT;
     const REAL _ea_c = sExpat[ls], _la_c = sEvalR[ls];
@@ -1095,11 +1086,11 @@ __attribute__((noinline)) void adjointSingletonLoop(
 #define ADJOINTN_APPLY_COMPLEX_SINGLETON() \
     adjointSingletonLoop(tid, ls, t, dGradient, sEvalR, sEvalI, sExpat, sCosbt, sSinbt, sOpRow0);
 
-__attribute__((noinline)) void adjointPairleaderRealStep(
-        __global REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointPairleaderRealStep(
+        KW_GLOBAL_VAR REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
         REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
-        __local REAL* sEvalR, __local REAL* sExpat,
-        __local REAL* sOpRow0, __local REAL* sOpRow1) {
+        KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat,
+        KW_LOCAL_VAR REAL* sOpRow0, KW_LOCAL_VAR REAL* sOpRow1) {
     const REAL _sr_q = sEvalR[_rs_q] - _lr_q;
     const REAL _dn_q = _sr_q*_sr_q + _li_q*_li_q;
     REAL _i0_q, _i1_q;
@@ -1116,12 +1107,12 @@ __attribute__((noinline)) void adjointPairleaderRealStep(
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q], _p2_q*_n0_q+_p3_q*_n1_q);
 }
 
-__attribute__((noinline)) void adjointPairleaderComplexStep(
-        __global REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointPairleaderComplexStep(
+        KW_GLOBAL_VAR REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
         REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
         REAL _ri_q,
-        __local REAL* sEvalR, __local REAL* sExpat, __local REAL* sCosbt, __local REAL* sSinbt,
-        __local REAL* sOpRow0, __local REAL* sOpRow1) {
+        KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat, KW_LOCAL_VAR REAL* sCosbt, KW_LOCAL_VAR REAL* sSinbt,
+        KW_LOCAL_VAR REAL* sOpRow0, KW_LOCAL_VAR REAL* sOpRow1) {
     const REAL _rr_q=sEvalR[_rs_q], _ri2_q=_ri_q;
     const REAL _sr_q=_rr_q-_lr_q, _si1_q=_li_q+_ri2_q, _si2_q=_ri2_q-_li_q;
     const REAL _sr2_q=_sr_q*_sr_q;
@@ -1289,7 +1280,3 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
         }
     }
 }
-
-#ifdef CUDA
-} /* extern "C" */
-#endif

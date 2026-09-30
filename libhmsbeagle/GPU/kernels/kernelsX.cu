@@ -1388,6 +1388,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
     #include "kernelsXDerivatives.cu"
 #endif // CUDA
 
+#ifdef CUDA_SPECTRAL
+    #include "kernelsSpectralIfDef.cu"
+#endif // CUDA_SPECTRAL
+
 #ifdef CUDA
 } // extern "C"
 #endif //CUDA
