@@ -63,6 +63,12 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   long preferenceFlags,
                                   long requirementFlags) {
 
+    // EigenDecompositionSpectral reads the inverse eigenvectors in the standard layout only
+    if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+    preferenceFlags &= ~BEAGLE_FLAG_INVEVEC_TRANSPOSED;
+
     int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
                                                               stateCount, patternCount, eigenDecompositionCount,
                                                               matrixCount, categoryCount, scaleBufferCount,
@@ -1415,7 +1421,7 @@ const long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() 
                   BEAGLE_FLAG_VECTOR_NONE |
                   BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                   BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                  BEAGLE_FLAG_INVEVEC_STANDARD |
                   BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                   BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                   BEAGLE_FLAG_FRAMEWORK_CPU;

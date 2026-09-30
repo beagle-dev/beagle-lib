@@ -39,6 +39,7 @@ EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionSpectra
     // Do nothing
 }
 
+// inInverseEigenVectors is in the standard layout (the spectral implementations do not offer the transposed one)
 BEAGLE_CPU_EIGEN_TEMPLATE
 void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(
         int eigenIndex,
