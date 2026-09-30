@@ -21,6 +21,7 @@
 #endif
 
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUAdjointSSE.h"
 
 #include <vector>
 
@@ -132,8 +133,9 @@ private:
 };
 
 
+// The adjoint gradient is BeagleCPUAdjointSSE's
 BEAGLE_CPU_SSE_TEMPLATE
-class BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE> : public BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE> {
+class BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE> : public BeagleCPUAdjointSSE<BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>> {
 
 protected:
 	using BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::kTipCount;
@@ -202,6 +204,76 @@ private:
                                                  const double* __restrict matrices2,
                                                  int* activateScaling);
 
+    virtual void calcStatesPartialsFixedScaling(double* destP,
+                                                const int* states1,
+                                                const double* matrices1,
+                                                const double* partials2,
+                                                const double* matrices2,
+                                                const double* scaleFactors,
+                                                int startPattern,
+                                                int endPattern);
+
+    virtual void calcPartialsDegree2(double* destP,
+                                     const double* partials1,
+                                     const double* matrices1,
+                                     const double* scaleFactors,
+                                     int startPattern,
+                                     int endPattern);
+
+    virtual void calcPrePartialsPartials(double* destP,
+                                         const double* partials1,
+                                         const double* matrices1,
+                                         const double* partials2,
+                                         const double* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsStates(double* destP,
+                                       const double* partials1,
+                                       const double* matrices1,
+                                       const int* states2,
+                                       const double* matrices2,
+                                       int startPattern,
+                                       int endPattern);
+
+    virtual void calcPrePartialsPartialsTop(double* destP,
+                                            const double* partials1,
+                                            const double* matrices1,
+                                            const double* partials2,
+                                            const double* matrices2,
+                                            int startPattern,
+                                            int endPattern);
+
+    virtual void calcPrePartialsStatesTop(double* destP,
+                                          const double* partials1,
+                                          const double* matrices1,
+                                          const int* states2,
+                                          const double* matrices2,
+                                          int startPattern,
+                                          int endPattern);
+
+    virtual void calcPrePartialsPartialsTopRoot(double* destP,
+                                                const double* partials1,
+                                                const double* matrices1,
+                                                const double* partials2,
+                                                const double* matrices2,
+                                                int startPattern,
+                                                int endPattern);
+
+    virtual void calcPrePartialsStatesTopRoot(double* destP,
+                                              const double* partials1,
+                                              const double* matrices1,
+                                              const int* states2,
+                                              const double* matrices2,
+                                              int startPattern,
+                                              int endPattern);
+
+    virtual void calcDegree2PrePartials(double* destP,
+                                        const double* partials1,
+                                        const double* matrices1,
+                                        int startPattern,
+                                        int endPattern);
+
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
@@ -210,6 +282,30 @@ private:
                                         const int scalingFactorsIndex,
                                         double* outSumLogLikelihood);
 
+    // dest = (column states1[k] of matrices1) * (matrices2 partials2), divided by scaleFactors[k] unless null
+    void statesPartials(double* destP,
+                        const int* states1,
+                        const double* matrices1,
+                        const double* partials2,
+                        const double* matrices2,
+                        const double* scaleFactors,
+                        int startPattern,
+                        int endPattern);
+
+    // Pre-order partials from the parent's partials1 and the sibling's s = matrices2 partials2, the column
+    // states2[k] of matrices2, or 1 when matrices2 is null (a degree-2 node): bottom matrices1^T (partials1 * s),
+    // top (matrices1^T partials1) * s, and partials1 * s when matrices1 is null (below the root)
+    enum class PreOrder { Bottom, Top };
+
+    void preOrder(double* destP,
+                  PreOrder type,
+                  const double* partials1,
+                  const double* matrices1,
+                  const int* states2,
+                  const double* partials2,
+                  const double* matrices2,
+                  int startPattern,
+                  int endPattern);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE

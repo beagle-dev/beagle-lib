@@ -28,11 +28,14 @@
 #include <cstring>
 #include <cmath>
 #include <cassert>
+#include <algorithm>
+#include <vector>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUSSEImpl.h"
 #include "libhmsbeagle/CPU/SSEDefinitions.h"
+#include "libhmsbeagle/CPU/SSEKernels.h"
 
 namespace beagle {
 namespace cpu {
@@ -113,13 +116,246 @@ void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(double* destP,
                                                                  const double* matrices_r,
                                                                  int startPattern,
                                                                  int endPattern) {
-	BeagleCPUImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartials(destP,
-									                         states_q,
-									                         matrices_q,
-									                         partials_r,
-									                         matrices_r,
-                                                             startPattern,
-                                                             endPattern);
+    statesPartials(destP, states_q, matrices_q, partials_r, matrices_r, NULL, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcStatesPartialsFixedScaling(double* destP,
+                                                                             const int* states1,
+                                                                             const double* matrices1,
+                                                                             const double* partials2,
+                                                                             const double* matrices2,
+                                                                             const double* scaleFactors,
+                                                                             int startPattern,
+                                                                             int endPattern) {
+    statesPartials(destP, states1, matrices1, partials2, matrices2, scaleFactors, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::statesPartials(double* destP,
+                                                             const int* states1,
+                                                             const double* matrices1,
+                                                             const double* partials2,
+                                                             const double* matrices2,
+                                                             const double* scaleFactors,
+                                                             int startPattern,
+                                                             int endPattern) {
+    const int S = kStateCount;
+    const int stride = kStateCount + T_PAD;
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        const double* m1 = matrices1 + l * kMatrixSize;
+        const double* m2 = matrices2 + l * kMatrixSize;
+        for (int k = startPattern; k < endPattern; k++) {
+            const int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * k;
+            double* dest = destP + v;
+            const int state1 = states1[k]; // a missing state, kStateCount, reads the pad column of 1s
+            const V_Real oneOverScaleFactor = VEC_SPLAT((scaleFactors != NULL) ? 1.0 / scaleFactors[k] : 1.0);
+            simd::dot(m2, stride, partials2 + v, S, [&](int i, V_Real value) {
+                V_Real product = VEC_MULT(value, simd::loadColumn(m1, stride, i, state1, S));
+                if (scaleFactors != NULL) {
+                    product = VEC_MULT(product, oneOverScaleFactor);
+                }
+                simd::storeVector(dest, i, S, product);
+            });
+            for (int pad = 0; pad < P_PAD; pad++) {
+                dest[S + pad] = 0.0;
+            }
+        }
+    }
+}
+
+/*
+ * Calculates partial likelihoods at a degree-2 node, whose only child has partials. SSE version
+ */
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPartialsDegree2(double* destP,
+                                                                  const double* partials1,
+                                                                  const double* matrices1,
+                                                                  const double* scaleFactors,
+                                                                  int startPattern,
+                                                                  int endPattern) {
+    const int S = kStateCount;
+    const int stride = kStateCount + T_PAD;
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        const double* m1 = matrices1 + l * kMatrixSize;
+        for (int k = startPattern; k < endPattern; k++) {
+            const int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * k;
+            double* dest = destP + v;
+            const V_Real oneOverScaleFactor = VEC_SPLAT((scaleFactors != NULL) ? 1.0 / scaleFactors[k] : 1.0);
+            simd::dot(m1, stride, partials1 + v, S, [&](int i, V_Real value) {
+                simd::storeVector(dest, i, S, (scaleFactors != NULL) ? VEC_MULT(value, oneOverScaleFactor) : value);
+            });
+            for (int pad = 0; pad < P_PAD; pad++) {
+                dest[S + pad] = 0.0;
+            }
+        }
+    }
+}
+
+/*
+ * Calculates pre-order partial likelihoods. SSE version: matrices^T x from the rows of the matrix with a block of
+ * states in vector registers (simd::axpy), matrices x from dot products (simd::dot). Only patterns startPattern to
+ * endPattern are written, so pattern partitions can be computed at the same time.
+ */
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::preOrder(double* destP,
+                                                       PreOrder type,
+                                                       const double* partials1,
+                                                       const double* matrices1,
+                                                       const int* states2,
+                                                       const double* partials2,
+                                                       const double* matrices2,
+                                                       int startPattern,
+                                                       int endPattern) {
+    const int S = kStateCount;
+    const int stride = kStateCount + T_PAD;
+    const bool sibling = (matrices2 != NULL);
+    // bottom partials with a sibling need partials1 * s in full before the product with matrices1^T
+    const bool product = (type == PreOrder::Bottom && sibling && matrices1 != NULL);
+    constexpr int stackSize = 256;
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        alignas(16) double stackTmp[stackSize];
+        std::vector<double> heapTmp;
+        double* tmp = stackTmp;
+        if (product && S + 1 > stackSize) { // room for a full last vector when S is odd
+            heapTmp.resize(S + 1);
+            tmp = heapTmp.data();
+        }
+        const double* m1 = (matrices1 != NULL) ? matrices1 + l * kMatrixSize : NULL;
+        const double* m2 = sibling ? matrices2 + l * kMatrixSize : NULL;
+
+        for (int k = startPattern; k < endPattern; k++) {
+            const int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * k;
+            double* dest = destP + v;
+            const double* parent = partials1 + v;
+            const double* x2 = (partials2 != NULL) ? partials2 + v : NULL;
+            const int state2 = (states2 != NULL) ? states2[k] : 0; // kStateCount (missing) reads the pad column of 1s
+
+            if (m1 == NULL) {          // below the root: partials1 * s
+                if (!sibling) {
+                    std::copy(parent, parent + S, dest);
+                } else if (x2 != NULL) {
+                    simd::dot(m2, stride, x2, S, [&](int i, V_Real value) {
+                        simd::storeVector(dest, i, S, VEC_MULT(value, simd::loadVector(parent, i, S)));
+                    });
+                } else {
+                    for (int i = 0; i < S; i++) {
+                        dest[i] = parent[i] * m2[i * stride + state2];
+                    }
+                }
+            } else if (!sibling) {     // a degree-2 node: matrices1^T partials1
+                simd::axpy(m1, stride, parent, S, [&](int i, V_Real value) {
+                    simd::storeVector(dest, i, S, value);
+                });
+            } else if (product) {      // bottom: matrices1^T (partials1 * s)
+                if (x2 != NULL) {
+                    simd::dot(m2, stride, x2, S, [&](int i, V_Real value) {
+                        VEC_STOREU(tmp + i, VEC_MULT(value, simd::loadVector(parent, i, S)));
+                    });
+                } else {
+                    for (int i = 0; i < S; i++) {
+                        tmp[i] = parent[i] * m2[i * stride + state2];
+                    }
+                }
+                simd::axpy(m1, stride, tmp, S, [&](int i, V_Real value) {
+                    simd::storeVector(dest, i, S, value);
+                });
+            } else if (x2 != NULL) {   // top: (matrices1^T partials1) * s, with s first stored in dest
+                simd::dot(m2, stride, x2, S, [&](int i, V_Real value) {
+                    simd::storeVector(dest, i, S, value);
+                });
+                simd::axpy(m1, stride, parent, S, [&](int i, V_Real value) {
+                    simd::storeVector(dest, i, S, VEC_MULT(value, simd::loadVector(dest, i, S)));
+                });
+            } else {
+                simd::axpy(m1, stride, parent, S, [&](int i, V_Real value) {
+                    simd::storeVector(dest, i, S, VEC_MULT(value, simd::loadColumn(m2, stride, i, state2, S)));
+                });
+            }
+            for (int pad = 0; pad < P_PAD; pad++) {
+                dest[S + pad] = 0.0;
+            }
+        }
+    }
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsPartials(double* destP,
+                                                                      const double* partials1,
+                                                                      const double* matrices1,
+                                                                      const double* partials2,
+                                                                      const double* matrices2,
+                                                                      int startPattern,
+                                                                      int endPattern) {
+    preOrder(destP, PreOrder::Bottom, partials1, matrices1, NULL, partials2, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsStates(double* destP,
+                                                                    const double* partials1,
+                                                                    const double* matrices1,
+                                                                    const int* states2,
+                                                                    const double* matrices2,
+                                                                    int startPattern,
+                                                                    int endPattern) {
+    preOrder(destP, PreOrder::Bottom, partials1, matrices1, states2, NULL, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsPartialsTop(double* destP,
+                                                                         const double* partials1,
+                                                                         const double* matrices1,
+                                                                         const double* partials2,
+                                                                         const double* matrices2,
+                                                                         int startPattern,
+                                                                         int endPattern) {
+    preOrder(destP, PreOrder::Top, partials1, matrices1, NULL, partials2, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsStatesTop(double* destP,
+                                                                       const double* partials1,
+                                                                       const double* matrices1,
+                                                                       const int* states2,
+                                                                       const double* matrices2,
+                                                                       int startPattern,
+                                                                       int endPattern) {
+    preOrder(destP, PreOrder::Top, partials1, matrices1, states2, NULL, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsPartialsTopRoot(double* destP,
+                                                                             const double* partials1,
+                                                                             const double* matrices1,
+                                                                             const double* partials2,
+                                                                             const double* matrices2,
+                                                                             int startPattern,
+                                                                             int endPattern) {
+    preOrder(destP, PreOrder::Top, partials1, NULL, NULL, partials2, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcPrePartialsStatesTopRoot(double* destP,
+                                                                           const double* partials1,
+                                                                           const double* matrices1,
+                                                                           const int* states2,
+                                                                           const double* matrices2,
+                                                                           int startPattern,
+                                                                           int endPattern) {
+    preOrder(destP, PreOrder::Top, partials1, NULL, states2, NULL, matrices2, startPattern, endPattern);
+}
+
+BEAGLE_CPU_SSE_TEMPLATE
+void BeagleCPUSSEImpl<BEAGLE_CPU_SSE_DOUBLE>::calcDegree2PrePartials(double* destP,
+                                                                     const double* partials1,
+                                                                     const double* matrices1,
+                                                                     int startPattern,
+                                                                     int endPattern) {
+    preOrder(destP, PreOrder::Bottom, partials1, matrices1, NULL, NULL, NULL, startPattern, endPattern);
 }
 
 //
