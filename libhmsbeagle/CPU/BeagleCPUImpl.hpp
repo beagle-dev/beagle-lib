@@ -654,58 +654,34 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int *bufferIndic
                                                           const int *stateFrequenciesIndices,
                                                           int count) {
     if (count == 1) {
-        // We treat this as a special case so that we don't have convoluted logic
-        //      at the end of the loop over patterns
-        if (kAutoRootPartitioningEnabled) {
-//            calcRootLogLikelihoodsByAutoPartitionAsync(bufferIndices,
-//                                                       categoryWeightsIndices,
-//                                                       stateFrequenciesIndices,
-//                                                       cumulativeScaleIndices,
-//                                                       gAutoPartitionIndices,
-//                                                       gAutoPartitionOutSumLogLikelihoods);
-//
-//            *outSumLogLikelihood = 0.0;
-//
-//            for (int i = 0; i < kPartitionCount; i++) {
-//                *outSumLogLikelihood += gAutoPartitionOutSumLogLikelihoods[i];
-//            }
-//
-//            if (*outSumLogLikelihood != *outSumLogLikelihood) {
-//                return BEAGLE_ERROR_FLOATING_POINT;
-//            } else {
-//                return BEAGLE_SUCCESS;
-//            }
-            return BEAGLE_ERROR_NO_IMPLEMENTATION;
-        } else {
-            int stateFrequenciesIndex = stateFrequenciesIndices[0];
-            int bufferIndex = bufferIndices[0];
-            if (bufferIndex < 0 || bufferIndex >= kBufferCount)
-                return BEAGLE_ERROR_OUT_OF_RANGE;
-            if (gPartials[bufferIndex] == NULL) {
-                gPartials[bufferIndex] = (REALTYPE *) malloc(sizeof(REALTYPE) * kPartialsSize);
-                if (gPartials[bufferIndex] == 0L)
-                    return BEAGLE_ERROR_OUT_OF_MEMORY;
-            }
-            const REALTYPE *inPartialsOffset = gStateFrequencies[stateFrequenciesIndex];
-            REALTYPE *tmpRealPartialsOffset = gPartials[bufferIndex];
-            for (int l = 0; l < kCategoryCount; l++) {
-                for (int i = 0; i < kPatternCount; i++) {
-                    beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
-                    tmpRealPartialsOffset += kStateCount;
-                    // Pad extra buffer with zeros
-                    for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
-                        *tmpRealPartialsOffset++ = 0;
-                    }
-                }
+        // the state frequencies in every pattern, whether or not the patterns are partitioned
+        int stateFrequenciesIndex = stateFrequenciesIndices[0];
+        int bufferIndex = bufferIndices[0];
+        if (bufferIndex < 0 || bufferIndex >= kBufferCount)
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+        if (gPartials[bufferIndex] == NULL) {
+            gPartials[bufferIndex] = (REALTYPE *) malloc(sizeof(REALTYPE) * kPartialsSize);
+            if (gPartials[bufferIndex] == 0L)
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        const REALTYPE *inPartialsOffset = gStateFrequencies[stateFrequenciesIndex];
+        REALTYPE *tmpRealPartialsOffset = gPartials[bufferIndex];
+        for (int l = 0; l < kCategoryCount; l++) {
+            for (int i = 0; i < kPatternCount; i++) {
+                beagleMemCpy(tmpRealPartialsOffset, inPartialsOffset, kStateCount);
+                tmpRealPartialsOffset += kStateCount;
                 // Pad extra buffer with zeros
-                for (int k = 0; k < kPartialsPaddedStateCount * (kPaddedPatternCount - kPatternCount); k++) {
+                for(int k = kStateCount; k < kPartialsPaddedStateCount; k++) {
                     *tmpRealPartialsOffset++ = 0;
                 }
             }
-
-            return BEAGLE_SUCCESS;
+            // Pad extra buffer with zeros
+            for (int k = 0; k < kPartialsPaddedStateCount * (kPaddedPatternCount - kPatternCount); k++) {
+                *tmpRealPartialsOffset++ = 0;
+            }
         }
-        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+
+        return BEAGLE_SUCCESS;
     }
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 
@@ -5952,13 +5928,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartialsTop(REALTYPE* des
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
-#ifdef PRE_CACHE_FRIENDLY
-    std::fill(destP, destP + kPartialsSize, 0);
-#endif
-
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * startPattern;
+#ifdef PRE_CACHE_FRIENDLY
+        // only these patterns: other pattern partitions may be computed at the same time
+        std::fill(destP + v, destP + v + kPartialsPaddedStateCount * (endPattern - startPattern), 0);
+#endif
         int matrixOffset = l * kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
         const REALTYPE* partials2Ptr = &partials2[v];
@@ -6110,13 +6086,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStatesTop(REALTYPE* destP
     int matrixIncr = kStateCount + T_PAD;
     int stateCountModFour = (kStateCount / 4) * 4;
 
-#ifdef PRE_CACHE_FRIENDLY
-    std::fill(destP, destP + kPartialsSize, 0);
-#endif
-
 #pragma omp parallel for num_threads(kCategoryCount)
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l*kPartialsPaddedStateCount*kPatternCount + kPartialsPaddedStateCount*startPattern;
+#ifdef PRE_CACHE_FRIENDLY
+        // only these patterns: other pattern partitions may be computed at the same time
+        std::fill(destP + v, destP + v + kPartialsPaddedStateCount * (endPattern - startPattern), 0);
+#endif
         int matrixOffset = l*kMatrixSize;
         const REALTYPE* partials1Ptr = &partials1[v];
         REALTYPE* destPtr = &destP[v];
