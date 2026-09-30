@@ -770,7 +770,11 @@ static int runTest17(int gpuDevice) {
     std::vector<double> freqs17(S, 1.0 / S);
     double rates17[2]    = { 0.5, 1.5 };
     double catWts17[2]   = { 0.5, 0.5 };
-    double edgeLens17[4] = { 0.1, 0.1, 0.2, 0.5 };
+    /* Long enough that no transition probability is near rounding noise (the smallest is ~4e-7). The
+     * spectral likelihood clamps each child's propagated partials at zero, so with shorter branches the
+     * clamp is active around the finite-difference points below, the log likelihood is not smooth there,
+     * and the finite differences depend on the step instead of converging to the gradient. */
+    double edgeLens17[4] = { 2.0, 2.0, 4.0, 10.0 };
 
     int hSt17[4] = { 3,  0,  5,  7 };
     int cSt17[4] = { 3,  0,  5,  5 };
@@ -916,9 +920,8 @@ static int runTest17(int gpuDevice) {
      * real part `a`); perturbing eval[li] moves `a` for the whole pair, so
      * the FD derivative corresponds to G[li,li]+G[li+1,li+1], not G[li,li]
      * alone. Real eigenvalues (imag==0) keep the direct one-to-one check.
-     * Gradient magnitudes here reach ~2000 (small 4-pattern/3-tip dataset,
-     * unfavorable likelihood surface), so central-difference truncation
-     * error (O(fdEps^2), empirically confirmed by sweeping fdEps) is
+     * Gradient magnitudes here reach ~60, so central-difference truncation
+     * error (O(fdEps^2); steps from 1e-5 to 1e-7 agree with G to 5e-5) is
      * compared against a magnitude-relative tolerance rather than a tiny
      * absolute one — mirrors the CPU-vs-GPU threshold below. */
     fprintf(stdout, "  ls   FD_grad        G_diag(sum)    diff(FD-G)\n");
@@ -987,9 +990,9 @@ static int runTest17(int gpuDevice) {
         fprintf(stdout, "\n");
     }
 
-    /* Gradient magnitudes here range from ~0.01 to ~2000, and near-zero
-     * entries are often the near-cancellation of large per-branch
-     * contributions (e.g. ~+400 and ~-400), so single-precision absolute
+    /* Gradient magnitudes here reach ~60, and near-zero entries are often
+     * the near-cancellation of large per-branch contributions, so
+     * single-precision absolute
      * error there scales with the *largest* magnitude in the computation, not
      * with that entry's own (possibly-cancelled) value. Threshold against the
      * matrix-wide max magnitude instead of a per-entry relative check. */
