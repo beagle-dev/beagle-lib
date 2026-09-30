@@ -8,6 +8,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUSpectralPlugin.h"
 #include "libhmsbeagle/CPU/BeagleCPUSpectralImpl.h"
 #include "libhmsbeagle/CPU/BeagleCPUSpectralSSEImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPU4StateSpectralSSEImpl.h"
 #include <iostream>
 
 namespace beagle {
@@ -40,6 +41,7 @@ Plugin("CPU-Spectral", "CPU-Sprectral")
 
 	// Optional for plugins: check if the hardware is compatible and only populate
 	// list with compatible factories
+	beagleFactories.push_back(new beagle::cpu::BeagleCPU4StateSpectralSSEImplFactory()); // declines other state counts
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralSSEImplFactory());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralImplFactory<double>());
 	beagleFactories.push_back(new beagle::cpu::BeagleCPUSpectralImplFactory<float>());
