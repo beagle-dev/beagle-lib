@@ -569,169 +569,100 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(
         static_assert(always_false<First>::value, "Unsupported type T");
     }
 
+    // Each child has its own eigen decomposition (branch-specific substitution models), so its own complex
+    // conjugate pairs; only the first is ever propagated backward
+    if constexpr (!std::is_same_v<First, None>) {
+        expScaledMatrixVector<First, Direction>(out1, partials1, state1, info1, matrix1, matrixIncr, catOffset);
+    }
+    if constexpr (!std::is_same_v<Second, None>) {
+        expScaledMatrixVector<Second, Forward>(out2, partials2, state2, info2, matrix2, matrixIncr, catOffset);
+    }
+}
+
+/*
+ * out = exp(D t) V^{-1} x for one child, where exp(D t) is diagonal except for a 2x2 rotation block
+ * exp(at) [cos(bt) sin(bt); -sin(bt) cos(bt)] for each complex conjugate pair a +/- bi
+ */
+BEAGLE_CPU_TEMPLATE template <typename T, typename Direction>
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVector(
+        REALTYPE* out,
+        const REALTYPE* partials, const int state,
+        const BranchEigenInfo& info,
+        const REALTYPE* matrix,
+        const int matrixIncr,
+        const int catOffset) {
+
+    static_assert(std::is_same_v<T, States> || std::is_same_v<T, Partials>, "Unsupported type T");
+
+    // The eigenvalues decide which rows are conjugate pairs; sin(bt) cannot, since it vanishes for a category
+    // with rate 0 (and whenever bt is a multiple of pi)
+    const REALTYPE* imag = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? info.eval + kStateCount : nullptr;
+
     for (int i = 0; i < kStateCount; i++) {
 
-        REALTYPE expat1;
-        REALTYPE expat2;
-        if constexpr (!std::is_same_v<First, None>) {
-            expat1 = info1.expat[catOffset + i];
-        }
-        if constexpr (!std::is_same_v<Second, None>) {
-            expat2 = info2.expat[catOffset + i];
-        }
+        const int row_i = i * matrixIncr;
 
-        if ((std::is_same_v<First,  None> || info1.sinbt[i] == 0.0) &&
-            (std::is_same_v<Second, None> || info2.sinbt[i] == 0.0)) {
-            // All real
-            const int row_i = i * matrixIncr;
-            REALTYPE sum1a, sum1b, sum2a, sum2b;
-            if constexpr (std::is_same_v<First, States>) {
-                sum1a = matrix1[row_i + state1];
-                sum1b = REALTYPE(0);
-            } else if constexpr (std::is_same_v<First, Partials>) {
-                sum1a = REALTYPE(0);
-                sum1b = REALTYPE(0);
-            }
-
-            if constexpr (std::is_same_v<Second, States>) {
-                sum2a = matrix2[row_i + state2];
-                sum2b = REALTYPE(0);
-            } else if constexpr (std::is_same_v<Second, Partials>) {
-                sum2a = REALTYPE(0);
-                sum2b = REALTYPE(0);
+        if (imag == nullptr || imag[i] == REALTYPE(0)) {
+            REALTYPE sum;
+            if constexpr (std::is_same_v<T, States>) {
+                sum = matrix[row_i + state];
+            } else {
+                // four independent accumulators, as for the four sums of a conjugate pair
+                REALTYPE suma = REALTYPE(0), sumb = REALTYPE(0), sumc = REALTYPE(0), sumd = REALTYPE(0);
+                int j = 0;
+                for (; j < kStateCountModFour; j += 4) {
+                    suma += matrix[row_i + j + 0] * partials[j + 0];
+                    sumb += matrix[row_i + j + 1] * partials[j + 1];
+                    sumc += matrix[row_i + j + 2] * partials[j + 2];
+                    sumd += matrix[row_i + j + 3] * partials[j + 3];
+                }
+                for (; j < kStateCount; j++) {
+                    suma += matrix[row_i + j] * partials[j];
+                }
+                sum = (suma + sumb) + (sumc + sumd);
             }
 
-            int j = 0;
-            for (; j < kStateCountModFour; j += 4) {
-                if constexpr (std::is_same_v<First, Partials>) {
-                    sum1a += matrix1[row_i + j + 0] * partials1[j + 0];
-                    sum1b += matrix1[row_i + j + 1] * partials1[j + 1];
-                    sum1a += matrix1[row_i + j + 2] * partials1[j + 2];
-                    sum1b += matrix1[row_i + j + 3] * partials1[j + 3];
-                }
-                if constexpr (std::is_same_v<Second, Partials>) {
-                    sum2a += matrix2[row_i + j + 0] * partials2[j + 0];
-                    sum2b += matrix2[row_i + j + 1] * partials2[j + 1];
-                    sum2a += matrix2[row_i + j + 2] * partials2[j + 2];
-                    sum2b += matrix2[row_i + j + 3] * partials2[j + 3];
-                }
-            }
-            for (; j < kStateCount; j++) {
-                if constexpr (std::is_same_v<First, Partials>) {
-                    sum1a += matrix1[row_i + j] * partials1[j];
-                }
-                if constexpr (std::is_same_v<Second, Partials>) {
-                    sum2a += matrix2[row_i + j] * partials2[j];
-                }
-            }
-
-            if constexpr (!std::is_same_v<First, None>) {
-                out1[i] = expat1 * (sum1a + sum1b);
-            }
-            if constexpr (!std::is_same_v<Second, None>) {
-                out2[i] = expat2 * (sum2a + sum2b);
-            }
+            out[i] = info.expat[catOffset + i] * sum;
 
         } else {
-            // At least one complex conjugate pair
-            //
-            // 2x2 conjugate block
-            // If A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
+            // 2x2 conjugate block: if A is 2x2 with complex conjugate pair eigenvalues a +/- bi, then
             // exp(At) = exp(at)*( cos(bt)I + \frac{sin(bt)}{b}(A - aI)).
-            int i2 = i + 1;
-            REALTYPE expatcosbt1, expatcosbt2;
-            REALTYPE expatsinbt1, expatsinbt2;
-
-            if constexpr (!std::is_same_v<First, None>) {
-                if constexpr (std::is_same_v<Direction, Backward>) {
-                    expatcosbt1 = info1.expatcosbt[catOffset + i];
-                    expatsinbt1 = -info1.expatsinbt[catOffset + i];
-                } else {
-                    expatcosbt1 = info1.expatcosbt[catOffset + i];
-                    expatsinbt1 = info1.expatsinbt[catOffset + i];
-                }
-            }
-
-            if constexpr (!std::is_same_v<Second, None>) {
-                expatcosbt2 = info2.expatcosbt[catOffset + i];
-                expatsinbt2 = info2.expatsinbt[catOffset + i];
-            }
-
-            const int row_i  = i  * matrixIncr;
+            const int i2 = i + 1;
             const int row_i2 = i2 * matrixIncr;
-            REALTYPE s1Aa, s1Ab, s1Ba, s1Bb;
-            REALTYPE s2Aa, s2Ab, s2Ba, s2Bb;
-            if constexpr (std::is_same_v<First, States>) {
-                s1Aa = expatcosbt1 * matrix1[row_i  + state1] +
-                           expatsinbt1 * matrix1[row_i2 + state1];
-                s1Ab = REALTYPE(0);
-                s1Ba = expatcosbt1 * matrix1[row_i2 + state1] -
-                           expatsinbt1 * matrix1[row_i  + state1];
-                s1Bb = REALTYPE(0);
-            } else if constexpr (std::is_same_v<First, Partials>) {
-                s1Aa = REALTYPE(0); s1Ab = REALTYPE(0);
-                s1Ba = REALTYPE(0); s1Bb = REALTYPE(0);
-            }
 
-            if constexpr (std::is_same_v<Second, States>) {
-                s2Aa = expatcosbt2 * matrix2[row_i  + state2] +
-                           expatsinbt2 * matrix2[row_i2 + state2];
-                s2Ab = REALTYPE(0);
-                s2Ba = expatcosbt2 * matrix2[row_i2 + state2] -
-                           expatsinbt2 * matrix2[row_i  + state2];
-                s2Bb = REALTYPE(0);
-            } else if constexpr (std::is_same_v<Second, Partials>) {
-                s2Aa = REALTYPE(0); s2Ab = REALTYPE(0);
-                s2Ba = REALTYPE(0); s2Bb = REALTYPE(0);
-            }
+            const REALTYPE expatcosbt = info.expatcosbt[catOffset + i];
+            const REALTYPE expatsinbt = std::is_same_v<Direction, Backward> ?
+                    -info.expatsinbt[catOffset + i] : info.expatsinbt[catOffset + i];
 
-            int j = 0;
-            for (; j < kStateCountModFour; j += 4) {
-                if constexpr (std::is_same_v<First, Partials>) {
-                    s1Aa += (expatcosbt1 * matrix1[row_i  + j+0] + expatsinbt1 * matrix1[row_i2 + j+0]) * partials1[j+0];
-                    s1Ab += (expatcosbt1 * matrix1[row_i  + j+1] + expatsinbt1 * matrix1[row_i2 + j+1]) * partials1[j+1];
-                    s1Aa += (expatcosbt1 * matrix1[row_i  + j+2] + expatsinbt1 * matrix1[row_i2 + j+2]) * partials1[j+2];
-                    s1Ab += (expatcosbt1 * matrix1[row_i  + j+3] + expatsinbt1 * matrix1[row_i2 + j+3]) * partials1[j+3];
+            REALTYPE sAa, sAb, sBa, sBb;
+            if constexpr (std::is_same_v<T, States>) {
+                sAa = expatcosbt * matrix[row_i  + state] + expatsinbt * matrix[row_i2 + state];
+                sBa = expatcosbt * matrix[row_i2 + state] - expatsinbt * matrix[row_i  + state];
+                sAb = REALTYPE(0);
+                sBb = REALTYPE(0);
+            } else {
+                sAa = REALTYPE(0); sAb = REALTYPE(0);
+                sBa = REALTYPE(0); sBb = REALTYPE(0);
+                int j = 0;
+                for (; j < kStateCountModFour; j += 4) {
+                    sAa += (expatcosbt * matrix[row_i  + j+0] + expatsinbt * matrix[row_i2 + j+0]) * partials[j+0];
+                    sAb += (expatcosbt * matrix[row_i  + j+1] + expatsinbt * matrix[row_i2 + j+1]) * partials[j+1];
+                    sAa += (expatcosbt * matrix[row_i  + j+2] + expatsinbt * matrix[row_i2 + j+2]) * partials[j+2];
+                    sAb += (expatcosbt * matrix[row_i  + j+3] + expatsinbt * matrix[row_i2 + j+3]) * partials[j+3];
 
-                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j+0] - expatsinbt1 * matrix1[row_i  + j+0]) * partials1[j+0];
-                    s1Bb += (expatcosbt1 * matrix1[row_i2 + j+1] - expatsinbt1 * matrix1[row_i  + j+1]) * partials1[j+1];
-                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j+2] - expatsinbt1 * matrix1[row_i  + j+2]) * partials1[j+2];
-                    s1Bb += (expatcosbt1 * matrix1[row_i2 + j+3] - expatsinbt1 * matrix1[row_i  + j+3]) * partials1[j+3];
+                    sBa += (expatcosbt * matrix[row_i2 + j+0] - expatsinbt * matrix[row_i  + j+0]) * partials[j+0];
+                    sBb += (expatcosbt * matrix[row_i2 + j+1] - expatsinbt * matrix[row_i  + j+1]) * partials[j+1];
+                    sBa += (expatcosbt * matrix[row_i2 + j+2] - expatsinbt * matrix[row_i  + j+2]) * partials[j+2];
+                    sBb += (expatcosbt * matrix[row_i2 + j+3] - expatsinbt * matrix[row_i  + j+3]) * partials[j+3];
                 }
-
-                if constexpr (std::is_same_v<Second, Partials>) {
-                    s2Aa += (expatcosbt2 * matrix2[row_i  + j+0] + expatsinbt2 * matrix2[row_i2 + j+0]) * partials2[j+0];
-                    s2Ab += (expatcosbt2 * matrix2[row_i  + j+1] + expatsinbt2 * matrix2[row_i2 + j+1]) * partials2[j+1];
-                    s2Aa += (expatcosbt2 * matrix2[row_i  + j+2] + expatsinbt2 * matrix2[row_i2 + j+2]) * partials2[j+2];
-                    s2Ab += (expatcosbt2 * matrix2[row_i  + j+3] + expatsinbt2 * matrix2[row_i2 + j+3]) * partials2[j+3];
-
-                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j+0] - expatsinbt2 * matrix2[row_i  + j+0]) * partials2[j+0];
-                    s2Bb += (expatcosbt2 * matrix2[row_i2 + j+1] - expatsinbt2 * matrix2[row_i  + j+1]) * partials2[j+1];
-                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j+2] - expatsinbt2 * matrix2[row_i  + j+2]) * partials2[j+2];
-                    s2Bb += (expatcosbt2 * matrix2[row_i2 + j+3] - expatsinbt2 * matrix2[row_i  + j+3]) * partials2[j+3];
-                }
-            }
-            for (; j < kStateCount; j++) {
-                if constexpr (std::is_same_v<First, Partials>) {
-                    s1Aa += (expatcosbt1 * matrix1[row_i  + j] + expatsinbt1 * matrix1[row_i2 + j]) * partials1[j];
-                    s1Ba += (expatcosbt1 * matrix1[row_i2 + j] - expatsinbt1 * matrix1[row_i  + j]) * partials1[j];
-                }
-
-                if constexpr (std::is_same_v<Second, Partials>) {
-                    s2Aa += (expatcosbt2 * matrix2[row_i  + j] + expatsinbt2 * matrix2[row_i2 + j]) * partials2[j];
-                    s2Ba += (expatcosbt2 * matrix2[row_i2 + j] - expatsinbt2 * matrix2[row_i  + j]) * partials2[j];
+                for (; j < kStateCount; j++) {
+                    sAa += (expatcosbt * matrix[row_i  + j] + expatsinbt * matrix[row_i2 + j]) * partials[j];
+                    sBa += (expatcosbt * matrix[row_i2 + j] - expatsinbt * matrix[row_i  + j]) * partials[j];
                 }
             }
 
-            if constexpr (!std::is_same_v<First, None>) {
-                out1[i]  = s1Aa + s1Ab;
-                out1[i2] = s1Ba + s1Bb;
-            }
-
-            if constexpr (!std::is_same_v<Second, None>) {
-                out2[i]  = s2Aa + s2Ab;
-                out2[i2] = s2Ba + s2Bb;
-            }
+            out[i]  = sAa + sAb;
+            out[i2] = sBa + sBb;
 
             i++; // processed two conjugate rows
         }

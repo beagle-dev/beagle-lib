@@ -108,6 +108,15 @@ if(BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(openclspectraltest openclspectraltest)
+
+    add_executable(spectralcomplextest
+            spectraltest/spectralcomplextest.cpp)
+    target_link_libraries(spectralcomplextest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(spectralcomplextest spectralcomplextest)
 endif(BUILD_SPECTRAL)
 
 add_executable(hellobeagle

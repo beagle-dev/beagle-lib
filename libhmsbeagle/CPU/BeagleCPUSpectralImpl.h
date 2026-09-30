@@ -259,6 +259,14 @@ namespace beagle {
                                                const REALTYPE scaledBranchLength2,
                                                const int matrixIncr);
 
+            template <typename T, typename Direction>
+            void expScaledMatrixVector(REALTYPE* outPartials,
+                                       const REALTYPE* inPartials, const int state,
+                                       const BranchEigenInfo& info,
+                                       const REALTYPE* inverseEigenVectors,
+                                       const int matrixIncr,
+                                       const int catOffset);
+
 #ifdef TEST_EB
             template <typename First, typename Second, typename Direction>
             void expScaledMatrixVectorMultiple2(REALTYPE* outPartials1, REALTYPE* outPartials2,
