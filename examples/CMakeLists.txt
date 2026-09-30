@@ -117,6 +117,18 @@ if(BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(spectralcomplextest spectralcomplextest)
+
+    # standard vs spectral timings; see spectraltest/spectral_benchmark.py
+    add_executable(spectralbench
+            spectraltest/spectralbench.cpp)
+    target_link_libraries(spectralbench
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    if(BUILD_SSE)
+        target_link_libraries(spectralbench hmsbeagle-cpu-sse)
+    endif(BUILD_SSE)
 endif(BUILD_SPECTRAL)
 
 if(BUILD_SSE)
