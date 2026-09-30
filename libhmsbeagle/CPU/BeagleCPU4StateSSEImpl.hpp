@@ -551,6 +551,307 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
     }
 }
 
+/*
+ * Top pre-order partials when the sibling has partials: (matrices_q^T partials_q) * (matrices_r partials_r), with
+ * partials_q the parent's top pre-order partials and matrices_q the parent's transition matrices
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartialsTop(double* destP,
+                                                                              const double*  partials_q,
+                                                                              const double*  matrices_q,
+                                                                              const double*  partials_r,
+                                                                              const double*  matrices_r,
+                                                                              int startPattern,
+                                                                              int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23, destr_01, destr_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_PRE_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+            SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
+
+            destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+            destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+            destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+            destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = VEC_MULT(destq_01, destr_01);
+            destPvec[1] = VEC_MULT(destq_23, destr_23);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials when the sibling is a tip with states: (matrices_q^T partials_q) * (column of matrices_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStatesTop(double* destP,
+                                                                            const double*  partials_q,
+                                                                            const double*  matrices_q,
+                                                                            const int*     states_r,
+                                                                            const double*  matrices_r,
+                                                                            int startPattern,
+                                                                            int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_PRE_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state_r = states_r[k];
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = VEC_MULT(destq_01, vu_mr[state_r][0].vx);
+            destPvec[1] = VEC_MULT(destq_23, vu_mr[state_r][1].vx);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials below the root, whose top pre-order partials are partials_q: partials_q * (matrices_r
+ * partials_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartialsTopRoot(double* destP,
+                                                                                  const double*  partials_q,
+                                                                                  const double*  matrices_q,
+                                                                                  const double*  partials_r,
+                                                                                  const double*  matrices_r,
+                                                                                  int startPattern,
+                                                                                  int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destr_01, destr_23;
+    VecUnion vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_MATRIX(matrices_r + w, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+            SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
+
+            destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+            destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+            destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+            destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
+            destPvec[0] = VEC_MULT(VEC_LOAD(partials_q + v), destr_01);
+            destPvec[1] = VEC_MULT(VEC_LOAD(partials_q + v + 2), destr_23);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials below the root when the sibling is a tip with states: partials_q * (column of matrices_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStatesTopRoot(double* destP,
+                                                                                const double*  partials_q,
+                                                                                const double*  matrices_q,
+                                                                                const int*     states_r,
+                                                                                const double*  matrices_r,
+                                                                                int startPattern,
+                                                                                int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    VecUnion vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_MATRIX(matrices_r + w, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state_r = states_r[k];
+
+            destPvec[0] = VEC_MULT(VEC_LOAD(partials_q + v), vu_mr[state_r][0].vx);
+            destPvec[1] = VEC_MULT(VEC_LOAD(partials_q + v + 2), vu_mr[state_r][1].vx);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Pre-order partials through a single branch: matrices_q^T partials_q, or a copy of partials_q when matrices_q is
+ * NULL (top partials below the root)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcDegree2PrePartials(double* destP,
+                                                                          const double*  partials_q,
+                                                                          const double*  matrices_q,
+                                                                          int startPattern,
+                                                                          int endPattern) {
+
+    if (matrices_q == NULL) {
+        BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcDegree2PrePartials(destP, partials_q, matrices_q,
+                                                                            startPattern, endPattern);
+        return;
+    }
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23;
+    VecUnion vu_mq[4][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load the rows of the transition-probability matrix into vectors */
+        for (int i = 0; i < 4; i++) {
+            const double* row = matrices_q + w + i * OFFSET;
+            vu_mq[i][0].x[0] = row[0];
+            vu_mq[i][0].x[1] = row[1];
+            vu_mq[i][1].x[0] = row[2];
+            vu_mq[i][1].x[1] = row[3];
+        }
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = destq_01;
+            destPvec[1] = destq_23;
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(const double *postOrderPartial,
                                                                                 const double *preOrderPartial,

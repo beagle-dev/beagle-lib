@@ -21,6 +21,8 @@
 #endif
 
 #include "libhmsbeagle/CPU/BeagleCPU4StateImpl.h"
+#include "libhmsbeagle/CPU/BeagleCPUAdjointSSE.h"
+#include "libhmsbeagle/CPU/BeagleCPUAdjoint4StateSSE.h"
 
 #include <vector>
 
@@ -132,8 +134,10 @@ private:
 };
 
 
+// The adjoint gradient is BeagleCPUAdjoint4StateSSE's, and BeagleCPUAdjointSSE's for complex eigenvalues
 BEAGLE_CPU_4_SSE_TEMPLATE
-class BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE> : public BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE> {
+class BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>
+        : public BeagleCPUAdjoint4StateSSE<BeagleCPUAdjointSSE<BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>>> {
 
 protected:
     using BeagleCPUImpl<BEAGLE_CPU_4_SSE_DOUBLE>::kTipCount;
@@ -235,6 +239,44 @@ private:
                                          const double* __restrict matrices2,
                                          int startPattern,
                                          int endPattern);
+
+    virtual void calcPrePartialsPartialsTop(double* destP,
+                                            const double* partials1,
+                                            const double* matrices1,
+                                            const double* partials2,
+                                            const double* matrices2,
+                                            int startPattern,
+                                            int endPattern);
+
+    virtual void calcPrePartialsStatesTop(double* destP,
+                                          const double* partials1,
+                                          const double* matrices1,
+                                          const int* states2,
+                                          const double* matrices2,
+                                          int startPattern,
+                                          int endPattern);
+
+    virtual void calcPrePartialsPartialsTopRoot(double* destP,
+                                                const double* partials1,
+                                                const double* matrices1,
+                                                const double* partials2,
+                                                const double* matrices2,
+                                                int startPattern,
+                                                int endPattern);
+
+    virtual void calcPrePartialsStatesTopRoot(double* destP,
+                                              const double* partials1,
+                                              const double* matrices1,
+                                              const int* states2,
+                                              const double* matrices2,
+                                              int startPattern,
+                                              int endPattern);
+
+    virtual void calcDegree2PrePartials(double* destP,
+                                        const double* partials1,
+                                        const double* matrices1,
+                                        int startPattern,
+                                        int endPattern);
 
 	virtual void calcCrossProductsStates(const int* __restrict tipStates,
 										 const double* __restrict preOrderPartial,
