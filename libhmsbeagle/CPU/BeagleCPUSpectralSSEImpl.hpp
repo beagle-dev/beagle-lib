@@ -88,6 +88,11 @@ inline void storeVector(double* out, const int i, const int S, const V_Real valu
     }
 }
 
+// Loads inputs i and i + 1 of a vector with S entries, without reading past entry S - 1
+inline V_Real loadVector(const double* in, const int i, const int S) {
+    return (i + 1 < S) ? VEC_LOADU(in + i) : VEC_LOAD_SCALAR(in + i);
+}
+
 /*
  * y = exp(D t) u: y_i = e_i u_i for a real eigenvalue; a complex conjugate pair (i, i + 1) is rotated,
  * y_i = c u_i + s u_{i+1} and y_{i+1} = c u_{i+1} - s u_i, with s negated going backward (P^T). imag is null
@@ -195,6 +200,128 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::forwardEigenBasis(double* y, double
     const double* imag = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? info.eval + S : nullptr;
     spectral_sse::expScale<false>(y, v, info.expat + catOffset, info.expatcosbt + catOffset,
                                   info.expatsinbt + catOffset, imag, S);
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::backwardEigenBasis(double* y, double* u, const double* x,
+                                                               const BranchEigenInfo& info, const int catOffset) {
+    const int S = kStateCount;
+    const int stride = kStateCount + T_PAD;
+    // rows of V are the columns of V^T
+    const double* transposeColumns = gEigenDecomposition->getEigenVectorsPtr(info.eigenIndex);
+
+    spectral_sse::axpy(transposeColumns, stride, x, S, [u](int i, V_Real value) { VEC_STOREU(u + i, value); });
+
+    const double* imag = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ? info.eval + S : nullptr;
+    spectral_sse::expScale<true>(y, u, info.expat + catOffset, info.expatcosbt + catOffset,
+                                 info.expatsinbt + catOffset, imag, S);
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, SpectralPreOrder type,
+                                                     const double* partials1, const int branchEigenIndex1,
+                                                     const int* states2, const double* partials2,
+                                                     const int branchEigenIndex2,
+                                                     int startPattern, int endPattern, int currentPartition) {
+    const int S = kStateCount;
+    const int stride = kStateCount + T_PAD;
+    const bool hasSibling = (states2 != nullptr || partials2 != nullptr);
+    const bool hasBranch = (type != SpectralPreOrder::TopRoot);
+
+    const BranchEigenInfo* info1 = hasBranch ? &gBranchEigenInfo[branchEigenIndex1] : nullptr;
+    const BranchEigenInfo* info2 = hasSibling ? &gBranchEigenInfo[branchEigenIndex2] : nullptr;
+    // rows of V^{-1} are the columns of V^{-T}; rows of V^T are the columns of V
+    const double* transposeColumns1 =
+            hasBranch ? gEigenDecomposition->getInverseEigenVectorsPtr(info1->eigenIndex) : nullptr;
+    const double* columns2 =
+            hasSibling ? gEigenDecomposition->getBackwardsInverseEigenVectorsPtr(info2->eigenIndex) : nullptr;
+
+    double* u = simdTmp(currentPartition);
+    double* y = u + kSimdTmpStride;
+    double* w = y + kSimdTmpStride;
+
+    const V_Real zero = VEC_SETZERO();
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        const int catOffset = l * kPartialsPaddedStateCount;
+
+        for (int k = startPattern; k < endPattern; k++) {
+            const int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * k;
+            double* dest = destP + v;
+            const double* parent = partials1 + v;
+
+            if (hasSibling) { // y for the sibling's P x
+                forwardEigenBasis(y, u, partials2 ? partials2 + v : nullptr, states2 ? states2[k] : 0,
+                                  *info2, catOffset);
+            }
+
+            if (type == SpectralPreOrder::TopRoot) { // dest = max(P x, 0) * root prior
+                spectral_sse::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
+                    spectral_sse::storeVector(dest, i, S,
+                            VEC_MULT(VEC_MAX(zero, value), spectral_sse::loadVector(parent, i, S)));
+                });
+                continue;
+            }
+
+            const double* x = parent;
+            if (hasSibling) {
+                if (type == SpectralPreOrder::Bottom) { // P^T (max(P x, 0) * parent)
+                    spectral_sse::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
+                        VEC_STOREU(w + i, VEC_MULT(VEC_MAX(zero, value), spectral_sse::loadVector(parent, i, S)));
+                    });
+                    x = w;
+                } else { // max(P^T parent, 0) * max(P x, 0)
+                    spectral_sse::axpy(columns2, stride, y, S, [w, zero](int i, V_Real value) {
+                        VEC_STOREU(w + i, VEC_MAX(zero, value));
+                    });
+                }
+            }
+
+            backwardEigenBasis(y, u, x, *info1, catOffset);
+
+            if (hasSibling && type == SpectralPreOrder::Top) {
+                spectral_sse::axpy(transposeColumns1, stride, y, S, [&](int i, V_Real value) {
+                    spectral_sse::storeVector(dest, i, S, VEC_MULT(VEC_MAX(zero, value), VEC_LOADU(w + i)));
+                });
+            } else {
+                spectral_sse::axpy(transposeColumns1, stride, y, S, [&](int i, V_Real value) {
+                    spectral_sse::storeVector(dest, i, S, VEC_MAX(zero, value));
+                });
+            }
+        }
+    }
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::spectralPrePartialsPartials(double* destP, SpectralPreOrder type,
+        const double* partials1, const int branchEigenIndex1,
+        const double* partials2, const int branchEigenIndex2,
+        int startPattern, int endPattern, int currentPartition) {
+    preOrder(destP, type, partials1, branchEigenIndex1, nullptr, partials2, branchEigenIndex2,
+             startPattern, endPattern, currentPartition);
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::spectralPrePartialsStates(double* destP, SpectralPreOrder type,
+        const double* partials1, const int branchEigenIndex1,
+        const int* states2, const int branchEigenIndex2,
+        int startPattern, int endPattern, int currentPartition) {
+    preOrder(destP, type, partials1, branchEigenIndex1, states2, nullptr, branchEigenIndex2,
+             startPattern, endPattern, currentPartition);
+}
+
+template <int T_PAD, int P_PAD>
+void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::calcDegree2PrePartials(double* destP,
+        const double* partials1,
+        const int branchEigenIndex1,
+        int startPattern, int endPattern, int currentPartition) {
+    if (branchEigenIndex1 < 0) { // top partials below the root: a copy
+        Base::calcDegree2PrePartials(destP, partials1, branchEigenIndex1, startPattern, endPattern, currentPartition);
+        return;
+    }
+    // the same for bottom and top partials: P^T of the parent's pre-order partials through branchEigenIndex1
+    preOrder(destP, SpectralPreOrder::Bottom, partials1, branchEigenIndex1, nullptr, nullptr, -1,
+             startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>

@@ -94,8 +94,26 @@ protected:
                                  const double* scaleFactors,
                                  int startPattern, int endPattern, int currentPartition) override;
 
+    void spectralPrePartialsPartials(double* destP, SpectralPreOrder type,
+                                     const double* partials1, const int branchEigenIndex1,
+                                     const double* partials2, const int branchEigenIndex2,
+                                     int startPattern, int endPattern, int currentPartition) override;
+
+    void spectralPrePartialsStates(double* destP, SpectralPreOrder type,
+                                   const double* partials1, const int branchEigenIndex1,
+                                   const int* states2, const int branchEigenIndex2,
+                                   int startPattern, int endPattern, int currentPartition) override;
+
+    void calcDegree2PrePartials(double* destP,
+                                const double* partials1,
+                                const int branchEigenIndex1,
+                                int startPattern,
+                                int endPattern,
+                                int currentPartition) override;
+
 private:
-    // Per partition: u, y and z1, each kSimdTmpStride doubles, room for a full last vector when S is odd
+    // Per partition: u, y and a third vector (z1 or w), each kSimdTmpStride doubles, room for a full last vector
+    // when S is odd
     std::vector<double> gSimdTmp;
     int kSimdTmpStride;
 
@@ -104,6 +122,17 @@ private:
     // y = exp(D t) V^{-1} x for one child and category, from its partials x or, when x is null, its tip state
     void forwardEigenBasis(double* y, double* u, const double* x, const int state,
                            const BranchEigenInfo& info, const int catOffset);
+
+    // y = exp(D t)^T V^T x, the first half of P^T x = V^{-T} y
+    void backwardEigenBasis(double* y, double* u, const double* x,
+                            const BranchEigenInfo& info, const int catOffset);
+
+    // Pre-order partials from the parent's pre-order partials1 through branchEigenIndex1 (P^T; none for TopRoot)
+    // and the sibling (P x) from its partials or tip states; no sibling (both null) makes a degree-2 node
+    void preOrder(double* destP, SpectralPreOrder type,
+                  const double* partials1, const int branchEigenIndex1,
+                  const int* states2, const double* partials2, const int branchEigenIndex2,
+                  int startPattern, int endPattern, int currentPartition);
 
     // Two children, each from partials (states null) or a tip state (partials null); a null second child makes
     // a degree-2 node. dest = max(z1, 0) * max(z2, 0) [/ scale factor], with z = P x for each child.
