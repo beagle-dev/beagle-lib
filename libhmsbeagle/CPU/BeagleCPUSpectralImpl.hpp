@@ -247,19 +247,19 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
             // auto-scaling (rescale == 2) is not applied to a single child, which is left unscaled
             if (tipStates1 != NULL) {
                 if (rescale == 0) {
-                    calcDegree2Partials<States, WithScaling>(destPartials, tipStates1, nullptr, branchEigenIndex1,
-                                                             scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralDegree2Partials(destPartials, tipStates1, nullptr, branchEigenIndex1,
+                                            scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
-                    calcDegree2Partials<States, NoScaling>(destPartials, tipStates1, nullptr, branchEigenIndex1,
-                                                           nullptr, startPattern, endPattern, currentPartition);
+                    spectralDegree2Partials(destPartials, tipStates1, nullptr, branchEigenIndex1,
+                                            nullptr, startPattern, endPattern, currentPartition);
                 }
             } else {
                 if (rescale == 0) {
-                    calcDegree2Partials<Partials, WithScaling>(destPartials, nullptr, partials1, branchEigenIndex1,
-                                                               scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralDegree2Partials(destPartials, nullptr, partials1, branchEigenIndex1,
+                                            scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
-                    calcDegree2Partials<Partials, NoScaling>(destPartials, nullptr, partials1, branchEigenIndex1,
-                                                             nullptr, startPattern, endPattern, currentPartition);
+                    spectralDegree2Partials(destPartials, nullptr, partials1, branchEigenIndex1,
+                                            nullptr, startPattern, endPattern, currentPartition);
                 }
             }
             if (rescale == 1) { // Recompute scaleFactors
@@ -272,12 +272,12 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         } else if (tipStates1 != NULL) {
             if (tipStates2 != NULL ) {
                 if (rescale == 0) { // Use fixed scaleFactors
-                    calcStatesStates<WithScaling>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                                                  scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralStatesStates(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                         scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
                     // First compute without any scaling
-                    calcStatesStates<NoScaling>(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                                                nullptr, startPattern, endPattern, currentPartition);
+                    spectralStatesStates(destPartials, tipStates1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                         nullptr, startPattern, endPattern, currentPartition);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -288,11 +288,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                 }
             } else {
                 if (rescale == 0) {
-                    calcStatesPartials<WithScaling>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                                    scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralStatesPartials(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                           scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
-                    calcStatesPartials<NoScaling>(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                                  nullptr, startPattern, endPattern, currentPartition);
+                    spectralStatesPartials(destPartials, tipStates1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                           nullptr, startPattern, endPattern, currentPartition);
                     if (rescale == 1) { // Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -305,11 +305,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         } else {
             if (tipStates2 != NULL) {
                 if (rescale == 0) {
-                    calcStatesPartials<WithScaling>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
-                                                    scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralStatesPartials(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                           scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
-                    calcStatesPartials<NoScaling>(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
-                                                  nullptr, startPattern, endPattern, currentPartition);
+                    spectralStatesPartials(destPartials, tipStates2, branchEigenIndex2, partials1, branchEigenIndex1,
+                                           nullptr, startPattern, endPattern, currentPartition);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -330,11 +330,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                     }
 
                 } else if (rescale == 0) {
-                    calcPartialsPartials<WithScaling>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                                      scalingFactors, startPattern, endPattern, currentPartition);
+                    spectralPartialsPartials(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                             scalingFactors, startPattern, endPattern, currentPartition);
                 } else {
-                    calcPartialsPartials<NoScaling>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                                                    nullptr, startPattern, endPattern, currentPartition);
+                    spectralPartialsPartials(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                             nullptr, startPattern, endPattern, currentPartition);
                     if (rescale == 1) {// Recompute scaleFactors
                         if (byPartition) {
                             rescalePartialsByPartition(destPartials,scalingFactors,cumulativeScaleBuffer,0, currentPartition);
@@ -446,35 +446,20 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             endPattern = gPatternPartitionsStartPatterns[currentPartition + 1];
         }
 
+        SpectralPreOrder type = SpectralPreOrder::Bottom;
+        if constexpr (std::is_same_v<T, Top>) {
+            type = (branchEigenIndex1 < 0) ? SpectralPreOrder::TopRoot : SpectralPreOrder::Top; // parent node is root
+        }
+
         if (singleChild) {
             calcDegree2PrePartials(destPartials, partials1, branchEigenIndex1,
                                    startPattern, endPattern, currentPartition);
         } else if (tipStates2 != NULL) {
-            if constexpr (std::is_same_v<T, Top>) {
-                if (branchEigenIndex1 < 0) { // Parent node is root
-                    calcPrePartialsStates<T, Root>(destPartials, partials1, 0, tipStates2, branchEigenIndex2,
-                                              startPattern, endPattern, currentPartition);
-                } else {
-                    calcPrePartialsStates<T, NotRoot>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                        startPattern, endPattern, currentPartition);
-                }
-            } else { // T == Bottom
-                calcPrePartialsStates<T, NotUsed>(destPartials, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
-                    startPattern, endPattern, currentPartition);
-            }
+            spectralPrePartialsStates(destPartials, type, partials1, branchEigenIndex1, tipStates2, branchEigenIndex2,
+                                      startPattern, endPattern, currentPartition);
         } else {
-            if constexpr (std::is_same_v<T, Top>) {
-                if (branchEigenIndex1 < 0) { // Parent node is root
-                    calcPrePartialsPartials<T, Root>(destPartials, partials1, 0, partials2, branchEigenIndex2,
-                        startPattern, endPattern, currentPartition);
-                } else {
-                    calcPrePartialsPartials<T, NotRoot>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                        startPattern, endPattern, currentPartition);
-                }
-            } else { // T == Bottom
-                calcPrePartialsPartials<T, NotUsed>(destPartials, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
-                    startPattern, endPattern, currentPartition);
-            }
+            spectralPrePartialsPartials(destPartials, type, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                        startPattern, endPattern, currentPartition);
         }
     }
 
@@ -549,6 +534,124 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
 
 // #define MATRIX_VECTOR_HADAMARD_PRODUCT_SCALE(out, mat, vec, scale) \
 //     MATRIX_VECTOR(out[i] = sum1 * sum2 * scale, mat, vec)
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralPartialsPartials(
+        REALTYPE* destP,
+        const REALTYPE* partials1, const int branchEigenIndex1,
+        const REALTYPE* partials2, const int branchEigenIndex2,
+        const REALTYPE* scaleFactors,
+        int startPattern, int endPattern, int currentPartition) {
+    if (scaleFactors != nullptr) {
+        calcPartialsPartials<WithScaling>(destP, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                          scaleFactors, startPattern, endPattern, currentPartition);
+    } else {
+        calcPartialsPartials<NoScaling>(destP, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                        nullptr, startPattern, endPattern, currentPartition);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralStatesPartials(
+        REALTYPE* destP,
+        const int* states1, const int branchEigenIndex1,
+        const REALTYPE* partials2, const int branchEigenIndex2,
+        const REALTYPE* scaleFactors,
+        int startPattern, int endPattern, int currentPartition) {
+    if (scaleFactors != nullptr) {
+        calcStatesPartials<WithScaling>(destP, states1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                        scaleFactors, startPattern, endPattern, currentPartition);
+    } else {
+        calcStatesPartials<NoScaling>(destP, states1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                      nullptr, startPattern, endPattern, currentPartition);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralStatesStates(
+        REALTYPE* destP,
+        const int* states1, const int branchEigenIndex1,
+        const int* states2, const int branchEigenIndex2,
+        const REALTYPE* scaleFactors,
+        int startPattern, int endPattern, int currentPartition) {
+    if (scaleFactors != nullptr) {
+        calcStatesStates<WithScaling>(destP, states1, branchEigenIndex1, states2, branchEigenIndex2,
+                                      scaleFactors, startPattern, endPattern, currentPartition);
+    } else {
+        calcStatesStates<NoScaling>(destP, states1, branchEigenIndex1, states2, branchEigenIndex2,
+                                    nullptr, startPattern, endPattern, currentPartition);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralDegree2Partials(
+        REALTYPE* destP,
+        const int* states1, const REALTYPE* partials1,
+        const int branchEigenIndex1,
+        const REALTYPE* scaleFactors,
+        int startPattern, int endPattern, int currentPartition) {
+    if (states1 != nullptr) {
+        if (scaleFactors != nullptr) {
+            calcDegree2Partials<States, WithScaling>(destP, states1, nullptr, branchEigenIndex1,
+                                                     scaleFactors, startPattern, endPattern, currentPartition);
+        } else {
+            calcDegree2Partials<States, NoScaling>(destP, states1, nullptr, branchEigenIndex1,
+                                                   nullptr, startPattern, endPattern, currentPartition);
+        }
+    } else {
+        if (scaleFactors != nullptr) {
+            calcDegree2Partials<Partials, WithScaling>(destP, nullptr, partials1, branchEigenIndex1,
+                                                       scaleFactors, startPattern, endPattern, currentPartition);
+        } else {
+            calcDegree2Partials<Partials, NoScaling>(destP, nullptr, partials1, branchEigenIndex1,
+                                                     nullptr, startPattern, endPattern, currentPartition);
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralPrePartialsPartials(
+        REALTYPE* destP, SpectralPreOrder type,
+        const REALTYPE* partials1, const int branchEigenIndex1,
+        const REALTYPE* partials2, const int branchEigenIndex2,
+        int startPattern, int endPattern, int currentPartition) {
+    switch (type) {
+        case SpectralPreOrder::Bottom:
+            calcPrePartialsPartials<Bottom, NotUsed>(destP, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                     startPattern, endPattern, currentPartition);
+            break;
+        case SpectralPreOrder::Top:
+            calcPrePartialsPartials<Top, NotRoot>(destP, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
+                                                  startPattern, endPattern, currentPartition);
+            break;
+        case SpectralPreOrder::TopRoot: // the root has no branch; index 0 is only read, never used
+            calcPrePartialsPartials<Top, Root>(destP, partials1, 0, partials2, branchEigenIndex2,
+                                               startPattern, endPattern, currentPartition);
+            break;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::spectralPrePartialsStates(
+        REALTYPE* destP, SpectralPreOrder type,
+        const REALTYPE* partials1, const int branchEigenIndex1,
+        const int* states2, const int branchEigenIndex2,
+        int startPattern, int endPattern, int currentPartition) {
+    switch (type) {
+        case SpectralPreOrder::Bottom:
+            calcPrePartialsStates<Bottom, NotUsed>(destP, partials1, branchEigenIndex1, states2, branchEigenIndex2,
+                                                   startPattern, endPattern, currentPartition);
+            break;
+        case SpectralPreOrder::Top:
+            calcPrePartialsStates<Top, NotRoot>(destP, partials1, branchEigenIndex1, states2, branchEigenIndex2,
+                                                startPattern, endPattern, currentPartition);
+            break;
+        case SpectralPreOrder::TopRoot: // the root has no branch; index 0 is only read, never used
+            calcPrePartialsStates<Top, Root>(destP, partials1, 0, states2, branchEigenIndex2,
+                                             startPattern, endPattern, currentPartition);
+            break;
+    }
+}
 
 BEAGLE_CPU_TEMPLATE template <typename First, typename Second, typename Direction>
 void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::expScaledMatrixVectorMultiple2(

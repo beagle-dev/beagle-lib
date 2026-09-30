@@ -30,6 +30,9 @@
 namespace beagle {
     namespace cpu {
 
+        // Pre-order partials at the bottom of a branch, at its top, or at the top of a branch below the root
+        enum class SpectralPreOrder { Bottom, Top, TopRoot };
+
         BEAGLE_CPU_TEMPLATE
         class BeagleCPUSpectralImpl : public BeagleCPUImpl<BEAGLE_CPU_GENERIC> {
 
@@ -152,6 +155,44 @@ namespace beagle {
                                   int count,
                                   int cumulativeScaleIndex);
 
+            // One call per operation from upPartials and upPrePartialsImpl, so a subclass (e.g. SIMD) can replace
+            // the kernels and keep the operation decoding and scaling. scaleFactors is nullptr unless fixed scale
+            // factors are applied. For degree-2 nodes one of states1 and partials1 is nullptr. For
+            // SpectralPreOrder::TopRoot, branchEigenIndex1 is negative and partials1 is the root prior.
+            virtual void spectralPartialsPartials(REALTYPE *destP,
+                                                  const REALTYPE *partials1, const int branchEigenIndex1,
+                                                  const REALTYPE *partials2, const int branchEigenIndex2,
+                                                  const REALTYPE *scaleFactors,
+                                                  int startPattern, int endPattern, int currentPartition);
+
+            virtual void spectralStatesPartials(REALTYPE *destP,
+                                                const int *states1, const int branchEigenIndex1,
+                                                const REALTYPE *partials2, const int branchEigenIndex2,
+                                                const REALTYPE *scaleFactors,
+                                                int startPattern, int endPattern, int currentPartition);
+
+            virtual void spectralStatesStates(REALTYPE *destP,
+                                              const int *states1, const int branchEigenIndex1,
+                                              const int *states2, const int branchEigenIndex2,
+                                              const REALTYPE *scaleFactors,
+                                              int startPattern, int endPattern, int currentPartition);
+
+            virtual void spectralDegree2Partials(REALTYPE *destP,
+                                                 const int *states1, const REALTYPE *partials1,
+                                                 const int branchEigenIndex1,
+                                                 const REALTYPE *scaleFactors,
+                                                 int startPattern, int endPattern, int currentPartition);
+
+            virtual void spectralPrePartialsPartials(REALTYPE *destP, SpectralPreOrder type,
+                                                     const REALTYPE *partials1, const int branchEigenIndex1,
+                                                     const REALTYPE *partials2, const int branchEigenIndex2,
+                                                     int startPattern, int endPattern, int currentPartition);
+
+            virtual void spectralPrePartialsStates(REALTYPE *destP, SpectralPreOrder type,
+                                                   const REALTYPE *partials1, const int branchEigenIndex1,
+                                                   const int *states2, const int branchEigenIndex2,
+                                                   int startPattern, int endPattern, int currentPartition);
+
             template <typename T>
             void calcPartialsPartials(REALTYPE *destPartials,
                                       const REALTYPE *partials1,
@@ -219,7 +260,7 @@ namespace beagle {
 
             // Pre-order partials through the single branch branchEigenIndex1 (transposed); a copy of partials1
             // when branchEigenIndex1 is negative (top partials below the root).
-            void calcDegree2PrePartials(REALTYPE *destP,
+            virtual void calcDegree2PrePartials(REALTYPE *destP,
                                         const REALTYPE *partials1,
                                         const int branchEigenIndex1,
                                         int startPattern,
