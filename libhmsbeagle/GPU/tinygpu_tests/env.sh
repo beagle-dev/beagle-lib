@@ -118,3 +118,56 @@ hw_hold_check() {
     echo "STOP: pid $pid (the crash guard) is still running and may hold the GPU: unplug the eGPU first, then kill $pid"
     return 1
 }
+
+# The AMD hardware scripts' protections (run_amd_point.sh, run_amd_smoke.sh, run_amd_discovery.sh; TODO.md plan step A0).
+# amd_hw_begin: nothing set that changes the AMD path or forces tinygrad's full reset (AM_RESET), no BEAGLE process, at most
+# one TinyGPU.app server, one hardware script at a time (hw_begin's lock), and TinyGPU.app serving an AMD card (tg_probe.py:
+# one config read). Sets AMD_PCI (vendor:device).
+amd_hw_begin() {
+    local v n p
+    for v in APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH BEAGLE_AMD_DISPATCH_DAEMON BEAGLE_AMD_DEBUG_DUMP AM_RESET; do
+        [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
+    done
+    pgrep -fl "beagle-tinygpu-guard|tinygpuhybridtest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
+        && { echo "a BEAGLE process is running; not running"; exit 2; }
+    n=$(pgrep -f "TinyGPU.app/Contents/MacOS/TinyGPU server" | wc -l | tr -d ' ')
+    [ "$n" -le 1 ] || { echo "$n TinyGPU.app servers are running (a duplicate); not running"; exit 2; }
+    mkdir -p "$BEAGLE_TINYGPU_DATA/runs"; HW_LOCK="${TMPDIR:-/tmp}"; HW_LOCK="${HW_LOCK%/}/beagle_tinygpu_hw.lock"
+    mkdir "$HW_LOCK" 2>/dev/null || { echo "another hardware script holds $HW_LOCK (remove it if none is running); not running"; exit 2; }
+    trap 'rmdir "$HW_LOCK" 2>/dev/null; [ -n "$LSP" ] && kill $LSP 2>/dev/null' EXIT
+    p=$("$BEAGLE_PYTHON" "$TG_TESTS/tg_probe.py" 2>&1); echo "probe: $p"
+    AMD_PCI=$(echo "$p" | sed -n 's/^TinyGPU.app serves \(1002:[0-9a-f]*\) .*/\1/p')
+    [ -n "$AMD_PCI" ] || { echo "TinyGPU.app does not serve an AMD card; not running"; exit 2; }
+}
+# amd_boot_check: the boot tinygrad's AM driver would give the card, read without writing (amd_state.py, at the bases of the
+# table run_amd_discovery.sh captured). Refuses when it would start with an SMU mode1 reset, which plan step A0 aborts on;
+# without a captured table it cannot tell, and says so.
+amd_boot_check() {
+    local tbl rc
+    tbl=$(ls "$BEAGLE_TINYGPU_DATA/discovery/${AMD_PCI/:/_}"_*.json 2>/dev/null | head -1)
+    [ -n "$tbl" ] || { echo "note: no discovery table for $AMD_PCI in $BEAGLE_TINYGPU_DATA/discovery: the boot is not predicted"; return 0; }
+    "$BEAGLE_PYTHON" "$TG_TESTS/amd_state.py" "$tbl"; rc=$?
+    [ $rc -eq 0 ] && return 0
+    [ $rc -eq 3 ] && { echo "a mode1 reset would follow: power-cycle the card (unplug it, then plug it in again) first; not running"; exit 2; }
+    echo "the boot check failed (exit $rc); not running"; exit 2
+}
+# amd_require_app_zip: stock tinygrad's APLRemotePCIDevice runs ensure_app, which kills TinyGPU and reinstalls the app unless
+# its release zip is in tinygrad's download cache (system.py:419-427): run_amd_smoke.sh and run_amd_discovery.sh refuse
+# instead. BEAGLE's daemon never calls it (amd_dispatch_daemon.py _install_inherited_tinygpu).
+amd_require_app_zip() {
+    local zip="${XDG_CACHE_HOME:-$HOME/Library/Caches}/tinygrad/downloads/TinyGPU_c0d024f9ff0e1dc8fdf217f255da7101d91e8323.zip"
+    [ -f "$zip" ] && [ -x /Applications/TinyGPU.app/Contents/MacOS/TinyGPU ] \
+        || { echo "no $zip or no TinyGPU.app: stock tinygrad's ensure_app would reinstall the app; not running"; exit 2; }
+}
+# amd_hw_end <output>: after a run, log stream must still be attached and have seen nothing from the eGPU ($LS), and
+# tinygrad's DEBUG=2 lines must show no mode1 reset or malformed state (plan step A0's abort conditions). Prints a STOP line
+# and returns nonzero otherwise.
+amd_hw_end() {
+    local events reset
+    hw_logstream_stop || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; return 1; }
+    events=$(grep -cvE "$HW_LOG_BENIGN" "$LS")
+    [ "$events" -eq 0 ] || { echo "STOP: log stream saw $events eGPU event line(s) ($LS): stop all hardware work"
+                             grep -vE "$HW_LOG_BENIGN" "$LS" | head -5 | cut -c1-200; return 1; }
+    reset=$(grep -m1 -E "^am [^:]*: (mode1 reset|Malformed state)" "$1")
+    [ -z "$reset" ] || { echo "STOP: tinygrad reset the card ($reset): stop all hardware work"; return 1; }
+}

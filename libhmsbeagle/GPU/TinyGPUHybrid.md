@@ -7,8 +7,8 @@ tinygrad's user-space PCIe server, and follows tinygrad's own NV driver (`tinygr
 ahead-of-time cubins and submits BEAGLE's kernels, with no Python at run time. On exit it unloads the GPU and runs
 NVIDIA's driver-unload teardown, so the next process boots it again without a power cycle.
 
-The AMD side of the backend (a Radeon through the same app) still runs tinygrad's Python (`amd_dispatch_daemon.py`); its
-C++ port is future work (TODO.md plan steps A0-A2).
+The AMD side of the backend (a Radeon through the same app) still runs tinygrad's Python (`amd_dispatch_daemon.py`, over
+the plugin's TinyGPU.app connection); its C++ port is future work (TODO.md plan steps A1-A2).
 
 ## Supported GPUs
 
@@ -93,7 +93,8 @@ For users:
 
 The test harness's own, not for production: `BEAGLE_NV_TEST_KILL`, `BEAGLE_TG_MARKERS`, `BEAGLE_TINYGPU_APP`,
 `BEAGLE_TINYGPU_NO_LAUNCH` and `BEAGLE_NV_FILL_LAUNCH_DIMS`. The AMD side finds its Python daemon through `BEAGLE_PYTHON`,
-`BEAGLE_NV_SCRIPTS` and `BEAGLE_AMD_DISPATCH_DAEMON`.
+`BEAGLE_NV_SCRIPTS` and `BEAGLE_AMD_DISPATCH_DAEMON`; `BEAGLE_AMD_CHAIN_LAUNCHES=0` submits each of its kernel launches on
+its own queue instead of one per batch.
 
 ## How it works
 

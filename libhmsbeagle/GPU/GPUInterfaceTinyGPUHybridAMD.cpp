@@ -15,10 +15,10 @@
  * RPC client: a live Python daemon (amd_dispatch_daemon.py) stays resident
  * and does EVERY GPU operation -- boot, compile, alloc, memcpy, launch,
  * sync -- via tinygrad's real AMDDevice/AMDProgram/HCQProgram.__call__
- * code. This file just sends newline-terminated JSON commands over a
- * dedicated socketpair (not the TinyGPU socket -- AMDDevice("AMD:0") makes
- * its own connection internally, the same way the working reference test
- * did) and reads back replies.
+ * code. This file just sends length-prefixed JSON commands over a
+ * dedicated socketpair and reads back replies. The daemon runs tinygrad over
+ * this plugin's own TinyGPU.app connection, which it inherits (TinyGPU.app
+ * serves one client at a time).
  *
  * Compile backend unchanged: comgr compiling BEAGLE's existing FW_OPENCL
  * kernel source (amd_compile_helper.py's compile_opencl(), reused by the
@@ -139,30 +139,31 @@ static std::string amd_resolve_python() {
     return "python3";
 }
 
-// ── Command-socket I/O: newline-terminated JSON lines, with raw bytes
-// immediately following for h2d (request) / d2h (reply) ─────────────────────
+// ── Command-socket I/O: JSON messages, each preceded by its byte length as a
+// 4-byte little-endian uint32 (so a message is two reads, not one recv() per
+// byte; the NV pair's framing, TODO.md "Runtime roadmap" Step 2), with raw
+// bytes immediately following for h2d (request) / d2h (reply) ───────────────
 
 static void amd_send_all(int fd, const void* buf, size_t n) {
     const uint8_t* p = (const uint8_t*)buf;
     while (n) { ssize_t r = ::send(fd, p, n, 0); if (r <= 0) return; p += r; n -= (size_t)r; }
 }
-static void amd_recv_all(int fd, void* buf, size_t n) {
+static bool amd_recv_all(int fd, void* buf, size_t n) {
     uint8_t* p = (uint8_t*)buf;
-    while (n) { ssize_t r = ::recv(fd, p, n, MSG_WAITALL); if (r <= 0) return; p += r; n -= (size_t)r; }
+    while (n) { ssize_t r = ::recv(fd, p, n, MSG_WAITALL); if (r <= 0) return false; p += r; n -= (size_t)r; }
+    return true;
 }
-static void amd_send_line(int fd, const std::string& line) {
-    std::string s = line + "\n";
+static void amd_send_msg(int fd, const std::string& json) {
+    uint32_t n = (uint32_t)json.size();  // little-endian host (arm64/x86_64), as the daemon's "<I" expects
+    std::string s((const char*)&n, 4);
+    s += json;
     amd_send_all(fd, s.data(), s.size());
 }
-static std::string amd_recv_line(int fd) {
-    std::string s;
-    char c;
-    while (true) {
-        ssize_t r = ::recv(fd, &c, 1, 0);
-        if (r <= 0) break;
-        if (c == '\n') break;
-        s.push_back(c);
-    }
+static std::string amd_recv_msg(int fd) {
+    uint32_t n = 0;
+    if (!amd_recv_all(fd, &n, 4)) return "";
+    std::string s(n, '\0');
+    if (n && !amd_recv_all(fd, &s[0], n)) return "";
     return s;
 }
 
@@ -239,8 +240,8 @@ static void amdFlushLaunchQueue() {
     size_t n = g_amdPendingLaunches.size();
     g_amdPendingLaunches.clear();
 
-    amd_send_line(g_amd->cmd_sock, cmd);
-    std::string resp = amd_recv_line(g_amd->cmd_sock);
+    amd_send_msg(g_amd->cmd_sock, cmd);
+    std::string resp = amd_recv_msg(g_amd->cmd_sock);
     amd_profile_end("launch_batch", t0);
     if (resp.empty() || !amd_json_ok(resp))
         fprintf(stderr, "TinyGPU/AMD: launch_batch(%zu kernels) failed: %s\n", n, resp.c_str());
@@ -250,8 +251,8 @@ static void amdFlushLaunchQueue() {
     fflush(stderr);
     if (g_amd) {
         if (g_amd->cmd_sock >= 0) {
-            amd_send_line(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
-            amd_recv_line(g_amd->cmd_sock);  // best-effort ack, ignore content
+            amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
+            amd_recv_msg(g_amd->cmd_sock);  // best-effort ack, ignore content
         }
         if (g_amd->daemon_pid > 0) {
             for (int i = 0; i < 100; ++i) {
@@ -266,11 +267,11 @@ static void amdFlushLaunchQueue() {
 }
 
 // ── amdDispatchDaemonSetup: spawn amd_dispatch_daemon.py over a dedicated
-// socketpair (NOT the TinyGPU socket -- the daemon connects to TinyGPU.app
-// itself via AMDDevice("AMD:0"), matching the STATUS.md §8 reference test
-// exactly, no inherited FD needed), then send "boot" and "compile_all". ────
+// socketpair, handing it the plugin's TinyGPU.app connection (tg_fd) for
+// tinygrad to use instead of connecting itself, then send "boot" and
+// "compile_all". ───────────────────────────────────────────────────────────
 
-static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code) {
+static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code, int tg_fd) {
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
         fprintf(stderr, "TinyGPU/AMD: socketpair failed: %s\n", strerror(errno));
@@ -299,8 +300,10 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code) {
     if (pid == 0) {
         close(sv[0]);
         dup2(STDERR_FILENO, STDOUT_FILENO);
+        fcntl(tg_fd, F_SETFD, 0);   // the child's copy only: the connection survives execvp, and no other child gets it
         char fd_str[16]; snprintf(fd_str, sizeof(fd_str), "%d", sv[1]);
-        char* argv[] = { (char*)pypath.c_str(), (char*)helper, fd_str, nullptr };
+        char tg_str[16]; snprintf(tg_str, sizeof(tg_str), "%d", tg_fd);
+        char* argv[] = { (char*)pypath.c_str(), (char*)helper, fd_str, tg_str, nullptr };
         execvp(pypath.c_str(), argv);
         fprintf(stderr, "TinyGPU/AMD: execvp %s failed: %s\n", pypath.c_str(), strerror(errno));
         _exit(1);
@@ -312,8 +315,8 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code) {
     g->daemon_pid = pid;
 
     fprintf(stderr, "TinyGPU/AMD: sending boot command...\n"); fflush(stderr);
-    amd_send_line(g->cmd_sock, "{\"cmd\":\"boot\"}");
-    std::string resp = amd_recv_line(g->cmd_sock);
+    amd_send_msg(g->cmd_sock, "{\"cmd\":\"boot\"}");
+    std::string resp = amd_recv_msg(g->cmd_sock);
     if (resp.empty() || !amd_json_ok(resp)) {
         fprintf(stderr, "TinyGPU/AMD: boot failed: %s\n", resp.c_str());
         delete g;
@@ -330,8 +333,8 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code) {
         snprintf(cmd, sizeof(cmd), "{\"cmd\":\"compile_all\",\"cl_path\":\"%s\"}", cl_path);
         fprintf(stderr, "TinyGPU/AMD: precompile_all_kernels — compiling all kernels (comgr × 1, via daemon)…\n");
         fflush(stderr);
-        amd_send_line(g->cmd_sock, cmd);
-        resp = amd_recv_line(g->cmd_sock);
+        amd_send_msg(g->cmd_sock, cmd);
+        resp = amd_recv_msg(g->cmd_sock);
         unlink(cl_path);
         if (resp.empty() || !amd_json_ok(resp)) {
             fprintf(stderr, "TinyGPU/AMD: compile_all failed: %s\n", resp.c_str());
@@ -368,18 +371,15 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code) {
 
 void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
                    int patternCount, int unpaddedPatternCount, int tipCount, long flags) {
-    // Close Initialize()'s TinyGPU.app connection (self->tgpuSock) before
-    // spawning the dispatch daemon: unlike the NV path, which keeps reusing
-    // this same socket for all hardware access, the AMD daemon opens its
-    // own, fully independent connection via AMDDevice("AMD:0"). Leaving
-    // this one open too was a real bug: TinyGPU.app apparently doesn't
-    // tolerate two simultaneous clients cleanly -- the daemon's own
-    // connection would hang forever inside AMDDevice's resize_bar() RPC
-    // (Device["AMD:0"] never completing, cmd_boot never replying) while
-    // this stale connection sat idle. Confirmed via a real hardware hang,
-    // traceback pinned exactly to that RPC's blocking socket read.
-    if (self->tgpuSock >= 0) { tg_transport().close(); self->tgpuSock = -1; }   // the plugin's one connection (plan step C3)
-    g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0));
+    // The daemon runs tinygrad over Initialize()'s TinyGPU.app connection
+    // (self->tgpuSock, plan step C3), inherited, and this side sends nothing
+    // on it while the daemon lives; the GPUInterface destructor closes it
+    // after AmdFini. TinyGPU.app serves one client at a time: a second
+    // connection's first RPC (AMDDevice's resize_bar()) hung forever while
+    // this one sat open (STATUS.md AMD §21), which is why this side used to
+    // close it first and let the daemon connect itself.
+    g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0),
+                                   self->tgpuSock);
     if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: amdDispatchDaemonSetup failed\n"); amd_safe_exit(1); }
 
     self->InitializeKernelResource(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
@@ -404,8 +404,8 @@ void AmdSynchronizeHost() {
     if (!g_amd) return;
     amdFlushLaunchQueue();  // otherwise queued-but-unsent launches wouldn't be submitted yet to wait for
     auto t0 = amd_profile_start();
-    amd_send_line(g_amd->cmd_sock, "{\"cmd\":\"sync\"}");
-    std::string resp = amd_recv_line(g_amd->cmd_sock);
+    amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"sync\"}");
+    std::string resp = amd_recv_msg(g_amd->cmd_sock);
     amd_profile_end("sync", t0);
     if (resp.empty() || !amd_json_ok(resp))
         fprintf(stderr, "TinyGPU/AMD: sync failed: %s\n", resp.c_str());
@@ -416,8 +416,8 @@ GPUPtr AmdAllocateMemory(size_t sz) {
     auto t0 = amd_profile_start();
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"alloc\",\"size\":%zu}", sz);
-    amd_send_line(g_amd->cmd_sock, cmd);
-    std::string resp = amd_recv_line(g_amd->cmd_sock);
+    amd_send_msg(g_amd->cmd_sock, cmd);
+    std::string resp = amd_recv_msg(g_amd->cmd_sock);
     amd_profile_end("alloc", t0);
     if (resp.empty() || !amd_json_ok(resp)) {
         fprintf(stderr, "TinyGPU/AMD: alloc(%zu) failed: %s\n", sz, resp.c_str());
@@ -432,9 +432,9 @@ void AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
     auto t0 = amd_profile_start();
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"h2d\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)dst, sz);
-    amd_send_line(g_amd->cmd_sock, cmd);
+    amd_send_msg(g_amd->cmd_sock, cmd);
     amd_send_all(g_amd->cmd_sock, src, sz);
-    std::string resp = amd_recv_line(g_amd->cmd_sock);
+    std::string resp = amd_recv_msg(g_amd->cmd_sock);
     amd_profile_end("h2d", t0);
     if (resp.empty() || !amd_json_ok(resp))
         fprintf(stderr, "TinyGPU/AMD: h2d(addr=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)dst, sz, resp.c_str());
@@ -446,8 +446,8 @@ void AmdMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
     auto t0 = amd_profile_start();
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"d2h\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)src, sz);
-    amd_send_line(g_amd->cmd_sock, cmd);
-    std::string resp = amd_recv_line(g_amd->cmd_sock);
+    amd_send_msg(g_amd->cmd_sock, cmd);
+    std::string resp = amd_recv_msg(g_amd->cmd_sock);
     if (resp.empty() || !amd_json_ok(resp)) {
         amd_profile_end("d2h", t0);
         fprintf(stderr, "TinyGPU/AMD: d2h(addr=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)src, sz, resp.c_str());
@@ -471,8 +471,8 @@ void AmdFini() {
     for (auto& kv : g_amdKernels) delete kv.second;
     g_amdKernels.clear();
     if (g_amd->cmd_sock >= 0) {
-        amd_send_line(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
-        amd_recv_line(g_amd->cmd_sock);
+        amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
+        amd_recv_msg(g_amd->cmd_sock);
     }
     if (g_amd->daemon_pid > 0) {
         for (int i = 0; i < 100; ++i) {

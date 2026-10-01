@@ -74,11 +74,17 @@ Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGP
 | `mm_trace.py` | tinygrad's memory manager on a recording fake for BEAGLE's allocation sequence (`--mmu 2` Ada, `--mmu 3` Blackwell; `--vram-mb` sets the VRAM size): the reference for porting memory management, P2's layout gate, and B1's at 12227 MiB |
 | `cubin_inspect.py` | ELF facts of the cached cubins (SM in e_flags, relocations, register-count records) |
 | `amd_compile_probe.py` | compiles the AMD kernels for gfx1100 with tinygrad's `compile_hip` (native comgr) and reports size, determinism, kernel descriptors |
+| `tg_probe.py` | which device TinyGPU.app serves: one PCI config read under nv_usb4.lock, starting TinyGPU.app's server as the plugin does if nothing listens. TinyGPU.app serves only the first eGPU whose driver registered (STATUS.md R61), so every AMD hardware script checks this first |
+| `amd_state.py` | **hardware, read-only**: the boot tinygrad's AM driver would give the AMD card now (partial, full, or full after an SMU mode1 reset), from 6 registers inside BAR5 at the bases in the card's captured discovery table; writes nothing. Exit 3 when a mode1 reset would follow, and `amd_boot_check` in `env.sh` then refuses the run |
+| `amd_discovery.py` | the AMD card's IP discovery table as tinygrad's AMDev read it while opening the device (stock tinygrad), saved to `$BEAGLE_TINYGPU_DATA/discovery/` with a JSON of its IP versions, register bases, harvest and VRAM size: for plan step A2's AM mock and `amd_state.py` |
 | `d1_runs.txt` | plan step D1: the synthetictest and hmctest runs taken to the RTX 4060, each with the kernels it launches; `test_c13.sh` pins every line's kernel set on the fake (`d1_verdict` in `env.sh`, which reads the plugin's `BEAGLE_NV_PROFILE` kernel list) |
 | `d1_refs.sh` | plan step D1: every `d1_runs.txt` line's references, made offline with no TinyGPU plugin on the library path: synthetictest on the CPU in single and double precision, hmctest `--tinygpu` on the CPU and on the Mac's OpenCL GPU; under `$BEAGLE_TINYGPU_DATA/d1/refs/` |
 | `d1_compare.py` | plan step D1: a run's stdout against its references (tolerances in its docstring); reads files only |
 | `run_d1.sh` | **hardware**: one `d1_runs.txt` line on the real eGPU in the C++ runtime, with `run_point.sh`'s protections, stdout and stderr apart: `run_d1.sh <label>`; exits 0 only if `run_point.sh` would and the run launched exactly the line's kernels and matches its references; 3 is a clean run that failed that check. A line runs again only after a power cycle (`D1_REPLUGGED=1`), since a rerun would find its own results in VRAM. `run_point.sh` and `run_d1.sh` share a lock that is per computer (`$TMPDIR/beagle_tinygpu_hw.lock`), tag their `runs/` files with the computer's name (`HW_HOST`; `run_d1.sh`'s rerun check sees only this computer's runs), refuse exported variables that change what the GPU sees, keep `log stream` in its own process group, and keep the Mac awake while the crash guard holds (`hw_*` in `env.sh`) |
 | `run_point.sh` | **hardware**: one real run (see below): `run_point.sh <N>[,<N>...] [default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS]` (`default`, the only mode since plan step C13c, is the plugin's C++ boot and runtime; the slot keeps earlier command lines' shape, and a removed mode is refused; the list and `--instances`, `--threads`, `--cycles`: plan step P5's instances sharing one boot; `--kill idle`: the plugin killed at fini, plan step C10, the crash guard's teardown then decides; `--exit-after MS`: exit() from another thread, plan step C12); exits 0 only if the test passed, the fini report says the next boot needs no power cycle (`fini_verdict` in `env.sh`), the crash guard exited and `log stream` saw nothing from the eGPU |
+| `run_amd_point.sh` | **hardware**, plan step A0: one tinygpuhybridtest run on the AMD eGPU through BEAGLE's AMD path (the plugin and `amd_dispatch_daemon.py`), compared with the CPU, at DEBUG=2: `run_amd_point.sh <state-count> [reps] [args]`. Refuses unless TinyGPU.app serves an AMD card and `amd_state.py` predicts no mode1 reset; exits 0 only if the test passed, the daemon exited, `log stream` saw nothing from the eGPU and tinygrad reset nothing (1 is a STOP, 3 a clean run that failed; `amd_*` in `env.sh`) |
+| `run_amd_smoke.sh` | **hardware**: stock tinygrad's `(Tensor([1,2,3])+1).tolist()` on the AMD eGPU at DEBUG=2, no BEAGLE code, with `run_amd_point.sh`'s protections: `run_amd_smoke.sh [label]` |
+| `run_amd_discovery.sh` | **hardware**: `amd_discovery.py` with the same protections |
 
 ## Safety
 
@@ -93,10 +99,17 @@ Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGP
   the previous run: the teardown is on by default (plan step P3; `BEAGLE_NV_TEARDOWN=0` turns it off, STATUS.md R18),
   and `run_point.sh` exits nonzero at the first bad fini report. Never Ctrl-C or kill a run, and unplug a hung or
   holding GPU before killing anything. Outputs and a `log stream` capture go to `$BEAGLE_TINYGPU_DATA/runs/`.
+- `run_amd_point.sh`, `run_amd_smoke.sh` and `run_amd_discovery.sh` boot the AMD card through tinygrad's AM driver: a full
+  boot when it is cold, a partial one when AM booted it and finalized it. A mode1 reset, never tried over TinyGPU, is refused
+  beforehand when `amd_state.py` predicts one, and stops all hardware work if one happens (plan step A0). The smoke and
+  discovery scripts run stock tinygrad, which opens a real `APLRemotePCIDevice`: they refuse unless TinyGPU.app's release
+  zip is in tinygrad's download cache, since its `ensure_app` would otherwise reinstall the app (BEAGLE's daemon skips it).
 
 ## Data outside the repo (`~/.beagle/tinygpu/`)
 
 - `cubins/`: ptxas cubins keyed by the PTX's sha256 prefix and architecture.
+- `discovery/`: each AMD card's IP discovery table (`<vendor>_<device>_<sha16>.bin`, the table's own bytes) and its JSON,
+  from `run_amd_discovery.sh`; `raw/` keeps two whole 10 KiB reads, whose tail is other VRAM.
 - `fw/`: `booter_unload-570.144.bin` for ad102 and ga102, the GB20x boot's `fmc`/`gsp`/`bootloader` 570.144 files and ad102's
   `booter_load` (also staged in tinygrad's download cache, so `fetch_fw` finds them offline; `check_firmware.py` re-stages them).
 - `refs/`: NVIDIA, nouveau, Apple and other sources used by the 2026-09-24 research, with `REFERENCES.txt` (source

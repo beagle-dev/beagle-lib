@@ -27,8 +27,8 @@ one-line fix, same technique as BeagleAMDProgram.
 Protocol: JSON command messages, each preceded by its byte length as a
 4-byte little-endian uint32, on a dedicated socketpair (not the TinyGPU
 socket: NVDevice("NV:0") makes its own connection internally, exactly like
-STATUS.md §74's hardware-verified boot). amd_dispatch_daemon.py still uses
-newline-terminated JSON. Commands carrying bulk data (h2d/d2h) are followed
+STATUS.md §74's hardware-verified boot); amd_dispatch_daemon.py uses the
+same framing. Commands carrying bulk data (h2d/d2h) are followed
 immediately by that many raw bytes on the same stream. Kernel launches are batched from the start this time (cmd_launch_batch
 only, no per-launch cmd_launch) — AMD's own profiling (STATUS.md AMD §26)
 already found steady-state per-launch RPC overhead comparable to or larger
@@ -591,8 +591,8 @@ class Daemon:
 
     # ── wire I/O: each JSON message is preceded by its length as a 4-byte
     # little-endian uint32, so a message is two reads instead of one recv()
-    # per byte (the newline framing amd_dispatch_daemon.py still uses cost
-    # ~88 us per message, TODO.md "Runtime roadmap", Step 2) ────────────────
+    # per byte (the newline framing both daemons used cost ~88 us per
+    # message, TODO.md "Runtime roadmap", Step 2) ───────────────────────────
     def recv_msg(self):
         hdr = self.sock.recv(4)
         if not hdr:

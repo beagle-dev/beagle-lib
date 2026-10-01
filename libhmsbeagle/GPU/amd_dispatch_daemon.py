@@ -19,13 +19,14 @@ memcpy, launch, sync), not just bring-up — the C++ side
 some per-call IPC overhead for using only code this session has verified
 actually works on this hardware.
 
-Protocol: newline-terminated JSON command lines on a dedicated socketpair
-(NOT the TinyGPU socket — AMDDevice("AMD:0") makes its own connection to
-TinyGPU.app internally, matching how the STATUS.md §8 reference test
-connected, with no inherited FD needed). Commands that carry bulk data
-(h2d/d2h) are followed immediately by that many raw bytes on the same
-stream, avoiding base64 overhead. One JSON reply line per command
-(h2d/d2h's reply line is followed by the reply's own raw bytes for d2h).
+Protocol: JSON command messages, each preceded by its byte length as a
+4-byte little-endian uint32 (the NV pair's framing), on a dedicated
+socketpair. tinygrad runs over the plugin's own TinyGPU.app connection,
+inherited as tgpu_fd (_install_inherited_tinygpu), not a second one of its
+own. Commands that carry bulk data (h2d/d2h) are followed immediately by
+that many raw bytes on the same stream, avoiding base64 overhead. One JSON
+reply message per command (d2h's reply is followed by the reply's own raw
+bytes).
 
 Kernel launches are batched (cmd_launch_batch, STATUS.md AMD §26): profiling
 (BEAGLE_AMD_PROFILE=1) found steady-state per-launch RPC overhead (~150-190us)
@@ -33,14 +34,14 @@ comparable to or larger than the actual GPU dispatch work (~100us).
 GPUInterfaceTinyGPUHybridAMD.cpp queues launches instead of sending each as
 its own round-trip, and flushes the queue (one batched RPC call) before any
 h2d/d2h/sync/fini. This is safe without any extra synchronization on either
-side: prg(...) here always uses wait=False (just enqueues PM4 packets into
-the ring, doesn't block), so flushing at those points preserves submission
-order; and tinygrad's own HCQAllocator._copyin/_copyout/synchronize already
+side: launches here only enqueue PM4 packets into the ring and never block
+(prg(..., wait=False), or by default one chained queue per batch), so
+flushing at those points preserves submission order; and tinygrad's own HCQAllocator._copyin/_copyout/synchronize already
 call self.dev.synchronize() internally before touching memory, so by the
 time any h2d/d2h/sync actually reads or writes a buffer, every
 already-flushed launch is guaranteed to have completed on the GPU.
 
-    python3 amd_dispatch_daemon.py <cmd_sock_fd>
+    python3 amd_dispatch_daemon.py <cmd_sock_fd> [<tgpu_fd>]
 """
 import sys, os, json, struct, pathlib, ctypes, weakref, time
 
@@ -73,6 +74,11 @@ def log(msg):
 # question this was built to answer: is host-side overhead here actually
 # worth optimizing (and if so, where) before considering anything riskier.
 _PROFILE = bool(os.environ.get("BEAGLE_AMD_PROFILE"))
+
+# One chained compute queue per launch_batch (default), at most _CHAIN_MAX
+# launches per submit; see cmd_launch_batch.
+_CHAIN_LAUNCHES = os.environ.get("BEAGLE_AMD_CHAIN_LAUNCHES", "1") != "0"
+_CHAIN_MAX = 1024
 
 
 class _Profiled:
@@ -157,24 +163,50 @@ class BeagleAMDProgram(HCQProgram):
         weakref.finalize(self, self._fini, self.dev, self.lib_gpu, buf_spec)
 
 
+def _install_inherited_tinygpu(tgpu_fd):
+    """
+    Run tinygrad over the plugin's own TinyGPU.app connection (inherited as
+    tgpu_fd) instead of opening a second one: TinyGPU.app serves one client at
+    a time, and a second connection's first RPC hung while the plugin's sat
+    open (STATUS.md AMD §21). The plugin sends nothing on it while this
+    daemon lives. nv_dispatch_daemon.py's (the NV oracle's) device, without
+    the sysmem fd dups only its handoff needed.
+    """
+    import socket
+    from tinygrad.runtime.support import system
+
+    class BeagleTinyGPUDevice(system.APLRemotePCIDevice):
+        def __init__(self, devpref, pcibus):
+            # RemotePCIDevice.__init__ on the inherited connection, without APLRemotePCIDevice.__init__'s ensure_app and
+            # connect (the plugin checked the app and connected) or the buffer sizes (the plugin set them when it connected,
+            # and macOS refuses a second setting, ENOBUFS); the lock file as tinygrad takes it
+            self.sock, self.pcibus, self.dev_id = socket.socket(fileno=os.dup(tgpu_fd)), "usb4", 0
+            self.peer_group = self.sock.getpeername()[0]
+            self.lock_fd = system.System.flock_acquire(f"{devpref.lower()}_usb4.lock")
+
+    system.APLRemotePCIDevice = BeagleTinyGPUDevice  # System.list_devices looks the name up at call time
+
+
 class Daemon:
-    def __init__(self, sock):
+    def __init__(self, sock, tgpu_fd=None):
         self.sock = sock
+        self.tgpu_fd = tgpu_fd
         self.dev = None
         self.programs = {}   # (name, n_int_args) -> BeagleAMDProgram
         self.image = None    # last-compiled multi-kernel ELF (image, kernels dict of name->(kd_addr,desc))
         self.kernels = None
         self.hsaco = None
 
-    # ── wire I/O ──────────────────────────────────────────────────────────
-    def recv_line(self):
-        buf = b""
-        while not buf.endswith(b"\n"):
-            chunk = self.sock.recv(1)
-            if not chunk:
-                return None
-            buf += chunk
-        return buf.decode()
+    # ── wire I/O: each JSON message is preceded by its length as a 4-byte
+    # little-endian uint32, so a message is two reads instead of one recv()
+    # per byte ─────────────────────────────────────────────────────────────
+    def recv_msg(self):
+        hdr = self.sock.recv(4)
+        if not hdr:
+            return None
+        if len(hdr) < 4:
+            hdr += self.recv_exact(4 - len(hdr))
+        return self.recv_exact(struct.unpack("<I", hdr)[0])
 
     def recv_exact(self, n):
         buf = bytearray()
@@ -186,17 +218,24 @@ class Daemon:
         return bytes(buf)
 
     def send_json(self, obj):
-        self.sock.sendall((json.dumps(obj) + "\n").encode())
+        body = json.dumps(obj).encode()
+        self.sock.sendall(struct.pack("<I", len(body)) + body)
 
     # ── commands ──────────────────────────────────────────────────────────
     def cmd_boot(self, req):
         amd_hcq_patch.set_logger(log)
         amd_hcq_patch.apply()
         log("amd_hcq_patch applied")
+        if self.tgpu_fd is not None:
+            _install_inherited_tinygpu(self.tgpu_fd)
+            log(f"tinygrad uses the plugin's TinyGPU.app connection (fd {self.tgpu_fd})")
         DEV.value = "AMD"
         from tinygrad import Device
         self.dev = Device["AMD:0"]
         log(f"booted — {self.dev}")
+        log("launch_batch: " + (f"one chained queue per batch, at most {_CHAIN_MAX} launches per submit (compute ring "
+                                 f"{len(self.dev.compute_queue.ring) * 4} bytes)" if _CHAIN_LAUNCHES else
+                                 "one queue per launch (BEAGLE_AMD_CHAIN_LAUNCHES=0)"))
         self.send_json({"ok": True, "arch": self.dev.arch})
 
     def cmd_compile_all(self, req):
@@ -269,8 +308,23 @@ class Daemon:
         # every h2d/d2h/sync/fini, and tinygrad's own _copyin/_copyout/
         # synchronize already wait for prior submitted work internally --
         # see the module-level comment for why that makes this safe).
+        #
+        # By default the whole batch is one compute queue: one timeline wait
+        # and memory barrier, then each kernel's exec, which AMDComputeQueue.exec
+        # (amd_hcq_patch's, with the hidden kernel arguments) opens with a cache
+        # acquire and closes with a CS_PARTIAL_FLUSH, so each kernel starts after
+        # the previous one finished (hcq1's HCQGraph relies on the same in-queue
+        # ordering between dependent kernels), then one signal and one submit.
+        # That is HCQProgram.__call__ with N execs instead of one, and one
+        # doorbell per batch instead of per launch (TODO.md plan step A0, as the
+        # NV oracle's launch_batch). hcq1's PM4 _submit never checks the ring's
+        # read pointer, so a chain is submitted every _CHAIN_MAX launches (an
+        # exec is under 64 dwords: under 256 KB per submit, of the 16 MB ring).
+        # BEAGLE_AMD_CHAIN_LAUNCHES=0 submits each launch on its own queue, as
+        # before.
         debug_dump_target = os.environ.get("BEAGLE_AMD_DEBUG_DUMP")
         launches = req["launches"]
+        q = None
         with _Profiled(f"launch_batch({len(launches)})"):
             for i, item in enumerate(launches):
                 kernel_name = item["kernel"]
@@ -280,14 +334,29 @@ class Daemon:
                 block = item["block"]
                 try:
                     if debug_dump_target == kernel_name:
+                        q = self._submit_chain(q)  # the dump's synchronize must see every earlier launch
                         self._debug_dump(kernel_name, ptrs, ints, grid, block)
                     prg = self._get_program(kernel_name, len(ints))
                     bufs = tuple(HCQBuffer(addr, 0) for addr in ptrs)
-                    prg(*bufs, global_size=tuple(grid), local_size=tuple(block), vals=tuple(ints), wait=False)
+                    if not _CHAIN_LAUNCHES:
+                        prg(*bufs, global_size=tuple(grid), local_size=tuple(block), vals=tuple(ints), wait=False)
+                        continue
+                    if q is None:
+                        q = self.dev.hw_compute_queue_t().wait(self.dev.timeline_signal, self.dev.timeline_value - 1).memory_barrier()
+                    q.exec(prg, prg.fill_kernargs(bufs, tuple(ints)), tuple(grid), tuple(block))
+                    if (i + 1) % _CHAIN_MAX == 0:
+                        q = self._submit_chain(q)
                 except Exception as e:
                     self.send_json({"ok": False, "error": f"launch_batch[{i}] {kernel_name}: {e}"})
                     return
+            self._submit_chain(q)
         self.send_json({"ok": True, "count": len(launches)})
+
+    def _submit_chain(self, q):
+        # HCQProgram.__call__'s ending, once for the chained queue
+        if q is not None:
+            q.signal(self.dev.timeline_signal, self.dev.next_timeline()).submit(self.dev)
+        return None
 
     def cmd_sync(self, req):
         with _Profiled("sync.synchronize"):
@@ -299,10 +368,10 @@ class Daemon:
 
     def run(self):
         while True:
-            line = self.recv_line()
-            if line is None:
+            msg = self.recv_msg()
+            if msg is None:
                 break
-            req = json.loads(line)
+            req = json.loads(msg)
             cmd = req.get("cmd")
             try:
                 getattr(self, f"cmd_{cmd}")(req)
@@ -316,20 +385,21 @@ class Daemon:
 
 def main():
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <cmd_sock_fd>", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <cmd_sock_fd> [<tgpu_fd>]", file=sys.stderr)
         sys.exit(1)
     import socket
     cmd_fd = int(sys.argv[1])
+    tgpu_fd = int(sys.argv[2]) if len(sys.argv) > 2 else None
     sock = socket.socket(fileno=cmd_fd)
 
     os.makedirs(os.path.expanduser("~/Library/Logs"), exist_ok=True)
     log_path = os.path.expanduser("~/Library/Logs/amd_dispatch_daemon.log")
     fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_SYNC, 0o644)
     sys.stderr = os.fdopen(fd, 'w', buffering=1)
-    log(f"starting, cmd_fd={cmd_fd}")
+    log(f"starting, cmd_fd={cmd_fd} tgpu_fd={tgpu_fd}")
 
     try:
-        Daemon(sock).run()
+        Daemon(sock, tgpu_fd).run()
     except Exception:
         import traceback
         traceback.print_exc(file=sys.stderr)
