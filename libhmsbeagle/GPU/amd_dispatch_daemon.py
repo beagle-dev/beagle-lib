@@ -169,11 +169,14 @@ def _install_inherited_tinygpu(tgpu_fd):
     tgpu_fd) instead of opening a second one: TinyGPU.app serves one client at
     a time, and a second connection's first RPC hung while the plugin's sat
     open (STATUS.md AMD §21). The plugin sends nothing on it while this
-    daemon lives. nv_dispatch_daemon.py's (the NV oracle's) device, without
-    the sysmem fd dups only its handoff needed.
+    daemon lives. nv_dispatch_daemon.py's (the NV oracle's) device: it also
+    keeps a dup of each MAP_SYSMEM_FD fd, which hcq1's alloc_sysmem closes
+    once mapped, so cmd_handoff can pass buffers to the C++ side.
     """
-    import socket
+    import socket, mmap, itertools
+    from tinygrad.helpers import ceildiv
     from tinygrad.runtime.support import system
+    from tinygrad.runtime.support.hcq import FileIOInterface, MMIOInterface
 
     class BeagleTinyGPUDevice(system.APLRemotePCIDevice):
         def __init__(self, devpref, pcibus):
@@ -183,6 +186,17 @@ def _install_inherited_tinygpu(tgpu_fd):
             self.sock, self.pcibus, self.dev_id = socket.socket(fileno=os.dup(tgpu_fd)), "usb4", 0
             self.peer_group = self.sock.getpeername()[0]
             self.lock_fd = system.System.flock_acquire(f"{devpref.lower()}_usb4.lock")
+            self.sysmem_fds = {}  # host address of a sysmem mapping -> (dup of its fd, mapped size)
+
+        def alloc_sysmem(self, size, vaddr=0, contiguous=False):
+            # APLRemotePCIDevice.alloc_sysmem, plus the fd dup
+            mapped_size, _, _, fd = self._rpc(self.sock, self.dev_id, system.RemoteCmd.MAP_SYSMEM_FD, size, int(contiguous), has_fd=True)
+            keep = os.dup(fd)
+            memview = MMIOInterface(FileIOInterface(fd=fd).mmap(0, mapped_size, mmap.PROT_READ | mmap.PROT_WRITE, mmap.MAP_SHARED, 0),
+                                    mapped_size, fmt='B')
+            self.sysmem_fds[memview.addr] = (keep, mapped_size)
+            paddrs_raw = list(itertools.takewhile(lambda p: p[1] != 0, zip(memview.view(fmt='Q')[0::2], memview.view(fmt='Q')[1::2])))
+            return memview, [p + i for p, sz in paddrs_raw for i in range(0, sz, 0x1000)][:ceildiv(size, 0x1000)]
 
     system.APLRemotePCIDevice = BeagleTinyGPUDevice  # System.list_devices looks the name up at call time
 
@@ -191,6 +205,7 @@ class Daemon:
     def __init__(self, sock, tgpu_fd=None):
         self.sock = sock
         self.tgpu_fd = tgpu_fd
+        self.handed_off = False
         self.dev = None
         self.programs = {}   # (name, n_int_args) -> BeagleAMDProgram
         self.image = None    # last-compiled multi-kernel ELF (image, kernels dict of name->(kd_addr,desc))
@@ -363,6 +378,64 @@ class Daemon:
             self.dev.synchronize()
         self.send_json({"ok": True})
 
+    def cmd_handoff(self, req):
+        # TODO.md plan step A1e, the boot-only handoff: from here the C++ side (TinyGPUHybridAMDRuntime.h) owns the GPU's
+        # queues, and this daemon only waits for fini (run() refuses everything else). After a synchronize, it allocates
+        # the C++ side's VRAM pool (pool_size, default half the VRAM) and a 16 MB staging buffer, then replies with flat
+        # JSON: the sysmem mappings (sizes, in the order of the fds) and each object's (mapping, offset) in them, the
+        # GPU addresses the packets name, the queues' doorbells and put_values, the BAR sizes, the MMIO register addresses
+        # (discovered bases) the C++ side reads and writes, and the props. Then the HSACO compile_all compiled (blob_size
+        # bytes; none when the C++ side has the build's own, plan step A1j), then the mappings' fds over SCM_RIGHTS.
+        import socket as _socket
+        from tinygrad.device import BufferSpec
+        if self.handed_off: raise RuntimeError("handoff: already handed off")
+        dev, adev = self.dev, self.dev.iface.dev_impl
+        pci = dev.iface.pci_dev
+        if not hasattr(pci, "sysmem_fds"): raise RuntimeError("handoff needs the plugin's TinyGPU.app connection (tgpu_fd)")
+        dev.synchronize()
+        pool = dev.allocator.alloc(int(req.get("pool_size") or adev.vram_size // 2), BufferSpec(nolru=True))
+        staging = dev.allocator.alloc(16 << 20, BufferSpec(host=True, nolru=True))
+        self._handoff_bufs = (pool, staging)   # never freed: the C++ side uses them until fini
+        maps, info = [], {"ok": True}
+        def place(key, addr):
+            for base, (fd, size) in pci.sysmem_fds.items():
+                if base <= addr < base + size:
+                    if (fd, size) not in maps: maps.append((fd, size))
+                    info[f"{key}_map"], info[f"{key}_off"] = maps.index((fd, size)), addr - base
+                    return
+            raise RuntimeError(f"handoff: {key} at host address {addr:#x} is in no sysmem mapping")
+        for key, q in (("compute", dev.compute_queue), ("sdma", dev.sdma_queue(0))):
+            if q.doorbell.residx != 2: raise RuntimeError(f"handoff: the {key} doorbell is not on BAR2")
+            place(f"{key}_ring", q.ring.addr)
+            place(f"{key}_rptr", q.read_ptr.addr)
+            place(f"{key}_wptr", q.write_ptr.addr)
+            info.update({f"{key}_ring_size": q.ring.nbytes, f"{key}_doorbell": q.doorbell.off, f"{key}_put": q.put_value})
+        for key, sig in (("signal", dev.timeline_signal), ("shadow", dev._shadow_timeline_signal)):
+            place(key, sig.base_buf.cpu_view().addr)
+            info[f"{key}_va"] = sig.value_addr
+        for key, buf in (("kargs", dev.kernargs_buf), ("staging", staging)):
+            place(key, buf.cpu_view().addr)
+            info.update({f"{key}_va": buf.va_addr, f"{key}_size": buf.size})
+        info.update({"pool_va": pool.va_addr, "pool_size": pool.size, "timeline_value": dev.timeline_value, "vram_size": adev.vram_size,
+                     "target_major": dev.target[0], "xccs": dev.xccs, "cu_cnt": dev.cu_cnt, "se_cnt": dev.se_cnt,
+                     "max_slots_scratch_cu": dev.iface.props["max_slots_scratch_cu"], "lds_size_in_kb": dev.iface.props["lds_size_in_kb"],
+                     "ih_ring_paddr": adev.ih.rings[0][0], "ih_ring_size": adev.ih.ring_size, "is_vf": int(adev.is_vf)})
+        for bar in (0, 2, 5): info[f"bar{bar}_size"] = pci.bar_info(bar)[1]
+        for key, reg in (("reg_hdp_remap", "regBIF_BX0_REMAP_HDP_MEM_FLUSH_CNTL"), ("reg_ih_wptr", "regIH_RB_WPTR"), ("reg_ih_rptr", "regIH_RB_RPTR"),
+                         ("reg_ih_cntl", "regIH_RB_CNTL"), ("reg_fault_status", adev.gmc.pf_status_reg("GC")),
+                         ("reg_fault_addr_lo", "regGCVM_L2_PROTECTION_FAULT_ADDR_LO32"), ("reg_fault_addr_hi", "regGCVM_L2_PROTECTION_FAULT_ADDR_HI32"),
+                         ("reg_fault_cntl", "regGCVM_L2_PROTECTION_FAULT_CNTL")):
+            info[key] = adev.reg(reg).addr[0]
+        blob = self.hsaco or b""
+        info.update({"nmaps": len(maps), "blob_size": len(blob)})
+        for i, (_fd, size) in enumerate(maps): info[f"map{i}_size"] = size
+        self.handed_off = True
+        log(f"handoff: the C++ side owns the queues from here (VRAM pool {pool.size >> 20} MiB at {pool.va_addr:#x}, {len(maps)} mappings, "
+            f"timeline {dev.timeline_value})")
+        self.send_json(info)
+        self.sock.sendall(blob)
+        _socket.send_fds(self.sock, [b"F"], [fd for fd, _size in maps])
+
     def cmd_fini(self, req):
         self.send_json({"ok": True})
 
@@ -374,6 +447,8 @@ class Daemon:
             req = json.loads(msg)
             cmd = req.get("cmd")
             try:
+                if self.handed_off and cmd != "fini":   # two writers would corrupt the queues' put_values and the timeline
+                    raise RuntimeError(f"{cmd}: the GPU queues belong to the C++ side after handoff")
                 getattr(self, f"cmd_{cmd}")(req)
             except Exception as e:
                 import traceback

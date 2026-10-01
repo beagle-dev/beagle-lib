@@ -128,6 +128,33 @@ if(BUILD_TINYGPU_HYBRID)
 			VERBATIM)
 	add_custom_target(TinyGPUCubins DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_cubins.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUNVCubins.h")
 	add_dependencies(TinyGPUCubins TinyGPUKernels)
+	# The AMD C++ runtime's ahead-of-time HSACOs (TODO.md plan step A1j): every SP and DP variant of BeagleOpenCL_kernels.h
+	# compiled for gfx1100 by tinygpu_amd_compile (tinygrad's compile_hip in C++, through comgr) and embedded by
+	# kernels/BeagleTinyGPU_hsaco.S. Without comgr (tinygrad's build: /opt/homebrew/lib/libamd_comgr.dylib, or
+	# -DTINYGPU_COMGR=) the plugin is built without them, and its C++ runtime (BEAGLE_AMD_CPP=1) takes the AMD daemon's
+	# run-time compile instead. The HSACOs are outputs too, as the cubins are.
+	find_library(TINYGPU_COMGR NAMES amd_comgr HINTS /opt/homebrew/lib)
+	if(TINYGPU_COMGR)
+		message(STATUS "TinyGPU AMD HSACOs: using comgr at ${TINYGPU_COMGR}")
+		add_executable(tinygpu_amd_compile tinygpu_amd_compile.cpp)
+		target_include_directories(tinygpu_amd_compile PRIVATE "${CMAKE_SOURCE_DIR}")
+		add_dependencies(tinygpu_amd_compile _BeagleOpenCLKernelsFile)
+		foreach(p SP DP)
+			foreach(s ${TINYGPU_SP_STATES})
+				list(APPEND TINYGPU_HSACOS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_hsaco/${p}_${s}_gfx1100.hsaco")
+			endforeach()
+		endforeach()
+		add_custom_command(
+				OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_hsaco.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUAMDHsaco.h" ${TINYGPU_HSACOS}
+				COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_hsaco.sh" "$<TARGET_FILE:tinygpu_amd_compile>" "${TINYGPU_COMGR}"
+				WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
+				DEPENDS tinygpu_amd_compile "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h" "kernels/make_tinygpu_hsaco.sh"
+				COMMENT "Building TinyGPU ahead-of-time AMD HSACOs (comgr: SP and DP x gfx1100)"
+				VERBATIM)
+		add_custom_target(TinyGPUHsaco DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_hsaco.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUAMDHsaco.h")
+	else()
+		message(STATUS "TinyGPU AMD HSACOs: no comgr found; the AMD C++ runtime will use the daemon's run-time compile")
+	endif()
 	# CMake_HIP only defines the HIPKernels target (see the BeagleOpenCL_kernels.h
 	# comment above) -- added before CMake_TinyGPUHybrid so that target exists
 	# by the time CMake_TinyGPUHybrid/CMakeLists.txt's add_dependencies needs it.

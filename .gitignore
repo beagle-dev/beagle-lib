@@ -133,6 +133,11 @@ libhmsbeagle/benchmark/libbenchmark_la-linalg.lo
 /libhmsbeagle/GPU/kernels/BeagleTinyGPU_cubins.S.tmp
 /libhmsbeagle/GPU/kernels/TinyGPUNVCubins.h.tmp
 /libhmsbeagle/GPU/kernels/tinygpu_cubins/
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_hsaco.S
+/libhmsbeagle/GPU/kernels/TinyGPUAMDHsaco.h
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_hsaco.S.tmp
+/libhmsbeagle/GPU/kernels/TinyGPUAMDHsaco.h.tmp
+/libhmsbeagle/GPU/kernels/tinygpu_hsaco/
 
 # /libhmsbeagle/JNI/
 /libhmsbeagle/JNI/Makefile.in

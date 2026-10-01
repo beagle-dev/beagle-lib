@@ -30,6 +30,10 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
         ../GPUInterfaceTinyGPUHybridNV.cpp
         ../GPUInterfaceTinyGPUHybridNV.h
         ../TinyGPUTransport.h
+        ../TinyGPUAMDTables.h
+        ../TinyGPUHybridAMDDispatch.h
+        ../TinyGPUHybridAMDProgram.h
+        ../TinyGPUHybridAMDRuntime.h
         ../TinyGPUHybridNVDispatch.h
         ../TinyGPUElf.h
         ../TinyGPUHybridNVProgram.h
@@ -47,6 +51,13 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
 
 add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUKernels)
 add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUCubins)
+if(TINYGPU_COMGR)   # the AMD C++ runtime's ahead-of-time HSACOs (../CMakeLists.txt, TODO.md plan step A1j)
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_hsaco.S" PROPERTIES GENERATED TRUE
+            OBJECT_DEPENDS "${TINYGPU_HSACOS}")
+    target_sources(hmsbeagle-tinygpu-hybrid PRIVATE ../kernels/BeagleTinyGPU_hsaco.S)
+    target_compile_definitions(hmsbeagle-tinygpu-hybrid PRIVATE TINYGPU_AMD_HSACO=1)
+    add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUHsaco)
+endif()
 # AMD path (GPUInterfaceTinyGPUHybridAMD.cpp) compiles BEAGLE's existing
 # kernel source via comgr's HIP language (STATUS.md AMD §18-19) -- see
 # CMake_HIP/CMakeLists.txt and libhmsbeagle/GPU/CMakeLists.txt's

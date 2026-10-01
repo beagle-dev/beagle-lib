@@ -35,6 +35,7 @@ FAKE_TG_PROXY=/tmp/rec ./run_fake_device.sh rec -- --state-count 4 --reps 3  # .
 ./test_c11.sh                                                                 # plan step C11's (the C++ boot, the guard)
 ./test_c12.sh                                                                 # plan step C12's (the error returns)
 ./test_c13.sh                                                                 # plan step C13c's (the fake daemon's, moved)
+./test_a1h.sh                                                                 # plan step A1h's (the AMD C++ runtime on fakes)
 ```
 
 Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGPU_TEST_WORK` overrides; the old in-repo
@@ -80,6 +81,10 @@ Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGP
 | `golden_amd_encode.py/.cpp` | plan steps A1a-A1b: `TinyGPUAMDTables.h` regenerates from the pin (`../make_tinygpu_amd_tables.py`); `TinyGPUHybridAMDDispatch.h`'s PM4 encoder against hcq1's `AMDComputeQueue` with amd_hcq_patch's exec on a stub device: random batches chained as the daemon's launch_batch, every dword, every kernargs byte (random-filled), the ring through wraps and the wptr/HDP/doorbell order |
 | `golden_amd_copy.py/.cpp` | plan step A1c: the SDMA encoder and the copy flows against hcq1's `AMDCopyQueue` and `HCQAllocator._copyin/_copyout`: the ring (the tail's zero fill, wraps, packets that would end exactly at the ring's end), the ordered host waits, synchronizes and doorbells, the staging and copied-out bytes |
 | `golden_amd_program.py/.cpp` | plan step A1d: `TinyGPUHybridAMDProgram.h` against `BeagleAMDProgram` for all 18 variants compiled offline (1,015 kernels): the relocated image, every kernel's record, and the scratch sizing against `AMDDevice._ensure_has_local_memory`; needs comgr |
+| `golden_amd_handoff.py/.cpp` | plan step A1e: the daemon's own `cmd_handoff` on a stub AMDDevice (registers at this card's discovery bases), parsed and attached by the C++ runtime: every field and every object read back through the mappings |
+| `golden_amd_hsaco.py` | plan step A1j: `../tinygpu_amd_compile.cpp`'s HSACOs against tinygrad's `compile_hip` for all 18 variants: identical but for clang's per-process `__hip_cuid_` symbol (every other section, the image, the relocations, the descriptors); needs comgr |
+| `fake_amd_device.py`, `fake_amd_daemon.py` | plan step A1h: a fake TinyGPU.app whose GPU runs every PM4 and SDMA packet the C++ runtime submits and checks every address against the mapped buffers (the DART check), the doorbell protocol and each dispatch's kernel; and a stand-in daemon that boots nothing, compiles the real HSACO and hands off |
+| `test_a1h.sh` | plan step A1h: the real plugin (its default, the C++ runtime) against those fakes: 4, 64 and 256 states, the build's HSACOs and the daemon's compile, small rings and kernargs that wrap, and an SQ MEMVIOL that must stop the runtime, not hang it |
 | `d1_runs.txt` | plan step D1: the synthetictest and hmctest runs taken to the RTX 4060, each with the kernels it launches; `test_c13.sh` pins every line's kernel set on the fake (`d1_verdict` in `env.sh`, which reads the plugin's `BEAGLE_NV_PROFILE` kernel list) |
 | `d1_refs.sh` | plan step D1: every `d1_runs.txt` line's references, made offline with no TinyGPU plugin on the library path: synthetictest on the CPU in single and double precision, hmctest `--tinygpu` on the CPU and on the Mac's OpenCL GPU; under `$BEAGLE_TINYGPU_DATA/d1/refs/` |
 | `d1_compare.py` | plan step D1: a run's stdout against its references (tolerances in its docstring); reads files only |

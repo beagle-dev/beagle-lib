@@ -51,11 +51,15 @@
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridAMDRuntime.h"
 
 // The AMD path compiles the real OpenCL-C source -- see the plan's compiler-backend decision (comgr compiles BEAGLE's
 // existing FW_OPENCL kernels unmodified, not a HIP port). Its KERNELS_STRING_<PREC>_<N> macros are the only ones in the
 // plugin: GPUInterface.h's FW_TINYGPU branch includes only the PTX's stamp (TODO.md plan step C13).
 #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
+#ifdef TINYGPU_AMD_HSACO
+#include "libhmsbeagle/GPU/kernels/TinyGPUAMDHsaco.h"   // the build's ahead-of-time HSACOs (TODO.md plan step A1j)
+#endif
 
 namespace tinygpu_device {
 
@@ -85,6 +89,22 @@ static const char* amd_opencl_kernel_source(int paddedStateCount, bool doublePre
                     paddedStateCount, (int)doublePrecision);
             return nullptr;
     }
+}
+
+// The build's ahead-of-time HSACO of a variant ("SP_4" ... "DP_256") for an arch, compiled as the daemon would compile it
+// at run time (tinygpu_amd_compile, golden_amd_hsaco.py), or null when the build had no comgr or not that arch.
+// BEAGLE_AMD_AOT=0 (the harness's, for A/B) takes the daemon's run-time compile instead.
+static const unsigned char* amd_embedded_hsaco(const std::string& variant, const std::string& arch, size_t& n) {
+    n = 0;
+    const char* aot = getenv("BEAGLE_AMD_AOT");
+    if (aot && strcmp(aot, "0") == 0) return nullptr;
+#ifdef TINYGPU_AMD_HSACO
+    for (const TinyGPUAMDHsaco& h : kTinyGPUAMDHsacos)
+        if (variant == h.variant && arch == h.arch) { n = (size_t)(h.end - h.begin); return h.begin; }
+#else
+    (void)variant; (void)arch;
+#endif
+    return nullptr;
 }
 
 // ── small utilities (file I/O + minimal JSON; same style as the NV file) ────
@@ -190,7 +210,16 @@ static void amd_profile_end(const char* label, std::chrono::steady_clock::time_p
 struct AMDHybridState {
     int cmd_sock;
     pid_t daemon_pid;
+    AMDRuntime* rt = nullptr;   // the C++ runtime after the handoff (TODO.md plan step A1g)
 };
+
+// The default since 2026-10-01 (the user's choice, STATUS.md R69): after the boot the daemon hands the GPU's queues over to
+// the C++ runtime (TinyGPUHybridAMDRuntime.h), on a gfx11 card (the runtime's only target; any other keeps the daemon).
+// BEAGLE_AMD_CPP=0 keeps every operation an RPC to the daemon.
+static bool amd_cpp(const std::string& arch) {
+    static const bool on = [] { const char* e = getenv("BEAGLE_AMD_CPP"); return !(e && strcmp(e, "0") == 0); }();
+    return on && arch.rfind("gfx11", 0) == 0;
+}
 
 struct AMDKernelHandle {
     std::string name;
@@ -221,8 +250,11 @@ struct AMDPendingLaunch {
 };
 static std::vector<AMDPendingLaunch> g_amdPendingLaunches;
 
+static void amdFlushLaunchQueueCpp();
+
 static void amdFlushLaunchQueue() {
     if (!g_amd || g_amdPendingLaunches.empty()) return;
+    if (g_amd->rt) { amdFlushLaunchQueueCpp(); return; }
     auto t0 = amd_profile_start();
     std::string cmd = "{\"cmd\":\"launch_batch\",\"launches\":[";
     for (size_t li = 0; li < g_amdPendingLaunches.size(); ++li) {
@@ -247,6 +279,48 @@ static void amdFlushLaunchQueue() {
         fprintf(stderr, "TinyGPU/AMD: launch_batch(%zu kernels) failed: %s\n", n, resp.c_str());
 }
 
+// The daemon's chained launch_batch in C++ (TinyGPUHybridAMDDispatch.h): one queue per 1024 launches, each a timeline wait
+// and memory_barrier, the execs with their kernargs slots, then a signal and a submit. A kernargs wrap first waits for the
+// GPU to finish everything submitted (TinyGPUHybridAMDRuntime.h).
+static void amdFlushLaunchQueueCpp() {
+    AMDRuntime& rt = *g_amd->rt;
+    auto t0 = amd_profile_start();
+    const size_t n = g_amdPendingLaunches.size();
+    AMDComputeQueue q;
+    bool open = false;
+    for (size_t i = 0; i < n && !rt.error; ++i) {
+        const AMDPendingLaunch& pl = g_amdPendingLaunches[i];
+        auto it = rt.kernels.find(pl.kernel);
+        if (it == rt.kernels.end()) { rt.fail("launch of " + pl.kernel + ": not in the HSACO"); break; }
+        const AMDKernel& k = it->second.k;
+        if (pl.ptrs.size() * 8 + pl.ints.size() * 4 > k.kernargs_alloc_size) {
+            rt.fail("launch of " + pl.kernel + ": its arguments do not fit its " + std::to_string(k.kernargs_alloc_size) + "-byte kernargs");
+            break;
+        }
+        if (!open) {
+            q = AMDComputeQueue();
+            q.wait(rt.signal_va, (uint32_t)(rt.timeline_value - 1));
+            q.memory_barrier();
+            open = true;
+        }
+        const uint64_t before = rt.kargs_bump.ptr;
+        const uint64_t off = rt.kargs_bump.alloc(k.kernargs_alloc_size, 8);   // HCQProgram.fill_kernargs
+        if (off < before && !rt.wait_idle()) break;                          // wrapped: the slots may still be in use
+        const uint32_t grid[3] = {(uint32_t)pl.grid[0], (uint32_t)pl.grid[1], (uint32_t)pl.grid[2]};
+        const uint32_t block[3] = {(uint32_t)pl.block[0], (uint32_t)pl.block[1], (uint32_t)pl.block[2]};
+        std::vector<uint64_t> ptrs(pl.ptrs.begin(), pl.ptrs.end());
+        q.exec(k, rt.exec, rt.kargs + off, rt.kargs_va + off, ptrs.data(), (int)ptrs.size(), pl.ints.data(), (int)pl.ints.size(), grid, block);
+        if ((i + 1) % 1024 == 0 || i + 1 == n) {
+            q.signal(rt.signal_va, rt.next_timeline());
+            if (!rt.submit_compute(q)) break;
+            open = false;
+        }
+    }
+    g_amdPendingLaunches.clear();
+    amd_profile_end("launch_batch (C++)", t0);
+    if (rt.error) fprintf(stderr, "TinyGPU/AMD: launch_batch(%zu kernels) failed: %s\n", n, rt.error_msg.c_str());
+}
+
 [[noreturn]] static void amd_safe_exit(int code) {
     fflush(stderr);
     if (g_amd) {
@@ -266,12 +340,64 @@ static void amdFlushLaunchQueue() {
     _exit(code);
 }
 
+// The daemon's socket.send_fds: one byte carrying the fds as SCM_RIGHTS
+static bool amd_recv_fds(int sock, int* fds, int n) {
+    char byte;
+    struct iovec iov = { &byte, 1 };
+    std::vector<char> cbuf(CMSG_SPACE(sizeof(int) * n));
+    struct msghdr msg{};
+    msg.msg_iov = &iov; msg.msg_iovlen = 1;
+    msg.msg_control = cbuf.data(); msg.msg_controllen = (socklen_t)cbuf.size();
+    if (recvmsg(sock, &msg, 0) != 1) return false;
+    struct cmsghdr* c = CMSG_FIRSTHDR(&msg);
+    if (!c || c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * n)) return false;
+    memcpy(fds, CMSG_DATA(c), sizeof(int) * n);
+    return true;
+}
+
+// cmd_handoff (TODO.md plan step A1e): the daemon's flat JSON, the HSACO it compiled (none when this side has the build's,
+// plan step A1j), then the sysmem fds. From the reply on, the queues are this side's: a failure here is fatal.
+// BEAGLE_AMD_DATA_MB sizes the VRAM pool (the daemon's default: half the VRAM).
+static AMDRuntime* amdHandoff(AMDHybridState* g, const std::string& variant, const unsigned char* embedded, size_t embedded_size) {
+    auto t0 = amd_profile_start();
+    const char* mb = getenv("BEAGLE_AMD_DATA_MB");
+    const uint64_t pool = mb ? strtoull(mb, nullptr, 10) << 20 : 0;
+    amd_send_msg(g->cmd_sock, "{\"cmd\":\"handoff\",\"pool_size\":" + std::to_string(pool) + ",\"variant\":\"" + variant + "\"}");
+    const std::string js = amd_recv_msg(g->cmd_sock);
+    AMDHandoff h;
+    std::string err = js.empty() || !amd_json_ok(js) ? "the daemon's reply: " + js : amd_parse_handoff(js, h);
+    if (!err.empty()) { fprintf(stderr, "TinyGPU/AMD: handoff failed: %s\n", err.c_str()); return nullptr; }
+    std::vector<uint8_t> blob(h.blob_size);
+    int fds[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+    if (!amd_recv_all(g->cmd_sock, blob.data(), blob.size()) || !amd_recv_fds(g->cmd_sock, fds, (int)h.nmaps)) {
+        fprintf(stderr, "TinyGPU/AMD: handoff: the daemon connection was lost\n");
+        return nullptr;
+    }
+    AMDRuntime* rt = new AMDRuntime;
+    err = amd_runtime_attach(*rt, h, fds, tg_transport());
+    const unsigned char* hsaco = embedded ? embedded : blob.data();
+    const size_t hsaco_size = embedded ? embedded_size : blob.size();
+    if (err.empty() && hsaco_size == 0) err = "no HSACO: the build embedded none for this card and the daemon compiled none";
+    if (err.empty()) err = amd_runtime_load_programs(*rt, hsaco, hsaco_size);
+    if (!err.empty()) {
+        fprintf(stderr, "TinyGPU/AMD: handoff: %s\n", err.c_str());
+        amd_runtime_detach(*rt);
+        delete rt;
+        return nullptr;
+    }
+    amd_profile_end("handoff", t0);
+    fprintf(stderr, "TinyGPU/AMD: C++ runtime: handed over after boot (VRAM pool %llu MiB, %zu kernels, scratch %llu MiB, timeline %llu)\n",
+            (unsigned long long)(h.pool_size >> 20), rt->kernels.size(), (unsigned long long)(rt->exec.scratch_size >> 20),
+            (unsigned long long)rt->timeline_value);
+    return rt;
+}
+
 // ── amdDispatchDaemonSetup: spawn amd_dispatch_daemon.py over a dedicated
 // socketpair, handing it the plugin's TinyGPU.app connection (tg_fd) for
 // tinygrad to use instead of connecting itself, then send "boot" and
 // "compile_all". ───────────────────────────────────────────────────────────
 
-static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code, int tg_fd) {
+static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code, const std::string& variant, int tg_fd) {
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
         fprintf(stderr, "TinyGPU/AMD: socketpair failed: %s\n", strerror(errno));
@@ -322,7 +448,20 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code, int tg_fd
         delete g;
         return nullptr;
     }
-    fprintf(stderr, "TinyGPU/AMD: daemon booted — arch=%s\n", amd_json_str(resp, "arch").c_str());
+    const std::string arch = amd_json_str(resp, "arch");
+    fprintf(stderr, "TinyGPU/AMD: daemon booted — arch=%s\n", arch.c_str());
+
+    // The C++ runtime with the build's HSACO for this card: no run-time compile (TODO.md plan step A1j)
+    size_t aot_size = 0;
+    const unsigned char* aot = amd_cpp(arch) ? amd_embedded_hsaco(variant, arch, aot_size) : nullptr;
+    if (aot) {
+        fprintf(stderr, "TinyGPU/AMD: the build's ahead-of-time HSACO %s for %s (%zu bytes): no run-time compile\n", variant.c_str(),
+                arch.c_str(), aot_size);
+        if (!(g->rt = amdHandoff(g, variant, aot, aot_size))) { delete g; return nullptr; }
+        for (const auto& kv : g->rt->kernels) g_amdKernels[kv.first] = new AMDKernelHandle{kv.first};
+        fflush(stderr);
+        return g;
+    }
 
     if (kernel_code && kernel_code[0]) {
         char cl_path[256];
@@ -362,6 +501,7 @@ static AMDHybridState* amdDispatchDaemonSetup(const char* kernel_code, int tg_fd
             }
             fprintf(stderr, "TinyGPU/AMD: precompile_all_kernels — loaded %d kernels\n", loaded);
         }
+        if (amd_cpp(arch) && !(g->rt = amdHandoff(g, variant, nullptr, 0))) { delete g; return nullptr; }
     }
     fflush(stderr);
     return g;
@@ -378,7 +518,8 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     // connection's first RPC (AMDDevice's resize_bar()) hung forever while
     // this one sat open (STATUS.md AMD §21), which is why this side used to
     // close it first and let the daemon connect itself.
-    g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0),
+    const bool dp = (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
+    g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, dp), (dp ? "DP_" : "SP_") + std::to_string(paddedStateCount),
                                    self->tgpuSock);
     if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: amdDispatchDaemonSetup failed\n"); amd_safe_exit(1); }
 
@@ -404,6 +545,11 @@ void AmdSynchronizeHost() {
     if (!g_amd) return;
     amdFlushLaunchQueue();  // otherwise queued-but-unsent launches wouldn't be submitted yet to wait for
     auto t0 = amd_profile_start();
+    if (g_amd->rt) {
+        if (!g_amd->rt->synchronize()) fprintf(stderr, "TinyGPU/AMD: sync failed: %s\n", g_amd->rt->error_msg.c_str());
+        amd_profile_end("sync (C++)", t0);
+        return;
+    }
     amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"sync\"}");
     std::string resp = amd_recv_msg(g_amd->cmd_sock);
     amd_profile_end("sync", t0);
@@ -414,6 +560,13 @@ void AmdSynchronizeHost() {
 GPUPtr AmdAllocateMemory(size_t sz) {
     if (!g_amd) return 0;
     auto t0 = amd_profile_start();
+    if (g_amd->rt) {
+        uint64_t va = 0;
+        if (!g_amd->rt->alloc(sz, va)) fprintf(stderr, "TinyGPU/AMD: alloc(%zu): the VRAM pool has %llu bytes left\n", sz,
+                                                (unsigned long long)g_amd->rt->available());
+        amd_profile_end("alloc (C++)", t0);
+        return (GPUPtr)va;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"alloc\",\"size\":%zu}", sz);
     amd_send_msg(g_amd->cmd_sock, cmd);
@@ -430,6 +583,12 @@ void AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
     if (!g_amd || !src || !sz) return;
     amdFlushLaunchQueue();  // preserve ordering: queued launches must be submitted before this write
     auto t0 = amd_profile_start();
+    if (g_amd->rt) {
+        if (!amd_copyin(*g_amd->rt, g_amd->rt->staging, (uint64_t)dst, (const uint8_t*)src, sz))
+            fprintf(stderr, "TinyGPU/AMD: h2d(addr=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)dst, sz, g_amd->rt->error_msg.c_str());
+        amd_profile_end("h2d (C++)", t0);
+        return;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"h2d\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)dst, sz);
     amd_send_msg(g_amd->cmd_sock, cmd);
@@ -444,6 +603,12 @@ void AmdMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
     if (!g_amd || !dst || !sz) return;
     amdFlushLaunchQueue();  // preserve ordering: queued launches must complete before this read
     auto t0 = amd_profile_start();
+    if (g_amd->rt) {
+        if (!amd_copyout(*g_amd->rt, g_amd->rt->staging, (uint8_t*)dst, (uint64_t)src, sz))
+            fprintf(stderr, "TinyGPU/AMD: d2h(addr=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)src, sz, g_amd->rt->error_msg.c_str());
+        amd_profile_end("d2h (C++)", t0);
+        return;
+    }
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "{\"cmd\":\"d2h\",\"addr\":%llu,\"size\":%zu}", (unsigned long long)src, sz);
     amd_send_msg(g_amd->cmd_sock, cmd);
@@ -462,12 +627,15 @@ size_t AmdGetAvailableMemory() {
     // this backend has no independent view of remaining VRAM. Report a
     // generous constant rather than 0 (which some callers may treat as
     // "out of memory") -- purely informational, not load-bearing.
+    if (g_amd && g_amd->rt) return (size_t)g_amd->rt->available();   // the C++ runtime's pool
     return g_amd ? (size_t)(1ull << 30) : 0;
 }
 
 void AmdFini() {
     if (!g_amd) return;
     amdFlushLaunchQueue();  // don't silently drop queued-but-unsent launches
+    if (g_amd->rt && !g_amd->rt->synchronize())   // the daemon's fini (AMDev.fini) then dequeues the queues
+        fprintf(stderr, "TinyGPU/AMD: the last synchronize failed: %s\n", g_amd->rt->error_msg.c_str());
     for (auto& kv : g_amdKernels) delete kv.second;
     g_amdKernels.clear();
     if (g_amd->cmd_sock >= 0) {
@@ -482,6 +650,7 @@ void AmdFini() {
         }
     }
     if (g_amd->cmd_sock >= 0) close(g_amd->cmd_sock);
+    if (g_amd->rt) { amd_runtime_detach(*g_amd->rt); delete g_amd->rt; }
     delete g_amd;
     g_amd = nullptr;
 }

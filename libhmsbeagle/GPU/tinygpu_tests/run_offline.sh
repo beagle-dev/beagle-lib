@@ -34,6 +34,9 @@ results+=("default boot and error returns (C12): $([ $? -eq 0 ] && echo PASS || 
 # instances in one process, the routing, the ring's wrap, no teardown, the falcons' and the GSP's failures, the kills)
 "$TG_TESTS/test_c13.sh" > "$TINYGPU_TEST_WORK/test_c13_e2e.log" 2>&1
 results+=("fake-daemon checks on the C++ boot (C13): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c13_e2e.log)")")
+# plan step A1h: the AMD C++ runtime end to end on fake_amd_device.py and fake_amd_daemon.py (the DART audit, wraps, a fault)
+"$TG_TESTS/test_a1h.sh" > "$TINYGPU_TEST_WORK/test_a1h.log" 2>&1
+results+=("AMD C++ runtime end to end (A1h): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a1h.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
