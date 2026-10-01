@@ -953,6 +953,22 @@ static bool nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
     return true;
 }
 
+// Every firmware file this GPU's boot reads (TinyGPUFirmwareManifest.h), located, or downloaded into BEAGLE's cache
+// (TinyGPUFirmware.h; since 2026-10-01, the user's request), before anything is written to the GPU: the chip family comes
+// from the probe's PCI device ID, as nv_boot_gpu tells them apart. "" or why not.
+static std::string nv_fw_prefetch(uint16_t device_id) {
+    const char* family = device_id >= 0x2b00 ? "gb202" : "ad102";
+    const char* teardown = getenv("BEAGLE_NV_TEARDOWN");
+    const bool unload = !(teardown && strcmp(teardown, "0") == 0);
+    for (const nvfw::TGFirmware& f : nvfw::kFirmware) {
+        if (strcmp(f.chip, family) != 0 || (!unload && strcmp(f.role, "booter_unload") == 0)) continue;
+        TGFirmwareFile file;
+        const std::string err = tg_fw_locate(f, file);
+        if (!err.empty()) return err;
+    }
+    return "";
+}
+
 // TODO.md plan step C11: the GPU's setup (nvDispatchBoot): the C++ boot and the NVDevice; NvSetDevice then loads the programs
 // from the embedded cubin, as for an instance that shares the boot. Null if the boot failed, when the crash guard has the GPU
 // already (plan step C12).
@@ -1063,7 +1079,11 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         fprintf(stderr, "TinyGPU/NV: this GPU (PCI device ID %04x) is not one BEAGLE boots: Ada (0x26xx-0x28xx) and Blackwell "
                 "(0x2bxx-0x2dxx, 0x2fxx) only\n", tg_pci_device_id());
     try {
-        if (boot) g_nv = nvBootSetup(tg_fd);
+        if (boot) {
+            const std::string fw = nv_fw_prefetch(tg_pci_device_id());
+            if (fw.empty()) g_nv = nvBootSetup(tg_fd);
+            else fprintf(stderr, "%s\nTinyGPU/NV: not booting: nothing was written to the GPU\n", fw.c_str());
+        }
         NVDElf cubin;   // the programs of an instance that shares the boot, or of the boot's first
         if (!nv_failed(*in) &&
             (!nvRuntimeCubin(*in, paddedStateCount, self->supportDoublePrecision, g_nv->arch, cubin) || !nvRuntimePrograms(*in, cubin)))

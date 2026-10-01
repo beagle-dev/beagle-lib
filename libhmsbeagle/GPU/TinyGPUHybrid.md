@@ -27,10 +27,12 @@ Only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120)
 - macOS on Apple silicon, with the eGPU attached.
 - TinyGPU.app release `c0d024f9`, installed in `/Applications` and its system extension approved. BEAGLE checks both
   binaries' sha256 and refuses any other release, with the install instructions. BEAGLE never installs the app.
-- NVIDIA's firmware, from linux-firmware at tinygrad's pin (GSP-RM 570.144, the booters, and on GB20x the FMC):
-  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202] DIR`, then `BEAGLE_TINYGPU_FW=DIR`. BEAGLE also looks
-  in an installed `share/beagle/firmware` and in tinygrad's download cache (`~/Library/Caches/tinygrad/downloads/fw`). It
-  never downloads anything itself, and checks every file's sha256 against `TinyGPUFirmwareManifest.h`.
+- NVIDIA's firmware, from linux-firmware at tinygrad's pin (GSP-RM 570.144, the booters, and on GB20x the FMC). BEAGLE
+  looks in `BEAGLE_TINYGPU_FW`, an installed `share/beagle/firmware`, its own cache (`~/Library/Caches/beagle/firmware`)
+  and tinygrad's download cache (`~/Library/Caches/tinygrad/downloads/fw`). A file in none of them is downloaded from the
+  pinned URL with `/usr/bin/curl` into BEAGLE's cache before anything is written to the GPU. Every file's sha256 is checked
+  against `TinyGPUFirmwareManifest.h`. To fetch by hand (or for a Mac without the network):
+  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them). Nothing is compiled at run time.
 
@@ -79,6 +81,8 @@ For users:
 |---|---|
 | `BEAGLE_NV_DATA_MB` | the VRAM pool, in MiB (default: half the VRAM) |
 | `BEAGLE_TINYGPU_FW` | the firmware directory (see Requirements) |
+| `BEAGLE_TINYGPU_NO_DOWNLOAD=1` | no firmware download: a missing file is an error that says how to fetch it |
+| `BEAGLE_TINYGPU_FW_BASE_URL` | a mirror of linux-firmware's tree to download from, instead of the pinned URL |
 | `BEAGLE_TINYGPU_DATA` | where the VBIOS capture and other diagnostics go (default `~/.beagle/tinygpu`) |
 | `BEAGLE_TINYGPU_LOG` | the backend's log (default `~/Library/Logs/beagle_tinygpu.log`) |
 | `BEAGLE_NV_PROFILE=1` | per-call timings and launch counts on stderr at exit |

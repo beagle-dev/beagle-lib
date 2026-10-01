@@ -47,7 +47,7 @@ fi
 # the watchdog's SIGKILL must reach (with FAKE_SIGINT_AFTER, perl comes before env: macOS strips DYLD_LIBRARY_PATH from a system
 # binary's environment).
 run_test() {
-    exec ${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" \
+    exec ${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" \
         BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
         BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" "$TEST_BIN" "$@"
 }

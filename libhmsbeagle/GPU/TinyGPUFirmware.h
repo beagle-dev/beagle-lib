@@ -2,15 +2,21 @@
  * TinyGPUFirmware.h
  *
  * TODO.md plan step C4: finds the NVIDIA firmware a C++ boot needs (TinyGPUFirmwareManifest.h) and checks it the way
- * tinygrad's fetch does before it uses a cached file (helpers.py:469-474: the file exists and its sha256 matches), with no
- * network access (plan decision 5). Three places, in order:
+ * tinygrad's fetch does before it uses a cached file (helpers.py:469-474: the file exists and its sha256 matches). Four
+ * places, in order:
  *   1. $BEAGLE_TINYGPU_FW/<subdir>/<name>
  *   2. <the directory holding this code>/../share/beagle/firmware/<subdir>/<name> (an installed plugin's share/)
- *   3. tinygrad's download cache, where its fetch_fw leaves the file: ${XDG_CACHE_HOME:-~/Library/Caches}/tinygrad/
+ *   3. BEAGLE's download cache, ${XDG_CACHE_HOME:-~/Library/Caches}/beagle/firmware/<subdir>/<name>
+ *   4. tinygrad's download cache, where its fetch_fw leaves the file: ${XDG_CACHE_HOME:-~/Library/Caches}/tinygrad/
  *      downloads/fw/<md5(url)> (helpers.py:396, 454-472)
  * The file is mapped read-only (the GSP image is 63.5 MB) and its SHA-256 computed with CommonCrypto before it is
- * returned, so a boot can check all of its firmware before it opens the TinyGPU.app socket. When no place has the file,
- * the error says what each place held and how to fetch it (curl and shasum, or tinygpu_fetch_firmware.sh). fetch_fw's
+ * returned. When no place has it, it is downloaded (since 2026-10-01, the user's request; plan decision 5 had kept BEAGLE
+ * off the network) from the manifest's pinned linux-firmware URL, as fetch_fw would, by /usr/bin/curl into a temporary
+ * file in BEAGLE's cache, which is renamed into place only once its SHA-256 matches. The NV boot fetches its chip
+ * family's files this way before it writes anything to the GPU (GPUInterfaceTinyGPUHybridNV.cpp nv_fw_prefetch).
+ * BEAGLE_TINYGPU_NO_DOWNLOAD=1 turns downloading off (the offline tests set it), and BEAGLE_TINYGPU_FW_BASE_URL replaces
+ * the linux-firmware URL (a mirror, or a file:// copy for the tests). Without the file, the error says what each place
+ * held and how to fetch it by hand (curl and shasum, or tinygpu_fetch_firmware.sh). fetch_fw's
  * /lib/firmware/<path>/<name>.zst branch (helpers.py:506-508, Linux with Python 3.14) has no macOS counterpart.
  */
 
@@ -30,9 +36,13 @@
 #include <CommonCrypto/CommonDigest.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <spawn.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+extern char** environ;
 
 #include "libhmsbeagle/GPU/TinyGPUFirmwareManifest.h"
 
@@ -107,16 +117,25 @@ inline const nvfw::TGFirmware* tg_fw_entry(const std::string& chip, const std::s
     return nullptr;
 }
 
-inline std::string tg_fw_url(const nvfw::TGFirmware& fw) {   // fetch_fw's URL (helpers.py:509)
-    return std::string(nvfw::kLinuxFirmware) + "/" + fw.subdir + "/" + fw.name;
+inline std::string tg_fw_url(const nvfw::TGFirmware& fw) {   // fetch_fw's URL (helpers.py:509), or BEAGLE_TINYGPU_FW_BASE_URL's
+    const char* base = getenv("BEAGLE_TINYGPU_FW_BASE_URL");
+    return std::string(base && base[0] ? base : nvfw::kLinuxFirmware) + "/" + fw.subdir + "/" + fw.name;
+}
+
+inline std::string tg_fw_cache_root() {   // ${XDG_CACHE_HOME:-~/Library/Caches}
+    const char* xdg = getenv("XDG_CACHE_HOME");
+    const char* home = getenv("HOME");
+    return xdg ? xdg : std::string(home ? home : "") + "/Library/Caches";
 }
 
 // tinygrad's cache_dir/downloads/fw (helpers.py:396, 454-472, fetch_fw's subdir "fw"); not the tinybox /raid path
 inline std::string tg_fw_tinygrad_cache(const nvfw::TGFirmware& fw) {
-    const char* xdg = getenv("XDG_CACHE_HOME");
-    const char* home = getenv("HOME");
-    std::string base = xdg ? xdg : std::string(home ? home : "") + "/Library/Caches";
-    return base + "/tinygrad/downloads/fw/" + fw.url_md5;
+    return tg_fw_cache_root() + "/tinygrad/downloads/fw/" + fw.url_md5;
+}
+
+// BEAGLE's own download cache
+inline std::string tg_fw_beagle_cache(const nvfw::TGFirmware& fw) {
+    return tg_fw_cache_root() + "/beagle/firmware/" + fw.subdir + "/" + fw.name;
 }
 
 // The places searched, in order, as (label, path); a place with no path (BEAGLE_TINYGPU_FW unset) is listed empty.
@@ -134,8 +153,55 @@ inline std::vector<std::pair<std::string, std::string>> tg_fw_candidates(const n
         share = (dir.empty() ? "." : dir) + "/../share/beagle/firmware/" + rel;
     }
     out.push_back({"share/beagle/firmware", share});
+    out.push_back({"BEAGLE's download cache", tg_fw_beagle_cache(fw)});
     out.push_back({"tinygrad's download cache", tg_fw_tinygrad_cache(fw)});
     return out;
+}
+
+// Downloads fw into BEAGLE's cache: /usr/bin/curl writes a temporary file beside the destination (curl -f: an HTTP error
+// writes nothing usable; at most 256 MiB; it gives up if under 1 KiB/s for a minute), whose SHA-256 must match before it
+// is renamed into place. "" or why not.
+inline std::string tg_fw_download(const nvfw::TGFirmware& fw) {
+    const std::string dest = tg_fw_beagle_cache(fw), url = tg_fw_url(fw);
+    std::string dir = dest.substr(0, dest.find_last_of('/'));
+    for (size_t p = 1; p != std::string::npos; p = dir.find('/', p + 1)) {   // mkdir -p
+        std::string d = dir.substr(0, dir.find('/', p + 1));
+        if (mkdir(d.c_str(), 0755) != 0 && errno != EEXIST) return "cannot create " + d + ": " + strerror(errno);
+    }
+    const std::string tmp = dest + ".part." + std::to_string((long)getpid());
+    fprintf(stderr, "TinyGPU: downloading NVIDIA firmware %s/%s from %s ...\n", fw.subdir, fw.name, url.c_str());
+    fflush(stderr);
+    const char* argv[] = {"/usr/bin/curl", "-fsSL", "--proto", "=https,file", "--connect-timeout", "30", "--speed-limit", "1024",
+                          "--speed-time", "60", "--max-filesize", "268435456", "-o", tmp.c_str(), url.c_str(), nullptr};
+    posix_spawn_file_actions_t fa;   // as the crash guard's spawn: no fd of the host but stdin and stdout on /dev/null, and stderr
+    posix_spawnattr_t at;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawnattr_init(&at);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+    posix_spawn_file_actions_addinherit_np(&fa, 2);
+    posix_spawnattr_setflags(&at, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    pid_t pid = 0;
+    int rc = posix_spawn(&pid, argv[0], &fa, &at, const_cast<char* const*>(argv), environ);
+    posix_spawn_file_actions_destroy(&fa);
+    posix_spawnattr_destroy(&at);
+    if (rc != 0) return std::string("cannot run /usr/bin/curl: ") + strerror(rc);
+    int st = 0;
+    while (waitpid(pid, &st, 0) < 0 && errno == EINTR) {}
+    std::string why;
+    if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) why = "curl failed (exit " + std::to_string(WIFEXITED(st) ? WEXITSTATUS(st) : -1) + ") for " + url;
+    if (why.empty()) {
+        TGFirmwareFile f;
+        if (!f.map(tmp, why)) why = "the download: " + why;
+        else {
+            const std::string sha = tg_sha256_hex(f.data(), f.size());
+            if (sha != fw.sha256) why = "the download from " + url + " is " + std::to_string(f.size()) + " bytes with sha256 " + sha + ", not this file";
+        }
+    }
+    if (why.empty() && rename(tmp.c_str(), dest.c_str()) != 0) why = "cannot rename the download to " + dest + ": " + strerror(errno);
+    if (!why.empty()) { unlink(tmp.c_str()); return why; }
+    fprintf(stderr, "TinyGPU: downloaded %s/%s into %s (sha256 checked)\n", fw.subdir, fw.name, dest.c_str());
+    return "";
 }
 
 // Finds fw, maps it and checks its sha256. Returns an empty string on success, otherwise what each place held and how to
@@ -153,9 +219,17 @@ inline std::string tg_fw_locate(const nvfw::TGFirmware& fw, TGFirmwareFile& out)
         }
         report += "  " + c.first + " " + c.second + ": " + why + "\n";
     }
+    const char* nodl = getenv("BEAGLE_TINYGPU_NO_DOWNLOAD");
+    std::string dl = nodl && strcmp(nodl, "0") != 0 ? "not tried (BEAGLE_TINYGPU_NO_DOWNLOAD is set)" : tg_fw_download(fw);
+    if (dl.empty()) {
+        std::string why;
+        if (out.map(tg_fw_beagle_cache(fw), why)) return "";
+        dl = "the downloaded file: " + why;
+    }
+    report += "  the download: " + dl + "\n";
     const std::string dest = tg_fw_tinygrad_cache(fw), url = tg_fw_url(fw);
     return "TinyGPU: NVIDIA firmware " + std::string(fw.subdir) + "/" + fw.name + " (sha256 " + fw.sha256 + ") is missing or damaged:\n" +
-           report + "BEAGLE does not download firmware. To fetch it where tinygrad keeps it:\n" +
+           report + "To fetch it by hand where tinygrad keeps it:\n" +
            "  mkdir -p '" + dest.substr(0, dest.find_last_of('/')) + "' && curl -fL -o '" + dest + "' '" + url + "' && shasum -a 256 '" +
            dest + "'\n  (shasum must print " + fw.sha256 + "), or run libhmsbeagle/GPU/tinygpu_fetch_firmware.sh DIR and set "
            "BEAGLE_TINYGPU_FW=DIR.";

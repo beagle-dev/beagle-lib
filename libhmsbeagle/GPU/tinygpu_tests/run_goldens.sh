@@ -5,6 +5,7 @@
 # the pinned tinygrad at $TINYGRAD_PATH, and cached cubins in $BEAGLE_TINYGPU_DATA/cubins (compiled once with
 # ptxas through nv_compile_helper.compile_ptx if missing).
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+export BEAGLE_TINYGPU_NO_DOWNLOAD=1   # no golden downloads firmware (test_c4_firmware.py turns it on against a file:// mirror)
 fail=0
 for t in golden_encode golden_runtime golden_program golden_transport test_c1_cubins test_p1_diagnostics test_p2_teardown test_b1_cot test_c2_tables golden_gsp test_c4_firmware golden_mm golden_rm golden_gsp_hw golden_flcn_hw golden_boot; do
     echo "== $t"

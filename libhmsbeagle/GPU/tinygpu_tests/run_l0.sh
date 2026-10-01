@@ -53,7 +53,7 @@ UPSTREAM="${TMPDIR:-/tmp}"; UPSTREAM="${UPSTREAM%/}/tinygpu.sock"   # tinygrad's
 START_APP=--start-app; FAKE=""
 if [ "$DRY" = 1 ]; then   # the fake AD107 instead of TinyGPU.app, and this run's crash guard ended if it holds (its pid file)
     UPSTREAM="$PRIV/dev.sock"; START_APP=""
-    OFFLINE_ENV=(BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+    OFFLINE_ENV=(BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
                  BEAGLE_TG_GUARD_PIDFILE="$PRIV/guard.pid")
     "$BEAGLE_PYTHON" "$TG_TESTS/fake_nv_device.py" "$UPSTREAM" "$PRIV/mem" > "$RUNS/${STAMP}_L0_${LABEL}_fake_device.log" 2>&1 &
     FAKE=$!
