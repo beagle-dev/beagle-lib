@@ -53,9 +53,9 @@ private:
 
     /* Backward eigenvector buffers for the parent branch in pre-order.
      * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).
-     *               Used as ievc1 in Growing kernels (backward Phase 1: U^T·p).
+     *               evecT1 of the Growing kernels (backward, to the eigen basis: U^T·p).
      * dIevcT[ei]  = U^-1 stored row-major (dIevcT[j*S+k] = U^-1[j,k]).
-     *               Used as evec1 in Growing kernels (backward Phase 3: (U^-1)^T·q).
+     *               ievcT1 of the Growing kernels (backward, from the eigen basis: (U^-1)^T·q).
      * Allocated as one contiguous block each; sub-pointers per eigen index. */
     GPUPtr  dEvecTOrigin;
     GPUPtr* dEvecT;

@@ -505,12 +505,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kPartialsSize = kPaddedPatternCount * kPaddedStateCount * kCategoryCount;
     kMatrixSize = kPaddedStateCount * kPaddedStateCount;
 
-    // Spectral kernels (kernelsSpectralIfDef*.cu, for CUDA and OpenCL) always read a
-    // real+imaginary pair per eigenstate (SPECTRAL_EIGENVALS_GPU unconditionally indexes
-    // eigenValues[PADDED_STATE_COUNT + state]) regardless of BEAGLE_FLAG_EIGEN_COMPLEX, so the
-    // device buffer must be sized/copied as complex whenever spectral representation is in use,
-    // otherwise that read runs past the data actually written by setEigenDecomposition.
-    if ((kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) || (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION))
+    // Spectral kernels (kernelsSpectralIfDef*.cu, for CUDA and OpenCL) always read, per
+    // eigenstate, the real part, the imaginary part and the position in a conjugate pair
+    // (eigenValues[2 * PADDED_STATE_COUNT + state], see BeagleGPUSpectralImpl::setEigenDecomposition)
+    // regardless of BEAGLE_FLAG_EIGEN_COMPLEX, so the device buffer must be sized for all three
+    // whenever spectral representation is in use.
+    if (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)
+        kEigenValuesSize = 3 * kPaddedStateCount;
+    else if (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX)
         kEigenValuesSize = 2 * kPaddedStateCount;
     else
         kEigenValuesSize = kPaddedStateCount;

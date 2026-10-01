@@ -309,6 +309,7 @@ void KernelLauncher::LoadKernels() {
     if (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) {
         fPartialsPartialsGrowingSpectral       = gpu->GetFunction("kernelPartialsPartialsGrowingSpectral");
         fPartialsStatesGrowingSpectral         = gpu->GetFunction("kernelPartialsStatesGrowingSpectral");
+        fPartialsPartialsGrowingTopSpectral    = gpu->GetFunction("kernelPartialsPartialsGrowingTopSpectral");
         fPartialsStatesGrowingTopSpectral      = gpu->GetFunction("kernelPartialsStatesGrowingTopSpectral");
         fPartialsPartialsGrowingTopRootSpectral= gpu->GetFunction("kernelPartialsPartialsGrowingTopRootSpectral");
         fPartialsStatesGrowingTopRootSpectral  = gpu->GetFunction("kernelPartialsStatesGrowingTopRootSpectral");
@@ -1036,7 +1037,7 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
 void KernelLauncher::PartialsPartialsGrowingSpectral(GPUPtr partials1,
                                                      GPUPtr partials2,
                                                      GPUPtr partials3,
-                                                     GPUPtr ievc1, GPUPtr evec1,
+                                                     GPUPtr evecT1, GPUPtr ievcT1,
                                                      GPUPtr eigenValues1, GPUPtr distances1,
                                                      GPUPtr ievc2, GPUPtr evec2,
                                                      GPUPtr eigenValues2, GPUPtr distances2,
@@ -1046,7 +1047,7 @@ void KernelLauncher::PartialsPartialsGrowingSpectral(GPUPtr partials1,
                       bgSpectralPeelingBlock, bgSpectralPeelingGrid,
                       11, 12,
                       partials1, partials2, partials3,
-                      ievc1, evec1, eigenValues1, distances1,
+                      evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
     gpu->SynchronizeDevice();
@@ -1055,7 +1056,7 @@ void KernelLauncher::PartialsPartialsGrowingSpectral(GPUPtr partials1,
 void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
                                                    GPUPtr states2,
                                                    GPUPtr partials3,
-                                                   GPUPtr ievc1, GPUPtr evec1,
+                                                   GPUPtr evecT1, GPUPtr ievcT1,
                                                    GPUPtr eigenValues1, GPUPtr distances1,
                                                    GPUPtr ievc2, GPUPtr evec2,
                                                    GPUPtr eigenValues2, GPUPtr distances2,
@@ -1065,7 +1066,26 @@ void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
                       bgSpectralPeelingBlock, bgSpectralPeelingGrid,
                       11, 12,
                       partials1, states2, partials3,
-                      ievc1, evec1, eigenValues1, distances1,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    gpu->SynchronizeDevice();
+}
+
+void KernelLauncher::PartialsPartialsGrowingSpectralTop(GPUPtr partials1,
+                                                        GPUPtr partials2,
+                                                        GPUPtr partials3,
+                                                        GPUPtr evecT1, GPUPtr ievcT1,
+                                                        GPUPtr eigenValues1, GPUPtr distances1,
+                                                        GPUPtr ievc2, GPUPtr evec2,
+                                                        GPUPtr eigenValues2, GPUPtr distances2,
+                                                        unsigned int patternCount,
+                                                        unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsPartialsGrowingTopSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      11, 12,
+                      partials1, partials2, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
     gpu->SynchronizeDevice();
@@ -1074,7 +1094,7 @@ void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
 void KernelLauncher::PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                                                       GPUPtr states2,
                                                       GPUPtr partials3,
-                                                      GPUPtr ievc1, GPUPtr evec1,
+                                                      GPUPtr evecT1, GPUPtr ievcT1,
                                                       GPUPtr eigenValues1, GPUPtr distances1,
                                                       GPUPtr ievc2, GPUPtr evec2,
                                                       GPUPtr eigenValues2, GPUPtr distances2,
@@ -1084,7 +1104,7 @@ void KernelLauncher::PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                       bgSpectralPeelingBlock, bgSpectralPeelingGrid,
                       11, 12,
                       partials1, states2, partials3,
-                      ievc1, evec1, eigenValues1, distances1,
+                      evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
     gpu->SynchronizeDevice();

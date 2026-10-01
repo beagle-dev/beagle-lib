@@ -61,6 +61,7 @@ private:
 	GPUFunction fPartialsStatesGrowing;
     GPUFunction fPartialsPartialsGrowingSpectral;
     GPUFunction fPartialsStatesGrowingSpectral;
+    GPUFunction fPartialsPartialsGrowingTopSpectral;
     GPUFunction fPartialsStatesGrowingTopSpectral;
     GPUFunction fPartialsPartialsGrowingTopRootSpectral;
     GPUFunction fPartialsStatesGrowingTopRootSpectral;
@@ -372,16 +373,16 @@ public:
                                  unsigned int categoryCount,
                                  int sizeReal);
 
-    /* Spectral Growing (pre-order) launchers.
-     * Bottom: dest = P_par^T·(P_sib·c_sib ⊙ p_par)   — chained.
-     * Top NotRoot PP: reuses PartialsPartialsPruningSpectral with backward
-     *                 matrices for child1 (no separate launcher needed).
-     * Top NotRoot PS: two independent transforms + Hadamard.
-     * Top Root PP/PS: sibling-only forward + Hadamard with root pre-order. */
+    /* Spectral Growing (pre-order) launchers. The parent's partials (partials1) go
+     * backward through branch 1 (evecT1 = dEvecT, ievcT1 = dIevcT), the sibling
+     * forward through branch 2 (ievc2 = dIevc, evec2 = dEvec).
+     * Bottom:         dest = P_1^T (p_par ⊙ P_2 c_sib)   — chained.
+     * Top NotRoot:    dest = (P_1^T p_par) ⊙ (P_2 c_sib) — two products + Hadamard.
+     * Top Root PP/PS: dest = p_root ⊙ (P_2 c_sib)        — sibling only. */
     void PartialsPartialsGrowingSpectral(GPUPtr partials1,
                                          GPUPtr partials2,
                                          GPUPtr partials3,
-                                         GPUPtr ievc1, GPUPtr evec1,
+                                         GPUPtr evecT1, GPUPtr ievcT1,
                                          GPUPtr eigenValues1, GPUPtr distances1,
                                          GPUPtr ievc2, GPUPtr evec2,
                                          GPUPtr eigenValues2, GPUPtr distances2,
@@ -391,17 +392,27 @@ public:
     void PartialsStatesGrowingSpectral(GPUPtr partials1,
                                        GPUPtr states2,
                                        GPUPtr partials3,
-                                       GPUPtr ievc1, GPUPtr evec1,
+                                       GPUPtr evecT1, GPUPtr ievcT1,
                                        GPUPtr eigenValues1, GPUPtr distances1,
                                        GPUPtr ievc2, GPUPtr evec2,
                                        GPUPtr eigenValues2, GPUPtr distances2,
                                        unsigned int patternCount,
                                        unsigned int categoryCount);
 
+    void PartialsPartialsGrowingSpectralTop(GPUPtr partials1,
+                                            GPUPtr partials2,
+                                            GPUPtr partials3,
+                                            GPUPtr evecT1, GPUPtr ievcT1,
+                                            GPUPtr eigenValues1, GPUPtr distances1,
+                                            GPUPtr ievc2, GPUPtr evec2,
+                                            GPUPtr eigenValues2, GPUPtr distances2,
+                                            unsigned int patternCount,
+                                            unsigned int categoryCount);
+
     void PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                                           GPUPtr states2,
                                           GPUPtr partials3,
-                                          GPUPtr ievc1, GPUPtr evec1,
+                                          GPUPtr evecT1, GPUPtr ievcT1,
                                           GPUPtr eigenValues1, GPUPtr distances1,
                                           GPUPtr ievc2, GPUPtr evec2,
                                           GPUPtr eigenValues2, GPUPtr distances2,

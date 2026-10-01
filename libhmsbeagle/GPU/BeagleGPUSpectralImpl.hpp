@@ -227,12 +227,9 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     const int SC = this->kStateCount;
     const int SS = S * S;
     // kEigenValuesSize is private to BeagleGPUImpl; recompute the same way it does.
-    // Spectral kernels always read a real+imaginary pair per eigenstate regardless of
-    // BEAGLE_FLAG_EIGEN_COMPLEX (see matching comment/fix in BeagleGPUImpl::createInstance),
-    // so this local copy must widen for BEAGLE_FLAG_SPECTRAL_REPRESENTATION too, or the
-    // imaginary half of the device buffer is left uninitialized.
-    const int eigenValuesSize = ((this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) ||
-                                  (this->kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) ? 2 * S : S;
+    // Eval is [real parts | imaginary parts | pair positions], S entries each, regardless of
+    // BEAGLE_FLAG_EIGEN_COMPLEX (see matching comment in BeagleGPUImpl::createInstance).
+    const int eigenValuesSize = 3 * S;
 
     // Forward:  dEvec[row*S+col]  = U[col,row];    dIevc[row*S+col]  = U^-1[col,row]
     // Backward: dEvecT[row*S+col] = U[row,col];    dIevcT[row*S+col] = U^-1[row,col]
@@ -287,15 +284,23 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     for (int i = 0; i < SC; i++)
         Eval[i] = (Real) inEigenValues[i];
 
+    // Eval[2S + i] is +1 if eigenvalue i is the first of a complex conjugate pair (i, i + 1), -1 if
+    // it is the second, and 0 if it is real. As on the CPU, pairs are found by position: a nonzero
+    // imaginary part starts a pair, whatever its sign.
     bool allReal = true;
-    for (int i = 0; i < SC && allReal; i++)
-        if (inEigenValues[SC + i] != 0.0) allReal = false;
-    hEigenDecompIsAllReal[eigenIndex] = allReal;
-
     if (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
         for (int i = 0; i < SC; i++)
             Eval[S + i] = (Real) inEigenValues[SC + i];
+        for (int i = 0; i + 1 < SC; i++) {
+            if (inEigenValues[SC + i] != 0.0) {
+                Eval[2 * S + i]     = (Real)  1;
+                Eval[2 * S + i + 1] = (Real) -1;
+                allReal = false;
+                i++;
+            }
+        }
     }
+    hEigenDecompIsAllReal[eigenIndex] = allReal;
 
     if (getenv("BEAGLE_DEBUG_EIGEN")) {
         fprintf(stderr, "[GPU setEigenDecomposition] eigenIndex=%d S=%d SC=%d\n", eigenIndex, S, SC);
@@ -345,10 +350,10 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
         }
     } else {
         int ei1 = hEigenIndexForMatrix[c1MatIdx];
-        // For BOTTOM: dEvecT[ei1] = U (used as ievc1), dIevcT[ei1] = U^-1 (used as evec1)
-        // For TOP NotRoot: same backward parent transform
-        GPUPtr bIevc1 = dEvecT[ei1];
-        GPUPtr bEvec1 = dIevcT[ei1];
+        // the parent's partials go backward through branch c1 (P^T = V^{-T} e^{Dt}^T V^T): to the
+        // eigen basis with V (dEvecT), back with V^{-1} (dIevcT)
+        GPUPtr evecT1 = dEvecT[ei1];
+        GPUPtr ievcT1 = dIevcT[ei1];
         GPUPtr eval1  = this->dEigenValues[ei1];
         GPUPtr dist1  = dSpectralDistances[c1MatIdx];
 
@@ -356,30 +361,27 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
             if (sibIsStates) {
                 this->kernels->PartialsStatesGrowingSpectralTop(
                     partials1, c2, partials3,
-                    bIevc1, bEvec1, eval1, dist1,
+                    evecT1, ievcT1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
                     this->kPaddedPatternCount, this->kCategoryCount);
             } else {
-                // Top NotRoot PP: reuse no-scale PP pruning kernel with backward matrices
-                this->kernels->PartialsPartialsPruningSpectral(
+                this->kernels->PartialsPartialsGrowingSpectralTop(
                     partials1, c2, partials3,
-                    bIevc1, bEvec1, eval1, dist1,
+                    evecT1, ievcT1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
-                    nullptr, nullptr,
-                    this->kPaddedPatternCount, this->kCategoryCount,
-                    -1, -1, -1);
+                    this->kPaddedPatternCount, this->kCategoryCount);
             }
         } else {
             if (sibIsStates) {
                 this->kernels->PartialsStatesGrowingSpectral(
                     partials1, c2, partials3,
-                    bIevc1, bEvec1, eval1, dist1,
+                    evecT1, ievcT1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
                     this->kPaddedPatternCount, this->kCategoryCount);
             } else {
                 this->kernels->PartialsPartialsGrowingSpectral(
                     partials1, c2, partials3,
-                    bIevc1, bEvec1, eval1, dist1,
+                    evecT1, ievcT1, eval1, dist1,
                     ievc2, evec2, eval2, dist2,
                     this->kPaddedPatternCount, this->kCategoryCount);
             }
