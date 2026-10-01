@@ -98,10 +98,10 @@ hw_logstream() {
     grep -q "^Filtering the log data" "$1" || { echo "log stream did not attach; not running"; exit 2; }
 }
 # The log-stream lines that are not the eGPU, which the hardware scripts' STOP check skips: the filter's header, the Neural
-# Engine's DART mappings ("ANE0 ... dartMapBase"), camera lines, and TinyGPU.app's GUI process gaining or losing a visibility
+# Engines' DART mappings ("ANE0 ... dartMapBase"; on a two-die Mac also ANE2's, STATUS.md R62), camera lines, and TinyGPU.app's GUI process gaining or losing a visibility
 # inheritance (RunningBoard, as its window's visibility changes: STATUS.md R35), with that message's continuation lines. Any
 # other line from TinyGPU.app (a RunningBoard termination, say), and every DART, apciec or panic line, still stops the run.
-HW_LOG_BENIGN='^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE0:|H13Cam|TinyGPU: \(RunningBoardServices\) (didChangeInheritances$|\[com\.apple\.runningboard:connection\] (Gained|Lost) inheritances: \{\($)|^    <RBSInheritance[|] |^\)\}$'
+HW_LOG_BENIGN='^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE[0-9]+:|H13Cam|TinyGPU: \(RunningBoardServices\) (didChangeInheritances$|\[com\.apple\.runningboard:connection\] (Gained|Lost) inheritances: \{\($)|^    <RBSInheritance[|] |^\)\}$'
 # hw_logstream_stop: after the run, lets log stream flush and stops it; fails if it had already ended (the check was blind)
 hw_logstream_stop() {
     kill -0 $LSP 2>/dev/null || return 1
