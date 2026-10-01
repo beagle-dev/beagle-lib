@@ -40,6 +40,8 @@ STATUS_REGION, QUEUES_SIZE = w.STATUS_REGION, w.QUEUES_SIZE
 WATCH_MAX = 64 << 10                 # mappings up to this size are diffed whole at every request
 DIFF_BLOCK = 256
 
+AMD_VENDOR = 0x1002
+
 class FailStop(Exception): pass
 class NoUpstream(Exception): pass   # nothing listens upstream: the session reached no GPU, so it is closed, not held
 class _Exit(Exception): pass
@@ -88,6 +90,7 @@ class Proxy:
     def __init__(self, a):
         self.a, self.t0 = a, time.monotonic_ns()
         self.triggers = w.trigger_addrs()
+        self.vendor, self.amd_triggers = None, None   # per session: from its first config read (PCI vendor 0x1002: the AMD card)
         self.rec = w.Writer(a.out, self.t0)
         self.seq, self.maps, self.client, self.up, self.guard = 0, [], None, None, None
         self.pages_due = False   # a trigger since the last page snapshot
@@ -161,7 +164,7 @@ class Proxy:
     def session(self, n):
         set_bufs(self.client)
         self.maps, self.up, self.pages_due = [], None, False
-        self.guard = None
+        self.guard, self.vendor = None, None
         if self.a.guard:
             import tgguard
             self.guard = tgguard.Guard(log=self.log)
@@ -233,12 +236,13 @@ class Proxy:
             payload = w.recv_exact(self.client, a1)
             if len(payload) < a1: raise FailStop(f"the client closed inside an MMIO_WRITE payload ({len(payload)} of {a1} bytes)")
             self.rec.req(t, seq, hdr, payload)
-            if bar == 0 and a0 in self.triggers:
+            if self.is_trigger(bar, a0):
                 self.stats["triggers"] += 1
                 self.pages_due = True
-                if self.guard and (why := self.guard.check_trigger(a0, payload)):
+                why = self.guard and (self.guard.check_trigger(bar, a0, payload) if self.vendor == AMD_VENDOR else self.guard.check_trigger(a0, payload))
+                if why:
                     self.rec.refused(self.now(), seq, hdr, f"guard: {why}")
-                    raise FailStop(f"guard refused {self.triggers[a0]} (seq {seq}): {why}")
+                    raise FailStop(f"guard refused {self.trigger_name(bar, a0)} (seq {seq}): {why}")
             self.up.sendall(hdr + payload)
             self.stats["forwarded"] += 1; self.stats["bytes_up"] += 33 + a1
             if self.guard: self.guard.on_write(bar, a0, payload)
@@ -275,9 +279,27 @@ class Proxy:
             if self.guard: self.guard.on_sysmem(m.alloc, m.segs, m.size, m.mm)
         else: self.to_client(resp + data)
         self.stats["bytes_down"] += 17 + len(data)
+        if cmd == w.CFG_READ and a0 == 0 and status == 0 and self.vendor is None: self.set_vendor(r0 & 0xffff)
         if self.guard and cmd == w.MMIO_READ and status == 0: self.guard.on_read(bar, a0, data)
         self.rec.flush()
         return True
+
+    def set_vendor(self, vendor):
+        """The session's card, from its first config read: AMD's triggers and guard (tgguard_amd.py) for vendor 0x1002."""
+        self.vendor = vendor
+        if vendor != AMD_VENDOR: return
+        import tgguard_amd
+        if self.amd_triggers is None: self.amd_triggers = tgguard_amd.trigger_addrs()
+        if self.guard: self.guard = tgguard_amd.AMDGuard(log=self.log)
+        self.log(f"session: the AMD card (vendor {vendor:#06x}): AMD triggers{' and guard' if self.guard else ''}")
+
+    def is_trigger(self, bar, off):
+        if self.vendor == AMD_VENDOR: return bar == 2 or (bar, off) in self.amd_triggers
+        return bar == 0 and off in self.triggers
+
+    def trigger_name(self, bar, off):
+        if self.vendor == AMD_VENDOR: return "a doorbell" if bar == 2 else self.amd_triggers[(bar, off)]
+        return self.triggers[off]
 
     def to_client(self, data, fd=None):
         """A client that goes away while a reply is due left mid-exchange: that is a fail-stop, not an upstream loss."""

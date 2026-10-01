@@ -130,6 +130,7 @@ struct AMDRuntime {
     TGTransport* tg = nullptr;
     void* maps[8] = {};
     uint64_t map_sizes[8] = {};
+    bool owns_maps = true;   // mapped here from the handoff's fds (unmapped at detach), or the C++ boot's own (plan step A2g)
     AMDRing compute, sdma;
     volatile uint64_t* signal = nullptr;   // the timeline signal's value
     volatile uint64_t* shadow = nullptr;   // _shadow_timeline_signal's
@@ -324,6 +325,7 @@ struct AMDRuntime {
 
 // Maps the handoff's sysmem fds (closing them) and sets the runtime up: queues, timeline, kernargs, staging, the BARs the
 // daemon mapped in this session (a MAP_BAR here would change the stream). "" or why not; on failure the mappings are undone.
+inline void amd_runtime_setup(AMDRuntime& rt, const AMDHandoff& h);
 inline std::string amd_runtime_attach(AMDRuntime& rt, const AMDHandoff& h, const int* fds, TGTransport& tg) {
     rt.h = h;
     rt.tg = &tg;
@@ -338,6 +340,24 @@ inline std::string amd_runtime_attach(AMDRuntime& rt, const AMDHandoff& h, const
         for (uint64_t i = 0; i < h.nmaps; ++i) if (rt.maps[i]) { munmap(rt.maps[i], rt.map_sizes[i]); rt.maps[i] = nullptr; }
         return err;
     }
+    amd_runtime_setup(rt, h);
+    tg.seed_bar(0, h.bar0_size);
+    tg.seed_bar(2, h.bar2_size);
+    tg.seed_bar(5, h.bar5_size);
+    return "";
+}
+
+// The same on mappings this process made itself (the C++ boot's, plan step A2g): nothing is mapped, closed or unmapped
+// here, and the transport already knows the BARs.
+inline void amd_runtime_attach_mapped(AMDRuntime& rt, const AMDHandoff& h, uint8_t* const* maps, TGTransport& tg) {
+    rt.h = h;
+    rt.tg = &tg;
+    rt.owns_maps = false;
+    for (uint64_t i = 0; i < h.nmaps; ++i) { rt.maps[i] = maps[i]; rt.map_sizes[i] = h.map_size[i]; }
+    amd_runtime_setup(rt, h);
+}
+
+inline void amd_runtime_setup(AMDRuntime& rt, const AMDHandoff& h) {
     auto at = [&](const AMDHandoffObj& o) { return (uint8_t*)rt.maps[o.map] + o.off; };
     rt.compute = AMDRing{(uint32_t*)at(h.compute_ring), h.compute_ring_size, h.compute_doorbell, h.compute_put,
                          (volatile uint64_t*)at(h.compute_rptr), (volatile uint64_t*)at(h.compute_wptr)};
@@ -359,14 +379,10 @@ inline std::string amd_runtime_attach(AMDRuntime& rt, const AMDHandoff& h, const
     rt.props = AMDProps{(uint32_t)h.target_major, (uint32_t)h.xccs, (uint32_t)h.cu_cnt, (uint32_t)h.se_cnt, (uint32_t)h.max_slots_scratch_cu,
                         (uint32_t)h.lds_size_in_kb};
     if (const char* t = getenv("HCQDEV_WAIT_TIMEOUT_MS")) rt.wait_timeout_ms = strtoull(t, nullptr, 10);
-    tg.seed_bar(0, h.bar0_size);
-    tg.seed_bar(2, h.bar2_size);
-    tg.seed_bar(5, h.bar5_size);
-    return "";
 }
 
 inline void amd_runtime_detach(AMDRuntime& rt) {
-    for (int i = 0; i < 8; ++i) if (rt.maps[i]) { munmap(rt.maps[i], rt.map_sizes[i]); rt.maps[i] = nullptr; }
+    for (int i = 0; i < 8; ++i) if (rt.maps[i]) { if (rt.owns_maps) munmap(rt.maps[i], rt.map_sizes[i]); rt.maps[i] = nullptr; }
 }
 
 // The programs: the HSACO's image at one pool allocation (round_up 0x1000, as BeagleAMDProgram's), uploaded through staging

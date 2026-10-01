@@ -111,6 +111,9 @@ inline std::string tg_sha256_hex(const uint8_t* p, size_t n) {
 }
 
 // The manifest entry a chip family's boot fetches for a role, or nullptr.
+// whose firmware an entry is, for the messages: AMD's live under amdgpu/ (TinyGPUAMDBootTables.h's am::fw, plan step A2d)
+inline const char* tg_fw_vendor(const nvfw::TGFirmware& fw) { return strncmp(fw.subdir, "amdgpu", 6) == 0 ? "AMD" : "NVIDIA"; }
+
 inline const nvfw::TGFirmware* tg_fw_entry(const std::string& chip, const std::string& role) {
     for (const nvfw::TGFirmware& f : nvfw::kFirmware)
         if (chip == f.chip && role == f.role) return &f;
@@ -169,7 +172,7 @@ inline std::string tg_fw_download(const nvfw::TGFirmware& fw) {
         if (mkdir(d.c_str(), 0755) != 0 && errno != EEXIST) return "cannot create " + d + ": " + strerror(errno);
     }
     const std::string tmp = dest + ".part." + std::to_string((long)getpid());
-    fprintf(stderr, "TinyGPU: downloading NVIDIA firmware %s/%s from %s ...\n", fw.subdir, fw.name, url.c_str());
+    fprintf(stderr, "TinyGPU: downloading %s firmware %s/%s from %s ...\n", tg_fw_vendor(fw), fw.subdir, fw.name, url.c_str());
     fflush(stderr);
     const char* argv[] = {"/usr/bin/curl", "-fsSL", "--proto", "=https,file", "--connect-timeout", "30", "--speed-limit", "1024",
                           "--speed-time", "60", "--max-filesize", "268435456", "-o", tmp.c_str(), url.c_str(), nullptr};
@@ -228,7 +231,8 @@ inline std::string tg_fw_locate(const nvfw::TGFirmware& fw, TGFirmwareFile& out)
     }
     report += "  the download: " + dl + "\n";
     const std::string dest = tg_fw_tinygrad_cache(fw), url = tg_fw_url(fw);
-    return "TinyGPU: NVIDIA firmware " + std::string(fw.subdir) + "/" + fw.name + " (sha256 " + fw.sha256 + ") is missing or damaged:\n" +
+    return "TinyGPU: " + std::string(tg_fw_vendor(fw)) + " firmware " + std::string(fw.subdir) + "/" + fw.name + " (sha256 " + fw.sha256 +
+           ") is missing or damaged:\n" +
            report + "To fetch it by hand where tinygrad keeps it:\n" +
            "  mkdir -p '" + dest.substr(0, dest.find_last_of('/')) + "' && curl -fL -o '" + dest + "' '" + url + "' && shasum -a 256 '" +
            dest + "'\n  (shasum must print " + fw.sha256 + "), or run libhmsbeagle/GPU/tinygpu_fetch_firmware.sh DIR and set "

@@ -25,6 +25,15 @@ def setup():
         if p not in sys.path: sys.path.insert(0, p)
     WORK.mkdir(parents=True, exist_ok=True)
     block_real_devices()
+    block_network()
+
+def block_network():
+    """Harness code never downloads. tinygrad's fetch and fetch_fw download whatever their cache lacks: on 2026-10-01 a probe
+    that went through fw.hashes fetched three AMD blobs the boot never uses. So every download raises (fetch() imports
+    urllib.request at call time)."""
+    import urllib.request
+    def offline(*a, **k): raise RuntimeError("tinygpu_tests: network access attempted (the offline harness never downloads)")
+    urllib.request.urlopen = offline
 
 def block_real_devices():
     """tinygrad opens the real eGPU through APLRemotePCIDevice (which also starts TinyGPU.app) whenever something

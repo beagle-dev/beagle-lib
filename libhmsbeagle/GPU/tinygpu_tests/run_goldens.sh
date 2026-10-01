@@ -9,7 +9,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 export BEAGLE_TINYGPU_NO_DOWNLOAD=1   # no golden downloads firmware (test_c4_firmware.py turns it on against a file:// mirror)
 fail=0
 for t in golden_encode golden_runtime golden_program golden_transport test_c1_cubins test_p1_diagnostics test_p2_teardown test_b1_cot test_c2_tables golden_gsp test_c4_firmware golden_mm golden_rm golden_gsp_hw golden_flcn_hw golden_boot \
-         golden_amd_encode golden_amd_copy golden_amd_program golden_amd_handoff golden_amd_hsaco; do
+         golden_amd_encode golden_amd_copy golden_amd_program golden_amd_handoff golden_amd_hsaco test_a2b_tables golden_amd_boot; do
     echo "== $t"
     "$BEAGLE_PYTHON" "$TG_TESTS/$t.py" > "$TINYGPU_TEST_WORK/$t.log" 2>&1
     rc=$?

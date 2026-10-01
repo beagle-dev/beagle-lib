@@ -3,8 +3,8 @@
 # tinygpu_tests/oracle), the C++ TinyGPU.app client, then the plugin end to end on fake_nv_device.py, which it boots itself as it
 # boots the eGPU (plan steps C11-C13): plan step V1's record/replay tools and the hardware recordings, the fake GB205, the crash
 # guard, the library's error returns, the uploads, D1's kernels, several instances in one process, the routing, the failures and
-# the kills; the firmware staging; then the no-launch guard (nothing listening => the plugin errors out and no TinyGPU.app is
-# spawned). Build hmsbeagle-tinygpu-hybrid, beagle-tinygpu-guard, tinygpuhybridtest, synthetictest and hmctest first.
+# the kills; the AMD runtime, boot, V1 tools and crash guard on fake_amd_device.py; the firmware staging; then the no-launch
+# guard (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid, beagle-tinygpu-guard, tinygpuhybridtest, synthetictest and hmctest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
 unset FAKE_TEST_BIN       # every run below is tinygpuhybridtest's unless it names another binary itself
@@ -37,6 +37,16 @@ results+=("fake-daemon checks on the C++ boot (C13): $([ $? -eq 0 ] && echo PASS
 # plan step A1h: the AMD C++ runtime end to end on fake_amd_device.py and fake_amd_daemon.py (the DART audit, wraps, a fault)
 "$TG_TESTS/test_a1h.sh" > "$TINYGPU_TEST_WORK/test_a1h.log" 2>&1
 results+=("AMD C++ runtime end to end (A1h): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a1h.log)")")
+# plan step A2: tinygrad's AMD boot (the real daemon) and the plugin's own C++ boot on fake_amd_device.py's register-level card,
+# the whole session byte for byte; then the V1 tools on it (the AMD guard, recordings through tgproxy, replays to both boots)
+"$TG_TESTS/test_a2.sh" > "$TINYGPU_TEST_WORK/test_a2.log" 2>&1
+results+=("AMD boot, daemon and C++, end to end (A2a, A2h): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2.log)")")
+"$BEAGLE_PYTHON" "$TG_TESTS/test_a2i.py" > "$TINYGPU_TEST_WORK/test_a2i.log" 2>&1
+results+=("AMD V1 tools: guard, record, replay (A2i): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2i.log)")")
+# plan step A2k: the AMD C++ boot's crash guard (kills in the boot, with a batch on the GPU, idle, mid-request and in the fini;
+# a queue that survives its dequeue), its fini against the daemon's EOF path's byte for byte
+"$TG_TESTS/test_a2k.sh" > "$TINYGPU_TEST_WORK/test_a2k.log" 2>&1
+results+=("AMD crash guard (A2k): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2k.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

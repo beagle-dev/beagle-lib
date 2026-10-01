@@ -21,6 +21,10 @@ from the recording's session of the same number:
     from a SEC2 start to the next NV_PGC6_BSI_SECURE_SCRATCH_14 read (nv_init_helper's sleep, ip.py:651-658) and at least
     0.1 s between an engine reset's two writes (NV_FLCN.reset, ip.py:273-275); markers, as an ordered sequence, listed.
 A session passes if every request matched, the client closed after the last one, and no client-written page differs.
+AMD sessions (the recorded first config read names vendor 0x1002, TODO.md plan step A2i): none of the NV semantics above
+(the GSP, the timed sleeps, BAR0 as registers, the GPFIFO front end); the requests, replies, sysmem and pages are checked
+the same, and --guard runs tgguard_amd.py's guard on AMD's triggers. The GPU is not run, so only sessions without GPU work
+replay (an AMD boot to its handoff and fini: no doorbell).
 With --mutate the recording is changed before it is served (plan V1's differential replay; see MUTATIONS). With --guard the
 guard (tgguard.py) audits every trigger as the proxy's guard mode would, and a refusal fails the session there; with
 --guard-defect NAME too, a defect goes into the guard's inputs alone just before its trigger's audit (GUARD_DEFECTS), so the
@@ -142,6 +146,7 @@ class Session:
             import tgguard
             self.guard = tgguard.Guard(log=rp.log)
         self.defect = rp.a.guard_defect   # not yet put in (GUARD_DEFECTS)
+        self.amd, self.amd_triggers = False, None   # the recorded session's card is AMD's (its first config read)
 
     def set_chip(self, boot42):   # the boot's NV_PMC_BOOT_42 read: the chip's MMU and QMD versions (tggpu.chip)
         name, mmu_ver, compute = tggpu.chip(boot42)
@@ -282,6 +287,12 @@ class Session:
                 if e.kind == w.K_REFUSED:
                     msg = e.f["why"].encode()
                     conn.sendall(w.RESP.pack(1, len(msg), 0) + msg)
+                elif cmd == w.MMIO_WRITE and self.amd:   # AMD: the guard on AMD's triggers; no GPU here
+                    if self.guard and (bar == 2 or (bar, a0) in self.amd_triggers):
+                        st["triggers"] += 1
+                        if (gwhy := self.guard.check_trigger(bar, a0, payload)):
+                            self.diverge(e.seq, f"the guard refused {'a doorbell' if bar == 2 else self.amd_triggers[(bar, a0)]}: {gwhy}"); break
+                    if self.guard: self.guard.on_write(bar, a0, payload)
                 elif cmd == w.MMIO_WRITE:
                     if self.guard and bar == 0 and a0 in rp.triggers:
                         if self.defect and put_guard_defect(self.guard, self.defect, a0, payload): self.defect = None
@@ -313,15 +324,20 @@ class Session:
                 else:
                     rep = sess.reply.get(e.seq)
                     if rep is None: self.diverge(e.seq, f"no recorded reply for {describe(req)}"); break
-                    if cmd == w.MMIO_READ and bar == 0 and a0 == rp.bsi14 and sec2_start is not None:
+                    if cmd == w.CFG_READ and a0 == 0 and rep.f["reply"][0] == 0 and not self.amd and (rep.f["reply"][1] & 0xffff) == 0x1002:
+                        import tgguard_amd
+                        self.amd, self.amd_triggers = True, tgguard_amd.trigger_addrs()
+                        if self.guard: self.guard = tgguard_amd.AMDGuard(log=rp.log)
+                    if self.amd: pass   # none of NV's timed sleeps, BAR1 VRAM or chip detection
+                    elif cmd == w.MMIO_READ and bar == 0 and a0 == rp.bsi14 and sec2_start is not None:
                         dt, waited = t - sec2_start[0], waited and sec2_start[1]
                         if waited and dt < 20.0: self.diverge(e.seq, f"NV_PGC6_BSI_SECURE_SCRATCH_14 read {dt:.1f} s after SEC2 started, less than BEAGLE's 20 s"); break
                         st["SEC2 sleeps timed" if waited else "SEC2 sleeps not timed (the replay lagged)"] += 1
                         sec2_start = None
-                    if cmd == w.MMIO_READ and bar == 1 and rep.f["reply"][0] == 0 and self.vram.read(a0, a1) != rep.f["data"]:
+                    if not self.amd and cmd == w.MMIO_READ and bar == 1 and rep.f["reply"][0] == 0 and self.vram.read(a0, a1) != rep.f["data"]:
                         self.info["BAR1 reads unlike the VRAM here"] += 1   # the GPU writes VRAM too (USERD, semaphores, copies)
                     if self.guard and cmd == w.MMIO_READ and rep.f["reply"][0] == 0: self.guard.on_read(bar, a0, rep.f["data"])
-                    if cmd == w.MMIO_READ and bar == 0 and a0 == rp.boot42 and rep.f["reply"][0] == 0 and self.memory.root is None:
+                    if not self.amd and cmd == w.MMIO_READ and bar == 0 and a0 == rp.boot42 and rep.f["reply"][0] == 0 and self.memory.root is None:
                         self.set_chip(struct.unpack_from("<I", rep.f["data"])[0])
                     if cmd == w.MAP_SYSMEM_FD and rep.f["has_fd"]:
                         sm = sess.sysmem[e.seq]

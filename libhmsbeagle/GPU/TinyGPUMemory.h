@@ -3,7 +3,8 @@
  *
  * TODO.md plan step C6: tinygrad's GPU memory manager (tinygrad/runtime/support/memory.py at a9830e2b4), vendor-neutral,
  * ported statement by statement: TLSFAllocator (:23-115), PageTableTraverseContext (:124-179) and MemoryManager
- * (:181-290), with BEAGLE's palloc patch (nv_init_helper.py patch 2: palloc zeroes only allocations of at most 64 KiB).
+ * (:181-290), with BEAGLE's palloc patch (nv_init_helper.py patch 2: palloc zeroes only allocations of at most 64 KiB;
+ * palloc_zero_limit, which the AMD manager lifts, since AMD's daemon does not patch palloc).
  * The page-table type (NV's is TinyGPUHybridNVMemory.h's) reads and writes its entries where tinygrad's does, so the
  * manager sends TinyGPU.app the requests tinygrad sends, in the same order, reads included. tinygrad's exceptions become
  * TGPyError with the Python type's name; MemoryError is the one valloc recovers from.
@@ -328,6 +329,7 @@ public:
     static constexpr uint64_t kPallocZeroLimit = 64 << 10;   // nv_init_helper.py _PALLOC_ZERO_LIMIT
 
     Dev* dev;
+    uint64_t palloc_zero_limit = kPallocZeroLimit;   // the NV daemon's patch; AMD's daemon has none (no limit)
     uint64_t vram_size, va_base, va_bits;
     std::vector<uint64_t> va_shifts, pte_covers, pte_cnt;
     std::vector<std::pair<uint64_t, uint64_t>> palloc_ranges;
@@ -468,7 +470,7 @@ public:
 
     uint64_t palloc(uint64_t size, uint64_t align = 0x1000, bool zero = true, bool boot = false, bool ptable = false) {
         if (dev->is_booting != boot) throw TGPyError("AssertionError", "During booting, only boot memory can be allocated");
-        if (zero && size > kPallocZeroLimit) zero = false;   // BEAGLE's patch
+        if (zero && size > palloc_zero_limit) zero = false;   // BEAGLE's patch
         TLSFAllocator& allocator = boot ? boot_allocator : (reserve_ptable && ptable ? ptable_allocator : pa_allocator);
         uint64_t paddr = allocator.alloc(tg_round_up(size, 0x1000), align);
         if (zero) dev->vram_zero(paddr, size);

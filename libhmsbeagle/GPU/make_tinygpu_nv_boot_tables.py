@@ -228,7 +228,7 @@ def layout(T):
     slots = []
     for it in items:
         if it["off"] >= max((s["end"] for s in slots), default=0): slots.append(it); continue
-        assert "f" in it, f"{T.__name__}: a bitfield in a union"
+        # a bitfield box may start or continue an alternative (AMD's ip_discovery_header: base_addr_64_bit over its padding)
         u = slots[-1] if slots and "alts" in slots[-1] and it["off"] >= slots[-1]["off"] else None
         if u is None:   # a union: its first alternative is the fields since the one it goes back to
             first = []
@@ -270,7 +270,8 @@ def struct_lines(T, mod_file, aliases):
     body = members(layout(T), 0, T.SIZE, "    ")
     out = [f"struct {T.__name__} {{  // {mod_file}:{inspect.getsourcelines(T)[1]}"] + body + accessors + ["};"]
     out.append(f"static_assert(sizeof({T.__name__}) == {T.SIZE});")
-    boxes = {f[0]: s["off"] for s in layout(T) if "bits" in s for f in s["bits"]}
+    def flat(slots): return [m for s in slots for m in ([s] if "alts" not in s else flat([x for alt in s["alts"] for x in alt]))]
+    boxes = {f[0]: s["off"] for s in flat(layout(T)) if "bits" in s for f in s["bits"]}
     for f in T._real_fields_:
         if len(f) > 3: out.append(f"static_assert(offsetof({T.__name__}, _bf_{boxes[f[0]]}) + {f[2] - boxes[f[0]]} == {f[2]});  // {f[0]}")
         else: out.append(f"static_assert(offsetof({T.__name__}, {f[0]}) == {f[2]});")

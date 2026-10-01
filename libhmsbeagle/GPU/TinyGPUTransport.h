@@ -142,6 +142,12 @@ public:
         setsockopt(sock_, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
     }
 
+    // TODO.md plan step A2k (the AMD C++ boot's crash guard): a state-page word this transport keeps at 1 from before a request's
+    // first byte goes out until its reply is read (a posted write's, until it is sent), and leaves at 1 if the connection was
+    // lost meanwhile. A process that dies with it set may have left the stream out of step (a cut frame, or a reply nobody
+    // read), so whoever keeps the connection must send nothing on it. Null (the default) marks nothing.
+    void set_in_flight(uint64_t* word) { in_flight_ = word; }
+
     // Plan step V1: with BEAGLE_TG_MARKERS=1, a step marker for the recording proxy and the replay server, which answer it
     // themselves and never forward it: a CFG_READ of the vendor ID with dev_id 'BEAG' (0x42454147), the marker's id as the BAR
     // and its argument as arg2. TinyGPU.app never reads dev_id (server.c:216-220), so there it is a harmless config read. Its
@@ -151,6 +157,7 @@ public:
         static const bool on = [] { const char* e = getenv("BEAGLE_TG_MARKERS"); return e && e[0] && strcmp(e, "0") != 0; }();
         std::string err;
         if (!on || !usable(err)) return;
+        InFlight mark(*this);
         uint8_t hdr[33], resp[17];
         pack(hdr, TGC_CFG_READ, id, 0, 4, arg);
         const uint32_t dev = 0x42454147;
@@ -242,6 +249,7 @@ public:
             iov.push_back({&hdrs[33 * i], 33});
             if (w[i].len) iov.push_back({const_cast<void*>(w[i].data), (size_t)w[i].len});
         }
+        InFlight mark(*this);
         if (!send_iov(iov.data(), (int)iov.size())) { err = "TinyGPU.app connection lost while sending"; return false; }
         return true;
     }
@@ -303,6 +311,7 @@ public:
     bool rpc(uint8_t cmd, uint64_t a0, uint64_t a1, uint64_t a2, uint32_t bar, uint64_t& r0, uint64_t& r1, std::string& err,
              void* readout = nullptr, uint64_t readout_size = 0, const void* payload = nullptr, uint64_t payload_len = 0) {
         if (!usable(err)) return false;
+        InFlight mark(*this);
         uint8_t hdr[33];
         pack(hdr, cmd, bar, a0, a1, a2);
         struct iovec iov[2] = {{hdr, 33}, {const_cast<void*>(payload), (size_t)payload_len}};
@@ -319,6 +328,7 @@ public:
     bool rpc_fd(uint8_t cmd, uint64_t a0, uint64_t a1, uint64_t& r0, uint64_t& r1, int& fd, std::string& err) {
         fd = -1;
         if (!usable(err)) return false;
+        InFlight mark(*this);
         uint8_t hdr[33];
         pack(hdr, cmd, 0, a0, a1, 0);
         struct iovec out = {hdr, 33};
@@ -382,6 +392,13 @@ private:
 
     int sock_ = -1, lock_fd_ = -1;
     bool lost_ = false;
+    uint64_t* in_flight_ = nullptr;   // set_in_flight's word
+
+    struct InFlight {   // set_in_flight's word around one request: 1, then 0 once it is done, unless the connection was lost
+        TGTransport& t;
+        explicit InFlight(TGTransport& tr) : t(tr) { if (t.in_flight_) __atomic_store_n(t.in_flight_, 1, __ATOMIC_RELEASE); }
+        ~InFlight() { if (t.in_flight_ && !t.lost_) __atomic_store_n(t.in_flight_, 0, __ATOMIC_RELEASE); }
+    };
     Bar bars_[kMaxBars];
     int sysmem_count_ = 0;
     std::vector<std::pair<uint64_t, uint64_t>> iovas_;

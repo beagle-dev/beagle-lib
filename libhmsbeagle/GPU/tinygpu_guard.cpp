@@ -17,10 +17,11 @@
  *     the unload (NVGsp::fini_hw) and the teardown the plugin runs (NVIDIA's on Ada, the RISC-V halt wait on COT); after a
  *     hung wait the unload only. It holds unless the unload was confirmed, nothing hung and (COT) the core halted.
  * To hold is to keep every fd and sleep; SIGINT, SIGHUP and SIGTERM are ignored, so only SIGKILL ends it, after the eGPU is
- * unplugged. Every step is logged through TinyGPULog.h.
+ * unplugged. Every step is logged through TinyGPULog.h. The AMD C++ boot's guard (plan step A2k) is amd_guard below.
  *   beagle-tinygpu-guard   (its socketpair end is fd 3)
  */
 
+#include "libhmsbeagle/GPU/TinyGPUHybridAMDDevice.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"
 
@@ -67,6 +68,106 @@ std::string timeline_wait(NVGsp& gsp, const volatile uint64_t* signal, uint64_t 
            ", but " + std::to_string(cur()) + ")";
 }
 
+// The GPU's fini on an AMDev restored from the plugin's fini state (amboot::am_device_fini_safe): whether it saw every queue off
+bool amd_fini(TGTransport& t, const amboot::AMFiniState& fs, std::string& why) {
+    try {
+        amboot::AMDev adev(t, fs);
+        return amboot::am_device_fini_safe(adev, why);
+    } catch (const TGPyError& e) {
+        why = e.py();
+    } catch (const am::AMRegError& e) {
+        why = std::string("AMRegError: ") + e.what();
+    }
+    return false;
+}
+
+// TODO.md plan step A2k: the AMD C++ boot's guard (GPUInterfaceTinyGPUHybridAMD.cpp, BEAGLE_AMD_CPP_BOOT=1). Its setup holds the
+// connection, tinygrad's am_usb4.lock and the state page; once the plugin's AMDev is booted, before any queue is set up, the
+// rest brings what AMDev.fini needs. At its own fini the plugin says clean or hold; 'N' is a boot that ended with no
+// queue ever live. At an EOF without either, the guard does what the daemon's EOF path did (amd_dispatch_daemon.py exited,
+// and tinygrad's finalize ran the IH drain and AMDev.fini; its timeline wait had nothing to wait for after the handoff, and
+// the dequeue resets the waves of any work still running), with BEAGLE's hold rule:
+//   - phase am_boot (no queue ever live, so nothing on the GPU reads sysmem): close, after that fini if the rest came and no
+//     request is in flight (so that the next boot is a partial one), whatever its outcome;
+//   - a request in flight (a frame may be cut, or a reply unread), or phase teardown (the plugin's own fini): hold, sending
+//     nothing;
+//   - phase dispatch: the fini; close if it saw every queue off, else hold.
+int amd_guard(int ctl, const GuardSetup& g, const int* raw) {
+    uint64_t* state = (uint64_t*)mmap(nullptr, kNVDStateWordsGuard * 8, PROT_READ | PROT_WRITE, MAP_SHARED, raw[2], 0);
+    if (state == MAP_FAILED) {
+        tg_log("guard: mmap of the state page failed: %s; exiting", strerror(errno));
+        return 2;
+    }
+    TGTransport t;
+    t.adopt(raw[0], raw[1]);   // the connection and am_usb4.lock
+    const char ready = 'R';
+    if (write(ctl, &ready, 1) != 1) {
+        tg_log("guard: could not say ready: %s; exiting", strerror(errno));
+        return 2;
+    }
+    tg_log("guard %d: ready for plugin %d (AMD); until its AMDev is booted it can only close, or hold", (int)getpid(), (int)g.parent_pid);
+
+    // the plugin says clean, hold or nothing live, or sends the setup's rest, or goes away
+    std::unique_ptr<amboot::AMFiniState> fs;
+    char msg = 0;
+    ssize_t n;
+    for (;;) {
+        while ((n = read(ctl, &msg, 1)) < 0 && errno == EINTR) {}
+        if (!(n == 1 && msg == 'S' && !fs)) break;
+        GuardSetup rest{};
+        int none[kGuardFds];
+        std::string err = guard_recv_setup(ctl, rest, none);
+        if (err.empty() && rest.kind != kGuardSetupRestAMD) err = "not the AMD setup's rest";
+        auto st = std::make_unique<amboot::AMFiniState>();
+        if (err.empty() && rest.amd_fini_size != sizeof(*st)) {   // read past it, so the stream stays in step
+            err = "an AMD fini state of " + std::to_string(rest.amd_fini_size) + " bytes, not " + std::to_string(sizeof(*st));
+            std::vector<uint8_t> skip(rest.amd_fini_size < (1u << 20) ? rest.amd_fini_size : 0);
+            if (!guard_recv_all(ctl, skip.data(), skip.size())) err += ", cut";
+        } else if (err.empty() && !guard_recv_all(ctl, st.get(), sizeof(*st))) err = "the AMD fini state was cut";
+        if (!err.empty()) { tg_log("guard %d: the setup's rest failed (%s): it can still only close, or hold", (int)getpid(), err.c_str()); continue; }
+        fs = std::move(st);
+        t.seed_bar(0, fs->vram_bytes);
+        t.seed_bar(5, fs->mmio_bytes);
+        tg_log("guard %d: the setup's rest (AMD): from here it can finalize the GPU", (int)getpid());
+    }
+    if (n == 1 && msg == 'C') {
+        tg_log("guard %d: the plugin finalized the GPU itself; exiting", (int)getpid());
+        return 0;
+    }
+    if (n == 1 && msg == 'H') hold("the plugin's own GPU teardown was not confirmed");
+    if (n == 1 && msg == 'N') {
+        tg_log("guard %d: the plugin's boot ended with no queue ever live: closing is safe; exiting", (int)getpid());
+        return 0;
+    }
+
+    // the plugin is gone without either
+    const uint64_t phase = __atomic_load_n(&state[kGuardStatePhase], __ATOMIC_ACQUIRE);
+    const uint64_t in_flight = __atomic_load_n(&state[kGuardStateInFlight], __ATOMIC_ACQUIRE);
+    tg_log("guard %d: the plugin went away without fini (%s); state page: phase %llu, request_in_flight %llu%s", (int)getpid(),
+           n == 0 ? "EOF" : "an unknown message", (unsigned long long)phase, (unsigned long long)in_flight, fs ? "" : ", no fini state");
+    std::string why;
+    if (phase == kGuardPhaseAMBoot) {
+        if (fs && !in_flight) {
+            tg_log("guard: the card is booted, with no queue set up: its fini first, so that its next boot is a partial one");
+            amd_fini(t, *fs, why);
+            tg_log("guard: the fini %s%s", why.empty() ? "is done" : "failed: ", why.c_str());
+        }
+        tg_log("guard %d: no queue was ever live, so closing is safe; closing the TinyGPU.app connection", (int)getpid());
+        t.close();
+        return 0;
+    }
+    if (in_flight) hold("a request may be cut mid-send, or its reply unread");
+    if (phase == kGuardPhaseTeardown) hold("the plugin's own GPU teardown did not finish");
+    if (phase != kGuardPhaseDispatch || !fs) hold("a queue may be live, and without the plugin's fini state the guard cannot finalize the GPU");
+    tg_log("guard: the GPU's fini, as the daemon's exit ran it: the IH drain, then AMDev.fini");
+    const bool off = amd_fini(t, *fs, why);
+    if (!why.empty()) tg_log("guard: the fini: %s", why.c_str());
+    if (!off) hold("the GPU did not confirm its queues off");
+    tg_log("guard %d: the GPU is finalized, every queue off; closing the TinyGPU.app connection", (int)getpid());
+    t.close();
+    return 0;
+}
+
 }  // namespace
 
 int main() {
@@ -75,11 +176,12 @@ int main() {
     GuardSetup g{};
     int raw[kGuardFds], fds[kGuardFds] = {-1, -1, -1, -1, -1};
     std::string err = guard_recv_setup(ctl, g, raw);
-    if (err.empty() && g.kind == kGuardSetupRest) err = "a setup's rest before the setup";
+    if (err.empty() && g.kind != kGuardSetupHold && g.kind != kGuardSetupHoldAMD) err = "a setup's rest before the setup";
     if (!err.empty()) {   // nothing was taken over: the plugin sees no "ready", and its boot fails before any request to the GPU
         tg_log("guard: no setup (%s); exiting", err.c_str());
         return 2;
     }
+    if (g.kind == kGuardSetupHoldAMD) return amd_guard(ctl, g, raw);
     fds[kGuardTinyGPU] = raw[0]; fds[kGuardLock] = raw[1]; fds[kGuardState] = raw[2];
     const size_t state_size = kNVDStateWordsGuard * 8;
     uint64_t* state = (uint64_t*)mmap(nullptr, state_size, PROT_READ | PROT_WRITE, MAP_SHARED, fds[kGuardState], 0);

@@ -15,6 +15,13 @@
  * first. Later the plugin sends 'C' (clean: it tore the GPU down itself), 'H' (hold: its unload was not confirmed) or 'N' (the
  * boot stopped before GSP-RM started, so nothing is to be unloaded); an EOF without any of them means the plugin is gone, or
  * lost the GPU (plan step C12), and the guard decides from the state page.
+ *
+ * The AMD C++ boot (plan step A2k, GPUInterfaceTinyGPUHybridAMD.cpp) uses the same guard and messages with its own kinds:
+ * kGuardSetupHoldAMD (the same three fds, its lock being tinygrad's am_usb4.lock: the AMD path releases the transport's), and
+ * once its AMDev is booted, before any queue is set up, kGuardSetupRestAMD (no fds), followed on the socketpair by what
+ * AMDev.fini needs (amd_fini_size bytes: TinyGPUHybridAMDBoot.h's AMFiniState). Its state page uses the phase (am_boot until
+ * just before the first queue goes live, then dispatch, and teardown in its own fini) and the in-flight word, which its
+ * transport keeps around every request.
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGUARD_H
@@ -42,23 +49,27 @@ enum { kGuardTinyGPU, kGuardLock, kGuardQueues, kGuardState, kGuardSignal, kGuar
 // the state page (GPUInterfaceTinyGPUHybridNV.cpp's kNVDState* and kNVDPhase*, which static_assert they match these)
 enum { kGuardStatePhase, kGuardStateInFlight, kGuardStateLastSubmitted, kGuardStateSeq, kNVDStateWordsGuard };
 constexpr uint64_t kGuardPhaseDispatch = 1, kGuardPhaseTeardown = 2, kGuardPhaseGspInit = 3, kGuardPhaseFlcnInit = 4;
+constexpr uint64_t kGuardPhaseAMBoot = 5;   // the AMD boot before any queue went live: nothing on the GPU reads sysmem
 
 // What the guard's teardown needs: the plugin's NVDTeardown, from the C++ boot, and BAR0's size. A kGuardSetupHold setup
-// carries only the plugin's pid; the rest comes with kGuardSetupRest.
-enum : uint32_t { kGuardSetupHold = 1, kGuardSetupRest = 2 };
+// carries only the plugin's pid; the rest comes with kGuardSetupRest. The AMD kinds: see above.
+enum : uint32_t { kGuardSetupHold = 1, kGuardSetupRest = 2, kGuardSetupHoldAMD = 3, kGuardSetupRestAMD = 4 };
 struct GuardSetup {
     uint32_t magic, size;   // kGuardMagic, sizeof(GuardSetup): a guard built from other sources refuses the setup
-    uint32_t kind, nfds;    // kGuardSetup*, and how many fds come with it (3 or 2)
+    uint32_t kind, nfds;    // kGuardSetup*, and how many fds come with it (guard_setup_nfds)
     uint64_t queues_size, cmdq_off, statq_off, queue_size, libos_args_sysmem, bar0_size, signal_size;
     uint32_t chip_id, cot, level0, parent_pid;
     NVTeardownImages images;
     char chip_name[16];
+    uint64_t amd_fini_size;   // kGuardSetupRestAMD: the size of the AMFiniState that follows
 };
 constexpr uint32_t kGuardMagic = 0x44475447;   // "GTGD"
 
-// the fds each kind of setup carries, in this order: Hold the connection, its lock and the state page; Rest the queues and
-// the timeline
-inline uint32_t guard_setup_nfds(uint32_t kind) { return kind == kGuardSetupHold ? 3 : 2; }
+// the fds each kind of setup carries, in this order: Hold (and HoldAMD) the connection, its lock and the state page; Rest the
+// queues and the timeline; RestAMD none
+inline uint32_t guard_setup_nfds(uint32_t kind) {
+    return kind == kGuardSetupHold || kind == kGuardSetupHoldAMD ? 3 : kind == kGuardSetupRest ? 2 : 0;
+}
 
 // sendmsg of the setup and its fds, in one message
 inline bool guard_send_setup(int sock, const GuardSetup& g, const int* fds) {
@@ -67,16 +78,42 @@ inline bool guard_send_setup(int sock, const GuardSetup& g, const int* fds) {
     struct msghdr mh{};
     mh.msg_iov = &iov;
     mh.msg_iovlen = 1;
-    mh.msg_control = ctl;
-    mh.msg_controllen = CMSG_SPACE(sizeof(int) * g.nfds);
-    struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
-    c->cmsg_level = SOL_SOCKET;
-    c->cmsg_type = SCM_RIGHTS;
-    c->cmsg_len = CMSG_LEN(sizeof(int) * g.nfds);
-    memcpy(CMSG_DATA(c), fds, sizeof(int) * g.nfds);
+    if (g.nfds) {
+        mh.msg_control = ctl;
+        mh.msg_controllen = CMSG_SPACE(sizeof(int) * g.nfds);
+        struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
+        c->cmsg_level = SOL_SOCKET;
+        c->cmsg_type = SCM_RIGHTS;
+        c->cmsg_len = CMSG_LEN(sizeof(int) * g.nfds);
+        memcpy(CMSG_DATA(c), fds, sizeof(int) * g.nfds);
+    }
     ssize_t n;
     while ((n = sendmsg(sock, &mh, 0)) < 0 && errno == EINTR) {}
     return n == (ssize_t)sizeof(g);
+}
+
+// The bytes that follow a kGuardSetupRestAMD (its AMFiniState): all of them, or false
+inline bool guard_send_all(int sock, const void* p, size_t n) {
+    const uint8_t* b = (const uint8_t*)p;
+    while (n) {
+        ssize_t r = send(sock, b, n, 0);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) return false;
+        b += r;
+        n -= (size_t)r;
+    }
+    return true;
+}
+inline bool guard_recv_all(int sock, void* p, size_t n) {
+    uint8_t* b = (uint8_t*)p;
+    while (n) {
+        ssize_t r = recv(sock, b, n, MSG_WAITALL);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) return false;
+        b += r;
+        n -= (size_t)r;
+    }
+    return true;
 }
 
 // recvmsg of one, its fds in fds[0..nfds): "" or why not
@@ -92,10 +129,14 @@ inline std::string guard_recv_setup(int sock, GuardSetup& g, int (&fds)[kGuardFd
     while ((n = recvmsg(sock, &mh, MSG_WAITALL)) < 0 && errno == EINTR) {}
     if (n != (ssize_t)sizeof(g)) return "a setup of " + std::to_string(n) + " bytes, not " + std::to_string(sizeof(g));
     if (g.magic != kGuardMagic || g.size != sizeof(g)) return "a setup from other sources (magic or size differs)";
-    if ((g.kind != kGuardSetupHold && g.kind != kGuardSetupRest) || g.nfds != guard_setup_nfds(g.kind)) return "a setup of an unknown kind";
+    if (g.kind < kGuardSetupHold || g.kind > kGuardSetupRestAMD || g.nfds != guard_setup_nfds(g.kind)) return "a setup of an unknown kind";
     struct cmsghdr* c = CMSG_FIRSTHDR(&mh);
-    if (!c || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * g.nfds)) return "the setup came without its fds";
-    memcpy(fds, CMSG_DATA(c), sizeof(int) * g.nfds);
+    if (g.nfds == 0) {
+        if (c) return "a setup with fds it should not carry";
+    } else {
+        if (!c || c->cmsg_type != SCM_RIGHTS || c->cmsg_len != CMSG_LEN(sizeof(int) * g.nfds)) return "the setup came without its fds";
+        memcpy(fds, CMSG_DATA(c), sizeof(int) * g.nfds);
+    }
     g.chip_name[sizeof(g.chip_name) - 1] = 0;
     return "";
 }

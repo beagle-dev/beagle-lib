@@ -34,11 +34,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
+#include <sys/file.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -51,7 +56,9 @@
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDRuntime.h"
+#include "libhmsbeagle/GPU/TinyGPUFirmware.h"
+#include "libhmsbeagle/GPU/TinyGPUHybridAMDDevice.h"   // the C++ boot (TODO.md plan step A2), and the runtime
+#include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"     // the crash guard's setup and state page (plan step A2k)
 
 // The AMD path compiles the real OpenCL-C source -- see the plan's compiler-backend decision (comgr compiles BEAGLE's
 // existing FW_OPENCL kernels unmodified, not a HIP port). Its KERNELS_STRING_<PREC>_<N> macros are the only ones in the
@@ -208,10 +215,24 @@ static void amd_profile_end(const char* label, std::chrono::steady_clock::time_p
 }
 
 struct AMDHybridState {
-    int cmd_sock;
-    pid_t daemon_pid;
+    int cmd_sock = -1;
+    pid_t daemon_pid = 0;
     AMDRuntime* rt = nullptr;   // the C++ runtime after the handoff (TODO.md plan step A1g)
+    std::unique_ptr<amboot::AMDev> adev;             // the C++ boot's (TODO.md plan step A2h), when there is no daemon
+    std::unique_ptr<amboot::AMDDeviceState> dstate;
+    int guard_ctl = -1;          // the C++ boot's crash guard (TODO.md plan step A2k): its socketpair
+    pid_t guard_pid = 0;
+    uint64_t* state = nullptr;   // the state page shared with it (TinyGPUHybridNVGuard.h's kGuardState* words)
+    int state_fd = -1;
 };
+
+// TODO.md plan step A2h, opt-in for now: BEAGLE_AMD_CPP_BOOT=1 boots the GPU in this process (TinyGPUHybridAMDBoot.h,
+// TinyGPUHybridAMDDevice.h), with no daemon. The boot sends what tinygrad's daemon sends (golden_amd_boot.py on the fake
+// card), and the C++ runtime then runs as after the daemon's handoff.
+static bool amd_cpp_boot() {
+    static const bool on = [] { const char* e = getenv("BEAGLE_AMD_CPP_BOOT"); return e && strcmp(e, "1") == 0; }();
+    return on;
+}
 
 // The default since 2026-10-01 (the user's choice, STATUS.md R69): after the boot the daemon hands the GPU's queues over to
 // the C++ runtime (TinyGPUHybridAMDRuntime.h), on a gfx11 card (the runtime's only target; any other keeps the daemon).
@@ -251,6 +272,7 @@ struct AMDPendingLaunch {
 static std::vector<AMDPendingLaunch> g_amdPendingLaunches;
 
 static void amdFlushLaunchQueueCpp();
+static void amd_test_kill(const char* point, AMDHybridState* g);   // the crash guard's test hook (TODO.md plan step A2k)
 
 static void amdFlushLaunchQueue() {
     if (!g_amd || g_amdPendingLaunches.empty()) return;
@@ -313,6 +335,7 @@ static void amdFlushLaunchQueueCpp() {
         if ((i + 1) % 1024 == 0 || i + 1 == n) {
             q.signal(rt.signal_va, rt.next_timeline());
             if (!rt.submit_compute(q)) break;
+            amd_test_kill("batch", g_amd);   // plan step A2k's test: killed with this batch on the GPU
             open = false;
         }
     }
@@ -321,9 +344,11 @@ static void amdFlushLaunchQueueCpp() {
     if (rt.error) fprintf(stderr, "TinyGPU/AMD: launch_batch(%zu kernels) failed: %s\n", n, rt.error_msg.c_str());
 }
 
+static void amdCppBootFini(AMDHybridState* g);
 [[noreturn]] static void amd_safe_exit(int code) {
     fflush(stderr);
-    if (g_amd) {
+    if (g_amd && g_amd->adev) amdCppBootFini(g_amd);   // the C++ boot's: no queue may outlive the connection
+    else if (g_amd) {
         if (g_amd->cmd_sock >= 0) {
             amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
             amd_recv_msg(g_amd->cmd_sock);  // best-effort ack, ignore content
@@ -390,6 +415,252 @@ static AMDRuntime* amdHandoff(AMDHybridState* g, const std::string& variant, con
             (unsigned long long)(h.pool_size >> 20), rt->kernels.size(), (unsigned long long)(rt->exec.scratch_size >> 20),
             (unsigned long long)rt->timeline_value);
     return rt;
+}
+
+// tinygrad's AMD lock (System.flock_acquire("am_usb4.lock"), which the daemon's device takes), held for the process's life;
+// its fd in lock_fd, for the crash guard
+static std::string amd_take_am_lock(int& lock_fd) {
+    static int fd = -1;
+    lock_fd = fd;
+    if (fd >= 0) return "";
+    const std::string path = tg_temp_path("am_usb4.lock");
+    const bool exists = access(path.c_str(), F_OK) == 0;
+    int f = exists ? open(path.c_str(), O_RDWR | O_CLOEXEC) : open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if (f < 0) return "cannot open the lock file " + path + ": " + strerror(errno);
+    if (!exists) fchmod(f, 0666);
+    if (flock(f, LOCK_EX | LOCK_NB) != 0) { close(f); return "Failed to acquire lock file am_usb4.lock (another process has the eGPU)"; }
+    fd = lock_fd = f;
+    return "";
+}
+
+// ── The C++ boot's crash guard (TODO.md plan step A2k): NV's beagle-tinygpu-guard (tinygpu_guard.cpp's amd_guard) keeps the
+// TinyGPU.app connection if this process dies, and then finalizes the GPU as the daemon's EOF path did, or holds ──────────
+
+static void amd_phase(AMDHybridState* g, uint64_t phase) {
+    if (g->state) __atomic_store_n(&g->state[kGuardStatePhase], phase, __ATOMIC_RELEASE);
+}
+
+// Plan step A2k's offline tests: BEAGLE_AMD_TEST_KILL=<point> kills this process there with SIGKILL, as a crash would, so the
+// crash guard's decisions can be checked: "boot_guard" (the guard started, nothing sent to the GPU yet), "boot_rest" (the AMDev
+// booted and the guard has its fini state, no queue set up yet), "batch" (right after the first launch batch's submit), "idle"
+// (at fini, the GPU idle), "frame" (the same, with the state page saying a request is in flight) and "teardown" (in this side's
+// own fini). Never set outside the harness.
+static void amd_test_kill(const char* point, AMDHybridState* g) {
+    static const char* k = getenv("BEAGLE_AMD_TEST_KILL");
+    if (!k || strcmp(k, point) != 0) return;
+    if (g && g->state && strcmp(point, "frame") == 0) __atomic_store_n(&g->state[kGuardStateInFlight], 1, __ATOMIC_RELEASE);
+    tg_log("BEAGLE_AMD_TEST_KILL=%s: SIGKILL", point);
+    fflush(stderr);
+    kill(getpid(), SIGKILL);
+}
+
+// The state page (NV's nvdStatePage): four 64-bit words shared with the crash guard only, a POSIX shm segment unlinked at
+// once. Phase am_boot; from here the transport keeps the in-flight word around every request (TGTransport::set_in_flight).
+static std::string amdStatePage(AMDHybridState& g) {
+    char name[32];   // macOS PSHMNAMLEN is 31
+    snprintf(name, sizeof(name), "/beagle-amd.%d", (int)getpid());
+    shm_unlink(name);   // only a killed process with this pid could have left it
+    int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) return std::string("the state page: shm_open: ") + strerror(errno);
+    shm_unlink(name);
+    const size_t size = kNVDStateWordsGuard * 8;
+    void* m = ftruncate(fd, size) == 0 ? mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
+    if (m == MAP_FAILED) {
+        close(fd);
+        return std::string("the state page: ") + strerror(errno);
+    }
+    g.state = (uint64_t*)m;   // zero-filled: nothing in flight
+    g.state_fd = fd;
+    amd_phase(&g, kGuardPhaseAMBoot);
+    tg_transport().set_in_flight(&g.state[kGuardStateInFlight]);
+    return "";
+}
+
+// The crash guard's executable: BEAGLE_AMD_GUARD (the test harness's), or beagle-tinygpu-guard next to this plugin
+static std::string amd_guard_path() {
+    const char* e = getenv("BEAGLE_AMD_GUARD");
+    if (e && e[0]) return e;
+    Dl_info info;
+    if (!dladdr((void*)&amd_guard_path, &info) || !info.dli_fname) return "";
+    std::string so = info.dli_fname;
+    return so.substr(0, so.rfind('/') + 1) + "beagle-tinygpu-guard";
+}
+
+// The guard, spawned before the boot's first request to the GPU with what holding takes (the TinyGPU.app connection, tinygrad's
+// am_usb4.lock, which is this path's lock, and the state page: kGuardSetupHoldAMD). Before it said ready nothing went to the GPU,
+// so a failed start ends the boot.
+static std::string amdGuardStart(AMDHybridState& g, int am_lock_fd) {
+    const std::string path = amd_guard_path();
+    if (path.empty()) return "the crash guard: no beagle-tinygpu-guard next to the plugin";
+    int ctl = -1;
+    pid_t pid = 0;
+    std::string err = guard_spawn(path, ctl, pid);
+    if (!err.empty()) return "the crash guard: " + err;
+    GuardSetup s{};
+    s.magic = kGuardMagic;
+    s.size = sizeof(s);
+    s.kind = kGuardSetupHoldAMD;
+    s.nfds = guard_setup_nfds(kGuardSetupHoldAMD);
+    s.parent_pid = (uint32_t)getpid();
+    const int fds[3] = {tg_transport().fd(), am_lock_fd, g.state_fd};
+    char r = 0;
+    struct pollfd pfd = {ctl, POLLIN, 0};
+    if (!guard_send_setup(ctl, s, fds)) err = std::string("its setup: ") + strerror(errno);
+    else if (poll(&pfd, 1, 10000) != 1 || read(ctl, &r, 1) != 1 || r != 'R') err = "it never said ready";
+    if (!err.empty()) {
+        close(ctl);
+        kill(pid, SIGKILL);
+        waitpid(pid, nullptr, 0);
+        return "the crash guard: " + err;
+    }
+    g.guard_ctl = ctl;
+    g.guard_pid = pid;
+    fprintf(stderr, "TinyGPU/AMD: the crash guard (pid %d) keeps the GPU from here\n", (int)pid);
+    tg_log("AMD C++ boot: the crash guard (pid %d) keeps the GPU", (int)pid);
+    return "";
+}
+
+// ... and once the AMDev is booted, before any queue is set up, the rest (kGuardSetupRestAMD, then the AMFiniState): from
+// here the guard can finalize the GPU
+static std::string amdGuardRest(AMDHybridState& g) {
+    auto fs = std::make_unique<amboot::AMFiniState>();
+    try { g.adev->fini_state(*fs); }
+    catch (const TGPyError& e) { return "the crash guard's setup rest: " + e.py(); }
+    GuardSetup s{};
+    s.magic = kGuardMagic;
+    s.size = sizeof(s);
+    s.kind = kGuardSetupRestAMD;
+    s.nfds = guard_setup_nfds(kGuardSetupRestAMD);
+    s.parent_pid = (uint32_t)getpid();
+    s.amd_fini_size = sizeof(*fs);
+    const char m = 'S';
+    if (write(g.guard_ctl, &m, 1) != 1 || !guard_send_setup(g.guard_ctl, s, nullptr) || !guard_send_all(g.guard_ctl, fs.get(), sizeof(*fs)))
+        return std::string("the crash guard's setup rest: ") + strerror(errno);
+    return "";
+}
+
+// This side is done with the GPU: 'C' (it finalized the GPU and saw every queue off), 'H' (hold: not seen off) or 'N' (no
+// queue was ever live) to the guard, which exits at a 'C' or an 'N' (waited for, so that its locks are free for the next
+// boot); then the state page goes
+static void amdGuardEnd(AMDHybridState* g, char m) {
+    if (g->guard_ctl >= 0) {
+        if (write(g->guard_ctl, &m, 1) != 1)
+            fprintf(stderr, "TinyGPU/AMD: the crash guard (pid %d) did not take this side's '%c': it decides as at a crash\n", (int)g->guard_pid, m);
+        close(g->guard_ctl);
+        g->guard_ctl = -1;
+        if (m == 'H')
+            fprintf(stderr, "TinyGPU/AMD: the GPU's queues were not seen off, so the crash guard (pid %d) holds the TinyGPU.app connection "
+                    "(closing it could unmap memory the GPU may still read). Unplug the eGPU first, then kill %d.\n", (int)g->guard_pid,
+                    (int)g->guard_pid);
+        for (int i = 0; i < 50 && m != 'H' && waitpid(g->guard_pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
+    }
+    tg_transport().set_in_flight(nullptr);
+    if (g->state) { munmap(g->state, kNVDStateWordsGuard * 8); g->state = nullptr; }
+    if (g->state_fd >= 0) { close(g->state_fd); g->state_fd = -1; }
+}
+
+// The C++ boot's fini (TODO.md plan step A2h): what the daemon's exit runs, HCQCompiled.finalize then AMDev.fini, after the
+// runtime's own last synchronize; then clean or hold to the crash guard (plan step A2k), as the fini saw every queue off or
+// not ('N' if no queue was ever live). The state page says teardown first once a queue may be live, so that a death meanwhile
+// holds. Errors are reported, never fatal: the process is on its way out.
+static void amdCppBootFini(AMDHybridState* g) {
+    if (!g->adev) return;
+    const bool live = g->state && __atomic_load_n(&g->state[kGuardStatePhase], __ATOMIC_ACQUIRE) == kGuardPhaseDispatch;
+    if (live) amd_phase(g, kGuardPhaseTeardown);
+    amd_test_kill("teardown", g);
+    std::string why;
+    const bool off = amboot::am_device_fini_safe(*g->adev, why);
+    if (!why.empty()) fprintf(stderr, "TinyGPU/AMD: the C++ fini failed: %s\n", why.c_str());
+    g->adev.reset();
+    amdGuardEnd(g, !live ? 'N' : off ? 'C' : 'H');
+}
+
+// TODO.md plan step A2h: the boot, AMDDevice.__init__'s setup and cmd_handoff's allocations in C++ (no daemon), then the C++
+// runtime on them, with the build's HSACO. Null if the boot failed; once it succeeded, a later failure finalizes the GPU. The
+// crash guard (plan step A2k) keeps the GPU from before the boot's first request: it has the AMDev's fini state before any
+// queue is set up, and the state page says dispatch from just before the first one.
+static AMDHybridState* amdCppBootSetup(const std::string& variant) {
+    auto t0 = amd_profile_start();
+    TGTransport& tg = tg_transport();
+    int am_lock = -1;
+    std::string err = amd_take_am_lock(am_lock);
+    if (!err.empty()) { fprintf(stderr, "TinyGPU/AMD: %s\n", err.c_str()); return nullptr; }
+    AMDHybridState* g = new AMDHybridState{};
+    err = amdStatePage(*g);
+    if (err.empty()) err = amdGuardStart(*g, am_lock);
+    if (!err.empty()) {
+        fprintf(stderr, "TinyGPU/AMD: %s\n", err.c_str());
+        amdGuardEnd(g, 'N');
+        delete g;
+        return nullptr;
+    }
+    amd_test_kill("boot_guard", g);
+    tg.resize_bar(0, err);   // PCIIfaceBase.__init__ (system.py:263): contextlib.suppress(Exception)
+    amboot::AMBlobLoader loader = [](const std::string& name, std::vector<uint8_t>& out) -> std::string {
+        for (const nvfw::TGFirmware& f : am::fw::kFirmware)
+            if (name == f.name) {
+                TGFirmwareFile file;
+                std::string e = tg_fw_locate(f, file);
+                if (!e.empty()) return e;
+                out.assign(file.data(), file.data() + file.size());
+                return "";
+            }
+        return "not in the AMD firmware manifest (TinyGPUAMDBootTables.h)";
+    };
+    fprintf(stderr, "TinyGPU/AMD: the C++ boot (BEAGLE_AMD_CPP_BOOT=1, no daemon)...\n");
+    fflush(stderr);
+    err.clear();
+    try { g->adev = std::make_unique<amboot::AMDev>(tg, loader); }
+    catch (const TGPyError& e) { err = e.py(); }
+    catch (const am::AMRegError& e) { err = e.what(); }
+    if (!err.empty()) {   // no queue was set up: the guard may close
+        fprintf(stderr, "TinyGPU/AMD: the C++ boot failed: %s\n", err.c_str());
+        amdGuardEnd(g, 'N');
+        delete g;
+        return nullptr;
+    }
+    const amboot::Ver& gc = g->adev->ip_ver.at(amboot::GC);
+    char arch[16];
+    snprintf(arch, sizeof(arch), "gfx%d%x%x", gc[0], gc[1], gc[2]);
+    fprintf(stderr, "TinyGPU/AMD: C++ boot done (%s boot) — arch=%s\n", g->adev->partial_boot ? "partial" : "full", arch);
+    err = amdGuardRest(*g);
+    if (!err.empty()) {   // still no queue: this side finalizes the card, and the guard may close
+        fprintf(stderr, "TinyGPU/AMD: %s; finalizing the GPU\n", err.c_str());
+        amdCppBootFini(g);
+        delete g;
+        return nullptr;
+    }
+    amd_test_kill("boot_rest", g);
+    size_t aot_size = 0;
+    const unsigned char* aot = amd_embedded_hsaco(variant, arch, aot_size);
+    try {
+        if (!aot) throw TGPyError("RuntimeError", "the C++ boot needs the build's HSACO for " + variant + " on " + arch + " (no daemon compiles)");
+        g->dstate = std::make_unique<amboot::AMDDeviceState>();
+        amd_phase(g, kGuardPhaseDispatch);   // the compute queue goes live next: from here the guard finalizes the GPU, or holds
+        amboot::am_device_init(*g->adev, *g->dstate);
+        const char* mb = getenv("BEAGLE_AMD_DATA_MB");
+        AMDHandoff h;
+        std::vector<uint8_t*> maps;
+        amboot::am_handoff(*g->adev, *g->dstate, mb ? strtoull(mb, nullptr, 10) << 20 : 0, h, maps);
+        g->rt = new AMDRuntime;
+        amd_runtime_attach_mapped(*g->rt, h, maps.data(), tg);
+        err = amd_runtime_load_programs(*g->rt, aot, aot_size);
+        if (!err.empty()) throw TGPyError("RuntimeError", err);
+        amd_profile_end("C++ boot", t0);
+        fprintf(stderr, "TinyGPU/AMD: C++ runtime: handed over after the C++ boot (VRAM pool %llu MiB, %zu kernels, scratch %llu MiB, timeline %llu)\n",
+                (unsigned long long)(h.pool_size >> 20), g->rt->kernels.size(), (unsigned long long)(g->rt->exec.scratch_size >> 20),
+                (unsigned long long)g->rt->timeline_value);
+    } catch (const std::exception& e) {
+        const TGPyError* py = dynamic_cast<const TGPyError*>(&e);
+        fprintf(stderr, "TinyGPU/AMD: after the C++ boot: %s; finalizing the GPU\n", py ? py->py().c_str() : e.what());
+        if (g->rt) { amd_runtime_detach(*g->rt); delete g->rt; g->rt = nullptr; }
+        amdCppBootFini(g);
+        delete g;
+        return nullptr;
+    }
+    for (const auto& kv : g->rt->kernels) g_amdKernels[kv.first] = new AMDKernelHandle{kv.first};
+    fflush(stderr);
+    return g;
 }
 
 // ── amdDispatchDaemonSetup: spawn amd_dispatch_daemon.py over a dedicated
@@ -519,9 +790,14 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     // this one sat open (STATUS.md AMD §21), which is why this side used to
     // close it first and let the daemon connect itself.
     const bool dp = (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
-    g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, dp), (dp ? "DP_" : "SP_") + std::to_string(paddedStateCount),
-                                   self->tgpuSock);
-    if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: amdDispatchDaemonSetup failed\n"); amd_safe_exit(1); }
+    const std::string variant = (dp ? "DP_" : "SP_") + std::to_string(paddedStateCount);
+    if (amd_cpp_boot()) {
+        g_amd = amdCppBootSetup(variant);
+        if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: the C++ boot failed\n"); amd_safe_exit(1); }
+    } else {
+        g_amd = amdDispatchDaemonSetup(amd_opencl_kernel_source(paddedStateCount, dp), variant, self->tgpuSock);
+        if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: amdDispatchDaemonSetup failed\n"); amd_safe_exit(1); }
+    }
 
     self->InitializeKernelResource(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
     self->supportDoublePrecision = ((flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
@@ -636,8 +912,11 @@ void AmdFini() {
     amdFlushLaunchQueue();  // don't silently drop queued-but-unsent launches
     if (g_amd->rt && !g_amd->rt->synchronize())   // the daemon's fini (AMDev.fini) then dequeues the queues
         fprintf(stderr, "TinyGPU/AMD: the last synchronize failed: %s\n", g_amd->rt->error_msg.c_str());
+    amd_test_kill("idle", g_amd);    // plan step A2k's tests: killed here, the GPU idle,
+    amd_test_kill("frame", g_amd);   // ... or with the state page saying a request is in flight
     for (auto& kv : g_amdKernels) delete kv.second;
     g_amdKernels.clear();
+    amdCppBootFini(g_amd);   // the C++ boot's (plan step A2h): the daemon's exit, in this process
     if (g_amd->cmd_sock >= 0) {
         amd_send_msg(g_amd->cmd_sock, "{\"cmd\":\"fini\"}");
         amd_recv_msg(g_amd->cmd_sock);
