@@ -118,6 +118,16 @@ if(BUILD_SPECTRAL)
             ${CMAKE_DL_LIBS})
     add_test(spectralcomplextest spectralcomplextest)
 
+    # every GPU spectral kernel against CPU spectral; skipped without a GPU
+    add_executable(gpuspectraltest
+            spectraltest/gpuspectraltest.cpp)
+    target_link_libraries(gpuspectraltest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(gpuspectraltest gpuspectraltest)
+
     # standard vs spectral timings; see spectraltest/spectral_benchmark.py
     add_executable(spectralbench
             spectraltest/spectralbench.cpp)
