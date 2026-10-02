@@ -25,13 +25,18 @@ FAKE_RM_FAIL=<class>: the GSP refuses every rm_alloc of that class (rpc_result N
 request; the client's stop is then the test's (plan step C7: the C++ side must stop before any submission). FAKE_NO_INIT_DONE=1:
 the GSP never posts GSP_INIT_DONE (plan step C8: the C++ side's init_hw times out, and its keeper must hold).
 FAKE_FALCON_FAIL=frts|booter|core (plan step C9): FWSEC-FRTS leaves WPR2 down; booter_load returns MAILBOX0 0x29 and starts
-nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active.
+nothing; or booter_load starts GSP-RM but the GSP's RISC-V core does not report itself active. FAKE_FALCON_FAIL=unload (plan
+step P4): Booter Unload leaves WPR2 up and returns MAILBOX0 1.
 FAKE_GSP_SILENT_UNLOAD=1 (plan step C10): the GSP never answers the unload RPC (its client times out, and must hold).
 FAKE_GPU_LAG_MS=<ms> (plan step C10): the GPU runs each doorbell's work that long after the doorbell, in order, whether or not
 the client sends more (a client killed right after a submission leaves its timeline behind); each doorbell runs its channel's
 ring only as far as it was then (plan step C12: a client's later entries, which wait for the other channel, wait for their
 own doorbells); an unload RPC that arrives before all of it ran is an error (its client did not wait for its timeline).
-FAKE_WPR2_UP=1 (plan step C11): the GPU starts warm, WPR2 up as a previous boot left it; a client must refuse it before any write.
+FAKE_WPR2_UP=1 (plan step C11): the GPU starts warm, WPR2 up as a previous boot left it, GSP-RM perhaps still running (its
+RISC-V core active); a client must refuse it before any write. FAKE_WPR2_UP=suspended (plan step P4): warm as an unload
+without its teardown leaves it (BEAGLE_NV_TEARDOWN=0's exit): the GSP suspended (MAILBOX0 0x80000000) and halted, the next
+GSP falcon run FWSEC-SB and the next SEC2 run Booter Unload; FAKE_WPR2_UP=halted: the same, with MAILBOX0 0. FWSEC-FRTS with
+WPR2 up is an error, and once Booter Unload brings WPR2 down the GPU boots again as from cold.
 Plan step C12's exit matrix: FAKE_PCI_DEVICE_ID=<hex> puts another device ID in the config space, the chip staying as FAKE_NV_CHIP
 says (a GB202's 0x2b85, which the plugin boots as a GB20x; an Ampere's 0x2204, which it refuses); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
 nothing (a hang); FAKE_DROP_AT=<k>: from the k-th doorbell on, at the first doorbell its client waits for (nothing more comes
@@ -88,7 +93,7 @@ RM_FAIL = int(os.environ.get("FAKE_RM_FAIL", "0"), 0)
 NO_INIT_DONE = os.environ.get("FAKE_NO_INIT_DONE") == "1"
 FALCON_FAIL = os.environ.get("FAKE_FALCON_FAIL", "")
 LAG = int(os.environ.get("FAKE_GPU_LAG_MS", "0")) / 1000
-WARM = os.environ.get("FAKE_WPR2_UP") == "1"
+WARM = os.environ.get("FAKE_WPR2_UP", "")   # "", "1", "suspended" or "halted"
 
 def err(msg):
     errors.append(msg)
@@ -145,10 +150,11 @@ class Sysmem:
 class Device:
     def __init__(self):
         self.vram, self.regs, self.sysmem, self.n_alloc = tggpu.Vram(), {}, [], 0
-        self.wpr2 = WARM
-        self.falcon = {GSP_BASE: dict(halted=False, riscv_active=False), SEC2_BASE: dict(halted=False, riscv_active=False)}
+        self.wpr2 = bool(WARM)
+        self.falcon = {GSP_BASE: dict(halted=False, riscv_active=WARM == "1"), SEC2_BASE: dict(halted=False, riscv_active=False)}
         self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
-        self.unloaded = False    # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload
+        self.unloaded = WARM in ("suspended", "halted")   # after the unload RPC: the next GSP falcon run is FWSEC-SB, the next SEC2 run Booter Unload
+        if WARM == "suspended": self.regs[addr(FALCON_REGS["MAILBOX0"], GSP_BASE)] = 0x80000000
         self.halt_in = None      # GB205, after the unload: RISCV_CPUCTL reads left before the core halts and WPR2 comes down
         self.lagged = collections.deque()   # FAKE_GPU_LAG_MS: (due time, doorbell value, GPPut then) of work not yet run, oldest first
         self.doorbells, self.drop, self.conn = 0, False, None   # FAKE_GPU_HANG_AT, FAKE_DROP_AT: the doorbells so far; closed; the client
@@ -268,6 +274,7 @@ class Device:
         st = self.falcon[base]
         if base == GSP_BASE:
             counts["FWSEC-SB" if self.unloaded else "FWSEC-FRTS"] += 1
+            if not self.unloaded and self.wpr2: err("FWSEC-FRTS ran with WPR2 up: the previous boot was not torn down")
             if not self.unloaded and FALCON_FAIL != "frts": self.wpr2 = True   # FRTS sets up WPR2 (the scratch error codes read 0: none)
         elif not self.unloaded:   # booter_load, handed the WPR meta's device address: GSP-RM starts
             counts["booter_load"] += 1
@@ -277,11 +284,13 @@ class Device:
             if FALCON_FAIL != "booter":
                 self.falcon[GSP_BASE]["riscv_active"] = FALCON_FAIL != "core"
                 self.gsp = Gsp(self, wpr_meta)
-        else:   # Booter Unload (mailboxes 0xff): WPR2 comes down
+        else:   # Booter Unload (mailboxes 0xff): WPR2 comes down, and the GPU boots again as from cold
             counts["booter_unload"] += 1
             if (mbx("MAILBOX0"), mbx("MAILBOX1")) != (0xff, 0xff): err(f"Booter Unload's mailboxes are {mbx('MAILBOX0'):#x}, {mbx('MAILBOX1'):#x}")
-            self.wpr2 = False
-            self.regs[addr(FALCON_REGS["MAILBOX0"], base)] = 0
+            if FALCON_FAIL == "unload": self.regs[addr(FALCON_REGS["MAILBOX0"], base)] = 1
+            else:
+                self.wpr2, self.unloaded = False, False
+                self.regs[addr(FALCON_REGS["MAILBOX0"], base)] = 0
         st["halted"] = True
 
 # ── the GSP ───────────────────────────────────────────────────────────────────────────────────────────────────────────

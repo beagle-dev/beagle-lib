@@ -102,7 +102,10 @@ BEAGLE itself, as at exit, so it needs no power cycle.
 
 Power-cycle the eGPU (unplug it, then plug it in again) only then, and always before killing a holding guard. A GPU left
 warm by an earlier process that was not torn down (WPR2 still up) is refused with nothing written:
-`WARM GPU: WPR2 is up ... Power-cycle the eGPU`.
+`WARM GPU: WPR2 is up ... Power-cycle the eGPU`. With `BEAGLE_NV_RECOVER=1` (plan step P4, opt-in, Ada only, not yet run on
+a GPU), a warm GPU whose GSP-RM was unloaded, so that only the teardown is missing (after `BEAGLE_NV_TEARDOWN=0`, or a
+teardown that failed after the unload), is torn down at boot instead and then boots. Only reads come before that decision.
+NVIDIA's driver refuses such a GPU instead.
 
 ## Environment variables
 
@@ -119,6 +122,7 @@ For users:
 | `BEAGLE_NV_PROFILE=1` | per-call timings and launch counts on stderr at exit |
 | `BEAGLE_NV_TEARDOWN=0` | the GSP unload only, no teardown: the next boot then needs a power cycle (for diagnosis) |
 | `BEAGLE_NV_UNLOAD_LEVEL=0` | the LEVEL_0 unload instead of FAST_UNLOAD (a fallback) |
+| `BEAGLE_NV_RECOVER=1` | a warm Ada GPU whose GSP is suspended or halted is torn down at boot instead of refused (experimental) |
 | `BEAGLE_NV_GUARD` | the crash guard's path (default: next to the plugin); `BEAGLE_AMD_GUARD` for the AMD C++ boot |
 | `APL_REMOTE_SOCK` | TinyGPU.app's socket (default `$TMPDIR/tinygpu.sock`, as tinygrad) |
 | `BEAGLE_AMD_DATA_MB` | AMD: the VRAM pool, in MiB (default: half the VRAM) |

@@ -744,6 +744,18 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
             nv_boot_end_booting(bd);
             if (bd.fmc_boot) nv_boot_cot_init_sw(bd, st.cim, fmc_args, fmc_image);
             else nv_boot_flcn_init_sw(bd, st.im, t.images);
+            if (bd.recover) {   // plan step P4: a warm GPU, torn down before GSP-RM boots
+                fprintf(stderr, "TinyGPU/NV: a warm GPU (WPR2_HI=0x%08x, the GSP %s: MAILBOX0=0x%08x, RISCV_CPUCTL=0x%08x): NVIDIA's "
+                        "teardown first (BEAGLE_NV_RECOVER=1)\n", bd.warm_wpr2_hi, bd.warm_mailbox0 == 0x80000000 ? "suspended" : "halted",
+                        bd.warm_mailbox0, bd.warm_cpuctl);
+                NVFiniDiag rd;
+                try { nv_boot_recover(bd, t.images, rd); }
+                catch (...) {
+                    if (rd.teardown_ran) fprintf(stderr, "TinyGPU/NV: the teardown at boot: %s\n", rd.json().c_str());
+                    throw;
+                }
+                fprintf(stderr, "TinyGPU/NV: the teardown at boot: %s; WPR2 is down, so the boot goes on\n", rd.td_result.c_str());
+            }
             nv_boot_gsp_init_sw(bd, gb, bd.fmc_boot ? nullptr : &st.im);
         } catch (const NVError& e) {
             err = "the C++ boot: " + e.py();

@@ -48,6 +48,8 @@ struct NVBootDev {
     uint64_t vram_size = 0;
     uint64_t bar1_size = 0;              // self.vram.nbytes
     bool large_bar = false;
+    bool recover = false;                // plan step P4: warm, with the GSP suspended or halted: nv_boot_recover runs first
+    uint32_t warm_mailbox0 = 0, warm_cpuctl = 0, warm_wpr2_hi = 0;   // ... what nv_boot_early_ip_init read
     std::unique_ptr<NVMemState> mem = std::make_unique<NVMemState>();   // self.mm, on mem->dev (heap: its manager points at dev)
 
     uint32_t rreg(uint32_t addr) {
@@ -72,18 +74,49 @@ inline void nv_boot_pci(NVBootDev& d) {
     if (!d.t->bar_info(0, addr, size, err)) throw NVError("RuntimeError", err);
 }
 
+// TODO.md plan step P4, opt-in (plan decision 6): BEAGLE_NV_RECOVER=1
+inline bool nv_recover_on() {
+    const char* v = getenv("BEAGLE_NV_RECOVER");
+    return v && strcmp(v, "1") == 0;
+}
+
 // NVDev._early_ip_init (nvdev.py:97-121), under nv_init_helper's _guarded_early_ip_init: WPR2 up means the previous boot was
 // not torn down, refused before tinygrad's bus-master write (its own branch would issue a PCIe reset, a no-op on macOS, and
 // a doomed boot). The includes are the register sets' concern; wait_for_reset is Ada's no-op or COT's FSP wait.
+// With BEAGLE_NV_RECOVER=1 (plan step P4) the guard first reads, writing nothing, whether an Ada GPU's GSP is suspended
+// (MAILBOX0 0x80000000, as the unload's suspend wait sees it) or its RISC-V core halted: then no GSP-RM runs, the previous
+// session's teardown did not run or failed (BEAGLE_NV_TEARDOWN=0, say), and the boot goes on to run it (nv_boot_recover)
+// instead of tinygrad's reset. Anything else is refused as before.
 inline void nv_boot_early_ip_init(NVBootDev& d) {
     const uint32_t wpr2_hi = d.rreg(0x001FA828);   // _WPR2_ADDR_HI, read first by tinygrad too (nvdev.py:105)
     if (wpr2_hi != 0) {
         char hex[16];
         snprintf(hex, sizeof(hex), "%08x", wpr2_hi);
-        throw NVError("WarmGPUError", std::string("WARM GPU: WPR2 is up (NV_PFB_PRI_MMU_WPR2_ADDR_HI=0x") + hex + "), so the previous "
-                      "boot was not torn down. Power-cycle the eGPU (unplug and replug it) and retry. Nothing was written to the GPU.");
+        const std::string up = std::string("WARM GPU: WPR2 is up (NV_PFB_PRI_MMU_WPR2_ADDR_HI=0x") + hex + ")";
+        const std::string retry = "Power-cycle the eGPU (unplug and replug it) and retry. Nothing was written to the GPU.";
+        if (!nv_recover_on()) throw NVError("WarmGPUError", up + ", so the previous boot was not torn down. " + retry);
+        const char* teardown = getenv("BEAGLE_NV_TEARDOWN");
+        if (teardown && strcmp(teardown, "0") == 0)
+            throw NVError("WarmGPUError", up + ", and BEAGLE_NV_RECOVER runs NVIDIA's teardown, which BEAGLE_NV_TEARDOWN=0 turns off. " + retry);
+        const uint32_t arch = (uint32_t)d.reg(nv_regs::NV_PMC_BOOT_42).read_bitfields()["architecture"];
+        if (arch != 0x19) {
+            char a[96];
+            snprintf(a, sizeof(a), ", and BEAGLE_NV_RECOVER recovers Ada GPUs only (NV_PMC_BOOT_42 architecture 0x%x). ", arch);
+            throw NVError("WarmGPUError", up + a + retry);
+        }
+        d.warm_wpr2_hi = wpr2_hi;
+        d.warm_mailbox0 = d.reg(nv_regs::NV_PGSP_FALCON_MAILBOX0).read();
+        const auto cpuctl = d.reg(nv_regs::NV_PRISCV_RISCV_CPUCTL).with_base(0x00110000);   // the GSP falcon's (NV_FLCN.falcon)
+        d.warm_cpuctl = cpuctl.read();
+        const bool suspended = d.warm_mailbox0 == 0x80000000, halted = cpuctl.decode(d.warm_cpuctl)["halted"] == 1;
+        char g[200];
+        snprintf(g, sizeof(g), "the GSP %s (MAILBOX0=0x%08x, RISCV_CPUCTL=0x%08x)", suspended ? "suspended" : halted ? "halted" :
+                 "neither suspended nor halted", d.warm_mailbox0, d.warm_cpuctl);
+        if (!suspended && !halted) throw NVError("WarmGPUError", up + ", with " + g + ": GSP-RM may still run, so BEAGLE_NV_RECOVER does not recover it. " + retry);
+        d.recover = true;
+        tg_log("%s, with %s: BEAGLE_NV_RECOVER=1, so the boot runs NVIDIA's teardown once its images are ready (plan step P4)", up.c_str(), g);
     }
-    if (d.reg(nv_regs::NV_PFB_PRI_MMU_WPR2_ADDR_HI).read() != 0)
+    if (d.reg(nv_regs::NV_PFB_PRI_MMU_WPR2_ADDR_HI).read() != 0 && !d.recover)
         throw NVError("RuntimeError", "WPR2 came up between two reads");   // tinygrad's reset branch, which the guard rules out
     std::string err;
     uint64_t cmd = 0;
@@ -426,6 +459,25 @@ inline void nv_boot_flcn_init_sw(NVBootDev& d, NVFlcnImages& flcn, NVTeardownIma
     tg_log("teardown images: FWSEC-SB %zu bytes at VRAM 0x%llx, Booter Unload %zu bytes at VRAM 0x%llx (code 0x%x+0x%x, data 0x%x+0x%x)", sb.size(),
            (unsigned long long)td.sb_paddr, unload.image.size(), (unsigned long long)td.unload_paddr, unload.code_off, unload.code_sz,
            unload.data_off, unload.data_sz);
+}
+
+// TODO.md plan step P4: NVIDIA's teardown at unload (NVFalcon::fini_hw, plan step P2: the GSP reset and FWSEC-SB, then, if WPR2
+// is still up, the SEC2 reset and Booter Unload), here at boot, for the warm GPU nv_boot_early_ip_init let through, on this
+// boot's images: after NV_FLCN.init_sw prepared them, before NV_GSP.init_sw first writes the GSP's queue registers. NVIDIA
+// refuses such a GPU at load instead (kernel_gsp.c:3471-3476). WPR2 must then be down, or the boot stops (WarmGPUError),
+// GSP-RM not started; diag says what the teardown did either way.
+inline void nv_boot_recover(NVBootDev& d, const NVTeardownImages& td, NVFiniDiag& diag) {
+    diag = NVFiniDiag();
+    if (!td.present)
+        throw NVError("WarmGPUError", "WARM GPU: BEAGLE_NV_RECOVER needs the teardown's images, which BEAGLE_NV_TEARDOWN=0 or a missing "
+                      "booter_unload firmware leaves out. Power-cycle the eGPU (unplug and replug it) and retry.");
+    NVBar0 bar0{d.t};
+    NVFalcon flcn(bar0, d.chip_id);
+    diag.unload_ok = true;   // the teardown's precondition: no GSP-RM runs (nv_boot_early_ip_init found it suspended or halted)
+    flcn.fini_hw(diag, td);
+    if (!diag.teardown_ok)
+        throw NVError("WarmGPUError", "WARM GPU: NVIDIA's teardown at boot did not bring WPR2 down (" +
+                      (diag.have_td_result ? diag.td_result : std::string("interrupted")) + "). Power-cycle the eGPU (unplug and replug it) and retry.");
 }
 
 // ── C11c: NV_GSP.init_sw (ip.py:347-455, 600-627); C11d: NV_FLCN_COT.init_sw (ip.py:290-310) ────────────────────────────
