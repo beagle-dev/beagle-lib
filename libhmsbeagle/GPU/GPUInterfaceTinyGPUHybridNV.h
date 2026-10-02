@@ -37,6 +37,7 @@ void       NvFini(GPUInterface* self);   // called from the destructor: releases
 // BeagleGPUImpl returns errors
 bool       NvDeviceLost(GPUInterface* self);
 bool       NvOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... for lack of GPU memory
+bool       NvSupportsDouble();   // TODO.md plan step C16: the build's cubins include double precision's
 
 // Implemented in GPUInterfaceTinyGPUHybrid.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
 uint16_t   tg_pci_device_id();

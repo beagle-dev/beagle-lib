@@ -781,19 +781,22 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/NV: level boot: %s\n", err.c_str());
         const bool started = d->state && __atomic_load_n(&d->state[kNVDStatePhase], __ATOMIC_ACQUIRE) != kNVDPhaseFlcnInit;
+        bool closing = false;   // the guard closes and exits, with its copies of the connection and nv_usb4.lock
         if (d->guard_ctl >= 0 && !started) {   // GSP-RM never started: nothing to unload, the guard may close
             const char c = 'N';
-            if (write(d->guard_ctl, &c, 1) != 1) {}
+            closing = write(d->guard_ctl, &c, 1) == 1;
         } else if (d->guard_ctl >= 0 && nvd_boot_failed_idle(*d)) {   // GSP-RM answers: unload it here, then clean or hold
             double secs = 0;
             std::string fini, report;
             try { fini = nvdCppTeardown(*d, secs, report); }
             catch (...) {}   // a transport failure mid-teardown: the state page says teardown, so the guard holds
-            if (!fini.empty()) nvGuardReport(d->guard_ctl, d->guard_pid, fini, report);
+            if (!fini.empty()) closing = !nvGuardReport(d->guard_ctl, d->guard_pid, fini, report);
         }
         // Plan step C12: the guard decides now, from the state page (it holds once GSP-RM may run), and the host goes on. The
-        // boot's own mappings are this process's views only: the guard keeps the connection, and the sysmem behind them.
+        // boot's own mappings are this process's views only: the guard keeps the connection, and the sysmem behind them. A
+        // guard that closes is waited for, as at exit (nvFiniDevice), so that the next instance finds its lock free.
         if (d->guard_ctl >= 0) close(d->guard_ctl);
+        for (int i = 0; i < 50 && closing && waitpid(d->guard_pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
         nvd_unmap(d);
         delete d;
         return nullptr;
@@ -953,9 +956,17 @@ static bool nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, const 
         return false;
     }
     for (const std::string& kname : nvd_kernel_names(cubin)) in.kernels[kname] = new NVKernelHandle{kname};
-    fprintf(stderr, "TinyGPU/NV: C++ runtime: embedded cubin SP_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", paddedStateCount,
-            arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
+    fprintf(stderr, "TinyGPU/NV: C++ runtime: embedded cubin %s_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", dp ? "DP" : "SP",
+            paddedStateCount, arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
     return true;
+}
+
+// TODO.md plan step C16: double precision on NV, which the build's cubins include (DP_4 ... DP_256 for each architecture);
+// the GPU computes it natively, at a lower rate
+bool NvSupportsDouble() {
+    for (const TinyGPUNVCubin& c : kTinyGPUNVCubins)
+        if (c.dp) return true;
+    return false;
 }
 
 // Each handle's launch template: the instance's own programs.

@@ -9,6 +9,35 @@
 namespace beagle {
 namespace gpu {
 
+// TODO.md plan steps A7 and C16: the resource's one implementation, in the precision the request asks for: double when it
+// requires double, or prefers it without asking for single; single otherwise (TinyGPU's only precision until double came). With
+// the double and the single factory both registered, as other GPU plugins have them, BEAGLE retries a failed
+// beagleCreateInstance at the other precision: a second probe or boot of the same GPU, which fails the same way (or, while the
+// first attempt's crash guard is still exiting, on its lock), and the caller gets that attempt's error instead of the first's.
+namespace {
+class TinyGPUImplFactory : public BeagleImplFactory {
+    tinygpu::BeagleGPUImplFactory<float> sp_;
+    tinygpu::BeagleGPUImplFactory<double> dp_;
+    const bool double_;
+public:
+    explicit TinyGPUImplFactory(bool supportsDouble) : double_(supportsDouble) {}
+    BeagleImpl* createImpl(int tipCount, int partialsBufferCount, int compactBufferCount, int stateCount, int patternCount,
+                           int eigenBufferCount, int matrixBufferCount, int categoryCount, int scaleBufferCount,
+                           int resourceNumber, int pluginResourceNumber, long preferenceFlags, long requirementFlags,
+                           int* errorCode) {
+        const bool dp = double_ && ((requirementFlags & BEAGLE_FLAG_PRECISION_DOUBLE) ||
+                                    ((preferenceFlags & BEAGLE_FLAG_PRECISION_DOUBLE) &&
+                                     !((preferenceFlags | requirementFlags) & BEAGLE_FLAG_PRECISION_SINGLE)));
+        BeagleImplFactory& f = dp ? (BeagleImplFactory&)dp_ : (BeagleImplFactory&)sp_;
+        return f.createImpl(tipCount, partialsBufferCount, compactBufferCount, stateCount, patternCount, eigenBufferCount,
+                            matrixBufferCount, categoryCount, scaleBufferCount, resourceNumber, pluginResourceNumber,
+                            preferenceFlags, requirementFlags, errorCode);
+    }
+    const char* getName() { return double_ ? "GPU-SP-DP-TinyGPU" : sp_.getName(); }
+    const long getFlags() { return sp_.getFlags() | (double_ ? dp_.getFlags() : 0); }
+};
+}  // namespace
+
 TinyGPUHybridPlugin::TinyGPUHybridPlugin() :
     Plugin("GPU-TinyGPUHybrid", "GPU-TinyGPUHybrid")
 {
@@ -52,12 +81,8 @@ TinyGPUHybridPlugin::TinyGPUHybridPlugin() :
         }
     }
 
-    if (anyGPUFound) {
-        using namespace tinygpu;
-        if (anyGPUSupDP)
-            beagleFactories.push_back(new BeagleGPUImplFactory<double>());
-        beagleFactories.push_back(new BeagleGPUImplFactory<float>());
-    }
+    if (anyGPUFound)
+        beagleFactories.push_back(new TinyGPUImplFactory(anyGPUSupDP));
 }
 
 TinyGPUHybridPlugin::~TinyGPUHybridPlugin() {}

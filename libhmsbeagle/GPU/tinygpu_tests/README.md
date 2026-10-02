@@ -43,6 +43,7 @@ python test_a2i.py                                                            # 
 ./test_a4.sh                                                                  # plan step A4's (D1's lines on the fake AMD card)
 ./test_a5.sh                                                                  # plan step A5's (one AMD boot per process)
 ./test_a7.sh                                                                  # plan step A7's (double precision on the fake AMD card)
+./test_c16.sh                                                                 # plan step C16's (double precision on the fake NV GPUs)
 ```
 
 Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGPU_TEST_WORK` overrides; the old in-repo
@@ -104,6 +105,7 @@ Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGP
 | `test_a4.sh` | plan step A4, D1 on the AMD path, offline: every `d1_runs.txt` line on the fake card through the crash guard, with each dispatch checked against the build's HSACO for the line's variant (`FAKE_AMD_HSACO`; pointer arguments by the HSACO's metadata): exactly the line's kernels (`amd_d1_verdict`, env.sh), the card finalized, NO ERRORS |
 | `test_a5.sh` | plan step A5, NV's P5 on the AMD path, end to end on the fake card: the first instance boots the card and the rest share that boot until exit, each HSACO variant loaded once (`FAKE_AMD_HSACO` lists them): two instances, four on threads, two cycles, two of one variant, a forked child; exit() from another thread; a second process refused at once on `nv_usb4.lock`; and a GPU lost in the first of two cycles, the second refused at once and the card still finalized at exit |
 | `test_a7.sh` | plan step A7, double precision on the AMD path, offline: `tinygpuhybridtest --double` at 4 and 64 states and two instances (the resource lists DOUBLE, TinyGPU-Double on the DP_ HSACOs), the default still single, and every synthetictest D1 line with `--doubleprecision`, each dispatch against the build's HSACO of its variant |
+| `test_c16.sh` | plan step C16, double precision on NV, on the fake AD107 and GB205: `tinygpuhybridtest --double` at 4 and 64 states and two instances (TinyGPU-Double on the DP_ cubins for sm_89 and sm_120), the default still single, and on the AD107 every synthetictest D1 line with `--doubleprecision` (d1_verdict) |
 | `amd_l0_replay.py` | plan step A2j, offline: an AMD L0 recording replayed under the guard to the oracle's daemon and to the C++ boot's session |
 | `d1_runs.txt` | plan step D1: the synthetictest and hmctest runs taken to the RTX 4060, each with the kernels it launches; `test_c13.sh` pins every line's kernel set on the fake (`d1_verdict` in `env.sh`, which reads the plugin's `BEAGLE_NV_PROFILE` kernel list) |
 | `d1_refs.sh` | plan step D1: every `d1_runs.txt` line's references, made offline with no TinyGPU plugin on the library path: synthetictest on the CPU in single and double precision, hmctest `--tinygpu` on the CPU and on the Mac's OpenCL GPU; under `$BEAGLE_TINYGPU_DATA/d1/refs/` |

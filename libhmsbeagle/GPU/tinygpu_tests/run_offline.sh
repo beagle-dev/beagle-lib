@@ -60,9 +60,11 @@ results+=("D1 lines on the AMD card (A4): $([ $? -eq 0 ] && echo PASS || echo "F
 # from another thread, a second process, a GPU lost in the first cycle)
 "$TG_TESTS/test_a5.sh" > "$TINYGPU_TEST_WORK/test_a5.log" 2>&1
 results+=("one AMD boot per process (A5): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a5.log)")")
-# plan step A7: double precision on the fake AMD card
+# plan steps A7 and C16: double precision on the fake AMD card and on the fake NV GPUs
 "$TG_TESTS/test_a7.sh" > "$TINYGPU_TEST_WORK/test_a7.log" 2>&1
 results+=("double precision on the AMD card (A7): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a7.log)")")
+"$TG_TESTS/test_c16.sh" > "$TINYGPU_TEST_WORK/test_c16.log" 2>&1
+results+=("double precision on NV (C16): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c16.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

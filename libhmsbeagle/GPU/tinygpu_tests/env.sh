@@ -65,7 +65,7 @@ d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     local got; got=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | xargs)
     [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
     grep -q "Rsrc Name : TinyGPU-NV-Hybrid" "$1" || { echo "not the TinyGPU resource"; return 1; }
-    grep -q "TinyGPU/NV: C++ runtime: embedded cubin SP_" "$2" || { echo "not the C++ runtime with an embedded cubin"; return 1; }
+    grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin [SD]P_" "$2" || { echo "not the C++ runtime with an embedded cubin"; return 1; }
     ! grep -qE "not launched|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected or a step failed"; return 1; }
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }

@@ -71,14 +71,17 @@ if(BUILD_TINYGPU_HYBRID)
 	endif()
 	message(STATUS "TinyGPU kernels: using nvcc at ${TINYGPU_NVCC}")
 	set(TINYGPU_NVCCFLAGS "-O3 -Wno-deprecated-gpu-targets")
-	# The script also keeps the SP modules for the TinyGPUHybrid cubins (TODO.md
-	# plan step C1). Declared as outputs, so a missing one reruns the script.
+	# The script also keeps the SP and DP modules for the TinyGPUHybrid cubins
+	# (TODO.md plan steps C1, C16). Declared as outputs, so a missing one reruns
+	# the script.
 	set(TINYGPU_SP_STATES 4 16 32 48 64 80 128 192 256)   # as in make_tinygpu_kernels.sh and make_tinygpu_cubins.sh
-	foreach(s ${TINYGPU_SP_STATES})
-		list(APPEND TINYGPU_SP_PTX "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/SP_${s}.ptx")
+	foreach(p SP DP)
+		foreach(s ${TINYGPU_SP_STATES})
+			list(APPEND TINYGPU_PTX "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/${p}_${s}.ptx")
+		endforeach()
 	endforeach()
 	add_custom_command(
-			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h" ${TINYGPU_SP_PTX}
+			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h" ${TINYGPU_PTX}
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
 			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh"
@@ -97,8 +100,8 @@ endif()
 
 if(BUILD_TINYGPU_HYBRID)
 	message(STATUS "TinyGPUHybrid backend enabled (NV and AMD: the C++ boot, no Python)")
-	# The C++ runtime's ahead-of-time cubins (TODO.md plan step C1, decision
-	# 15): the SP modules kept above, compiled with ptxas for sm_86, sm_89 and
+	# The C++ runtime's ahead-of-time cubins (TODO.md plan steps C1 and C16,
+	# decision 15): the SP and DP modules kept above, compiled with ptxas for sm_86, sm_89 and
 	# sm_120 and embedded in the plugin by kernels/BeagleTinyGPU_cubins.S.
 	# There is no run-time fallback, so ptxas is required like nvcc. The
 	# add_dependencies is needed, not just tidy: the TinyGPUKernels rule joins
@@ -114,17 +117,19 @@ if(BUILD_TINYGPU_HYBRID)
 	# The cubins are outputs too (a missing one reruns the script) and, in
 	# CMake_TinyGPUHybrid, dependencies of the .S's object (.incbin is not
 	# scanned, so a changed cubin would not be re-embedded otherwise).
-	foreach(s ${TINYGPU_SP_STATES})
-		foreach(a sm_86 sm_89 sm_120)   # as in make_tinygpu_cubins.sh
-			list(APPEND TINYGPU_CUBINS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/SP_${s}_${a}.cubin")
+	foreach(p SP DP)
+		foreach(s ${TINYGPU_SP_STATES})
+			foreach(a sm_86 sm_89 sm_120)   # as in make_tinygpu_cubins.sh
+				list(APPEND TINYGPU_CUBINS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/${p}_${s}_${a}.cubin")
+			endforeach()
 		endforeach()
 	endforeach()
 	add_custom_command(
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_cubins.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUNVCubins.h" ${TINYGPU_CUBINS}
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_cubins.sh" "${TINYGPU_PTXAS}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS ${TINYGPU_SP_PTX} "kernels/make_tinygpu_cubins.sh"
-			COMMENT "Building TinyGPU ahead-of-time cubins (ptxas: SP x sm_86, sm_89, sm_120)"
+			DEPENDS ${TINYGPU_PTX} "kernels/make_tinygpu_cubins.sh"
+			COMMENT "Building TinyGPU ahead-of-time cubins (ptxas: SP and DP x sm_86, sm_89, sm_120)"
 			VERBATIM)
 	add_custom_target(TinyGPUCubins DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_cubins.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUNVCubins.h")
 	add_dependencies(TinyGPUCubins TinyGPUKernels)

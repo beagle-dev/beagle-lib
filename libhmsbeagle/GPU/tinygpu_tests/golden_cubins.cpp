@@ -1,9 +1,9 @@
 // The embedded cubins through TinyGPUHybridNVCubins.h, linked from the generated kernels/BeagleTinyGPU_cubins.S as the
 // plugin links them (see test_c1_cubins.py):
 //     golden_cubins <dir> [<cubin>...]
-// selects and loads every entry of kTinyGPUNVCubins and writes its bytes and kernel names to <dir>, checks the refusals
-// (DP, a state count, an architecture, an entry holding another architecture's cubin), then prints the SM nvd_elf_sm
-// reads from each extra file.
+// selects and loads every entry of kTinyGPUNVCubins (single and double precision: plan step C16) and writes its bytes and
+// kernel names to <dir>, checks the refusals (a state count, an architecture, an entry holding another architecture's
+// cubin), then prints the SM nvd_elf_sm reads from each extra file.
 #include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
 #include <cstdio>
 #include <fstream>
@@ -26,25 +26,25 @@ int main(int argc, char** argv) {
     for (const TinyGPUNVCubin& c : kTinyGPUNVCubins) {
         const TinyGPUNVCubin* got = nullptr;
         NVDElf elf;
-        std::string err = nvd_find_cubin(kTinyGPUNVCubins, kN, c.states, false, c.arch, got);
+        std::string err = nvd_find_cubin(kTinyGPUNVCubins, kN, c.states, c.dp, c.arch, got);
         if (err.empty()) err = nvd_elf_load(got->begin, (size_t)(got->end - got->begin), 128, elf);
-        std::string tag = "SP_" + std::to_string(c.states) + "_" + c.arch;
+        std::string tag = (c.dp ? "DP_" : "SP_") + std::to_string(c.states) + "_" + c.arch;
         expect(err.empty() && got == &c, tag + ": " + std::to_string(c.end - c.begin) + " bytes" + (err.empty() ? "" : ": " + err));
         std::ofstream(dir + "/" + tag + ".cubin", std::ios::binary).write((const char*)c.begin, c.end - c.begin);
         std::ofstream names(dir + "/" + tag + ".names");
         for (const std::string& k : nvd_kernel_names(elf)) names << k << "\n";
-        if (c.states == kTinyGPUNVCubins[0].states) archs += std::string(archs.empty() ? "" : ", ") + c.arch;
+        if (c.states == kTinyGPUNVCubins[0].states && !c.dp) archs += std::string(archs.empty() ? "" : ", ") + c.arch;
     }
     const TinyGPUNVCubin& first = kTinyGPUNVCubins[0];
-    refused(kTinyGPUNVCubins, kN, first.states, true, first.arch, "double precision is not supported");
-    refused(kTinyGPUNVCubins, kN, 512, false, first.arch, "no embedded cubin for 512 states");
+    refused(kTinyGPUNVCubins, kN, 512, false, first.arch, "no embedded cubin for 512 states in single precision");
+    refused(kTinyGPUNVCubins, kN, 512, true, first.arch, "no embedded cubin for 512 states in double precision");
     refused(kTinyGPUNVCubins, kN, first.states, false, "sm_75", "no embedded cubin for this GPU's architecture (sm_75); this build has " + archs);
     // an entry holding another architecture's cubin (a build mix-up): the ELF header check refuses it
     for (const TinyGPUNVCubin& a : kTinyGPUNVCubins)
         for (const TinyGPUNVCubin& b : kTinyGPUNVCubins)
-            if (a.states == b.states && std::string(a.arch) != b.arch) {
-                TinyGPUNVCubin swapped = { a.states, a.arch, b.begin, b.end };
-                refused(&swapped, 1, a.states, false, a.arch, std::string("is built for SM ") + (b.arch + 3));
+            if (a.states == b.states && a.dp == b.dp && std::string(a.arch) != b.arch) {
+                TinyGPUNVCubin swapped = { a.states, a.dp, a.arch, b.begin, b.end };
+                refused(&swapped, 1, a.states, a.dp, a.arch, std::string("is built for SM ") + (b.arch + 3));
             }
     for (int i = 2; i < argc; ++i) {
         std::ifstream f(argv[i], std::ios::binary);

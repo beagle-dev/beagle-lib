@@ -30,7 +30,7 @@ outheader="${srcdir}/BeagleTinyGPU_kernels.h"
 outptx="${srcdir}/BeagleTinyGPU_kernels.ptx"
 # TODO.md plan step C1: each SP module is also kept, as the bytes its
 # KERNELS_STRING_SP_<N> holds (a newline, then the PTX), for
-# make_tinygpu_cubins.sh. DP gets no cubins (the TinyGPU resource is SP only).
+# make_tinygpu_cubins.sh; since plan step C16 each DP module too (DP_<N>.ptx).
 cubindir="${srcdir}/tinygpu_cubins"
 mkdir -p "${cubindir}"
 
@@ -69,6 +69,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 	echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$/\\n\\/' >> "${outheader}"
 	cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
 	echo "\"" >> "${outheader}"
+	{ echo; cat "${outptx}"; } > "${cubindir}/DP_4.ptx"
 #
 #	HERE IS THE LOOP FOR GENERIC KERNELS
 #
@@ -79,6 +80,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 		echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> "${outheader}"
 		cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
 		echo "\"" >> "${outheader}"
+		{ echo; cat "${outptx}"; } > "${cubindir}/DP_$s.ptx"
 	done
 
 rm -f "${outptx}"

@@ -25,9 +25,10 @@ Python daemon booted the card; it is now the tests' oracle.
 | Ampere (GA10x) | `0x22xx`-`0x25xx` | not supported: refused at `beagleCreateInstance` (its path, the Python daemon, was removed) |
 | AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT; another AMD card's IP versions are refused at its boot |
 
-On NVIDIA only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120), for padded state counts 4, 16, 32,
-48, 64, 80, 128, 192 and 256. A double-precision instance, or a GPU whose architecture has no cubin, is refused at
-`beagleCreateInstance`. On AMD the build embeds both precisions for gfx1100, at the same state counts.
+Both precisions are built, for padded state counts 4, 16, 32, 48, 64, 80, 128, 192 and 256: on NVIDIA 18 cubins per
+architecture (sm_86, sm_89, sm_120), on AMD 18 HSACOs for gfx1100. The resource offers `BEAGLE_FLAG_PRECISION_DOUBLE` as
+well as single (TODO.md plan steps C16, A7); consumer GPUs run double precision natively, at a fraction of the single rate. A
+GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 
 ## Requirements
 

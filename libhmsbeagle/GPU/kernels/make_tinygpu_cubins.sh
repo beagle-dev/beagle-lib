@@ -3,11 +3,12 @@
 # Generates the TinyGPUHybrid C++ runtime's ahead-of-time cubins (TODO.md plan
 # step C1). Each SP PTX module make_tinygpu_kernels.sh keeps
 # (tinygpu_cubins/SP_<N>.ptx: the bytes of KERNELS_STRING_SP_<N>, which the
-# daemon's compile_all compiles at run time) is compiled for every
+# daemon's compile_all compiles at run time), and each DP module (DP_<N>.ptx,
+# plan step C16), is compiled for every
 # architecture in ARCH_LIST (tinygrad's NVDevice.arch names) with
 # nv_compile_helper.compile_ptx's ptxas command line. Outputs:
 #   BeagleTinyGPU_cubins.S  the cubins, embedded with .incbin (Mach-O)
-#   TinyGPUNVCubins.h       their table {states, arch, begin, end}, the ptxas
+#   TinyGPUNVCubins.h       their table {states, dp, arch, begin, end}, the ptxas
 #                           version, and the stamp of the kernels header
 #                           whose PTX they were compiled from
 #
@@ -37,20 +38,23 @@ echo "	.section __TEXT,__const" >> "${tmpasm}"
 echo "// auto-generated header file with the table of TinyGPU's ahead-of-time cubins (BeagleTinyGPU_cubins.S)" > "${tmpindex}"
 echo "#define TINYGPU_CUBINS_STAMP \"$(${PTXAS} --version | tail -1 | tr -d '\n') @ $(date '+%Y-%m-%d %H:%M:%S')\"" >> "${tmpindex}"
 grep '^#define TINYGPU_KERNELS_STAMP ' "${srcdir}/BeagleTinyGPU_kernels.h" | sed 's/TINYGPU_KERNELS_STAMP/TINYGPU_CUBINS_KERNELS_STAMP/' >> "${tmpindex}"
-echo "struct TinyGPUNVCubin { int states; const char* arch; const unsigned char* begin; const unsigned char* end; };" >> "${tmpindex}"
+echo "struct TinyGPUNVCubin { int states; bool dp; const char* arch; const unsigned char* begin; const unsigned char* end; };" >> "${tmpindex}"
 table=""
 
-for s in $STATE_COUNT_LIST; do
-	for a in $ARCH_LIST; do
-		echo "Making TinyGPU cubin SP state count = $s, $a"
-		cubin="${cubindir}/SP_${s}_$a.cubin"
-		sym="tinygpu_cubin_SP_${s}_$a"
-		${PTXAS} "--gpu-name=$a" -O3 --output-file "${cubin}" "${cubindir}/SP_$s.ptx" || { rm -f "${outasm}" "${outindex}" "${tmpasm}" "${tmpindex}"; exit 1; }
-		# nothing between .incbin and the end label: end - begin is the cubin's size
-		printf '\t.private_extern _%s\n\t.p2align 4\n_%s:\n\t.incbin "%s"\n\t.private_extern _%s_end\n_%s_end:\n' \
-			"${sym}" "${sym}" "${cubin}" "${sym}" "${sym}" >> "${tmpasm}"
-		echo "extern \"C\" const unsigned char ${sym}[], ${sym}_end[];" >> "${tmpindex}"
-		table="${table}	{ $s, \"$a\", ${sym}, ${sym}_end },\n"
+for p in SP DP; do
+	dp=$([ $p = DP ] && echo true || echo false)
+	for s in $STATE_COUNT_LIST; do
+		for a in $ARCH_LIST; do
+			echo "Making TinyGPU cubin $p state count = $s, $a"
+			cubin="${cubindir}/${p}_${s}_$a.cubin"
+			sym="tinygpu_cubin_${p}_${s}_$a"
+			${PTXAS} "--gpu-name=$a" -O3 --output-file "${cubin}" "${cubindir}/${p}_$s.ptx" || { rm -f "${outasm}" "${outindex}" "${tmpasm}" "${tmpindex}"; exit 1; }
+			# nothing between .incbin and the end label: end - begin is the cubin's size
+			printf '\t.private_extern _%s\n\t.p2align 4\n_%s:\n\t.incbin "%s"\n\t.private_extern _%s_end\n_%s_end:\n' \
+				"${sym}" "${sym}" "${cubin}" "${sym}" "${sym}" >> "${tmpasm}"
+			echo "extern \"C\" const unsigned char ${sym}[], ${sym}_end[];" >> "${tmpindex}"
+			table="${table}	{ $s, $dp, \"$a\", ${sym}, ${sym}_end },\n"
+		done
 	done
 done
 
