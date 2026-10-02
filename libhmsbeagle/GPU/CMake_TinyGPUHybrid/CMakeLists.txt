@@ -1,14 +1,13 @@
 
-# TinyGPUHybrid backend: an eGPU through TinyGPU.app. NV: the C++ boot and
-# runtime, with no Python (../TinyGPUHybrid.md); AMD: tinygrad's Python init
-# (amd_dispatch_daemon.py) + C++ hot-path dispatch, or the opt-in C++ boot
-# (BEAGLE_AMD_CPP_BOOT=1, TODO.md plan step A2).
+# TinyGPUHybrid backend: an eGPU through TinyGPU.app. NV and AMD both boot
+# and run in C++, with no Python (../TinyGPUHybrid.md; TODO.md plan steps
+# C13c and A2l).
 #
 # Prerequisites:
 #   - macOS with TinyGPU.app installed in /Applications/
-#   - for AMD: Python 3 with tinygrad on PYTHONPATH (or TINYGRAD_PATH set)
 #   - nvcc and ptxas (CUDA 12.8) at build time, for the kernels header and the
 #     C++ runtime's embedded cubins
+#   - for AMD, comgr (libamd_comgr) at build time, for the embedded HSACOs
 #
 # Build:  cmake -DBUILD_TINYGPU_HYBRID=ON ..
 

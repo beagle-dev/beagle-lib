@@ -1,6 +1,6 @@
 #!/bin/bash
-# TODO.md plan step A2k, end to end with no eGPU: the crash guard of the AMD C++ boot (BEAGLE_AMD_CPP_BOOT=1; beagle-tinygpu-guard's
-# amd_guard), on fake_amd_device.py's card, which counts a session that ends with a queue live as an error (TinyGPU.app then
+# TODO.md plan step A2k, end to end with no eGPU: the crash guard of the AMD C++ boot (beagle-tinygpu-guard's amd_guard), on
+# fake_amd_device.py's card, which counts a session that ends with a queue live as an error (TinyGPU.app then
 # unwires the sysmem the queue polls: on the Mac, a DART fault):
 #   - a normal run passes, the guard has the AMDev's fini state before any queue is set up, and exits at the plugin's clean;
 #   - a dirty card: the boot is refused before the mode1 reset, and the guard exits at the plugin's 'N';
@@ -8,8 +8,8 @@
 #   - killed once the AMDev booted, before any queue: the guard finalizes the card and closes, and the next run's boot is a
 #     partial one;
 #   - killed with a launch batch on the GPU, and idle at fini: the guard finalizes the GPU (NO ERRORS: no queue live at the
-#     session's end), sending what the daemon's EOF path sends: the whole session equals the daemon-booted run's, killed at
-#     the same point;
+#     session's end); killed idle, it sends what the plugin's own fini sends: the whole session equals the normal run's, byte
+#     for byte (that fini is the oracle daemon's exit: golden_amd_boot.py);
 #   - killed with a request in flight, and in the plugin's own fini: the guard holds, sending nothing;
 #   - a compute queue that stays active after its dequeue (FAKE_AMD_WEDGED=1): the plugin's own fini cannot see it off and
 #     says hold, and killed with a batch on the GPU, the guard's own fini cannot either: both hold.
@@ -47,8 +47,7 @@ run_test() {   # <label> [VAR=value ...]: tinygpuhybridtest on the fake, then it
     echo "a2k run $l starts" >> "$TL"
     rm -f "$SOCKDIR/guard.pid"
     env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$SOCKDIR/dev.sock" TMPDIR="$SOCKDIR" \
-        BEAGLE_AMD_CPP_BOOT=1 BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" \
-        BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" BEAGLE_AMD_DISPATCH_DAEMON="$TG_TESTS/amd_daemon_on_fake.py" BEAGLE_NV_SCRIPTS="$GPU_DIR" \
+        BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
         BEAGLE_AMD_DATA_MB=512 DYLD_LIBRARY_PATH="$TEST_LIBS" "$@" "$TEST_BIN" --state-count 4 --reps 2 > "$W/$l.txt" 2>&1
     local gpid; gpid=$(cat "$SOCKDIR/guard.pid" 2>/dev/null)
     if [ -n "$gpid" ]; then
@@ -92,15 +91,14 @@ check "killed once the AMDev booted, before any queue: the guard finalizes the c
 check "... and the next run's boot is a partial one, and passes" \
     "grep -q 'C++ boot done (partial boot)' $W/boot_rest_next.txt && ran boot_rest_next && verdict boot_rest | grep -q 'NO ERRORS'"
 
-# 5, 6. killed with a batch on the GPU, and idle at fini: the guard's fini, which must send what the daemon's EOF path sends
+# 5, 6. killed with a batch on the GPU, and idle at fini: the guard's fini
 for k in batch idle; do
-    run ${k}_daemon BEAGLE_AMD_CPP_BOOT=0 BEAGLE_AMD_TEST_KILL=$k
     run $k BEAGLE_AMD_TEST_KILL=$k
     check "killed $([ $k = batch ] && echo 'with a batch on the GPU' || echo 'idle at fini'): the guard finalizes the GPU, no queue live at the end (NO ERRORS)" \
         "glog $k | grep -q 'the GPU is finalized, every queue off; closing' && verdict $k | grep -q 'NO ERRORS' && [ ! -f $W/$k.held ]"
-    check "... sending what the daemon's EOF path sends: the whole session equals the daemon-booted run's killed at $k" \
-        "grep -q 'spawning amd_dispatch_daemon' $W/${k}_daemon.txt && verdict ${k}_daemon | grep -q 'NO ERRORS' && [ -s $W/$k.rec.1 ] && cmp -s $W/${k}_daemon.rec.1 $W/$k.rec.1"
 done
+check "... and killed idle it sends what the plugin's own fini sends: the whole session equals the normal run's, byte for byte" \
+    "[ -s $W/idle.rec.1 ] && cmp -s $W/normal.rec.1 $W/idle.rec.1"
 
 # 7, 8. a request in flight, and the plugin's own fini: hold, sending nothing
 for k in frame teardown; do
@@ -121,7 +119,7 @@ check "... and killed with a batch on the GPU, the guard's own fini cannot see i
     "glog wedged_batch | grep -q 'not seen inactive after their dequeue' && glog wedged_batch | grep -qF 'HOLDING the TinyGPU.app connection (the GPU did not confirm its queues off)' \
      && [ -f $W/wedged_batch.held ]"
 
-left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /(fake_amd_device|amd_daemon_on_fake)\.py/' | wc -l | tr -d ' ')
-check "no fake, daemon or guard is left running" "[ $left -eq 0 ]"
+left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
+check "no fake or guard is left running" "[ $left -eq 0 ]"
 echo; [ $fails -eq 0 ] && echo "test_a2k: PASS" || echo "test_a2k: $fails FAILED"
 [ $fails -eq 0 ]

@@ -5,7 +5,7 @@ fini, each a length-prefixed JSON message as GPUInterfaceTinyGPUHybridAMD.cpp se
 tinygrad's atexit hook finalizes the device (AMDev.fini). No compile_all: the plugin's build-time HSACOs need none. The
 connection is closed last, which ends the session on the fake.
     session(fake_socket, pool_size, before_fini=None, env=None, daemon=None) -> (boot reply, handoff reply, its HSACO blob)
-daemon: the script to spawn (default amd_daemon_on_fake.py); run_amd_l0.sh runs amd_dispatch_daemon.py itself on the eGPU:
+daemon: the script to spawn (default amd_daemon_on_fake.py); run_amd_l0.sh runs the oracle's amd_dispatch_daemon.py itself on the eGPU:
     python amd_daemon_session.py --hw <socket> [pool size]"""
 import os, sys, json, socket, struct, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -56,6 +56,6 @@ def session(fake_socket, pool_size, before_fini=None, env=None, variant="SP_4", 
 
 if __name__ == "__main__":   # run_amd_l0.sh: the real daemon on the eGPU, through the given socket (tgproxy's)
     if len(sys.argv) < 3 or sys.argv[1] != "--hw": sys.exit("usage: amd_daemon_session.py --hw <socket> [pool size, default the daemon's]")
-    boot, info, blob = session(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 0, daemon=tgpaths.GPU_DIR / "amd_dispatch_daemon.py")
+    boot, info, blob = session(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 0, daemon=tgpaths.ORACLE / "amd_dispatch_daemon.py")
     print(f"session: boot {boot}; handoff: pool {info['pool_size'] >> 20} MiB at {info['pool_va']:#x}, {info['nmaps']} mappings, "
           f"timeline {info['timeline_value']}; fini acknowledged; the daemon exited", flush=True)

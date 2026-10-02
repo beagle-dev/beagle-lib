@@ -1,11 +1,12 @@
 /*
  * TinyGPUHybridAMDRuntime.h
  *
- * The AMD C++ runtime after the daemon's boot-only handoff (TODO.md plan steps A1e-A1g). amd_dispatch_daemon.py's
- * cmd_handoff passes the GPU's compute and SDMA queues, its timeline, a kernargs buffer, staging and a VRAM pool (flat
- * JSON, the HSACO, then the sysmem fds); from then on this side encodes and submits PM4 and SDMA itself
- * (TinyGPUHybridAMDDispatch.h) over the plugin's TinyGPU.app connection, which the daemon no longer uses. It follows
- * tinygrad's AMDDevice (tinygrad/runtime/ops_amd.py, support/hcq.py, support/am/ip.py at a9830e2b4):
+ * The AMD C++ runtime on the boot's handoff (TODO.md plan steps A1e-A1g): the GPU's compute and SDMA queues, its timeline, a
+ * kernargs buffer, staging and a VRAM pool, as the C++ boot's am_handoff (TinyGPUHybridAMDDevice.h) fills them in. It
+ * encodes and submits PM4 and SDMA (TinyGPUHybridAMDDispatch.h) over the plugin's TinyGPU.app connection. The handoff was
+ * first the AMD daemon's cmd_handoff reply (flat JSON, then the sysmem fds): amd_parse_handoff and amd_runtime_attach still
+ * read that reply, for the goldens (golden_amd_handoff.py, against the oracle's daemon); the plugin uses neither since plan
+ * step A2l. It follows tinygrad's AMDDevice (tinygrad/runtime/ops_amd.py, support/hcq.py, support/am/ip.py at a9830e2b4):
  *   - submit: the queue's ring write, then AMDQueueDesc.signal_doorbell: write_ptr, System.memory_barrier,
  *     gmc.flush_hdp (a read of the HDP remap register, a write of 0 where it points) and the doorbell;
  *   - waits: HCQSignal.wait (fails after 30 s without progress, HCQDEV_WAIT_TIMEOUT_MS) with AMDSignal._sleep's interrupt
@@ -368,7 +369,7 @@ inline void amd_runtime_setup(AMDRuntime& rt, const AMDHandoff& h) {
     rt.signal_va = h.signal_va;
     rt.shadow_va = h.shadow_va;
     rt.timeline_value = h.timeline_value;
-    rt.submitted = h.timeline_value - 1;   // the daemon synchronized before the handoff
+    rt.submitted = h.timeline_value - 1;   // the boot synchronized before its handoff (am_handoff, as cmd_handoff did)
     rt.kargs = at(h.kargs);
     rt.kargs_va = h.kargs_va;
     rt.kargs_bump = AMDBump{h.kargs_size, 0, 0};

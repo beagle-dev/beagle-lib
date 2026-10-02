@@ -1,10 +1,10 @@
 #!/bin/bash
-# TODO.md plan step A2j: one tinygpuhybridtest run on the AMD eGPU with the plugin's own C++ boot (BEAGLE_AMD_CPP_BOOT=1, no
-# daemon), through tgproxy.py --guard: the AMD guard (replay/tgguard_amd.py) audits every TLB flush, queue and doorbell before it
-# is forwarded, refuses a mode1 reset, and holds the TinyGPU.app connection if the plugin goes away with a queue live instead of
-# closing it under the GPU. The sessions are recorded into $BEAGLE_TINYGPU_DATA/recordings/<stamp>_amd_cpp_N<n>. At DEBUG=2 (the
-# C++ boot prints tinygrad's boot lines), compared with the CPU. With amd_hw_begin's protections and amd_boot_check (env.sh); log
-# stream watched; the Mac kept awake; never killed: a test that hangs, or a proxy that holds, is reported and left as it is.
+# TODO.md plan step A2j: one tinygpuhybridtest run on the AMD eGPU with the plugin's C++ boot, through tgproxy.py --guard: the
+# AMD guard (replay/tgguard_amd.py) audits every TLB flush, queue and doorbell before it is forwarded, refuses a mode1 reset,
+# and holds the TinyGPU.app connection if the plugin goes away with a queue live instead of closing it under the GPU. The
+# sessions are recorded into $BEAGLE_TINYGPU_DATA/recordings/<stamp>_amd_cpp_N<n>. At DEBUG=2 (the C++ boot prints tinygrad's
+# boot lines), compared with the CPU. With amd_hw_begin's protections and amd_boot_check (env.sh); log stream watched; the Mac
+# kept awake; never killed: a test that hangs, or a proxy that holds, is reported and left as it is.
 # Plan step A2k: the plugin's crash guard (beagle-tinygpu-guard) keeps the GPU from before the boot; the proxy is ended only once
 # the guard has exited, since its connection runs through the proxy. With --kill idle the plugin SIGKILLs itself at fini once the
 # GPU is idle (BEAGLE_AMD_TEST_KILL=idle), as a crash would, and the guard finalizes the card: the run then passes if the test
@@ -32,7 +32,7 @@ PXP=$!
 for i in $(seq 100); do grep -q "tgproxy listening" "$PLOG" 2>/dev/null && break; sleep 0.1; done
 grep -q "tgproxy listening" "$PLOG" || { echo "the proxy did not start ($PLOG); nothing ran"; kill $PXP 2>/dev/null; exit 2; }
 cd "$REPO"
-caffeinate -ims env APL_REMOTE_SOCK="$PX" BEAGLE_AMD_CPP_BOOT=1 BEAGLE_NV_SCRIPTS="$GPU_DIR" BEAGLE_AMD_PROFILE=1 DEBUG=2 \
+caffeinate -ims env APL_REMOTE_SOCK="$PX" BEAGLE_AMD_PROFILE=1 DEBUG=2 \
     BEAGLE_TINYGPU_LOG="$TLOG" ${KILL:+BEAGLE_AMD_TEST_KILL=$KILL} \
     DYLD_LIBRARY_PATH="$TEST_LIBS" "$TEST_BIN" --state-count "$N" --reps "$REPS" --diag-compare-cpu "$@" > "$OUT" 2>&1 &
 TP=$!
@@ -69,7 +69,6 @@ grep -E "Rsrc Name|TinyGPU/AMD: (C\+\+ boot|C\+\+ runtime|.*failed|.*crash guard
 echo "boot: $(grep -oE "^am [^:]*: AM_[A-Z0-9]+ initialized" "$OUT" | sed -E 's/.*AM_([A-Z0-9]+) .*/\1/' | xargs)"
 grep -E "guard [0-9]+: (the plugin|the GPU is|no queue)|BEAGLE_AMD_TEST_KILL" "$TLOG" | cut -c1-240
 grep -E "ended:|session: the AMD card|recording ended" "$PLOG" | cut -c1-240
-grep -q "spawning amd_dispatch_daemon" "$OUT" && { echo "FAIL: a daemon was spawned (not the C++ boot)"; exit 3; }
 kill -0 $PXP 2>/dev/null && { echo "STOP: tgproxy did not end (pid $PXP): it may hold the GPU; unplug the eGPU first, then kill -9 $PXP"; exit 1; }
 [ $hw -eq 0 ] || exit 1
 [ "$(grep -c "ended: eof" "$PLOG")" -ge 2 ] || { echo "FAIL: the sessions did not both end clean through the guard ($PLOG)"; exit 3; }

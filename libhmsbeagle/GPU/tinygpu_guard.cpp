@@ -81,7 +81,7 @@ bool amd_fini(TGTransport& t, const amboot::AMFiniState& fs, std::string& why) {
     return false;
 }
 
-// TODO.md plan step A2k: the AMD C++ boot's guard (GPUInterfaceTinyGPUHybridAMD.cpp, BEAGLE_AMD_CPP_BOOT=1). Its setup holds the
+// TODO.md plan step A2k: the AMD C++ boot's guard (GPUInterfaceTinyGPUHybridAMD.cpp). Its setup holds the
 // connection, tinygrad's am_usb4.lock and the state page; once the plugin's AMDev is booted, before any queue is set up, the
 // rest brings what AMDev.fini needs. At its own fini the plugin says clean or hold; 'N' is a boot that ended with no
 // queue ever live. At an EOF without either, the guard does what the daemon's EOF path did (amd_dispatch_daemon.py exited,

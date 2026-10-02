@@ -7,20 +7,14 @@ tinygrad's user-space PCIe server, and follows tinygrad's own NV driver (`tinygr
 ahead-of-time cubins and submits BEAGLE's kernels, with no Python at run time. On exit it unloads the GPU and runs
 NVIDIA's driver-unload teardown, so the next process boots it again without a power cycle.
 
-The AMD side of the backend (a Radeon through the same app; tested on an RX 7900 XT, gfx1100) boots with tinygrad's Python
-(`amd_dispatch_daemon.py`, over the plugin's TinyGPU.app connection). Then the daemon hands the GPU's queues over, and
-the plugin submits PM4 and SDMA itself: launches, copies, allocations from a VRAM pool and synchronization. That is 1.6 to
-6 times faster per evaluation than leaving everything to the daemon (`BEAGLE_AMD_CPP=0`, also what a card other than
-gfx11 gets). The kernels are the build's ahead-of-time HSACOs when comgr was there at build time; otherwise the daemon
-compiles at run time.
-
-`BEAGLE_AMD_CPP_BOOT=1` (opt-in for now; TODO.md plan step A2) boots the card in the plugin itself, with no Python. It is
-tinygrad's AM driver in C++, `TinyGPUHybridAMDBoot.h` and `TinyGPUHybridAMDDevice.h`. Offline, on a register-level fake of
-the card, it sends TinyGPU.app the requests tinygrad's daemon sends, byte for byte, for the whole session. It needs the
-build's HSACO, and it is written for the RX 7900 XT's IP versions only. A card another session left unfinalized needs an SMU
-mode1 reset, which BEAGLE never sends over TinyGPU: the boot refuses it, and the card must be power-cycled. With no daemon,
-the crash guard below keeps the card (plan step A2k): if the host dies, it finalizes the card as the daemon did at its
-exit, or holds.
+The AMD side of the backend (a Radeon through the same app; tested on an RX 7900 XT, gfx1100) follows tinygrad's AM driver
+and AMD runtime the same way (`support/am/` and `ops_amd.py`), in C++ with no Python (TODO.md plan steps A1 and A2). BEAGLE
+boots the card itself (the PSP, SMU, GMC, IH, GFX and SDMA), sets up tinygrad's `AMDDevice` queues and buffers, loads the
+build's ahead-of-time HSACOs and submits PM4 and SDMA: launches, copies, allocations from a VRAM pool and synchronization.
+Offline, on a register-level fake of the card, the boot sends TinyGPU.app the requests tinygrad's sends, byte for byte. It
+is written for the RX 7900 XT's IP versions only. A card another session left unfinalized needs an SMU mode1 reset, which
+BEAGLE never sends over TinyGPU: the boot refuses it, and the card must be power-cycled. Until plan step A2l tinygrad's
+Python daemon booted the card; it is now the tests' oracle.
 
 ## Supported GPUs
 
@@ -29,10 +23,11 @@ exit, or holds.
 | Ada (AD10x) | `0x26xx`-`0x28xx` | tested on an RTX 4060 (AD107) |
 | Blackwell (GB20x) | `0x2bxx`-`0x2dxx`, `0x2fxx` | tested on an RTX 5070 (GB205); the other GB20x boot the same way, untested |
 | Ampere (GA10x) | `0x22xx`-`0x25xx` | not supported: refused at `beagleCreateInstance` (its path, the Python daemon, was removed) |
+| AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT; another AMD card's IP versions are refused at its boot |
 
-Only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120), for padded state counts 4, 16, 32, 48, 64,
-80, 128, 192 and 256. A double-precision instance, or a GPU whose architecture has no cubin, is refused at
-`beagleCreateInstance`.
+On NVIDIA only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120), for padded state counts 4, 16, 32,
+48, 64, 80, 128, 192 and 256. A double-precision instance, or a GPU whose architecture has no cubin, is refused at
+`beagleCreateInstance`. On AMD the build embeds both precisions for gfx1100, at the same state counts.
 
 ## Requirements
 
@@ -45,15 +40,20 @@ Only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120)
   pinned URL with `/usr/bin/curl` into BEAGLE's cache before anything is written to the GPU. Every file's sha256 is checked
   against `TinyGPUFirmwareManifest.h`. To fetch by hand (or for a Mac without the network):
   `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
+- For an AMD card, AMD's firmware (the six gfx1100 blobs, from the same linux-firmware pin), located, downloaded if missing
+  and checked the same way.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
-  Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them). Nothing is compiled at run time.
+  Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
+  `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses
+  AMD cards. Nothing is compiled at run time.
 
 ## Building and installing
 
 `BUILD_TINYGPU_HYBRID` (on by default) builds the plugin, `hmsbeagle-tinygpu-hybrid`, and the crash guard,
 `beagle-tinygpu-guard`. Both are installed to the same directory: the plugin looks for the guard next to itself (or at
-`BEAGLE_NV_GUARD`, and `BEAGLE_AMD_GUARD` for the AMD C++ boot), and refuses to boot without it. The resource appears in `beagleGetResourceList` as
-`TinyGPU-NV-Hybrid`, with `BEAGLE_FLAG_FRAMEWORK_TINYGPU`.
+`BEAGLE_NV_GUARD`, and `BEAGLE_AMD_GUARD` for an AMD card), and refuses to boot without it. The resource appears in
+`beagleGetResourceList` as `TinyGPU-NV-Hybrid` (`TinyGPU-AMD-Hybrid (1002:744c)` for the AMD card), with
+`BEAGLE_FLAG_FRAMEWORK_TINYGPU`.
 
 ## Running
 
@@ -66,6 +66,9 @@ Only single precision is built: 9 cubins per architecture (sm_86, sm_89, sm_120)
   small for an instance makes `beagleCreateInstance`, or the calls that read results back, return
   `BEAGLE_ERROR_GENERAL`, and read-backs are NaN. BEAGLE never exits its host. A lost GPU stays lost for the rest of the
   process.
+- On the AMD card the lock is tinygrad's `$TMPDIR/am_usb4.lock`, each instance boots the card (a partial boot takes about
+  1 s) and finalizes it at its own end, and a failed boot or a kernel the HSACOs lack still ends the process (`_exit(1)`),
+  as the daemon path did: the error returns above are NV's.
 
 ## The crash guard, and when to power-cycle
 
@@ -78,7 +81,7 @@ reach it) holds copies of the connection. If the host dies, or the plugin loses 
   does not confirm: it **holds**, sending nothing, because closing could unmap memory the GPU still uses. It says so on
   stderr and in the log: `holding the TinyGPU.app connection (...). Unplug the eGPU first, then kill <pid>.`
 
-On the AMD C++ boot (`BEAGLE_AMD_CPP_BOOT=1`) the same guard decides from the queues instead:
+On the AMD card the same guard decides from the queues instead (plan step A2k):
 
 - no queue set up yet (in the boot, or just after it): it closes, after finalizing a card whose boot finished, so that the
   next boot is a partial one;
@@ -110,15 +113,12 @@ For users:
 | `BEAGLE_NV_UNLOAD_LEVEL=0` | the LEVEL_0 unload instead of FAST_UNLOAD (a fallback) |
 | `BEAGLE_NV_GUARD` | the crash guard's path (default: next to the plugin); `BEAGLE_AMD_GUARD` for the AMD C++ boot |
 | `APL_REMOTE_SOCK` | TinyGPU.app's socket (default `$TMPDIR/tinygpu.sock`, as tinygrad) |
-| `BEAGLE_AMD_CPP=0` | AMD: every operation in the daemon, no C++ runtime (see above) |
-| `BEAGLE_AMD_DATA_MB` | AMD's C++ runtime: its VRAM pool, in MiB (default: half the VRAM) |
-| `BEAGLE_AMD_CPP_BOOT=1` | AMD: the plugin's own C++ boot, no daemon (opt-in; see above) |
+| `BEAGLE_AMD_DATA_MB` | AMD: the VRAM pool, in MiB (default: half the VRAM) |
+| `BEAGLE_AMD_PROFILE=1` | AMD: each operation's time on stderr |
 
-The test harness's own, not for production: `BEAGLE_NV_TEST_KILL`, `BEAGLE_TG_MARKERS`, `BEAGLE_TINYGPU_APP`,
-`BEAGLE_TINYGPU_NO_LAUNCH` and `BEAGLE_NV_FILL_LAUNCH_DIMS`. The AMD side finds its Python daemon through `BEAGLE_PYTHON`,
-`BEAGLE_NV_SCRIPTS` and `BEAGLE_AMD_DISPATCH_DAEMON`; `BEAGLE_AMD_CHAIN_LAUNCHES=0` submits each of its kernel launches on
-its own queue instead of one per batch, and `BEAGLE_AMD_AOT=0` makes the C++ runtime take the daemon's compile instead of
-the build's HSACOs.
+The test harness's own, not for production: `BEAGLE_NV_TEST_KILL`, `BEAGLE_AMD_TEST_KILL`, `BEAGLE_TG_MARKERS`,
+`BEAGLE_TINYGPU_APP`, `BEAGLE_TINYGPU_NO_LAUNCH` and `BEAGLE_NV_FILL_LAUNCH_DIMS`. tinygrad's `AM_RESET` and `AM_POWER_LIMIT`
+act on the AMD boot as on tinygrad's (an `AM_RESET=1` on a warm card is a mode1 reset, which the boot refuses).
 
 ## How it works
 
@@ -135,13 +135,13 @@ the build's HSACOs.
 | `TinyGPUFirmware.h`, `TinyGPUFirmwareManifest.h` | the firmware locator and the manifest it checks |
 | `tinygpu_guard.cpp`, `TinyGPUHybridNVGuard.h` | the crash guard |
 | `kernels/make_tinygpu_kernels.sh`, `kernels/make_tinygpu_cubins.sh` | the PTX and the embedded cubins, at build time |
-| `GPUInterfaceTinyGPUHybridAMD.cpp`, `amd_dispatch_daemon.py` | the AMD entry points and the daemon that boots (and, by default, runs) the GPU |
-| `TinyGPUHybridAMDRuntime.h` | AMD's C++ runtime after the handoff: queues, doorbells, waits, the IH drain, the pool, the programs |
+| `GPUInterfaceTinyGPUHybridAMD.cpp` | the AMD entry points: the boot and the crash guard's setup, allocation, copies, launches, fini |
+| `TinyGPUHybridAMDRuntime.h` | AMD's C++ runtime on the boot's handoff: queues, doorbells, waits, the IH drain, the pool, the programs |
 | `TinyGPUHybridAMDDispatch.h`, `TinyGPUHybridAMDProgram.h`, `TinyGPUAMDTables.h` | tinygrad's AMD PM4 and SDMA queues, its HSACO loader and scratch sizing, and their constants (generated by `make_tinygpu_amd_tables.py`) |
 | `TinyGPUElf.h` | tinygrad's ELF loader, for cubins and HSACOs |
 | `tinygpu_amd_compile.cpp`, `kernels/make_tinygpu_hsaco.sh` | tinygrad's compile_hip in C++ (comgr), and the embedded HSACOs, at build time |
 | `TinyGPUHybridAMDBoot.h`, `TinyGPUAMDReg.h` | tinygrad's AM driver in C++ (AMDev, AMFirmware, its page tables and memory manager, the PSP, SMU, GMC, IH, GFX and SDMA blocks), and its registers |
-| `TinyGPUHybridAMDDevice.h` | AMDDevice.__init__'s queues and buffers and the daemon's handoff, in C++, for the runtime |
+| `TinyGPUHybridAMDDevice.h` | AMDDevice.__init__'s queues and buffers and the old daemon's handoff, in C++, for the runtime |
 | `TinyGPUAMDBootTables.h` | the boot's registers, structs, constants and firmware manifest, generated by `make_tinygpu_amd_boot_tables.py` |
 
 The Python this port was checked against, tinygrad plus BEAGLE's patches, lives in `tinygpu_tests/oracle/`, off the run
@@ -149,8 +149,8 @@ path.
 
 ## Provenance
 
-- tinygrad at commit `a9830e2b4` (the `hcq1` tree), MIT: the boot, the memory manager, the RM client, `NVDevice`, the
-  program loader and the TinyGPU.app client, ported statement by statement.
+- tinygrad at commit `a9830e2b4` (the `hcq1` tree), MIT: the boots, the memory manager, the RM client, `NVDevice`, the AM
+  driver, `AMDDevice`, the program loaders and the TinyGPU.app client, ported statement by statement.
 - NVIDIA's open-gpu-kernel-modules 570.144, MIT: the driver-unload teardown (FWSEC-SB, Booter Unload) and the RISC-V halt
   wait; nouveau as a cross-check only.
 - NVIDIA's firmware, under NVIDIA's licence (`LICENCE.nvidia` in linux-firmware); fetched by the user, never bundled.

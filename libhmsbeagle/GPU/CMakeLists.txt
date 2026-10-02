@@ -96,7 +96,7 @@ if(BUILD_TINYGPU_HYBRID)
 endif()
 
 if(BUILD_TINYGPU_HYBRID)
-	message(STATUS "TinyGPUHybrid backend enabled (NV: the C++ boot; AMD: tinygrad init + C++ dispatch)")
+	message(STATUS "TinyGPUHybrid backend enabled (NV and AMD: the C++ boot, no Python)")
 	# The C++ runtime's ahead-of-time cubins (TODO.md plan step C1, decision
 	# 15): the SP modules kept above, compiled with ptxas for sm_86, sm_89 and
 	# sm_120 and embedded in the plugin by kernels/BeagleTinyGPU_cubins.S.
@@ -131,8 +131,8 @@ if(BUILD_TINYGPU_HYBRID)
 	# The AMD C++ runtime's ahead-of-time HSACOs (TODO.md plan step A1j): every SP and DP variant of BeagleOpenCL_kernels.h
 	# compiled for gfx1100 by tinygpu_amd_compile (tinygrad's compile_hip in C++, through comgr) and embedded by
 	# kernels/BeagleTinyGPU_hsaco.S. Without comgr (tinygrad's build: /opt/homebrew/lib/libamd_comgr.dylib, or
-	# -DTINYGPU_COMGR=) the plugin is built without them, and its C++ runtime (BEAGLE_AMD_CPP=1) takes the AMD daemon's
-	# run-time compile instead. The HSACOs are outputs too, as the cubins are.
+	# -DTINYGPU_COMGR=) the plugin is built without them, and refuses an AMD card: nothing compiles at run time since
+	# plan step A2l. The HSACOs are outputs too, as the cubins are.
 	find_library(TINYGPU_COMGR NAMES amd_comgr HINTS /opt/homebrew/lib)
 	if(TINYGPU_COMGR)
 		message(STATUS "TinyGPU AMD HSACOs: using comgr at ${TINYGPU_COMGR}")
@@ -153,7 +153,7 @@ if(BUILD_TINYGPU_HYBRID)
 				VERBATIM)
 		add_custom_target(TinyGPUHsaco DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_hsaco.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUAMDHsaco.h")
 	else()
-		message(STATUS "TinyGPU AMD HSACOs: no comgr found; the AMD C++ runtime will use the daemon's run-time compile")
+		message(STATUS "TinyGPU AMD HSACOs: no comgr found; the plugin will refuse AMD cards (no run-time compile)")
 	endif()
 	# CMake_HIP only defines the HIPKernels target (see the BeagleOpenCL_kernels.h
 	# comment above) -- added before CMake_TinyGPUHybrid so that target exists

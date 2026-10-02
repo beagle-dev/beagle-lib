@@ -76,7 +76,7 @@ GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0), isNVID
 
 GPUInterface::~GPUInterface() {
     if (!isNVIDIA) {
-        AmdFini();  // sends SIGTERM to amd_init_helper.py and waits for it to exit + adev.fini()
+        AmdFini();  // the last synchronize, the C++ fini (AMDev.fini), then clean or hold to the crash guard
         if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }
         return;
     }

@@ -2,7 +2,7 @@
 
 # Generates the TinyGPUHybrid AMD C++ runtime's ahead-of-time HSACOs (TODO.md plan step A1j): every SP and DP variant of
 # BeagleOpenCL_kernels.h, compiled for each architecture in ARCH_LIST by tinygpu_amd_compile (tinygrad's compile_hip in
-# C++, through comgr), the source the AMD daemon compiles at run time. Outputs:
+# C++, through comgr), the source the AMD daemon compiled at run time before plan step A2l. Outputs:
 #   BeagleTinyGPU_hsaco.S  the HSACOs, embedded with .incbin (Mach-O)
 #   TinyGPUAMDHsaco.h      their table {variant, arch, begin, end} and a stamp
 #   make_tinygpu_hsaco.sh <tinygpu_amd_compile> <libamd_comgr>

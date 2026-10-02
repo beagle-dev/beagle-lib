@@ -22,6 +22,10 @@ TG_L0="20260925-204611_mittag-leffler_cold 20260925-204652_mittag-leffler_warm 2
 # (teardown, the plugin's COT teardown), H3 (rm, the plugin's NVDevice) and H4 (gsp_hw, the plugin's GSP-RM boot) behind the
 # guard, warm boots at 4 states in one enumeration
 TG_GB20X="20260927-093033_Marcs-Mac-Studio-490_gb205_l0 20260927-094318_Marcs-Mac-Studio-490_gb205_h1_vram 20260927-094646_Marcs-Mac-Studio-490_gb205_h2_sysmem 20260927-112033_Marcs-Mac-Studio-490_gb205_t 20260927-113001_Marcs-Mac-Studio-490_gb205_h3_rm 20260927-114036_Marcs-Mac-Studio-490_gb205_h4_gsp_hw"
+# plan step A2j's AMD L0 recordings (STATUS.md R71, R74): the AMD daemon's boot-only sessions on the RX 7900 XT, warm (a
+# partial boot) and cold (a full one, after a power cycle), through tgproxy --guard; each replays exactly to the oracle's
+# daemon and to the C++ boot (amd_l0_replay.py, test_a2.sh)
+TG_AMD_L0="20261001-125155_Marcs-Mac-Studio-490_amd_l0_warm 20261002-083213_Marcs-Mac-Studio-490_amd_l0_cold"
 
 # Offline scripts call this first: the plugin they load must contain the BEAGLE_TINYGPU_NO_LAUNCH guard, or a failed
 # connection to a fake would start the real TinyGPU.app. (A static check: it runs nothing.)
@@ -125,7 +129,7 @@ hw_hold_check() {
 # one config read). Sets AMD_PCI (vendor:device).
 amd_hw_begin() {
     local v n p
-    for v in APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH BEAGLE_AMD_DISPATCH_DAEMON BEAGLE_AMD_DEBUG_DUMP AM_RESET; do
+    for v in APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH AM_RESET; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     pgrep -fl "beagle-tinygpu-guard|tinygpuhybridtest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
