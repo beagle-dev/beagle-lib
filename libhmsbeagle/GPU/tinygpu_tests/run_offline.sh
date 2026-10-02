@@ -65,6 +65,9 @@ results+=("one AMD boot per process (A5): $([ $? -eq 0 ] && echo PASS || echo "F
 results+=("double precision on the AMD card (A7): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a7.log)")")
 "$TG_TESTS/test_c16.sh" > "$TINYGPU_TEST_WORK/test_c16.log" 2>&1
 results+=("double precision on NV (C16): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c16.log)")")
+# plan step C14: FreeMemory on both vendors' VRAM pools (the free list, and instance cycles on a small pool on both fakes)
+"$TG_TESTS/test_c14.sh" > "$TINYGPU_TEST_WORK/test_c14.log" 2>&1
+results+=("FreeMemory on both pools (C14): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c14.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

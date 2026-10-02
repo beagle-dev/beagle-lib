@@ -13,7 +13,8 @@
  *     check after 200 ms: AM_IH.interrupt_handler's decode, where an SQ error or a UTCL2 fault puts the device in error;
  *   - synchronize: the timeline wait, its wrap at 2^31 (_wrap_timeline_signal) and AMDDevice.synchronize's IH drain;
  *   - copies: HCQAllocator._copyin/_copyout through staging (amd_copyin/amd_copyout);
- *   - allocations: PCIIfaceBase.alloc's rounding, carved from the pool; nothing is freed (as on NV).
+ *   - allocations: PCIIfaceBase.alloc's rounding, carved from the pool, which takes freed blocks back (TinyGPUPool.h, as on
+ *     NV; plan step C14).
  * Deliberate differences, beyond TinyGPUHybridAMDProgram.h's: hcq1 never waits before reusing compute ring or kernargs
  * space (ops_amd.py:419-422, memory.py:14-21); here a write that crosses the compute ring's end and a kernargs wrap first
  * wait for everything submitted (NV's wait for idle on wrap). SDMA's own wait for room times out (hcq1 spins forever).
@@ -38,6 +39,7 @@
 #include "libhmsbeagle/GPU/TinyGPUAMDTables.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridAMDDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridAMDProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUPool.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
 
 namespace tinygpu_device {
@@ -144,6 +146,7 @@ struct AMDRuntime {
     AMDProps props;
     uint32_t max_private_segment_size = 0;   // AMDDevice's: what the scratch serves (0: no scratch yet)
     uint64_t pool_used = 0;
+    TGPoolFree pool_free;   // the pool's blocks, and those freed below pool_used (plan step C14)
     bool error = false;
     std::string error_msg;
     uint64_t wait_timeout_ms = 30000;
@@ -312,16 +315,20 @@ struct AMDRuntime {
     }
 
     // ── memory ──
-    // PCIIfaceBase.alloc's rounding (2 MB pages from 8 MB, else 4 KB), carved from the pool
+    // PCIIfaceBase.alloc's rounding (2 MB pages from 8 MB, else 4 KB), carved from the pool, the blocks freed so far first
     bool alloc(uint64_t size, uint64_t& va) {
         const uint64_t page = size >= (8ull << 20) ? (2ull << 20) : 0x1000;
         const uint64_t sz = (size + page - 1) / page * page, at = (pool_used + page - 1) / page * page;
+        uint64_t off;
+        if (sz && pool_free.take(0, sz, page, off)) { va = h.pool_va + off; return true; }
         if (sz == 0 || at + sz > h.pool_size) return false;
         pool_used = at + sz;
+        pool_free.live[at] = sz;
         va = h.pool_va + at;
         return true;
     }
-    uint64_t available() const { return h.pool_size > pool_used ? h.pool_size - pool_used : 0; }
+    void release(uint64_t va) { pool_free.release(va - h.pool_va, pool_used); }   // an address alloc did not return is ignored
+    uint64_t available() const { return (h.pool_size > pool_used ? h.pool_size - pool_used : 0) + pool_free.bytes(); }
 };
 
 // Maps the handoff's sysmem fds (closing them) and sets the runtime up: queues, timeline, kernargs, staging, the BARs the
@@ -389,8 +396,8 @@ inline void amd_runtime_detach(AMDRuntime& rt) {
 // An HSACO's programs, into kernels: its image at one pool allocation (round_up 0x1000, as BeagleAMDProgram's), uploaded through
 // staging and synchronized (as AMDProgram.__init__), then _ensure_has_local_memory for the largest private segment (at least
 // AMDDevice's initial 128 bytes): scratch carved from the pool at the first HSACO, and again, larger, for a later one whose
-// kernels need more (TODO.md plan step A5: an HSACO per variant the process's instances use; the old scratch stays, since the
-// pool frees nothing, and in-flight work keeps it). "" or why not.
+// kernels need more (TODO.md plan step A5: an HSACO per variant the process's instances use; the old scratch stays, as
+// in-flight work keeps it: the pool takes back BEAGLE's buffers only, plan step C14). "" or why not.
 inline std::string amd_runtime_load_programs(AMDRuntime& rt, const uint8_t* hsaco, size_t n, std::map<std::string, AMDProgramRecord>& kernels) {
     std::vector<uint8_t> image;
     std::map<std::string, AMDProgramRecord> probe;

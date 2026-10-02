@@ -618,7 +618,7 @@ GPUPtr AmdAllocateMemory(GPUInterface* self, size_t sz) {
     if (!in || amd_failed(*in)) return 0;
     auto t0 = amd_profile_start();
     uint64_t va = 0;
-    if (!g_amd->rt->alloc(sz, va)) {   // BEAGLE does not check: address 0 would reach the GPU. The pool is never reclaimed.
+    if (!g_amd->rt->alloc(sz, va)) {   // BEAGLE does not check: address 0 would reach the GPU
         fprintf(stderr, "TinyGPU/AMD: out of GPU memory: an allocation of %.1f MiB, with %.1f MiB left of the %llu MiB VRAM pool "
                 "(BEAGLE_AMD_DATA_MB sets it, by default half the VRAM); this instance fails\n", sz / 1048576.0,
                 g_amd->rt->available() / 1048576.0, (unsigned long long)(g_amd->rt->h.pool_size >> 20));
@@ -627,6 +627,16 @@ GPUPtr AmdAllocateMemory(GPUInterface* self, size_t sz) {
     }
     amd_profile_end("alloc (C++)", t0);
     return (GPUPtr)va;
+}
+
+// Plan step C14: the block goes back to the pool (TinyGPUPool.h), once this instance's queued launches, which may use it, are
+// submitted. An address no allocation returned is ignored.
+void AmdFreeMemory(GPUInterface* self, GPUPtr p) {
+    std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
+    AMDInstance* in = (AMDInstance*)self->amdInstance;
+    if (!g_amd || !p) return;
+    if (in) amdFlushLaunchQueue(*in);
+    g_amd->rt->release((uint64_t)p);
 }
 
 void AmdMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz) {

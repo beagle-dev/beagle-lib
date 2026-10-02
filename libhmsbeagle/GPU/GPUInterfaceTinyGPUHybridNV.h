@@ -29,6 +29,7 @@ void       NvLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block,
                                int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 void       NvSynchronizeHost(GPUInterface* self);
 GPUPtr     NvAllocateMemory(GPUInterface* self, size_t sz);
+void       NvFreeMemory(GPUInterface* self, GPUPtr p);   // TODO.md plan step C14
 void       NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
 void       NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     NvGetAvailableMemory();

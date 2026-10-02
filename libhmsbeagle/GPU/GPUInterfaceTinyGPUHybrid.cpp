@@ -294,7 +294,10 @@ void* GPUInterface::CallocHost(size_t n, size_t sz) { return calloc(n, sz); }
 void* GPUInterface::AllocatePinnedHostMemory(size_t sz, bool, bool) { return malloc(sz); }
 void  GPUInterface::FreeHostMemory(void* p)        { free(p); }
 void  GPUInterface::FreePinnedHostMemory(void* p)  { free(p); }
-void  GPUInterface::FreeMemory(GPUPtr) {}
+void  GPUInterface::FreeMemory(GPUPtr p) {   // TODO.md plan step C14
+    if (!isNVIDIA) { AmdFreeMemory(this, p); return; }
+    NvFreeMemory(this, p);
+}
 
 GPUPtr GPUInterface::GetDeviceHostPointer(void* p) { return (GPUPtr)(uintptr_t)p; }
 

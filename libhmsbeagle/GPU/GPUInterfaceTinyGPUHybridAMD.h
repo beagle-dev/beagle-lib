@@ -26,6 +26,7 @@ void       AmdLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block
                                 int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 void       AmdSynchronizeHost(GPUInterface* self);
 GPUPtr     AmdAllocateMemory(GPUInterface* self, size_t sz);
+void       AmdFreeMemory(GPUInterface* self, GPUPtr p);   // TODO.md plan step C14
 void       AmdMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
 void       AmdMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     AmdGetAvailableMemory();

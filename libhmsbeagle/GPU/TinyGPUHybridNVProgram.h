@@ -31,6 +31,7 @@
 #include "libhmsbeagle/GPU/TinyGPUElf.h"
 #include "libhmsbeagle/GPU/TinyGPUNVTables.h"
 #include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUPool.h"
 
 namespace tinygpu_device {
 
@@ -270,14 +271,18 @@ static inline uint64_t nvd_local_mem_size(const NVDRuntime& rt, uint32_t slm_per
 // A VRAM allocation placed as tinygrad would place its own (PCIIfaceBase.alloc,
 // then MemoryManager.alloc_vaddr), but carved from the pool: the size rounds up
 // to 2 MiB from 8 MiB on and to 4 KiB below, and the address is aligned to the
-// largest power of two not above the size. pos is the pool's fill level.
-// Returns 0 when the pool is full.
-static inline uint64_t nvd_pool_alloc(const NVDBuffer& pool, uint64_t& pos, uint64_t size) {
+// largest power of two not above the size. pos is the pool's fill level. With
+// freed (plan step C14), the blocks freed so far are tried first, and the block
+// is recorded for its free. Returns 0 when the pool is full.
+static inline uint64_t nvd_pool_alloc(const NVDBuffer& pool, uint64_t& pos, uint64_t size, TGPoolFree* freed = nullptr) {
     size = nvd_round_up(std::max<uint64_t>(size, 1), size >= (8ull << 20) ? (2ull << 20) : 0x1000);
     uint64_t align = std::max<uint64_t>(0x1000, 1ull << (63 - __builtin_clzll(size)));
+    uint64_t off;
+    if (freed && freed->take(pool.va, size, align, off)) return pool.va + off;
     uint64_t va = nvd_round_up(pool.va + pos, align);
     if (va + size > pool.va + pool.size) return 0;
     pos = va + size - pool.va;
+    if (freed) freed->live[va - pool.va] = size;
     return va;
 }
 

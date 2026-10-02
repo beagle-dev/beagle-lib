@@ -69,7 +69,8 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 - Running out of GPU memory returns `BEAGLE_ERROR_OUT_OF_MEMORY` (TODO.md plan step M1), on both vendors, with the sizes on
   stderr (`out of GPU memory: ...`). That covers an instance whose buffers or programs do not fit the VRAM pool, and a pool
   (`BEAGLE_NV_DATA_MB`, `BEAGLE_AMD_DATA_MB`; by default half the VRAM) larger than the GPU can hold. The pool is shared by
-  the process's instances and never reclaimed.
+  the process's instances, and what an instance frees goes back to it (plan step C14): its buffers, and on NV its programs.
+  On AMD, each kernel variant's programs stay until exit, for the instances after it.
 - The same holds on the AMD card, where the process also takes tinygrad's `$TMPDIR/am_usb4.lock`: every instance shares
   one boot (a partial boot takes about 1 s), each kernel variant is loaded once, and a normal exit finalizes the card.
   Its errors come back as BEAGLE errors too: a failed boot (a card that needs a mode1 reset, say), a kernel the HSACOs
