@@ -277,8 +277,8 @@ static std::string amd_guard_path() {
 }
 
 // The guard, spawned before the boot's first request to the GPU with what holding takes (the TinyGPU.app connection, tinygrad's
-// am_usb4.lock, which is this path's lock, and the state page: kGuardSetupHoldAMD). Before it said ready nothing went to the GPU,
-// so a failed start ends the boot.
+// am_usb4.lock, which is this path's lock, the state page, and the transport's nv_usb4.lock, so that no other process connects
+// while it holds: kGuardSetupHoldAMD). Before it said ready nothing went to the GPU, so a failed start ends the boot.
 static std::string amdGuardStart(AMDHybridState& g, int am_lock_fd) {
     const std::string path = amd_guard_path();
     if (path.empty()) return "the crash guard: no beagle-tinygpu-guard next to the plugin";
@@ -292,7 +292,7 @@ static std::string amdGuardStart(AMDHybridState& g, int am_lock_fd) {
     s.kind = kGuardSetupHoldAMD;
     s.nfds = guard_setup_nfds(kGuardSetupHoldAMD);
     s.parent_pid = (uint32_t)getpid();
-    const int fds[3] = {tg_transport().fd(), am_lock_fd, g.state_fd};
+    const int fds[4] = {tg_transport().fd(), am_lock_fd, g.state_fd, tg_transport().lock_fd()};
     char r = 0;
     struct pollfd pfd = {ctl, POLLIN, 0};
     if (!guard_send_setup(ctl, s, fds)) err = std::string("its setup: ") + strerror(errno);

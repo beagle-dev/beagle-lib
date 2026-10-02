@@ -9,7 +9,8 @@
 #     exactly, the card finalized at exit (the guard's clean, NO ERRORS);
 #   - exit() from another thread mid-run: the plugin's atexit finalizes the card under its timed lock;
 #   - a second process while the first runs: it fails at once on nv_usb4.lock, before it connects (TinyGPU.app serves one
-#     client at a time: a connection would wait forever), and the first runs on;
+#     client at a time: a connection would wait forever), and the first runs on; and while a crash guard holds the card (an
+#     exit fini that cannot see a queue off, FAKE_AMD_WEDGED=1): the guard keeps nv_usb4.lock, so the same;
 #   - a GPU lost in the first of two cycles (FAKE_AMD_FAULT=1): the second cycle's beagleCreateInstance is refused at once
 #     (the GPU was lost earlier in this process), and the card is still finalized at exit (NO ERRORS).
 # The test exits 1 on the fake (its logL is wrong by design): "exits normally" is a status below 128. One PASS or FAIL line
@@ -31,10 +32,13 @@ CLEAN="the plugin finalized the GPU itself; exiting"
 
 run() {   # <label> <variants, comma-separated> [VAR=value ...] [-- tinygpuhybridtest args]: one run on a fresh fake card, then
           # its guard (waited for, or ended if it holds). SECOND_AFTER=<regex> among the VARs: once the output matches, a second
-          # tinygpuhybridtest (--reps 1) against the same fake, given 30 s.
-    local l=$1 v=$2 envs=() args=(--state-count 4 --reps 3) second=""; shift 2
+          # tinygpuhybridtest (--reps 1) against the same fake and lock files, given 30 s; SECOND_WHEN_HELD=1: the same while
+          # the guard holds, before it is ended.
+    local l=$1 v=$2 envs=() args=(--state-count 4 --reps 3) second="" when_held=""; shift 2
     while [ $# -gt 0 ] && [ "$1" != "--" ]; do
-        if [[ $1 == SECOND_AFTER=* ]]; then second=${1#SECOND_AFTER=}; else envs+=("$1"); fi
+        if [[ $1 == SECOND_AFTER=* ]]; then second=${1#SECOND_AFTER=}
+        elif [[ $1 == SECOND_WHEN_HELD=1 ]]; then when_held=1
+        else envs+=("$1"); fi
         shift
     done
     [ "$1" = "--" ] && { shift; args=("$@"); }
@@ -47,18 +51,19 @@ run() {   # <label> <variants, comma-separated> [VAR=value ...] [-- tinygpuhybri
     local test_env=(BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d"
                     BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$d/guard.pid"
                     BEAGLE_AMD_DATA_MB=512 DYLD_LIBRARY_PATH="$TEST_LIBS")
+    second_run() {   # its own pidfile: the first's guard stays the one waited for
+        local s0=$(date +%s)
+        env "${test_env[@]}" BEAGLE_TG_GUARD_PIDFILE="$d/guard2.pid" "${envs[@]}" "$TEST_BIN" --state-count 4 --reps 1 > "$W/${l}_second.txt" 2>&1 &
+        local t2=$!
+        for j in $(seq 300); do kill -0 $t2 2>/dev/null || break; sleep 0.1; done
+        if kill -0 $t2 2>/dev/null; then echo "the second process still runs after 30 s; killed (fake device only)" > "$W/${l}_second.hung"; kill -KILL $t2; fi
+        wait $t2; echo "$? $(( $(date +%s) - s0 ))" > "$W/${l}_second.rc"
+    }
     env "${test_env[@]}" "${envs[@]}" "$TEST_BIN" "${args[@]}" > "$W/$l.txt" 2>&1 &
     local tst=$! rc=124
     for i in $(seq 1800); do
         kill -0 $tst 2>/dev/null || { wait $tst; rc=$?; break; }
-        if [ -n "$second" ] && grep -qE "$second" "$W/$l.txt"; then   # its own pidfile: the first's guard stays the one waited for
-            second=""; local s0=$(date +%s)
-            env "${test_env[@]}" BEAGLE_TG_GUARD_PIDFILE="$d/guard2.pid" "${envs[@]}" "$TEST_BIN" --state-count 4 --reps 1 > "$W/${l}_second.txt" 2>&1 &
-            local t2=$!
-            for j in $(seq 300); do kill -0 $t2 2>/dev/null || break; sleep 0.1; done
-            if kill -0 $t2 2>/dev/null; then echo "the second process still runs after 30 s; killed (fake device only)" > "$W/${l}_second.hung"; kill -KILL $t2; fi
-            wait $t2; echo "$? $(( $(date +%s) - s0 ))" > "$W/${l}_second.rc"
-        fi
+        if [ -n "$second" ] && grep -qE "$second" "$W/$l.txt"; then second=""; second_run; fi
         sleep 0.1
     done
     [ $rc -eq 124 ] && { kill -KILL $tst 2>/dev/null; wait $tst 2>/dev/null; echo "[$l] the test hung; killed (fake device only)" > "$W/$l.hung"; }
@@ -67,6 +72,7 @@ run() {   # <label> <variants, comma-separated> [VAR=value ...] [-- tinygpuhybri
     if [ -n "$gpid" ]; then   # it exits at the plugin's clean; one that holds keeps the fake's connection
         for i in $(seq 600); do kill -0 "$gpid" 2>/dev/null || break; grep -q "then kill $gpid\." "$TL" && break; sleep 0.1; done
         if kill -0 "$gpid" 2>/dev/null; then
+            [ -n "$when_held" ] && second_run
             echo "[$l] the guard (pid $gpid) held the fake connection; ending it" > "$W/$l.held"; kill -KILL "$gpid"
             for i in $(seq 50); do kill -0 "$gpid" 2>/dev/null || break; sleep 0.1; done   # not this shell's child: polled
         fi
@@ -120,6 +126,12 @@ run lost SP_4 FAKE_AMD_STATE=cold FAKE_AMD_FAULT=1 HCQDEV_WAIT_TIMEOUT_MS=3000 -
 check "a GPU lost in the first cycle: the second beagleCreateInstance is refused at once, and the card is finalized at exit (NO ERRORS)" \
     "normal lost && grep -q '=== cycle 2 of 2' $W/lost.txt && grep -q 'the GPU was lost earlier in this process; no instance can use it' $W/lost.txt \
      && [ \"\$(grep -c 'TinyGPU/AMD: C++ boot done' $W/lost.txt)\" -eq 1 ] && glog lost | grep -q '$CLEAN' && verdict lost | grep -q 'NO ERRORS'"
+
+# 5. a second process while the crash guard holds the card
+run held SP_4 FAKE_AMD_WEDGED=1 SECOND_WHEN_HELD=1 -- --state-count 4 --reps 3
+check "a second process while the guard holds the card (an exit fini that cannot see a queue off): it fails at once on nv_usb4.lock, which the guard keeps" \
+    "normal held && [ -f $W/held.held ] && [ ! -f $W/held_second.hung ] && read r2 t2 < $W/held_second.rc && [ \$r2 -ne 0 ] && [ \$t2 -le 5 ] \
+     && grep -q 'Failed to acquire lock file nv_usb4.lock' $W/held_second.txt && ! grep -q 'TinyGPU/AMD:' $W/held_second.txt"
 
 left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
 check "no fake or guard is left running" "[ $left -eq 0 ]"

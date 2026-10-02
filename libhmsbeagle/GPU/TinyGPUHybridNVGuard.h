@@ -17,7 +17,9 @@
  * lost the GPU (plan step C12), and the guard decides from the state page.
  *
  * The AMD C++ boot (plan step A2k, GPUInterfaceTinyGPUHybridAMD.cpp) uses the same guard and messages with its own kinds:
- * kGuardSetupHoldAMD (the same three fds, its lock being tinygrad's am_usb4.lock: the AMD path releases the transport's), and
+ * kGuardSetupHoldAMD (the same three fds, its lock being tinygrad's am_usb4.lock, then the transport's nv_usb4.lock, which the
+ * AMD path keeps too since plan step A5: a guard that holds keeps both, so another process fails at once on them instead of
+ * waiting forever on TinyGPU.app, which serves the guard), and
  * once its AMDev is booted, before any queue is set up, kGuardSetupRestAMD (no fds), followed on the socketpair by what
  * AMDev.fini needs (amd_fini_size bytes: TinyGPUHybridAMDBoot.h's AMFiniState). Its state page uses the phase (am_boot until
  * just before the first queue goes live, then dispatch, and teardown in its own fini) and the in-flight word, which its
@@ -65,10 +67,10 @@ struct GuardSetup {
 };
 constexpr uint32_t kGuardMagic = 0x44475447;   // "GTGD"
 
-// the fds each kind of setup carries, in this order: Hold (and HoldAMD) the connection, its lock and the state page; Rest the
-// queues and the timeline; RestAMD none
+// the fds each kind of setup carries, in this order: Hold the connection, its lock and the state page; HoldAMD the same, then
+// nv_usb4.lock; Rest the queues and the timeline; RestAMD none
 inline uint32_t guard_setup_nfds(uint32_t kind) {
-    return kind == kGuardSetupHold || kind == kGuardSetupHoldAMD ? 3 : kind == kGuardSetupRest ? 2 : 0;
+    return kind == kGuardSetupHold ? 3 : kind == kGuardSetupHoldAMD ? 4 : kind == kGuardSetupRest ? 2 : 0;
 }
 
 // sendmsg of the setup and its fds, in one message

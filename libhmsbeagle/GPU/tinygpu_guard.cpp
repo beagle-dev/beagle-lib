@@ -100,6 +100,8 @@ int amd_guard(int ctl, const GuardSetup& g, const int* raw) {
     }
     TGTransport t;
     t.adopt(raw[0], raw[1]);   // the connection and am_usb4.lock
+    // raw[3], nv_usb4.lock, stays open as long as this guard runs (plan step A5): a BEAGLE process started while it holds fails
+    // at once on that lock, where its connection would wait forever on TinyGPU.app, which serves this guard
     const char ready = 'R';
     if (write(ctl, &ready, 1) != 1) {
         tg_log("guard: could not say ready: %s; exiting", strerror(errno));
