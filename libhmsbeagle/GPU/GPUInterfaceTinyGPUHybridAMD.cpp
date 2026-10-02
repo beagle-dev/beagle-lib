@@ -71,6 +71,16 @@ static const unsigned char* amd_embedded_hsaco(const std::string& variant, const
     return nullptr;
 }
 
+// TODO.md plan step A7: double precision on the AMD card, which the build's HSACOs include when it compiled them (DP_4 ...
+// DP_256, beside the SP_ variants); the card computes it natively, at a lower rate
+bool AmdSupportsDouble() {
+#ifdef TINYGPU_AMD_HSACO
+    for (const TinyGPUAMDHsaco& h : kTinyGPUAMDHsacos)
+        if (strncmp(h.variant, "DP_", 3) == 0) return true;
+#endif
+    return false;
+}
+
 // ── Opt-in profiling (BEAGLE_AMD_PROFILE=1): each operation's host time, the GPU's work included where it waits ─────
 static bool amd_profile_enabled() {
     static const bool enabled = (getenv("BEAGLE_AMD_PROFILE") != nullptr);

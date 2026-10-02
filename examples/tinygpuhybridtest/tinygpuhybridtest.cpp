@@ -70,6 +70,13 @@
  *                         thread calls exit(0) while this one goes on using
  *                         the GPU, as a host's shutdown would (TODO.md plan
  *                         step C12's exit matrix).
+ *   --double              The TinyGPU instances in double precision, required
+ *                         (TODO.md plan step A7), so a resource without it
+ *                         fails; otherwise single precision, preferred. The
+ *                         checks against the CPU reference (always double)
+ *                         are then double precision's: each tolerance 1e-6
+ *                         times single's, and the logL within 1e-9 of the
+ *                         CPU's (with --diag-compare-cpu, or --instances).
  *   --diag-compare-cpu    Mirror every step onto a second CPU-resource
  *                         instance and compare transition matrices,
  *                         post-peeling partials, and site log-likelihoods
@@ -291,6 +298,20 @@ static bool compareArrays(const char* label, const double* gpuVals, const double
 // finalized normally, which tears the GPU down through the plugin (TODO.md plan
 // step P3; inv:transport-teardown#8). The library installs no handlers.
 static volatile sig_atomic_t gStopSignal = 0;
+
+// --double (TODO.md plan step A7): the TinyGPU instances' precision, and the CPU comparisons' tolerances (1e-6 times single
+// precision's in double)
+static bool gDouble = false;
+static double gTolScale = 1.0;
+static long tinygpuPreference() { return (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) | BEAGLE_FLAG_PROCESSOR_GPU; }
+static long tinygpuRequirement(bool forced) { return (forced ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU) | (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : 0); }
+// double precision's logL check: within 1e-9 (relative) of the CPU reference's; true in single precision
+static bool dpLogLOk(double logL, double cpuLogL, FILE* out) {
+    if (!gDouble) return true;
+    const double d = std::fabs(logL - cpuLogL), tol = 1e-9 * std::max(1.0, std::fabs(cpuLogL));
+    fprintf(out, "double precision: |logL - CPU-reference logL| = %.3g (tolerance %.3g): %s\n", d, tol, d <= tol ? "ok" : "OVER");
+    return d <= tol;
+}
 static void onStopSignal(int sig) { gStopSignal = sig; }
 
 // --exit-after MS (TODO.md plan step C12's exit matrix): MS milliseconds after the --reps evaluations start, another thread
@@ -347,8 +368,7 @@ static bool createRun(InstanceRun& r, int resourceIdx, bool forced, int cpuIdx) 
     }
     BeagleInstanceDetails det;
     r.gpu = beagleCreateInstance(3, 5, 0, r.stateCount, r.nPatterns, 1, 4, 4, 0, &resourceIdx, 1,
-                                 BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_PROCESSOR_GPU,
-                                 forced ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU, &det);
+                                 tinygpuPreference(), tinygpuRequirement(forced), &det);
     if (r.gpu < 0) { fprintf(stderr, "beagleCreateInstance failed (error %d)\n", r.gpu); return false; }
     printf("instance %d: %d states on resource %d: %s (%s)\n", r.index, r.stateCount, det.resourceNumber, det.resourceName,
            det.implName);
@@ -394,13 +414,14 @@ static void evaluateRun(InstanceRun& r, bool poison, int reps) {
     evaluate(r.cpu, &cpuLogL);
     fprintf(out, "logL = %.5f, CPU-reference logL = %.5f%s\n", logL, cpuLogL, rc < 0 ? " (the GPU evaluation failed)" : "");
     bool ok = rc >= 0 && (n != 4 || r.index != 0 || std::fabs(logL - kRefLogL) < kRefTol);   // the DNA dataset's reference
+    ok &= rc < 0 || dpLogLOk(logL, cpuLogL, out);
     std::vector<double> g((size_t) n * n * 4), c((size_t) n * n * 4);
     for (int m = 0; m < 4; ++m) {
         char label[32];
         snprintf(label, sizeof(label), "matrix[%d]", m);
         beagleGetTransitionMatrix(r.gpu, m, g.data());
         beagleGetTransitionMatrix(r.cpu, m, c.data());
-        ok &= compareArrays(label, g.data(), c.data(), (int) g.size(), 1e-6 * std::max(1.0, n / 16.0), out);
+        ok &= compareArrays(label, g.data(), c.data(), (int) g.size(), gTolScale * 1e-6 * std::max(1.0, n / 16.0), out);
     }
     g.resize((size_t) np * n * 4); c.resize(g.size());
     for (int b : { 3, 4 }) {
@@ -408,12 +429,12 @@ static void evaluateRun(InstanceRun& r, bool poison, int reps) {
         snprintf(label, sizeof(label), "partials[%d]", b);
         beagleGetPartials(r.gpu, b, BEAGLE_OP_NONE, g.data());
         beagleGetPartials(r.cpu, b, BEAGLE_OP_NONE, c.data());
-        ok &= compareArrays(label, g.data(), c.data(), (int) g.size(), 1e-6, out);
+        ok &= compareArrays(label, g.data(), c.data(), (int) g.size(), gTolScale * 1e-6, out);
     }
     g.resize(np); c.resize(np);
     beagleGetSiteLogLikelihoods(r.gpu, g.data());
     beagleGetSiteLogLikelihoods(r.cpu, c.data());
-    ok &= compareArrays("siteLogL", g.data(), c.data(), np, 1e-3, out);
+    ok &= compareArrays("siteLogL", g.data(), c.data(), np, gTolScale * 1e-3, out);
     std::vector<double> ms;   // as main, --reps runs whenever the evaluation itself succeeded
     int nDiffer = 0;
     gEvaluating = true;
@@ -583,6 +604,8 @@ int main(int argc, char** argv) {
             reps = atoi(argv[++i]);
         else if (a == "--poison")
             poison = true;
+        else if (a == "--double")
+            gDouble = true, gTolScale = 1e-6;
         else if (a == "--diag-reorder-partials-first")
             diagReorderPartialsFirst = true;
         else if (a == "--diag-compare-cpu")
@@ -592,7 +615,7 @@ int main(int argc, char** argv) {
         else if (a == "--diag-matmul-ground-truth")
             diagMatmulGroundTruth = true;
         else {
-            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N[,N...]] [--instances K] [--threads] [--cycles C] [--fork-exit] [--exit-after MS] [--reps N] [--poison] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
+            fprintf(stderr, "Usage: tinygpuhybridtest [--resource N] [--state-count N[,N...]] [--instances K] [--threads] [--cycles C] [--fork-exit] [--exit-after MS] [--reps N] [--poison] [--double] [--diag-reorder-partials-first] [--diag-compare-cpu] [--diag-inject-matrices] [--diag-matmul-ground-truth]\n");
             return 1;
         }
     }
@@ -694,11 +717,11 @@ int main(int argc, char** argv) {
         4,              // nRateCats
         0,              // nScaleBuffers
         &resourceIdx, 1,
-        BEAGLE_FLAG_PRECISION_DOUBLE  |
-        BEAGLE_FLAG_PROCESSOR_GPU,
+        tinygpuPreference(),
         // reqFlags: a forced --resource may be any backend (e.g. the CPU,
-        // as a --reps baseline); auto-detect insists on TinyGPU
-        forceResource >= 0 ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU,
+        // as a --reps baseline); auto-detect insists on TinyGPU; --double
+        // insists on double precision
+        tinygpuRequirement(forceResource >= 0),
         &det);
 
     if (instance < 0) {
@@ -894,7 +917,7 @@ int main(int argc, char** argv) {
             beagleGetPartials(cpuRefInstance, buf, BEAGLE_OP_NONE, cpuPart.data());
             char label[32];
             snprintf(label, sizeof(label), "partials[%d]", buf);
-            compareArrays(label, gpuPart.data(), cpuPart.data(), (int) gpuPart.size(), 1e-6);
+            compareArrays(label, gpuPart.data(), cpuPart.data(), (int) gpuPart.size(), gTolScale * 1e-6);
         }
     } else if (diagReorderPartialsFirst) {
         fprintf(stderr, "DIAGNOSTIC: launching kernelPartialsPartialsNoScale before "
@@ -1006,7 +1029,7 @@ int main(int argc, char** argv) {
                 // §27ish): observed maxAbsDiff was 3.76e-7 (N=16), 7.85e-7
                 // (32), 1.39e-6 (48), 1.45e-6 (64), 3.25e-6 (128) -- this
                 // formula keeps ~2-2.5x margin above every one of those.
-                double matrixTol = 1e-6 * std::max(1.0, stateCount / 16.0);
+                double matrixTol = gTolScale * 1e-6 * std::max(1.0, stateCount / 16.0);
                 for (int m = 0; m < 4; ++m) {
                     beagleGetTransitionMatrix(instance, m, gpuMat.data());
                     beagleGetTransitionMatrix(cpuInstance, m, cpuMat.data());
@@ -1024,7 +1047,7 @@ int main(int argc, char** argv) {
                     beagleGetPartials(cpuInstance, buf, BEAGLE_OP_NONE, cpuPart.data());
                     char label[32];
                     snprintf(label, sizeof(label), "partials[%d]", buf);
-                    partialsOk &= compareArrays(label, gpuPart.data(), cpuPart.data(), (int) gpuPart.size(), 1e-6);
+                    partialsOk &= compareArrays(label, gpuPart.data(), cpuPart.data(), (int) gpuPart.size(), gTolScale * 1e-6);
                 }
 
                 // -- per-site log-likelihoods: kernelIntegrateLikelihoods/kernelSumSites1's output --
@@ -1035,16 +1058,17 @@ int main(int argc, char** argv) {
                 std::vector<double> gpuSite(nPatterns), cpuSite(nPatterns);
                 beagleGetSiteLogLikelihoods(instance, gpuSite.data());
                 beagleGetSiteLogLikelihoods(cpuInstance, cpuSite.data());
-                bool siteOk = compareArrays("siteLogL", gpuSite.data(), cpuSite.data(), nPatterns, 1e-3);
+                bool siteOk = compareArrays("siteLogL", gpuSite.data(), cpuSite.data(), nPatterns, gTolScale * 1e-3);
 
                 printf("\nCPU-reference logL = %.5f  (GPU logL = %.5f)\n", cpuLogL, logL);
+                const bool dpOk = !logLOk || dpLogLOk(logL, cpuLogL, stdout);
                 printf("First mismatching stage: %s\n",
                        !matricesOk ? "transition matrices (kernelMatrixMulADB)" :
                        !partialsOk ? "partials (kernelPartialsPartialsNoScale)" :
                        !siteOk     ? "site log-likelihoods (kernelIntegrateLikelihoods/kernelSumSites1)" :
                                      "none -- everything matched the CPU reference");
 
-                diagCompareCpuOk = matricesOk && partialsOk && siteOk;
+                diagCompareCpuOk = matricesOk && partialsOk && siteOk && dpOk;
                 beagleFinalizeInstance(cpuInstance);
             }
         }
@@ -1104,7 +1128,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    bool overallOk = (useDnaModel ? (logLOk && delta < kTol) : (logLOk && diagCompareCpuOk)) && repsOk;
+    // --double: the CPU comparison decides for the DNA model too (its reference is rounded to 5 decimals)
+    bool overallOk = (useDnaModel ? (logLOk && delta < kTol && (!gDouble || diagCompareCpuOk)) : (logLOk && diagCompareCpuOk)) && repsOk;
     if (!useDnaModel) printf("\n%s\n", overallOk ? "PASS" : "FAIL");
 
     if (cpuRefInstance >= 0) beagleFinalizeInstance(cpuRefInstance);
