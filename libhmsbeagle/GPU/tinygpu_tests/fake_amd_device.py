@@ -13,7 +13,8 @@ What it models:
     COPY_LINEAR, FENCE, POLL_REGMEM), every packet decoded and checked; the read pointer then reports the queue's progress.
     Kernels are not run (results are wrong by design). With FAKE_AMD_HSACO=<variant> (SP_4 ... DP_256) each dispatch must
     name a kernel of the build's HSACO for it (kernels/tinygpu_hsaco/, what the plugin embeds), uploaded unchanged, with
-    that kernel's rsrc registers; scratch must be in VRAM.
+    that kernel's rsrc registers and each of its pointer arguments (the HSACO metadata's global_buffer args) null or
+    mapped; scratch must be in VRAM.
 Every GPU access (a packet's address, a copy's source and destination, a kernel's pointers, its program and scratch) must
 lie inside memory mapped for the GPU, through the GMC page tables: every system address inside a MAP_SYSMEM_FD allocation of
 the session (fake_am_gpu's DART check, also at every TLB flush). A session that ends with a queue live is an error too
@@ -33,24 +34,55 @@ MAP_BAR, MAP_SYSMEM_FD, CFG_READ, CFG_WRITE, MMIO_READ, MMIO_WRITE, RESIZE_BAR =
 BARS = amg.BARS
 IOVA_BASE, IOVA_STRIDE = 0x80_0000_0000, 0x1_0000_0000
 
+def msgpack(b, i=0):
+    """The msgpack value at b[i:] and the offset after it (the types LLVM's AMDGPU metadata uses, and the rest of the format's
+    fixed-width ones)."""
+    t = b[i]; i += 1
+    if t <= 0x7f or t >= 0xe0: return t - (t >= 0xe0) * 0x100, i
+    if t in (0xc0, 0xc2, 0xc3): return (None, False, True)[(t > 0xc0) + (t > 0xc2)], i
+    w = {0xcc: 1, 0xcd: 2, 0xce: 4, 0xcf: 8, 0xd0: 1, 0xd1: 2, 0xd2: 4, 0xd3: 8}.get(t)
+    if w: return int.from_bytes(b[i:i + w], "big", signed=t >= 0xd0), i + w
+    if t in (0xca, 0xcb): w = 4 << (t - 0xca); return struct.unpack(">fd"[t - 0xca], b[i:i + w])[0], i + w
+    if 0xa0 <= t <= 0xbf or t in (0xd9, 0xda, 0xdb, 0xc4, 0xc5, 0xc6):   # str and bin
+        w = {0xd9: 1, 0xda: 2, 0xdb: 4, 0xc4: 1, 0xc5: 2, 0xc6: 4}.get(t, 0)
+        n = t & 0x1f if not w else int.from_bytes(b[i:i + w], "big"); i += w
+        return (bytes(b[i:i + n]) if t in (0xc4, 0xc5, 0xc6) else bytes(b[i:i + n]).decode()), i + n
+    if 0x80 <= t <= 0x9f or t in (0xdc, 0xdd, 0xde, 0xdf):   # map and array
+        w = {0xdc: 2, 0xdd: 4, 0xde: 2, 0xdf: 4}.get(t, 0)
+        n = t & 0xf if not w else int.from_bytes(b[i:i + w], "big"); i += w
+        out = []
+        for _ in range(n * (2 if t <= 0x8f or t >= 0xde else 1)):
+            v, i = msgpack(b, i); out.append(v)
+        return (dict(zip(out[::2], out[1::2])) if t <= 0x8f or t >= 0xde else out), i
+    raise ValueError(f"msgpack type {t:#x}")
+
 def load_hsaco(variant):
     """The build's HSACO of a variant, what the plugin embeds and uploads: the image as BeagleAMDProgram relocates it, and per
-    kernel its descriptor offset, entry, rsrc registers and kernarg size (the oracle daemon's parse, the A1h fake daemon's
-    table)."""
+    kernel its descriptor offset, entry, rsrc registers, kernarg size (the oracle daemon's parse, the A1h fake daemon's
+    table) and the kernarg offsets of its pointer arguments (the global_buffer args of its NT_AMDGPU_METADATA note)."""
     import amd_compile_helper as ach   # the oracle's (tgpaths.setup, through fake_am_gpu)
     from tinygrad.runtime.support.elf import elf_loader
     h = (amg.tgpaths.GPU_DIR / f"kernels/tinygpu_hsaco/{variant}_gfx1100.hsaco").read_bytes()
     _image, kernels = ach.parse_kernels(h)
-    img, _sections, relocs = elf_loader(h)
+    img, sections, relocs = elf_loader(h)
     img = bytearray(img)
     for off, sym, typ, add in relocs:   # BeagleAMDProgram's relocation loop
         assert typ == 5
         img[off:off + 8] = struct.pack("<q", sym - off + add)
+    note, o, meta = bytes(next(s.content for s in sections if s.name == ".note")), 0, None
+    while o < len(note):   # ELF notes: namesz, descsz and type, then the name and the desc, each padded to 4 bytes
+        namesz, descsz, typ = struct.unpack_from("<III", note, o)
+        name, o = note[o + 12:o + 12 + namesz], o + 12 + ((namesz + 3) & ~3)
+        if typ == 32 and name.rstrip(b"\0") == b"AMDGPU": meta = msgpack(note, o)[0]   # NT_AMDGPU_METADATA
+        o += (descsz + 3) & ~3
+    ptrs = {k[".symbol"][:-3]: [a[".offset"] for a in k.get(".args", []) if a[".value_kind"] == "global_buffer"]
+            for k in meta["amdhsa.kernels"]}
     table = {}
     for name, (kd, d) in kernels.items():
         lds = ((d.group_segment_fixed_size + 511) // 512) & 0x1FF
         table[name] = dict(kd_off=kd, entry=d.kernel_code_entry_byte_offset, rsrc1=d.compute_pgm_rsrc1 | (1 << 20),
-                           rsrc2=d.compute_pgm_rsrc2 | (lds << 15), rsrc3=d.compute_pgm_rsrc3, kernarg_size=d.kernarg_size)
+                           rsrc2=d.compute_pgm_rsrc2 | (lds << 15), rsrc3=d.compute_pgm_rsrc3, kernarg_size=d.kernarg_size,
+                           ptrs=ptrs[name])
     return table, bytes(img)
 
 class Sysmem:
@@ -205,10 +237,9 @@ class Gpu:
             if sh(reg) != want: self.err(f"{match}: register {reg:#x} is {sh(reg):#x}, not {want:#x}")
         if k["kernarg_size"]:
             args = self.rw(kargs, k["kernarg_size"], what="the kernargs")
-            for o in range(0, k["kernarg_size"] - 7, 8):   # 64-bit words in the GPU's VA range (AMDev's va_allocator) must be mapped
+            for o in k["ptrs"]:   # its pointer arguments (plan step A4: by the metadata, so an int is never taken for one)
                 p = struct.unpack_from("<Q", args, o)[0]
-                if 0x2000_0000_0000 <= p < 0x3000_0000_0000 and not self.mapped(p):
-                    self.err(f"{match}: kernarg word {o} is {p:#x}, in the GPU's windows but unmapped")
+                if p and not self.mapped(p): self.err(f"{match}: its pointer argument at kernarg offset {o} is {p:#x}, which is not mapped")
         if not in_vram(scratch): self.err(f"{match}: scratch at {scratch:#x} is not in VRAM")
 
     def sdma(self, dw, pos, end):

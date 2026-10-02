@@ -69,6 +69,17 @@ d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     ! grep -qE "not launched|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected or a step failed"; return 1; }
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }
+# TODO.md plan step A4, D1 on the AMD card: as d1_verdict, from the AMD plugin's lines: one C++ boot, the TinyGPU resource
+# with the C++ runtime, no failed step and no lost GPU (plan step A3), and exactly the line's kernels launched (the plugin's
+# launch lines, in byte order as d1_runs.txt lists them). Reads files and runs nothing (test_a4.sh checks it on the fake).
+amd_d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
+    local got; got=$(sed -nE 's/^TinyGPU\/AMD: launch ([A-Za-z0-9_]+) grid=.*/\1/p' "$2" | LC_ALL=C sort -u | xargs)
+    [ "$(grep -c "TinyGPU/AMD: C++ boot done" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
+    grep -q "Rsrc Name : TinyGPU-AMD-Hybrid" "$1" || { echo "not the TinyGPU AMD resource"; return 1; }
+    grep -q "TinyGPU/AMD: C++ runtime: handed over after the C++ boot" "$2" || { echo "the C++ runtime never took over"; return 1; }
+    ! grep -qE "TinyGPU/AMD: .*(failed|this instance fails|the GPU is lost)" "$2" || { echo "a step failed or the GPU was lost"; return 1; }
+    [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
+}
 
 # The hardware scripts' shared protections (run_point.sh, run_d1.sh, run_l0.sh; plan steps P3, D1). hw_begin: nothing else
 # changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
