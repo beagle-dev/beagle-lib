@@ -142,7 +142,7 @@ struct AMDRuntime {
     AMDStaging staging;
     AMDExecDevice exec;
     AMDProps props;
-    std::map<std::string, AMDProgramRecord> kernels;
+    uint32_t max_private_segment_size = 0;   // AMDDevice's: what the scratch serves (0: no scratch yet)
     uint64_t pool_used = 0;
     bool error = false;
     std::string error_msg;
@@ -386,21 +386,24 @@ inline void amd_runtime_detach(AMDRuntime& rt) {
     for (int i = 0; i < 8; ++i) if (rt.maps[i]) { if (rt.owns_maps) munmap(rt.maps[i], rt.map_sizes[i]); rt.maps[i] = nullptr; }
 }
 
-// The programs: the HSACO's image at one pool allocation (round_up 0x1000, as BeagleAMDProgram's), uploaded through staging
-// and synchronized (as AMDProgram.__init__), then scratch sized once for the largest private segment (at least AMDDevice's
-// initial 128 bytes) and carved from the pool. "" or why not.
-inline std::string amd_runtime_load_programs(AMDRuntime& rt, const uint8_t* hsaco, size_t n) {
+// An HSACO's programs, into kernels: its image at one pool allocation (round_up 0x1000, as BeagleAMDProgram's), uploaded through
+// staging and synchronized (as AMDProgram.__init__), then _ensure_has_local_memory for the largest private segment (at least
+// AMDDevice's initial 128 bytes): scratch carved from the pool at the first HSACO, and again, larger, for a later one whose
+// kernels need more (TODO.md plan step A5: an HSACO per variant the process's instances use; the old scratch stays, since the
+// pool frees nothing, and in-flight work keeps it). "" or why not.
+inline std::string amd_runtime_load_programs(AMDRuntime& rt, const uint8_t* hsaco, size_t n, std::map<std::string, AMDProgramRecord>& kernels) {
     std::vector<uint8_t> image;
     std::map<std::string, AMDProgramRecord> probe;
     std::string err = amd_load_hsaco(hsaco, n, 0, rt.props, image, probe);   // the image's size first
     if (!err.empty()) return err;
     uint64_t lib_va = 0;
     if (!rt.alloc((image.size() + 0xfff) & ~0xfffull, lib_va)) return "the VRAM pool is too small for the program image";
-    err = amd_load_hsaco(hsaco, n, lib_va, rt.props, image, rt.kernels);
+    err = amd_load_hsaco(hsaco, n, lib_va, rt.props, image, kernels);
     if (!err.empty()) return err;
     if (!amd_copyin(rt, rt.staging, lib_va, image.data(), image.size()) || !rt.synchronize()) return "uploading the program image: " + rt.error_msg;
     uint32_t priv = 128;
-    for (const auto& kv : rt.kernels) priv = kv.second.private_segment_size > priv ? kv.second.private_segment_size : priv;
+    for (const auto& kv : kernels) priv = kv.second.private_segment_size > priv ? kv.second.private_segment_size : priv;
+    if (priv <= rt.max_private_segment_size) return "";   // the scratch serves these kernels already
     uint64_t scratch_size = 0;
     uint32_t tmpring = 0;
     err = amd_scratch(rt.props, priv, scratch_size, tmpring);
@@ -408,6 +411,7 @@ inline std::string amd_runtime_load_programs(AMDRuntime& rt, const uint8_t* hsac
     uint64_t scratch_va = 0;
     if (!rt.alloc(scratch_size, scratch_va)) return "the VRAM pool is too small for " + std::to_string(scratch_size >> 20) + " MiB of scratch";
     rt.exec = AMDExecDevice{scratch_va, scratch_size, tmpring};
+    rt.max_private_segment_size = priv;
     return "";
 }
 

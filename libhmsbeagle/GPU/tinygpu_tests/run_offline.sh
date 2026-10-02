@@ -56,6 +56,10 @@ results+=("AMD error returns (A3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (se
 # plan step A4: every d1_runs.txt line on the fake AMD card, each dispatch against the build's HSACO
 "$TG_TESTS/test_a4.sh" > "$TINYGPU_TEST_WORK/test_a4.log" 2>&1
 results+=("D1 lines on the AMD card (A4): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a4.log)")")
+# plan step A5: one AMD boot per process, shared by every instance until exit (several instances, threads, cycles, a fork, exit()
+# from another thread, a second process, a GPU lost in the first cycle)
+"$TG_TESTS/test_a5.sh" > "$TINYGPU_TEST_WORK/test_a5.log" 2>&1
+results+=("one AMD boot per process (A5): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a5.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

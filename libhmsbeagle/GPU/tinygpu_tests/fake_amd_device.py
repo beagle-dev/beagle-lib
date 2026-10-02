@@ -11,8 +11,9 @@ What it models:
   - a GPU front end: a doorbell runs its queue from where it last stopped to the doorbell's value, in order, before the next
     request: gfx11 PM4 (WAIT_REG_MEM, ACQUIRE_MEM, SET_SH_REG, DISPATCH_DIRECT, EVENT_WRITE, RELEASE_MEM) and SDMA 6 (NOP,
     COPY_LINEAR, FENCE, POLL_REGMEM), every packet decoded and checked; the read pointer then reports the queue's progress.
-    Kernels are not run (results are wrong by design). With FAKE_AMD_HSACO=<variant> (SP_4 ... DP_256) each dispatch must
-    name a kernel of the build's HSACO for it (kernels/tinygpu_hsaco/, what the plugin embeds), uploaded unchanged, with
+    Kernels are not run (results are wrong by design). With FAKE_AMD_HSACO=<variant>[,<variant>...] (SP_4 ... DP_256: the
+    variants the process's instances use, TODO.md plan step A5) each dispatch must name a kernel of the build's HSACO of one
+    of them (kernels/tinygpu_hsaco/, what the plugin embeds), its image uploaded unchanged, with
     that kernel's rsrc registers and each of its pointer arguments (the HSACO metadata's global_buffer args) null or
     mapped; scratch must be in VRAM.
 Every GPU access (a packet's address, a copy's source and destination, a kernel's pointers, its program and scratch) must
@@ -104,11 +105,12 @@ class Gpu:
         self.errors, self.counts = [], collections.Counter()
         self.am = amg.AMGpu(log=lambda m: self.say(m))
         self.am.errors, self.am.counts = self.errors, self.counts   # one list and one tally for the card and the front end
-        self.kernels, self.image = load_hsaco(os.environ["FAKE_AMD_HSACO"]) if os.environ.get("FAKE_AMD_HSACO") else ({}, b"")
+        self.variants = [dict(zip(("kernels", "image"), load_hsaco(v))) for v in os.environ.get("FAKE_AMD_HSACO", "").split(",") if v]
         self.reset()
     def reset(self):
         """A session's end: TinyGPU.app unwires its sysmem; the card keeps its registers, VRAM and queues."""
-        self.sysmem, self.lib_va, self.last_kargs, self.stopped = [], None, None, False
+        self.sysmem, self.last_kargs, self.stopped = [], None, False
+        for var in self.variants: var["lib"] = None   # where the session uploaded each variant's image
         self.am.sysmem_segs, self.am.hdp_flushed = [], False
     def err(self, msg): self.am.err(msg)
 
@@ -216,22 +218,26 @@ class Gpu:
         if self.last_kargs is not None and kargs < self.last_kargs: self.counts["kernargs wraps"] += 1   # the slots start over
         self.last_kargs = kargs
         in_vram = lambda va: self.mapped(va) and not (self.am.translate(va, 1) or (True,))[0]
-        if not self.kernels:   # no FAKE_AMD_HSACO: only where things are
+        if not self.variants:   # no FAKE_AMD_HSACO: only where things are
             if not in_vram(prog): self.err(f"a dispatch of {prog:#x}, which is not in mapped VRAM")
             if not self.mapped(kargs): self.err(f"kernargs at {kargs:#x} are not mapped")
             if not in_vram(scratch): self.err(f"scratch at {scratch:#x} is not in VRAM")
             return
-        match = None
-        for name, k in self.kernels.items():
-            lib = prog - k["entry"] - k["kd_off"]
-            if self.lib_va in (None, lib) and self.mapped(lib, len(self.image)) and self.rw(lib + k["kd_off"], 64, what="the kernel descriptor") == self.image[k["kd_off"]:k["kd_off"] + 64]:
-                match = name
-                if self.lib_va is None:
-                    self.lib_va = lib
-                    if self.rw(lib, len(self.image), what="the program image") != self.image: self.err("the uploaded program image differs from the HSACO's")
+        match = k = None
+        for var in self.variants:
+            for name, kk in var["kernels"].items():
+                lib = prog - kk["entry"] - kk["kd_off"]
+                if var["lib"] not in (None, lib) or not self.mapped(lib, len(var["image"])) or \
+                   self.rw(lib + kk["kd_off"], 64, what="the kernel descriptor") != var["image"][kk["kd_off"]:kk["kd_off"] + 64]: continue
+                if var["lib"] is None:   # this variant's upload, which must be its whole image (of several, the one it is)
+                    if self.rw(lib, len(var["image"]), what="the program image") != var["image"]:
+                        if len(self.variants) > 1: continue
+                        self.err("the uploaded program image differs from the HSACO's")
+                    var["lib"] = lib
+                match, k = name, kk
                 break
+            if match: break
         if match is None: return self.err(f"a dispatch of {prog:#x}, which is no kernel of the uploaded image")
-        k = self.kernels[match]
         self.counts[f"kernel {match}"] += 1
         for reg, want in ((0x2e12, k["rsrc1"]), (0x2e13, k["rsrc2"]), (0x2e28, k["rsrc3"])):
             if sh(reg) != want: self.err(f"{match}: register {reg:#x} is {sh(reg):#x}, not {want:#x}")

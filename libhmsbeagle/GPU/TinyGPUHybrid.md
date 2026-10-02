@@ -66,11 +66,12 @@ On NVIDIA only single precision is built: 9 cubins per architecture (sm_86, sm_8
   small for an instance makes `beagleCreateInstance`, or the calls that read results back, return
   `BEAGLE_ERROR_GENERAL`, and read-backs are NaN. BEAGLE never exits its host. A lost GPU stays lost for the rest of the
   process.
-- On the AMD card the lock is tinygrad's `$TMPDIR/am_usb4.lock`, and each instance boots the card (a partial boot takes
-  about 1 s) and finalizes it at its own end. Its errors come back as BEAGLE errors too: a failed boot (a card that needs
-  a mode1 reset, say), a kernel the HSACOs lack, a VRAM pool too small, a GPU fault or hang, or a lost TinyGPU.app
-  connection. A lost GPU stays lost for the rest of its instance, whose fini still finalizes the card, or has the crash
-  guard hold it. After a hold, `beagleCreateInstance` fails at once for the rest of the process.
+- The same holds on the AMD card, where the process also takes tinygrad's `$TMPDIR/am_usb4.lock`: every instance shares
+  one boot (a partial boot takes about 1 s), each kernel variant is loaded once, and a normal exit finalizes the card.
+  Its errors come back as BEAGLE errors too: a failed boot (a card that needs a mode1 reset, say), a kernel the HSACOs
+  lack, a VRAM pool too small, a GPU fault or hang, or a lost TinyGPU.app connection. A lost GPU stays lost for the rest
+  of the process, whose exit still finalizes the card, or has the crash guard hold it. After a hold (a boot that failed
+  with a queue it could not see off), `beagleCreateInstance` fails at once for the rest of the process.
 
 ## The crash guard, and when to power-cycle
 

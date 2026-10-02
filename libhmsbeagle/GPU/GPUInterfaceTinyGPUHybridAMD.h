@@ -18,19 +18,20 @@
 
 namespace tinygpu_device {
 
+int        AmdAttachShared(GPUInterface* self);   // TODO.md plan step A5: 1 if it shares the card another instance booted
 void       AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
                          int patternCount, int unpaddedPatternCount, int tipCount, long flags);
-GPUFunction AmdGetFunction(const char* name);
-void       AmdLaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
+GPUFunction AmdGetFunction(GPUInterface* self, const char* name);
+void       AmdLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                                 int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
-void       AmdSynchronizeHost();
-GPUPtr     AmdAllocateMemory(size_t sz);
-void       AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz);
-void       AmdMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz);
+void       AmdSynchronizeHost(GPUInterface* self);
+GPUPtr     AmdAllocateMemory(GPUInterface* self, size_t sz);
+void       AmdMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
+void       AmdMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     AmdGetAvailableMemory();
-bool       AmdDeviceLost();   // TODO.md plan step A3: this instance's setup failed or its GPU is lost (GPUInterface::GetDeviceLost)
+bool       AmdDeviceLost(GPUInterface* self);   // TODO.md plan step A3: this instance's setup failed or its GPU is lost (GPUInterface::GetDeviceLost)
 bool       AmdGpuHeld();      // ... and a crash guard of this process holds the card: Initialize must not connect
-void       AmdFini();   // called from the destructor
+void       AmdFini(GPUInterface* self);   // called from the destructor: releases the instance (the card stays until exit, plan step A5)
 
 } // namespace tinygpu_device
 

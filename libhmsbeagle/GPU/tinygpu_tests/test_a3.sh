@@ -4,20 +4,22 @@
 #   - a dirty card: the boot is refused before the mode1 reset, beagleCreateInstance returns an error and the test exits
 #     normally; the guard exits at the plugin's 'N';
 #   - a 1 MiB VRAM pool (BEAGLE_AMD_DATA_MB=1): the program upload fails after the queues are set up; beagleCreateInstance
-#     returns an error, and the plugin still finalizes the card (the guard sees its clean; NO ERRORS);
+#     returns an error, and the plugin still finalizes the card at exit (the guard sees its clean; NO ERRORS);
 #   - a pool the programs fill exactly (132 MiB at 64 states): the instance's first allocation fails, so it fails instead of
 #     handing address 0 to the GPU; an error from beagleCreateInstance, the card finalized;
-#   - a GPU fault mid-run (FAKE_AMD_FAULT=1, on a cold card): the SQ MEMVIOL is decoded, the GPU is lost to the instance,
-#     read-backs are NaN and BEAGLE returns errors; the instance's fini still finalizes the card (NO ERRORS);
+#   - a GPU fault mid-run (FAKE_AMD_FAULT=1, on a cold card): the SQ MEMVIOL is decoded, the GPU is lost to the process,
+#     read-backs are NaN and BEAGLE returns errors; the exit still finalizes the card (NO ERRORS);
 #   - a GPU that hangs mid-run (FAKE_AMD_HANG=1, a 3 s wait timeout): the wait times out, BEAGLE returns errors, and the
-#     instance's fini dequeues the hung queue (its waves reset) and finalizes the card (NO ERRORS);
+#     exit's fini dequeues the hung queue (its waves reset) and finalizes the card (NO ERRORS);
 #   - TinyGPU.app gone mid-run (FAKE_AMD_DROP_AT): the next request fails (EPIPE, no SIGPIPE death), BEAGLE returns errors, the
 #     test exits normally, and the guard holds: the plugin cannot finalize the card over a dead connection;
 #   - SIGINT to the test's process group mid-run, as a terminal's Ctrl-C: the test stops (exit 130) and finalizes, the plugin
 #     finalizes the card (NO ERRORS), and the guard, in its own session, sees the clean;
-#   - a hold, then another instance in the same process (FAKE_AMD_WEDGED=1, --cycles 2): the first instance's fini cannot see
-#     its compute queue off and the guard holds; the second beagleCreateInstance is refused at once (Initialize does not
-#     connect, so BeagleGPUImpl sees no device: BEAGLE_ERROR_NO_RESOURCE) instead of waiting forever on TinyGPU.app.
+#   - a hold, then another instance in the same process (FAKE_AMD_WEDGED=1, --cycles 2): the first instance's boot fails once
+#     its queues are live (a pool larger than the VRAM, BEAGLE_AMD_DATA_MB=1000000), its finalize cannot see the compute
+#     queue off, and the guard holds; the second beagleCreateInstance is refused at once (Initialize does not connect, so
+#     BeagleGPUImpl sees no device: BEAGLE_ERROR_NO_RESOURCE) instead of waiting forever on TinyGPU.app. (Since plan step A5
+#     every other hold comes at exit: the card outlives its instances.)
 # The test exits 1 on the fake (its logL is wrong by design): "exits normally" is a status below 128 that the test's own
 # error handling gave, not the plugin's exit. A guard that holds keeps the fake's connection as it would the eGPU's, so it is
 # ended here (offline only). One PASS or FAIL line per check; exit 0 only if all pass.
@@ -85,7 +87,7 @@ check "a dirty card: refused before the mode1 reset, beagleCreateInstance return
 
 # 2. a 1 MiB VRAM pool: the program upload fails once the queues are live
 run pool1 BEAGLE_AMD_DATA_MB=1
-check "a 1 MiB VRAM pool: beagleCreateInstance returns an error, and the plugin still finalizes the card (NO ERRORS)" \
+check "a 1 MiB VRAM pool: beagleCreateInstance returns an error, and the plugin still finalizes the card at exit (NO ERRORS)" \
     "normal pool1 && grep -q 'too small' $W/pool1.txt && grep -q 'beagleCreateInstance failed (error -1)' $W/pool1.txt \
      && glog pool1 | grep -q '$CLEAN' && verdict pool1 | grep -q 'NO ERRORS'"
 
@@ -97,21 +99,21 @@ check "a pool the programs fill (132 MiB at 64 states): the instance's allocatio
 
 # 4. a GPU fault mid-run
 run fault FAKE_AMD_STATE=cold FAKE_AMD_FAULT=1 HCQDEV_WAIT_TIMEOUT_MS=3000
-check "a GPU fault mid-run: decoded, the GPU lost to the instance, BEAGLE returns errors, and its fini finalizes the card (NO ERRORS)" \
-    "normal fault && grep -q 'sq_intr: error (MEMVIOL)' $W/fault.txt && grep -q 'the GPU is lost to this instance' $W/fault.txt \
+check "a GPU fault mid-run: decoded, the GPU lost to the process, BEAGLE returns errors, and the exit finalizes the card (NO ERRORS)" \
+    "normal fault && grep -q 'sq_intr: error (MEMVIOL)' $W/fault.txt && grep -q 'the GPU is lost to this process' $W/fault.txt \
      && grep -q 'calculateRootLogLikelihoods failed: -1' $W/fault.txt && glog fault | grep -q '$CLEAN' && verdict fault | grep -q 'NO ERRORS'"
 
 # 5. a GPU that hangs mid-run
 run hang FAKE_AMD_HANG=1 HCQDEV_WAIT_TIMEOUT_MS=3000
-check "a GPU that hangs mid-run: the wait times out, BEAGLE returns errors, and the fini dequeues the hung queue and finalizes the card (NO ERRORS)" \
-    "normal hang && grep -q 'Wait timeout: 3000 ms' $W/hang.txt && grep -q 'the GPU is lost to this instance' $W/hang.txt \
+check "a GPU that hangs mid-run: the wait times out, BEAGLE returns errors, and the exit's fini dequeues the hung queue and finalizes the card (NO ERRORS)" \
+    "normal hang && grep -q 'Wait timeout: 3000 ms' $W/hang.txt && grep -q 'the GPU is lost to this process' $W/hang.txt \
      && grep -q 'calculateRootLogLikelihoods failed: -1' $W/hang.txt && glog hang | grep -q '$CLEAN' && verdict hang | grep -q 'NO ERRORS'"
 
 # 6. TinyGPU.app gone mid-run, about 80 evaluations into 2,000 (the boot and the programs take about 43,400 requests, an
 #    evaluation about 20)
 run drop FAKE_AMD_DROP_AT=45000 -- --state-count 4 --reps 2000
 check "TinyGPU.app gone mid-run: the next request fails (no SIGPIPE death), BEAGLE returns errors, the test exits normally, the guard holds" \
-    "normal drop && grep -qE 'Connection closed|connection lost' $W/drop.txt && grep -q 'the GPU is lost to this instance' $W/drop.txt \
+    "normal drop && grep -qE 'Connection closed|connection lost' $W/drop.txt && grep -q 'the GPU is lost to this process' $W/drop.txt \
      && grep -q -- '--reps: evaluation [0-9]* failed' $W/drop.txt && glog drop | grep -q 'HOLDING the TinyGPU.app connection' && [ -f $W/drop.held ]"
 
 # 7. SIGINT to the test's process group mid-run
@@ -120,9 +122,10 @@ check "SIGINT to the test's process group mid-run: the test stops (exit 130) and
     "[ -f $W/sigint.sigint ] && [ \"\$(status sigint)\" = 130 ] && grep -q 'interrupted by signal 2' $W/sigint.txt && glog sigint | grep -q '$CLEAN' && verdict sigint | grep -q 'NO ERRORS'"
 
 # 8. a hold, then another instance in the same process
-run held FAKE_AMD_WEDGED=1 -- --state-count 4 --reps 3 --cycles 2
+run held FAKE_AMD_WEDGED=1 BEAGLE_AMD_DATA_MB=1000000 -- --state-count 4 --reps 3 --cycles 2
 check "a hold, then another instance in the same process: the guard holds, and the second beagleCreateInstance is refused at once" \
-    "normal held && grep -q '=== cycle 2 of 2' $W/held.txt && grep -q 'the crash guard (pid [0-9]*) holds the eGPU, since an earlier instance' $W/held.txt \
+    "normal held && grep -q 'after the C++ boot: MemoryError' $W/held.txt && grep -q '=== cycle 2 of 2' $W/held.txt \
+     && grep -q 'the crash guard (pid [0-9]*) holds the eGPU, since an earlier instance' $W/held.txt \
      && grep -q 'Error: No GPU devices' $W/held.txt && grep -q 'beagleCreateInstance failed (error -6)' $W/held.txt && glog held | grep -q 'HOLDING the TinyGPU.app connection' && [ -f $W/held.held ]"
 
 left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')

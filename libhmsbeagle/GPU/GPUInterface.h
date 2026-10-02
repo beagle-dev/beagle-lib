@@ -99,6 +99,16 @@ private:
     // call out to them. They need private/protected member access the same
     // way GPUInterfaceTinyGPUHybrid.cpp's own method bodies already do.
     friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
+    // Their per-instance state is amdInstance (TODO.md plan step A5)
+    friend int AmdAttachShared(GPUInterface*);
+    friend GPUFunction AmdGetFunction(GPUInterface*, const char*);
+    friend void AmdLaunchKernelImpl(GPUInterface*, GPUFunction, Dim3Int, Dim3Int, int, int, GPUPtr*, unsigned int*);
+    friend void AmdSynchronizeHost(GPUInterface*);
+    friend void AmdMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
+    friend void AmdMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void AmdFini(GPUInterface*);
+    friend GPUPtr AmdAllocateMemory(GPUInterface*, size_t);
+    friend bool AmdDeviceLost(GPUInterface*);
     // Same for the NV path (GPUInterfaceTinyGPUHybridNV.cpp: the daemon by
     // default, C++ dispatch or the C++ runtime by environment variable), whose
     // per-instance state is nvGspState (TODO.md plan step P5).
@@ -120,6 +130,8 @@ private:
 
     // The NV path's per-instance state: its NVInstance (GPUInterfaceTinyGPUHybridNV.cpp; TODO.md plan step P5)
     void*    nvGspState = nullptr;
+    // The AMD path's: its AMDInstance (GPUInterfaceTinyGPUHybridAMD.cpp; TODO.md plan step A5)
+    void*    amdInstance = nullptr;
 
     void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                           int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);

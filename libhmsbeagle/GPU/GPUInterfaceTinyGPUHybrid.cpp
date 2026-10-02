@@ -76,8 +76,8 @@ GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0), isNVID
 
 GPUInterface::~GPUInterface() {
     if (!isNVIDIA) {
-        AmdFini();  // the last synchronize, the C++ fini (AMDev.fini), then clean or hold to the crash guard
-        if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }
+        AmdFini(this);  // releases this instance; the card stays for later instances until exit (TODO.md plan step A5)
+        if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }   // the resource listing's, or a failed boot's
         return;
     }
     NvFini(this);
@@ -104,6 +104,16 @@ int GPUInterface::Initialize() {
                 g_tgVendorId, g_tgDeviceId);
         tgpuDevId = g_tgDevId;
         isNVIDIA  = true;
+        return BEAGLE_SUCCESS;
+    }
+    // TODO.md plan step A5: the same for the AMD card, which another instance in this process may have booted
+    shared = AmdAttachShared(this);
+    if (shared < 0) return BEAGLE_ERROR_GENERAL;
+    if (shared > 0) {
+        fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (AMD), booted by another instance in this process\n",
+                g_tgVendorId, g_tgDeviceId);
+        tgpuDevId = g_tgDevId;
+        isNVIDIA  = false;
         return BEAGLE_SUCCESS;
     }
     if (AmdGpuHeld()) return BEAGLE_ERROR_GENERAL;   // TODO.md plan step A3: TinyGPU.app serves the crash guard's connection now
@@ -139,12 +149,13 @@ int GPUInterface::Initialize() {
     tgpuSock  = g_tgSock;
     tgpuDevId = g_tgDevId;
     isNVIDIA  = (g_tgVendorId != PCI_VENDOR_AMD);   // default to the NV path unless AMD is positively identified
-    if (!isNVIDIA) tg.release_lock();   // the lock is NV's (plan step P5); the AMD path is unchanged
+    // nv_usb4.lock stays with the connection on the AMD card too (TODO.md plan step A5): a second process fails at once,
+    // where its connection would wait forever on TinyGPU.app, which serves one client at a time
     return BEAGLE_SUCCESS;
 }
 
-// An instance sharing the booted GPU has no connection of its own, only its NV instance (plan step P5).
-int GPUInterface::GetDeviceCount() { return (tgpuSock >= 0 || nvGspState) ? 1 : 0; }
+// An instance sharing the booted GPU has no connection of its own, only its NV or AMD instance (plan steps P5, A5).
+int GPUInterface::GetDeviceCount() { return (tgpuSock >= 0 || nvGspState || amdInstance) ? 1 : 0; }
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
                               int categoryCount, int patternCount,
@@ -187,7 +198,7 @@ void GPUInterface::InitializeKernelResource(int n, bool dp) {
 // ── Synchronization ───────────────────────────────────────────────────────────
 
 void GPUInterface::SynchronizeHost() {
-    if (!isNVIDIA) { AmdSynchronizeHost(); return; }
+    if (!isNVIDIA) { AmdSynchronizeHost(this); return; }
     NvSynchronizeHost(this);
 }
 
@@ -198,7 +209,7 @@ void GPUInterface::SynchronizeDeviceWithIndex(int, int) { SynchronizeHost(); }
 // ── GetFunction ───────────────────────────────────────────────────────────────
 
 GPUFunction GPUInterface::GetFunction(const char* name) {
-    if (!isNVIDIA) return AmdGetFunction(name);
+    if (!isNVIDIA) return AmdGetFunction(this, name);
     return NvGetFunction(this, name);
 }
 
@@ -206,7 +217,7 @@ GPUFunction GPUInterface::GetFunction(const char* name) {
 
 void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                      int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
-    if (!isNVIDIA) { AmdLaunchKernelImpl(fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
+    if (!isNVIDIA) { AmdLaunchKernelImpl(this, fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
     NvLaunchKernelImpl(this, fn, block, grid, nPtr, nTotal, ptrs, ints);
 }
 
@@ -239,7 +250,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction fn, Dim3Int block, Dim3Int
 // ── Memory ────────────────────────────────────────────────────────────────────
 
 GPUPtr GPUInterface::AllocateMemory(size_t sz) {
-    if (!isNVIDIA) return AmdAllocateMemory(sz);
+    if (!isNVIDIA) return AmdAllocateMemory(this, sz);
     return NvAllocateMemory(this, sz);
 }
 
@@ -255,12 +266,12 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr base, size_t off, size_t) {
 size_t GPUInterface::AlignMemOffset(size_t off) { return off; }
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
-    if (!isNVIDIA) { AmdMemcpyHostToDevice(dst, src, sz); return; }
+    if (!isNVIDIA) { AmdMemcpyHostToDevice(this, dst, src, sz); return; }
     NvMemcpyHostToDevice(this, dst, src, sz);
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
-    if (!isNVIDIA) { AmdMemcpyDeviceToHost(dst, src, sz); return; }
+    if (!isNVIDIA) { AmdMemcpyDeviceToHost(this, dst, src, sz); return; }
     NvMemcpyDeviceToHost(this, dst, src, sz);
 }
 
@@ -303,7 +314,7 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
 }
 bool GPUInterface::GetSupportsDoublePrecision(int) { return false; }
 // TODO.md plan steps C12 (NV) and A3 (AMD)
-bool GPUInterface::GetDeviceLost() { return isNVIDIA ? NvDeviceLost(this) : AmdDeviceLost(); }
+bool GPUInterface::GetDeviceLost() { return isNVIDIA ? NvDeviceLost(this) : AmdDeviceLost(this); }
 
 size_t GPUInterface::GetAvailableMemory() {
     if (!isNVIDIA) return AmdGetAvailableMemory();

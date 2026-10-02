@@ -8,8 +8,9 @@
  * every record, the relocated image and the scratch sizing with tinygrad's own on a stub device.
  *
  * Two deliberate differences, as on NV (TinyGPUHybridNVProgram.h): all kernels share one image upload at lib_va
- * (BeagleAMDProgram allocates and copies the whole image per kernel), and scratch is sized once, for the largest private
- * segment of all kernels (tinygrad grows it as programs load; a larger scratch serves every kernel). Kernels with the
+ * (BeagleAMDProgram allocates and copies the whole image per kernel), and scratch is sized for the largest private segment
+ * of all of an HSACO's kernels, growing only for a later HSACO whose kernels need more (tinygrad grows it as each program
+ * loads; a larger scratch serves every kernel; TinyGPUHybridAMDRuntime.h's amd_runtime_load_programs). Kernels with the
  * dispatch_ptr, queue_ptr, dispatch_id or private segment buffer SGPRs are refused, not ported
  * (TinyGPUHybridAMDDispatch.h).
  */
