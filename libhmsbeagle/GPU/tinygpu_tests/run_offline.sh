@@ -49,6 +49,10 @@ results+=("AMD V1 tools: guard, record, replay (A2i): $([ $? -eq 0 ] && echo PAS
 # a queue that survives its dequeue), its fini after an idle kill against the plugin's own byte for byte
 "$TG_TESTS/test_a2k.sh" > "$TINYGPU_TEST_WORK/test_a2k.log" 2>&1
 results+=("AMD crash guard (A2k): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2k.log)")")
+# plan step A3: errors instead of exits on the AMD path (a dirty card, small pools, a fault, a hang, TinyGPU.app gone, SIGINT,
+# a hold then a second instance)
+"$TG_TESTS/test_a3.sh" > "$TINYGPU_TEST_WORK/test_a3.log" 2>&1
+results+=("AMD error returns (A3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a3.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
 rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
 results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")

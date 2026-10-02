@@ -19,6 +19,8 @@ lie inside memory mapped for the GPU, through the GMC page tables: every system 
 the session (fake_am_gpu's DART check, also at every TLB flush). A session that ends with a queue live is an error too
 (TinyGPU.app unwires the sysmem it polls).
 FAKE_AMD_FAULT=1: from the 3rd dispatch on, the GPU stops (signals nothing more) and posts an SQ MEMVIOL in the IH ring.
+FAKE_AMD_HANG=1: the same stop with no fault posted, a GPU that hangs. FAKE_AMD_DROP_AT=<n>: TinyGPU.app goes away, the
+session's connection closed at its n-th request.
 FAKE_AMD_RECORD=<path>: each session's requests, headers and payloads, to <path>.<n> (n from 0).
     python3 fake_amd_device.py <socket path> <work dir>
 It prints "fake TinyGPU.app (AMD device) listening", and after each session its counts and NO ERRORS or the errors."""
@@ -175,6 +177,7 @@ class Gpu:
         sh = lambda r: self.am.r.get(("sh", r), 0)
         self.counts["launches"] += 1
         if FAULT and self.counts["launches"] >= 3: return self.fault()
+        if HANG and self.counts["launches"] >= 3: self.stopped = True; return
         prog = (sh(0x2e0c) | (sh(0x2e0d) << 32)) << 8
         kargs = sh(0x2e40) | (sh(0x2e41) << 32)
         scratch = (sh(0x2e10) | (sh(0x2e11) << 32)) << 8
@@ -243,7 +246,10 @@ def recv_exact(conn, n):
 def serve(conn, gpu, work):
     """One client session. gpu.record, a list if set, gets every request: its header and an MMIO_WRITE's payload."""
     am = gpu.am
+    nreq = 0
     while (hdr := recv_exact(conn, 33)) is not None:
+        nreq += 1
+        if nreq == DROP_AT: break   # TinyGPU.app gone: this request is never served
         cmd, _, bar, a0, a1, a2 = REQ.unpack(hdr)
         gpu.counts[f"cmd {cmd}"] += 1
         if getattr(gpu, "record", None) is not None: gpu.record.append(hdr)
@@ -294,6 +300,8 @@ def serve(conn, gpu, work):
     gpu.reset()
 
 FAULT = os.environ.get("FAKE_AMD_FAULT", "") == "1"
+HANG = os.environ.get("FAKE_AMD_HANG", "") == "1"
+DROP_AT = int(os.environ.get("FAKE_AMD_DROP_AT", "0"))
 
 def main():
     sock_path, work = sys.argv[1], sys.argv[2]

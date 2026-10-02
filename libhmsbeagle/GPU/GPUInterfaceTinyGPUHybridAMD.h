@@ -28,7 +28,9 @@ GPUPtr     AmdAllocateMemory(size_t sz);
 void       AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz);
 void       AmdMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz);
 size_t     AmdGetAvailableMemory();
-void       AmdFini();   // called from the destructor; also usable as a safe_exit fallback
+bool       AmdDeviceLost();   // TODO.md plan step A3: this instance's setup failed or its GPU is lost (GPUInterface::GetDeviceLost)
+bool       AmdGpuHeld();      // ... and a crash guard of this process holds the card: Initialize must not connect
+void       AmdFini();   // called from the destructor
 
 } // namespace tinygpu_device
 

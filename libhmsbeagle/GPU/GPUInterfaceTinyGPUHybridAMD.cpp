@@ -90,6 +90,7 @@ struct AMDHybridState {
     pid_t guard_pid = 0;
     uint64_t* state = nullptr;   // the state page shared with it (TinyGPUHybridNVGuard.h's kGuardState* words)
     int state_fd = -1;
+    bool lost_said = false;      // plan step A3: the lost GPU was reported
 };
 
 struct AMDKernelHandle {
@@ -98,6 +99,25 @@ struct AMDKernelHandle {
 
 static AMDHybridState* g_amd = nullptr;
 static std::map<std::string, AMDKernelHandle*> g_amdKernels;
+
+// TODO.md plan step A3, NV's plan step C12 on the AMD path: an instance whose setup failed, or whose GPU is lost (any runtime
+// failure: a wait that timed out, a GPU fault, a broken TinyGPU.app stream, a launch the HSACOs cannot serve), sends the GPU
+// nothing more: its calls do nothing, read-backs are NaN, and BeagleGPUImpl returns errors (GPUInterface::GetDeviceLost).
+// BEAGLE never exits its host. The card stays this side's until the instance's fini, which finalizes it or has the crash
+// guard hold it (plan step A2k); if the process ends first, the guard does.
+static bool g_amdFailed = false;   // this instance's setup, a kernel lookup or an allocation failed
+static pid_t g_amdHeld = 0;        // a crash guard this process left holding the card: no later instance can connect
+static bool amd_failed() {
+    if (g_amdFailed || !g_amd) return true;
+    if (!g_amd->rt->error) return false;
+    if (!g_amd->lost_said) {
+        g_amd->lost_said = true;
+        fprintf(stderr, "TinyGPU/AMD: the GPU is lost to this instance: nothing of it reaches the GPU, and BEAGLE's calls return errors; "
+                "its fini still finalizes the card, or has the crash guard hold it\n");
+        tg_log("the GPU is lost to this instance (plan step A3): %s", g_amd->rt->error_msg.c_str());
+    }
+    return true;
+}
 
 // ── Launch batching (STATUS.md AMD §26) ─────────────────────────────────────
 // AmdLaunchKernelImpl queues launches here, and amdFlushLaunchQueue submits the queue as chained batches before every
@@ -118,7 +138,8 @@ static void amd_test_kill(const char* point, AMDHybridState* g);   // the crash 
 // memory_barrier, the execs with their kernargs slots, then a signal and a submit. A kernargs wrap first waits for the GPU
 // to finish everything submitted (TinyGPUHybridAMDRuntime.h).
 static void amdFlushLaunchQueue() {
-    if (!g_amd || !g_amd->rt || g_amdPendingLaunches.empty()) return;
+    if (g_amdPendingLaunches.empty()) return;
+    if (amd_failed()) { g_amdPendingLaunches.clear(); return; }
     AMDRuntime& rt = *g_amd->rt;
     auto t0 = amd_profile_start();
     const size_t n = g_amdPendingLaunches.size();
@@ -156,13 +177,6 @@ static void amdFlushLaunchQueue() {
     g_amdPendingLaunches.clear();
     amd_profile_end("launch_batch (C++)", t0);
     if (rt.error) fprintf(stderr, "TinyGPU/AMD: launch_batch(%zu kernels) failed: %s\n", n, rt.error_msg.c_str());
-}
-
-static void amdCppBootFini(AMDHybridState* g);
-[[noreturn]] static void amd_safe_exit(int code) {
-    fflush(stderr);
-    if (g_amd && g_amd->adev) amdCppBootFini(g_amd);   // no queue may outlive the connection
-    _exit(code);
 }
 
 // tinygrad's AMD lock (System.flock_acquire("am_usb4.lock"), which tinygrad's AMD device takes), held for the process's life;
@@ -296,10 +310,12 @@ static void amdGuardEnd(AMDHybridState* g, char m) {
             fprintf(stderr, "TinyGPU/AMD: the crash guard (pid %d) did not take this side's '%c': it decides as at a crash\n", (int)g->guard_pid, m);
         close(g->guard_ctl);
         g->guard_ctl = -1;
-        if (m == 'H')
+        if (m == 'H') {
             fprintf(stderr, "TinyGPU/AMD: the GPU's queues were not seen off, so the crash guard (pid %d) holds the TinyGPU.app connection "
                     "(closing it could unmap memory the GPU may still read). Unplug the eGPU first, then kill %d.\n", (int)g->guard_pid,
                     (int)g->guard_pid);
+            g_amdHeld = g->guard_pid;   // plan step A3: TinyGPU.app serves the guard now, and would never answer a new connection
+        }
         for (int i = 0; i < 50 && m != 'H' && waitpid(g->guard_pid, nullptr, WNOHANG) == 0; ++i) usleep(100000);
     }
     tg_transport().set_in_flight(nullptr);
@@ -419,8 +435,12 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     // The boot takes Initialize()'s TinyGPU.app connection (self->tgpuSock, plan step C3: tg_transport()); the GPUInterface
     // destructor closes it after AmdFini. TinyGPU.app serves one client at a time (STATUS.md AMD §21).
     const bool dp = (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
+    g_amdFailed = false;
     g_amd = amdCppBootSetup((dp ? "DP_" : "SP_") + std::to_string(paddedStateCount));
-    if (!g_amd) { fprintf(stderr, "TinyGPU/AMD: the C++ boot failed\n"); amd_safe_exit(1); }
+    if (!g_amd) {   // plan step A3: beagleCreateInstance returns an error (BeagleGPUImpl), and the host goes on
+        g_amdFailed = true;
+        fprintf(stderr, "TinyGPU/AMD: the GPU's setup failed (above); this instance fails\n");
+    }
 
     self->InitializeKernelResource(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
     self->supportDoublePrecision = ((flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
@@ -436,12 +456,13 @@ GPUFunction AmdGetFunction(const char* name) {
     if (!g_amd) return nullptr;
     auto it = g_amdKernels.find(name);
     if (it != g_amdKernels.end()) return it->second;
-    fprintf(stderr, "TinyGPU/AMD: GetFunction(%s): kernel not found in precompiled cache — exiting\n", name);
-    amd_safe_exit(1);
+    if (!g_amdFailed) fprintf(stderr, "TinyGPU/AMD: GetFunction(%s): kernel not found in the build's HSACO; this instance fails\n", name);
+    g_amdFailed = true;   // plan step A3: beagleCreateInstance returns an error, not an exit
+    return nullptr;
 }
 
 void AmdSynchronizeHost() {
-    if (!g_amd) return;
+    if (amd_failed()) return;
     amdFlushLaunchQueue();  // otherwise queued-but-unsent launches wouldn't be submitted yet to wait for
     auto t0 = amd_profile_start();
     if (!g_amd->rt->synchronize()) fprintf(stderr, "TinyGPU/AMD: sync failed: %s\n", g_amd->rt->error_msg.c_str());
@@ -449,17 +470,20 @@ void AmdSynchronizeHost() {
 }
 
 GPUPtr AmdAllocateMemory(size_t sz) {
-    if (!g_amd) return 0;
+    if (amd_failed()) return 0;
     auto t0 = amd_profile_start();
     uint64_t va = 0;
-    if (!g_amd->rt->alloc(sz, va)) fprintf(stderr, "TinyGPU/AMD: alloc(%zu): the VRAM pool has %llu bytes left\n", sz,
-                                            (unsigned long long)g_amd->rt->available());
+    if (!g_amd->rt->alloc(sz, va)) {   // BEAGLE does not check: address 0 would reach the GPU
+        fprintf(stderr, "TinyGPU/AMD: alloc(%zu): the VRAM pool has %llu bytes left (BEAGLE_AMD_DATA_MB); this instance fails\n", sz,
+                (unsigned long long)g_amd->rt->available());
+        g_amdFailed = true;   // plan step A3: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error
+    }
     amd_profile_end("alloc (C++)", t0);
     return (GPUPtr)va;
 }
 
 void AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
-    if (!g_amd || !src || !sz) return;
+    if (amd_failed() || !src || !sz) return;
     amdFlushLaunchQueue();  // preserve ordering: queued launches must be submitted before this write
     auto t0 = amd_profile_start();
     if (!amd_copyin(*g_amd->rt, g_amd->rt->staging, (uint64_t)dst, (const uint8_t*)src, sz))
@@ -468,16 +492,32 @@ void AmdMemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
 }
 
 void AmdMemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
-    if (!g_amd || !dst || !sz) return;
+    if (!dst || !sz) return;
+    // plan step A3: a failed instance or a lost GPU reads back NaN (all bits set), so nothing it returns looks like a result
+    if (amd_failed()) { memset(dst, 0xff, sz); return; }
     amdFlushLaunchQueue();  // preserve ordering: queued launches must complete before this read
     auto t0 = amd_profile_start();
-    if (!amd_copyout(*g_amd->rt, g_amd->rt->staging, (uint8_t*)dst, (uint64_t)src, sz))
+    if (!amd_copyout(*g_amd->rt, g_amd->rt->staging, (uint8_t*)dst, (uint64_t)src, sz)) {
         fprintf(stderr, "TinyGPU/AMD: d2h(addr=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)src, sz, g_amd->rt->error_msg.c_str());
+        memset(dst, 0xff, sz);
+    }
     amd_profile_end("d2h (C++)", t0);
 }
 
 size_t AmdGetAvailableMemory() {
     return g_amd ? (size_t)g_amd->rt->available() : 0;   // the C++ runtime's VRAM pool
+}
+
+// Plan step A3, for BeagleGPUImpl (GPUInterface::GetDeviceLost): true once nothing this instance computes can be trusted
+bool AmdDeviceLost() { return amd_failed(); }
+
+// Plan step A3, for GPUInterface::Initialize before it connects: a crash guard this process left holding the card keeps
+// TinyGPU.app serving its connection, so a new one would wait forever. True (and said) then.
+bool AmdGpuHeld() {
+    if (!g_amdHeld) return false;
+    fprintf(stderr, "TinyGPU/AMD: the crash guard (pid %d) holds the eGPU, since an earlier instance of this process could not see its "
+            "queues off: no instance can use it until the eGPU is unplugged and the process restarts\n", (int)g_amdHeld);
+    return true;
 }
 
 void AmdFini() {
@@ -498,7 +538,7 @@ void AmdFini() {
 
 void AmdLaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                           int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
-    if (!g_amd || !fn) return;
+    if (amd_failed() || !fn) return;
     AMDKernelHandle* ke = (AMDKernelHandle*)fn;
     int nInt = nTotal - nPtr;
 

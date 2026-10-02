@@ -106,6 +106,7 @@ int GPUInterface::Initialize() {
         isNVIDIA  = true;
         return BEAGLE_SUCCESS;
     }
+    if (AmdGpuHeld()) return BEAGLE_ERROR_GENERAL;   // TODO.md plan step A3: TinyGPU.app serves the crash guard's connection now
     // TinyGPU.app's socket, through tinygrad's client ported to C++ (plan step C3): nv_usb4.lock, then the connection
     TGTransport& tg = tg_transport();
     std::string err = tg.open();
@@ -301,8 +302,8 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
     return isNVIDIA ? BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU : BEAGLE_TINYGPU_DEVICE_AMD_GPU;
 }
 bool GPUInterface::GetSupportsDoublePrecision(int) { return false; }
-// TODO.md plan step C12 (the NV path only; the AMD path is unchanged)
-bool GPUInterface::GetDeviceLost() { return isNVIDIA && NvDeviceLost(this); }
+// TODO.md plan steps C12 (NV) and A3 (AMD)
+bool GPUInterface::GetDeviceLost() { return isNVIDIA ? NvDeviceLost(this) : AmdDeviceLost(); }
 
 size_t GPUInterface::GetAvailableMemory() {
     if (!isNVIDIA) return AmdGetAvailableMemory();
