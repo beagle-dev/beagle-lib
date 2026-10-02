@@ -36,9 +36,10 @@
 #include "BeagleGPUImpl.h"
 
 // TinyGPU (TODO.md plan step C12): an instance whose GPU is lost, or whose setup failed, copies back NaN instead of results, so
-// createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost)
+// createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost):
+// BEAGLE_ERROR_OUT_OF_MEMORY when the GPU's memory did not suffice (plan step M1: GetOutOfMemory), else BEAGLE_ERROR_GENERAL
 #ifdef FW_TINYGPU
-#define BEAGLE_GPU_RETURN_IF_LOST() do { if (gpu->GetDeviceLost()) return BEAGLE_ERROR_GENERAL; } while (0)
+#define BEAGLE_GPU_RETURN_IF_LOST() do { if (gpu->GetDeviceLost()) return gpu->GetOutOfMemory() ? BEAGLE_ERROR_OUT_OF_MEMORY : BEAGLE_ERROR_GENERAL; } while (0)
 #else
 #define BEAGLE_GPU_RETURN_IF_LOST() do {} while (0)
 #endif

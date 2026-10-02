@@ -109,6 +109,7 @@ private:
     friend void AmdFini(GPUInterface*);
     friend GPUPtr AmdAllocateMemory(GPUInterface*, size_t);
     friend bool AmdDeviceLost(GPUInterface*);
+    friend bool AmdOutOfMemory(GPUInterface*);
     // Same for the NV path (GPUInterfaceTinyGPUHybridNV.cpp: the daemon by
     // default, C++ dispatch or the C++ runtime by environment variable), whose
     // per-instance state is nvGspState (TODO.md plan step P5).
@@ -122,6 +123,7 @@ private:
     friend void NvFini(GPUInterface*);
     friend GPUPtr NvAllocateMemory(GPUInterface*, size_t);
     friend bool NvDeviceLost(GPUInterface*);
+    friend bool NvOutOfMemory(GPUInterface*);
 
     // ── TinyGPU socket ──────────────────────────────────────────────────────
     int      tgpuSock;
@@ -192,6 +194,9 @@ public:
     // GPU hung or its connection broke): its calls then do nothing, instead of exiting the host, and BeagleGPUImpl returns
     // errors from createInstance and from the calls that copy results back
     bool GetDeviceLost();
+    // TODO.md plan step M1: ... and the reason was memory (an allocation, a program load or the VRAM pool did not fit), so
+    // BeagleGPUImpl returns BEAGLE_ERROR_OUT_OF_MEMORY rather than BEAGLE_ERROR_GENERAL
+    bool GetOutOfMemory();
 #endif
 
 #ifdef FW_OPENCL

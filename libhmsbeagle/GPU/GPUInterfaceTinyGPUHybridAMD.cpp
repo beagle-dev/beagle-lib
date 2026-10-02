@@ -143,7 +143,9 @@ struct AMDInstance {
     AMDProgramSet* programs = nullptr;       // its variant's
     std::vector<AMDPendingLaunch> pending;   // its launches queued since it last flushed
     bool failed = false;   // plan step A3: its setup, a kernel lookup or an allocation failed
+    bool oom = false;      // plan step M1: ... for lack of GPU memory (BeagleGPUImpl then returns BEAGLE_ERROR_OUT_OF_MEMORY)
 };
+static bool g_amdSetupOOM = false;   // plan step M1: the last boot's setup ran out of VRAM (its buffers and the pool)
 
 // TODO.md plan step A3, NV's plan step C12 on the AMD path: an instance whose setup failed, or whose GPU is lost (any runtime
 // failure: a wait that timed out, a GPU fault, a broken TinyGPU.app stream, a launch the HSACOs cannot serve), sends the GPU
@@ -426,16 +428,18 @@ static AMDHybridState* amdCppBootSetup(const std::string& variant) {
     amd_test_kill("boot_rest", g);
     size_t aot_size = 0;
     const unsigned char* aot = amd_embedded_hsaco(variant, arch, aot_size);
+    const char* mb = getenv("BEAGLE_AMD_DATA_MB");
+    const uint64_t pool_size = mb ? strtoull(mb, nullptr, 10) << 20 : 0;   // 0: am_handoff's default, half the VRAM
+    g_amdSetupOOM = false;
     try {
         if (!aot) throw TGPyError("RuntimeError", "this build has no HSACO for " + variant + " on " + arch + " (built without comgr, or not for "
                                   "this card), and nothing compiles at run time");
         g->dstate = std::make_unique<amboot::AMDDeviceState>();
         amd_phase(g, kGuardPhaseDispatch);   // the compute queue goes live next: from here the guard finalizes the GPU, or holds
         amboot::am_device_init(*g->adev, *g->dstate);
-        const char* mb = getenv("BEAGLE_AMD_DATA_MB");
         AMDHandoff h;
         std::vector<uint8_t*> maps;
-        amboot::am_handoff(*g->adev, *g->dstate, mb ? strtoull(mb, nullptr, 10) << 20 : 0, h, maps);
+        amboot::am_handoff(*g->adev, *g->dstate, pool_size, h, maps);
         g->rt = new AMDRuntime;
         amd_runtime_attach_mapped(*g->rt, h, maps.data(), tg);
         amd_profile_end("C++ boot", t0);
@@ -444,6 +448,13 @@ static AMDHybridState* amdCppBootSetup(const std::string& variant) {
     } catch (const std::exception& e) {
         const TGPyError* py = dynamic_cast<const TGPyError*>(&e);
         fprintf(stderr, "TinyGPU/AMD: after the C++ boot: %s; finalizing the GPU\n", py ? py->py().c_str() : e.what());
+        if (py && py->type == "MemoryError") {   // plan step M1
+            g_amdSetupOOM = true;
+            fprintf(stderr, "TinyGPU/AMD: out of GPU memory: the card's %llu MiB of VRAM cannot hold the setup's buffers and a %llu MiB "
+                    "VRAM pool (%s); this instance fails\n", (unsigned long long)(g->adev->vram_size >> 20),
+                    (unsigned long long)((pool_size ? pool_size : g->adev->vram_size / 2) >> 20),
+                    mb ? "BEAGLE_AMD_DATA_MB: lower it" : "half the VRAM, the default");
+        }
         if (g->rt) { amd_runtime_detach(*g->rt); delete g->rt; g->rt = nullptr; }
         amdCppBootFini(g);
         delete g;
@@ -456,8 +467,10 @@ static AMDHybridState* amdCppBootSetup(const std::string& variant) {
 }
 
 // TODO.md plan step A5: a variant's programs, loaded once per process for the first instance that needs them (AMDProgram.__init__
-// for each kernel of its HSACO, and _ensure_has_local_memory: TinyGPUHybridAMDRuntime.h), or null (said)
-static AMDProgramSet* amd_programs(const std::string& variant) {
+// for each kernel of its HSACO, and _ensure_has_local_memory: TinyGPUHybridAMDRuntime.h), or null (said; oom if the VRAM pool
+// could not hold them, plan step M1)
+static AMDProgramSet* amd_programs(const std::string& variant, bool& oom) {
+    oom = false;
     auto it = g_amd->programs.find(variant);
     if (it != g_amd->programs.end()) return &it->second;
     size_t n = 0;
@@ -473,6 +486,10 @@ static AMDProgramSet* amd_programs(const std::string& variant) {
     amd_profile_end("programs (C++)", t0);
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/AMD: loading %s's programs: %s\n", variant.c_str(), err.c_str());
+        oom = err.rfind("the VRAM pool is too small", 0) == 0;   // amd_runtime_load_programs' allocation failures
+        if (oom) fprintf(stderr, "TinyGPU/AMD: out of GPU memory: %llu MiB left of the %llu MiB VRAM pool (BEAGLE_AMD_DATA_MB sets it, by "
+                         "default half the VRAM)\n", (unsigned long long)(g_amd->rt->available() >> 20),
+                         (unsigned long long)(g_amd->rt->h.pool_size >> 20));
         g_amd->programs.erase(variant);
         return nullptr;
     }
@@ -543,6 +560,7 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         self->amdInstance = in = new AMDInstance;
         g_amd = amdCppBootSetup(variant);
         if (!g_amd) {
+            in->oom = g_amdSetupOOM;
             fprintf(stderr, "TinyGPU/AMD: the GPU's setup failed (above); this instance fails\n");
         } else {
             self->tgpuSock = -1;   // plan step A5: the card's connection now, which outlives this instance
@@ -550,7 +568,7 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
                 fprintf(stderr, "TinyGPU/AMD: atexit failed; the card is finalized only by the crash guard, at the end of this process\n");
         }
     }
-    if (!amd_failed(*in) && !(in->programs = amd_programs(variant))) fprintf(stderr, "TinyGPU/AMD: this instance fails\n");
+    if (!amd_failed(*in) && !(in->programs = amd_programs(variant, in->oom))) fprintf(stderr, "TinyGPU/AMD: this instance fails\n");
     if (!in->programs) in->failed = true;   // plan step A3: beagleCreateInstance returns an error (BeagleGPUImpl), and the host goes on
 
     self->InitializeKernelResource(paddedStateCount, (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0);
@@ -591,9 +609,11 @@ GPUPtr AmdAllocateMemory(GPUInterface* self, size_t sz) {
     auto t0 = amd_profile_start();
     uint64_t va = 0;
     if (!g_amd->rt->alloc(sz, va)) {   // BEAGLE does not check: address 0 would reach the GPU. The pool is never reclaimed.
-        fprintf(stderr, "TinyGPU/AMD: alloc(%zu): the VRAM pool has %llu bytes left (BEAGLE_AMD_DATA_MB); this instance fails\n", sz,
-                (unsigned long long)g_amd->rt->available());
-        in->failed = true;   // plan step A3: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error
+        fprintf(stderr, "TinyGPU/AMD: out of GPU memory: an allocation of %.1f MiB, with %.1f MiB left of the %llu MiB VRAM pool "
+                "(BEAGLE_AMD_DATA_MB sets it, by default half the VRAM); this instance fails\n", sz / 1048576.0,
+                g_amd->rt->available() / 1048576.0, (unsigned long long)(g_amd->rt->h.pool_size >> 20));
+        in->failed = true;   // plan step A3: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error,
+        in->oom = true;      // BEAGLE_ERROR_OUT_OF_MEMORY (plan step M1)
     }
     amd_profile_end("alloc (C++)", t0);
     return (GPUPtr)va;
@@ -635,6 +655,13 @@ bool AmdDeviceLost(GPUInterface* self) {
     std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
     AMDInstance* in = (AMDInstance*)self->amdInstance;
     return !in || amd_failed(*in);
+}
+
+// Plan step M1, for BeagleGPUImpl (GPUInterface::GetOutOfMemory): ... because the GPU's memory did not suffice
+bool AmdOutOfMemory(GPUInterface* self) {
+    std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
+    AMDInstance* in = (AMDInstance*)self->amdInstance;
+    return in && in->oom;
 }
 
 // Plan step A3, for GPUInterface::Initialize before it connects: a crash guard this process left holding the card keeps

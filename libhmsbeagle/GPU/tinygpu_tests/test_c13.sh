@@ -157,6 +157,8 @@ done
 run c13_pool7900 BEAGLE_NV_DATA_MB=7900
 check "a VRAM pool that reaches GSP-RM's reserved region, refused after the NVDevice is built: the plugin unloads GSP-RM and tears the GPU down itself, and the guard exits at its clean (device NO ERRORS)" \
     "grep -q 'level boot: VRAM allocations end at 0x[0-9a-f]*, above the WPR bound' '$(out c13_pool7900)' && fini_verdict '$(out c13_pool7900)' \
+     && grep -q 'out of GPU memory: a 7900 MiB VRAM pool (BEAGLE_NV_DATA_MB: lower it) reaches GSP-RM.s reserved region; at most [0-9]* MiB fit' '$(out c13_pool7900)' \
+     && grep -q 'beagleCreateInstance failed (error -2)' '$(out c13_pool7900)' \
      && device c13_pool7900 | grep -q 'NO ERRORS' && glog c13_pool7900 | grep -q '$CLEAN'"
 FAKE_GPU_HANG_AT=1 run c13_setup_hang
 check "a GPU that hangs in the NVDevice's setup work: the boot fails on its timeline, the plugin sends no unload, and the guard holds" \

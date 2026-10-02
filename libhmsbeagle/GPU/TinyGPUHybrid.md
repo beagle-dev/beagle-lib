@@ -62,10 +62,13 @@ On NVIDIA only single precision is built: 9 cubins per architecture (sm_86, sm_8
 - Keep the Mac awake while the GPU runs (`caffeinate -ims`): a sleeping Mac with a live GPU risks the IOMMU (DART).
 - A normal exit tears the GPU down (the GSP unload, then NVIDIA's teardown), and says so on stderr:
   `teardown: done: ... WPR2 is down, the next boot needs no power cycle`.
-- Errors come back as BEAGLE errors. A failed boot, a GPU that hangs, a lost TinyGPU.app connection, or a VRAM pool too
-  small for an instance makes `beagleCreateInstance`, or the calls that read results back, return
-  `BEAGLE_ERROR_GENERAL`, and read-backs are NaN. BEAGLE never exits its host. A lost GPU stays lost for the rest of the
-  process.
+- Errors come back as BEAGLE errors. A failed boot, a GPU that hangs, or a lost TinyGPU.app connection makes
+  `beagleCreateInstance`, or the calls that read results back, return `BEAGLE_ERROR_GENERAL`, and read-backs are NaN.
+  BEAGLE never exits its host. A lost GPU stays lost for the rest of the process.
+- Running out of GPU memory returns `BEAGLE_ERROR_OUT_OF_MEMORY` (TODO.md plan step M1), on both vendors, with the sizes on
+  stderr (`out of GPU memory: ...`). That covers an instance whose buffers or programs do not fit the VRAM pool, and a pool
+  (`BEAGLE_NV_DATA_MB`, `BEAGLE_AMD_DATA_MB`; by default half the VRAM) larger than the GPU can hold. The pool is shared by
+  the process's instances and never reclaimed.
 - The same holds on the AMD card, where the process also takes tinygrad's `$TMPDIR/am_usb4.lock`: every instance shares
   one boot (a partial boot takes about 1 s), each kernel variant is loaded once, and a normal exit finalizes the card.
   Its errors come back as BEAGLE errors too: a failed boot (a card that needs a mode1 reset, say), a kernel the HSACOs

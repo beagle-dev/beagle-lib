@@ -30,6 +30,7 @@ void       AmdMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src
 void       AmdMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
 size_t     AmdGetAvailableMemory();
 bool       AmdDeviceLost(GPUInterface* self);   // TODO.md plan step A3: this instance's setup failed or its GPU is lost (GPUInterface::GetDeviceLost)
+bool       AmdOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... for lack of GPU memory
 bool       AmdGpuHeld();      // ... and a crash guard of this process holds the card: Initialize must not connect
 void       AmdFini(GPUInterface* self);   // called from the destructor: releases the instance (the card stays until exit, plan step A5)
 

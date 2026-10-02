@@ -315,6 +315,7 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
 bool GPUInterface::GetSupportsDoublePrecision(int) { return false; }
 // TODO.md plan steps C12 (NV) and A3 (AMD)
 bool GPUInterface::GetDeviceLost() { return isNVIDIA ? NvDeviceLost(this) : AmdDeviceLost(this); }
+bool GPUInterface::GetOutOfMemory() { return isNVIDIA ? NvOutOfMemory(this) : AmdOutOfMemory(this); }   // plan step M1
 
 size_t GPUInterface::GetAvailableMemory() {
     if (!isNVIDIA) return AmdGetAvailableMemory();

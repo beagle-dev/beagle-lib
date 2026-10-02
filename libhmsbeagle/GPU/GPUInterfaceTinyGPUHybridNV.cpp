@@ -246,7 +246,9 @@ struct NVInstance {
     std::map<std::string, NVDKernel> templates;      // the C++ runtime: this instance's programs, at its own lib_va
     std::vector<NVPendingLaunch> pending;            // launches queued since this instance last flushed
     bool failed = false;   // plan step C12: its setup failed, or an allocation (BEAGLE would hand address 0 to the GPU)
+    bool oom = false;      // plan step M1: ... for lack of GPU memory (BeagleGPUImpl then returns BEAGLE_ERROR_OUT_OF_MEMORY)
 };
+static bool g_nvSetupOOM = false;   // plan step M1: the last boot's VRAM pool did not fit (nvdOwnAllocations)
 
 // TODO.md plan step C12: nothing of an instance reaches the GPU once its setup failed or the GPU is lost; its calls do nothing
 // and BeagleGPUImpl returns errors (GPUInterface::GetDeviceLost)
@@ -489,6 +491,9 @@ static void nvd_unmap(NVDispatchState* d) {
 // Returns an empty string on success.
 static std::string nvdOwnAllocations(NVDispatchState& d, uint64_t pool_mb) {
     NVMemoryManager& mm = *d.mem->mm;
+    const uint64_t pool_size = pool_mb ? pool_mb << 20 : d.mem->dev_vram_size / 2;
+    const char* which = pool_mb ? "BEAGLE_NV_DATA_MB: lower it" : "half the VRAM, the default";
+    g_nvSetupOOM = false;
     try {
         NVDBuffer* hb[4] = { &d.h.cmdq, &d.h.kargs, &d.h.staging, &d.h.signal };
         for (int i = 0; i < 4; ++i) {
@@ -502,16 +507,26 @@ static std::string nvdOwnAllocations(NVDispatchState& d, uint64_t pool_mb) {
         memset(d.maps[3], 0, 16);   // TinyGPU.app leaves the DMA segment list here (the daemon cleared the same 16 bytes)
         if (d.h.kargs.va + d.h.kargs.size > (1ull << 40) || d.h.cmdq.va + d.h.cmdq.size > (1ull << 40))
             return "kernargs or pushbuffer buffer above 2^40";
-        NVBuffer pool = nv_iface_alloc(mm, pool_mb ? pool_mb << 20 : d.mem->dev_vram_size / 2);   // as the daemon's pool_size
+        NVBuffer pool = nv_iface_alloc(mm, pool_size);   // as the daemon's pool_size
         d.rt.pool = NVDBuffer{pool.va_addr, pool.size};
     } catch (const TGPyError& e) {
+        if (e.type == "MemoryError") {   // plan step M1
+            g_nvSetupOOM = true;
+            fprintf(stderr, "TinyGPU/NV: out of GPU memory: the GPU's %llu MiB of VRAM cannot hold the runtime's buffers and a %llu MiB "
+                    "VRAM pool (%s)\n", (unsigned long long)(d.mem->dev_vram_size >> 20), (unsigned long long)(pool_size >> 20), which);
+        }
         return "memory manager: " + e.py();
     }
     const uint64_t end = nv_vram_end(mm);
     char msg[200];
     snprintf(msg, sizeof(msg), "VRAM allocations end at 0x%llx, %s the WPR bound 0x%llx", (unsigned long long)end,
              end > d.mem->wpr_bound ? "above" : "<=", (unsigned long long)d.mem->wpr_bound);
-    if (end > d.mem->wpr_bound) return std::string(msg) + ", where GSP-RM's reserved region starts (lower BEAGLE_NV_DATA_MB)";
+    if (end > d.mem->wpr_bound) {   // plan step M1: the pool reaches GSP-RM's reserved region
+        g_nvSetupOOM = true;
+        fprintf(stderr, "TinyGPU/NV: out of GPU memory: a %llu MiB VRAM pool (%s) reaches GSP-RM's reserved region; at most %llu MiB fit\n",
+                (unsigned long long)(pool_size >> 20), which, (unsigned long long)((d.mem->wpr_bound - (end - d.rt.pool.size)) >> 20));
+        return std::string(msg) + ", where GSP-RM's reserved region starts (lower BEAGLE_NV_DATA_MB)";
+    }
     fprintf(stderr, "TinyGPU/NV: C++ memory manager: buffers and pool, VRAM pool %llu MiB @ 0x%llx; %s\n",
             (unsigned long long)(d.rt.pool.size >> 20), (unsigned long long)d.rt.pool.va, msg);
     return "";
@@ -857,7 +872,8 @@ static bool nv_fill_launch_dims() {
 // nothing otherwise. (tinygrad's _realloc hands the old block to its LRU
 // cache without a synchronize; the setup waits for all earlier work, and the
 // pool never reuses the old block.)
-static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& names, std::map<std::string, NVDKernel>& kernels) {
+static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& names, std::map<std::string, NVDKernel>& kernels, bool& oom) {
+    oom = false;
     auto t0 = nv_profile_start();
     NVDispatchState& d = *g_nvd;
     NVDHandoff& h = d.h;
@@ -883,7 +899,12 @@ static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& n
             local_mem_size = nvd_local_mem_size(d.rt, p.slm_per_thread, tpc_bytes);
             local_mem = nvd_pool_alloc(d.rt.pool, d.pool_pos, local_mem_size);
         }
-        if (!p.lib_va || (grow && !local_mem)) err = "the VRAM pool cannot hold the program image and local memory";
+        if (!p.lib_va || (grow && !local_mem)) {
+            err = "the VRAM pool cannot hold the program image and local memory";
+            oom = true;   // plan step M1
+            fprintf(stderr, "TinyGPU/NV: out of GPU memory: %llu MiB left of the %llu MiB VRAM pool (BEAGLE_NV_DATA_MB sets it, by default "
+                    "half the VRAM)\n", (unsigned long long)((d.rt.pool.size - d.pool_pos) >> 20), (unsigned long long)(d.rt.pool.size >> 20));
+        }
     }
     std::vector<uint8_t> image;
     if (err.empty()) err = nvd_relocate(elf, p.lib_va, image);
@@ -948,7 +969,7 @@ static void nvLinkTemplates(NVInstance& in, const std::map<std::string, NVDKerne
 static bool nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
     std::vector<std::string> names;
     for (auto& kv : in.kernels) names.push_back(kv.first);
-    if (!nvdLoadPrograms(cubin, names, in.templates)) return false;
+    if (!nvdLoadPrograms(cubin, names, in.templates, in.oom)) return false;
     nvLinkTemplates(in, in.templates);
     return true;
 }
@@ -1081,7 +1102,11 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     try {
         if (boot) {
             const std::string fw = nv_fw_prefetch(tg_pci_device_id());
-            if (fw.empty()) g_nv = nvBootSetup(tg_fd);
+            if (fw.empty()) {
+                g_nvSetupOOM = false;
+                g_nv = nvBootSetup(tg_fd);
+                in->oom = !g_nv && g_nvSetupOOM;   // plan step M1: its VRAM pool did not fit
+            }
             else fprintf(stderr, "%s\nTinyGPU/NV: not booting: nothing was written to the GPU\n", fw.c_str());
         }
         NVDElf cubin;   // the programs of an instance that shares the boot, or of the boot's first
@@ -1131,9 +1156,11 @@ GPUPtr NvAllocateMemory(GPUInterface* self, size_t sz) {
     if (!in || nv_failed(*in)) return 0;
     uint64_t va = nvd_pool_alloc(g_nvd->rt.pool, g_nvd->pool_pos, sz);
     if (!va) {   // BEAGLE does not check: address 0 would reach the GPU. The pool is never reclaimed (plan step P5).
-        fprintf(stderr, "TinyGPU/NV: alloc(%zu): VRAM pool exhausted (%llu MiB; set BEAGLE_NV_DATA_MB); this instance fails\n", sz,
-                (unsigned long long)(g_nvd->rt.pool.size >> 20));
-        in->failed = true;   // plan step C12: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error
+        fprintf(stderr, "TinyGPU/NV: out of GPU memory: an allocation of %.1f MiB, with %.1f MiB left of the %llu MiB VRAM pool "
+                "(BEAGLE_NV_DATA_MB sets it, by default half the VRAM); this instance fails\n", sz / 1048576.0,
+                (g_nvd->rt.pool.size - g_nvd->pool_pos) / 1048576.0, (unsigned long long)(g_nvd->rt.pool.size >> 20));
+        in->failed = true;   // plan step C12: so nothing of it reaches the GPU, and BeagleGPUImpl returns an error,
+        in->oom = true;      // BEAGLE_ERROR_OUT_OF_MEMORY (plan step M1)
     }
     return (GPUPtr)va;
 }
@@ -1171,6 +1198,13 @@ bool NvDeviceLost(GPUInterface* self) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     NVInstance* in = (NVInstance*)self->nvGspState;
     return !in || nv_failed(*in);
+}
+
+// Plan step M1, for BeagleGPUImpl (GPUInterface::GetOutOfMemory): ... because the GPU's memory did not suffice
+bool NvOutOfMemory(GPUInterface* self) {
+    std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    NVInstance* in = (NVInstance*)self->nvGspState;
+    return in && in->oom;
 }
 
 size_t NvGetAvailableMemory() {

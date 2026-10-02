@@ -4,9 +4,12 @@
 #   - a dirty card: the boot is refused before the mode1 reset, beagleCreateInstance returns an error and the test exits
 #     normally; the guard exits at the plugin's 'N';
 #   - a 1 MiB VRAM pool (BEAGLE_AMD_DATA_MB=1): the program upload fails after the queues are set up; beagleCreateInstance
-#     returns an error, and the plugin still finalizes the card at exit (the guard sees its clean; NO ERRORS);
+#     returns BEAGLE_ERROR_OUT_OF_MEMORY (plan step M1), and the plugin still finalizes the card at exit (the guard sees its
+#     clean; NO ERRORS);
 #   - a pool the programs fill exactly (132 MiB at 64 states): the instance's first allocation fails, so it fails instead of
-#     handing address 0 to the GPU; an error from beagleCreateInstance, the card finalized;
+#     handing address 0 to the GPU; BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized;
+#   - a pool larger than the VRAM (BEAGLE_AMD_DATA_MB=1000000): the setup says the card's VRAM cannot hold it, and
+#     BEAGLE_ERROR_OUT_OF_MEMORY; the card finalized;
 #   - a GPU fault mid-run (FAKE_AMD_FAULT=1, on a cold card): the SQ MEMVIOL is decoded, the GPU is lost to the process,
 #     read-backs are NaN and BEAGLE returns errors; the exit still finalizes the card (NO ERRORS);
 #   - a GPU that hangs mid-run (FAKE_AMD_HANG=1, a 3 s wait timeout): the wait times out, BEAGLE returns errors, and the
@@ -87,15 +90,22 @@ check "a dirty card: refused before the mode1 reset, beagleCreateInstance return
 
 # 2. a 1 MiB VRAM pool: the program upload fails once the queues are live
 run pool1 BEAGLE_AMD_DATA_MB=1
-check "a 1 MiB VRAM pool: beagleCreateInstance returns an error, and the plugin still finalizes the card at exit (NO ERRORS)" \
-    "normal pool1 && grep -q 'too small' $W/pool1.txt && grep -q 'beagleCreateInstance failed (error -1)' $W/pool1.txt \
+check "a 1 MiB VRAM pool: beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMORY, and the plugin still finalizes the card at exit (NO ERRORS)" \
+    "normal pool1 && grep -q 'too small' $W/pool1.txt && grep -q 'out of GPU memory: [0-9]* MiB left of the 1 MiB VRAM pool' $W/pool1.txt \
+     && grep -q 'beagleCreateInstance failed (error -2)' $W/pool1.txt \
      && glog pool1 | grep -q '$CLEAN' && verdict pool1 | grep -q 'NO ERRORS'"
 
 # 3. a pool the programs fill: the instance's allocation fails instead of handing address 0 to the GPU
 run pool132 BEAGLE_AMD_DATA_MB=132 -- --state-count 64 --reps 3
-check "a pool the programs fill (132 MiB at 64 states): the instance's allocation fails, an error from beagleCreateInstance, the card finalized" \
-    "normal pool132 && grep -q 'alloc(.*): the VRAM pool has 0 bytes left .*; this instance fails' $W/pool132.txt \
-     && grep -q 'beagleCreateInstance failed (error -1)' $W/pool132.txt && glog pool132 | grep -q '$CLEAN' && verdict pool132 | grep -q 'NO ERRORS'"
+check "a pool the programs fill (132 MiB at 64 states): the instance's allocation fails, BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized" \
+    "normal pool132 && grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with 0.0 MiB left of the 132 MiB VRAM pool .*; this instance fails' $W/pool132.txt \
+     && grep -q 'beagleCreateInstance failed (error -2)' $W/pool132.txt && glog pool132 | grep -q '$CLEAN' && verdict pool132 | grep -q 'NO ERRORS'"
+
+# 3b. a pool larger than the VRAM (plan step M1)
+run poolbig BEAGLE_AMD_DATA_MB=1000000
+check "a pool larger than the VRAM: the setup says the card's VRAM cannot hold it, BEAGLE_ERROR_OUT_OF_MEMORY, the card finalized (NO ERRORS)" \
+    "normal poolbig && grep -q 'out of GPU memory: the card.s [0-9]* MiB of VRAM cannot hold the setup.s buffers and a 1000000 MiB VRAM pool (BEAGLE_AMD_DATA_MB: lower it)' $W/poolbig.txt \
+     && grep -q 'beagleCreateInstance failed (error -2)' $W/poolbig.txt && glog poolbig | grep -q '$CLEAN' && verdict poolbig | grep -q 'NO ERRORS'"
 
 # 4. a GPU fault mid-run
 run fault FAKE_AMD_STATE=cold FAKE_AMD_FAULT=1 HCQDEV_WAIT_TIMEOUT_MS=3000

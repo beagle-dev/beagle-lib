@@ -14,7 +14,8 @@
 #     survives to see the clean); TinyGPU.app gone mid-run (FAKE_DROP_AT): the next write fails with EPIPE, not SIGPIPE, the GPU
 #     is lost, the guard holds, and BEAGLE returns errors to a test that exits normally; a warm GPU: an error from
 #     beagleCreateInstance, with nothing written;
-#   - a failed instance on a healthy GPU (a 1 MiB VRAM pool, BEAGLE_NV_DATA_MB=1): an error from beagleCreateInstance, and the
+#   - a failed instance on a healthy GPU (a 1 MiB VRAM pool, BEAGLE_NV_DATA_MB=1): BEAGLE_ERROR_OUT_OF_MEMORY from
+#     beagleCreateInstance (plan step M1), and the
 #     GPU is still torn down at exit;
 #   - a GPU that hangs mid-run (FAKE_GPU_HANG_AT): the plugin's timeline wait times out, the GPU is lost, BEAGLE returns errors,
 #     and the guard, whose own timeline wait then fails, sends only the unload RPC and holds; run_point.sh's stop rule fails it.
@@ -104,9 +105,17 @@ check "AD107: a warm GPU: beagleCreateInstance returns an error (the test exits 
 
 # 8. a failed instance on a healthy GPU: the GPU is still torn down at exit
 run c12_pool BEAGLE_NV_DATA_MB=1
-check "AD107: a 1 MiB VRAM pool: beagleCreateInstance returns an error, and the plugin still tears the GPU down at exit (NO ERRORS)" \
-    "[ \"\$(status c12_pool)\" = 1 ] && grep -q 'beagleCreateInstance failed (error -1)' '$(out c12_pool)' && grep -q 'this instance' '$(out c12_pool)' \
+check "AD107: a 1 MiB VRAM pool: beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMORY, and the plugin still tears the GPU down at exit (NO ERRORS)" \
+    "[ \"\$(status c12_pool)\" = 1 ] && grep -q 'beagleCreateInstance failed (error -2)' '$(out c12_pool)' && grep -q 'this instance' '$(out c12_pool)' \
+     && grep -q 'out of GPU memory: [0-9]* MiB left of the 1 MiB VRAM pool' '$(out c12_pool)' \
      && device c12_pool | grep -q 'NO ERRORS' && counts c12_pool | grep -q '$UNLOAD' && glog c12_pool | grep -q '$CLEAN'"
+
+# 8b. a VRAM pool larger than the GPU's VRAM (plan step M1): the boot's memory manager cannot allocate it, the plugin says so and
+#     unloads GSP-RM and tears the GPU down, and beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMORY
+run c12_poolbig BEAGLE_NV_DATA_MB=100000
+check "AD107: a VRAM pool larger than the VRAM: BEAGLE_ERROR_OUT_OF_MEMORY, said, and the GPU torn down (NO ERRORS)" \
+    "[ \"\$(status c12_poolbig)\" = 1 ] && grep -q 'out of GPU memory: the GPU.s [0-9]* MiB of VRAM cannot hold the runtime.s buffers and a 100000 MiB VRAM pool (BEAGLE_NV_DATA_MB: lower it)' '$(out c12_poolbig)' \
+     && grep -q 'beagleCreateInstance failed (error -2)' '$(out c12_poolbig)' && fini_verdict '$(out c12_poolbig)' && device c12_poolbig | grep -q 'NO ERRORS'"
 
 # 9. a GPU that hangs mid-run (two 30 s timeline waits: the plugin's, then the guard's)
 FAKE_GPU_HANG_AT=100 run c12_hang -- --state-count 4 --reps 1000
