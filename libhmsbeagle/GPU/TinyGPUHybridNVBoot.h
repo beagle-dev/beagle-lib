@@ -74,16 +74,17 @@ inline void nv_boot_pci(NVBootDev& d) {
     if (!d.t->bar_info(0, addr, size, err)) throw NVError("RuntimeError", err);
 }
 
-// TODO.md plan step P4, opt-in (plan decision 6): BEAGLE_NV_RECOVER=1
+// TODO.md plan step P4, the default since its two clean recoveries on the RTX 4060 (plan decision 6, STATUS.md R92):
+// BEAGLE_NV_RECOVER=0 turns it off
 inline bool nv_recover_on() {
     const char* v = getenv("BEAGLE_NV_RECOVER");
-    return v && strcmp(v, "1") == 0;
+    return !(v && strcmp(v, "0") == 0);
 }
 
 // NVDev._early_ip_init (nvdev.py:97-121), under nv_init_helper's _guarded_early_ip_init: WPR2 up means the previous boot was
 // not torn down, refused before tinygrad's bus-master write (its own branch would issue a PCIe reset, a no-op on macOS, and
 // a doomed boot). The includes are the register sets' concern; wait_for_reset is Ada's no-op or COT's FSP wait.
-// With BEAGLE_NV_RECOVER=1 (plan step P4) the guard first reads, writing nothing, whether an Ada GPU's GSP is suspended
+// Unless BEAGLE_NV_RECOVER=0 (plan step P4) the guard first reads, writing nothing, whether an Ada GPU's GSP is suspended
 // (MAILBOX0 0x80000000, as the unload's suspend wait sees it) or its RISC-V core halted: then no GSP-RM runs, the previous
 // session's teardown did not run or failed (BEAGLE_NV_TEARDOWN=0, say), and the boot goes on to run it (nv_boot_recover)
 // instead of tinygrad's reset. Anything else is refused as before.
@@ -114,7 +115,7 @@ inline void nv_boot_early_ip_init(NVBootDev& d) {
                  "neither suspended nor halted", d.warm_mailbox0, d.warm_cpuctl);
         if (!suspended && !halted) throw NVError("WarmGPUError", up + ", with " + g + ": GSP-RM may still run, so BEAGLE_NV_RECOVER does not recover it. " + retry);
         d.recover = true;
-        tg_log("%s, with %s: BEAGLE_NV_RECOVER=1, so the boot runs NVIDIA's teardown once its images are ready (plan step P4)", up.c_str(), g);
+        tg_log("%s, with %s: the boot runs NVIDIA's teardown once its images are ready (plan step P4; BEAGLE_NV_RECOVER=0 refuses instead)", up.c_str(), g);
     }
     if (d.reg(nv_regs::NV_PFB_PRI_MMU_WPR2_ADDR_HI).read() != 0 && !d.recover)
         throw NVError("RuntimeError", "WPR2 came up between two reads");   // tinygrad's reset branch, which the guard rules out

@@ -4,7 +4,8 @@
 # can only hold, and once the NVDevice is built it has the queues and the timeline too. On the fake AD107 and the fake GB205
 # (fake_nv_device.py):
 #   - a normal run passes with no daemon, and the guard exits at the plugin's clean;
-#   - a warm GPU (FAKE_WPR2_UP=1) is refused after RESIZE_BAR, MAP_BAR and one read, nothing written, and the guard closes;
+#   - a warm GPU (FAKE_WPR2_UP=1) is refused after RESIZE_BAR, MAP_BAR and reads only (plan step P4's checks: 4 on the AD107,
+#     2 on the GB205), nothing written, and the guard closes;
 #   - killed right after the guard started, and after the software half, before any falcon ran: the guard closes, and the
 #     device reports NO ERRORS;
 #   - killed once the NVDevice is built but before the guard has the rest of its setup: the guard holds and sends nothing;
@@ -50,8 +51,9 @@ for chip in ad107 gb205; do
     export FAKE_WPR2_UP=1
     run c11_${chip}_warm
     unset FAKE_WPR2_UP
-    check "$C: a warm GPU is refused after RESIZE_BAR, MAP_BAR and one read, nothing written, and the guard closes" \
-        "grep -q 'WarmGPUError: WARM GPU: WPR2 is up' '$(out c11_${chip}_warm)' && counts c11_${chip}_warm | grep -q '\"cmd 1\": 1, \"cmd 11\": 1, \"cmd 3\": 2, \"cmd 6\": 1}' \
+    reads=4; [ $chip = gb205 ] && reads=2   # plan step P4's: WPR2, BOOT_42 (Ada only), then the GSP's MAILBOX0 and RISCV_CPUCTL
+    check "$C: a warm GPU is refused after RESIZE_BAR, MAP_BAR and $reads reads, nothing written, and the guard closes" \
+        "grep -q 'WarmGPUError: WARM GPU: WPR2 is up' '$(out c11_${chip}_warm)' && counts c11_${chip}_warm | grep -q '\"cmd 1\": 1, \"cmd 11\": 1, \"cmd 3\": 2, \"cmd 6\": '$reads'}' \
          && glog c11_${chip}_warm | grep -q 'closing is safe'"
 
     # 3, 4. killed before any falcon ran: the guard closes

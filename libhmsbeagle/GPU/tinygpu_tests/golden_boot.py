@@ -264,7 +264,9 @@ def run_case(c, exe, priv, quiet=False):
     t.join(timeout=60)
     fake2 = FakeBoot(priv, c)
     t2 = gm.serve_once(srv, fake2)
-    env = dict(os.environ, TMPDIR=priv, APL_REMOTE_SOCK=path, BEAGLE_TINYGPU_NO_LAUNCH="1", BEAGLE_TINYGPU_LOG=f"{priv}/log", BEAGLE_TINYGPU_DATA=cd)
+    # BEAGLE_NV_RECOVER=0: tinygrad's code has no recovery of a warm GPU (plan step P4 is the port's own, test_p4.sh's)
+    env = dict(os.environ, TMPDIR=priv, APL_REMOTE_SOCK=path, BEAGLE_TINYGPU_NO_LAUNCH="1", BEAGLE_TINYGPU_LOG=f"{priv}/log", BEAGLE_TINYGPU_DATA=cd,
+               BEAGLE_NV_RECOVER="0")
     if not c.teardown: env["BEAGLE_NV_TEARDOWN"] = "0"
     r = subprocess.run([exe, c.mode], capture_output=True, text=True, timeout=120, env=env)
     t2.join(timeout=60); srv.close()

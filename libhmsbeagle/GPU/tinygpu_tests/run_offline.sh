@@ -68,7 +68,7 @@ results+=("double precision on NV (C16): $([ $? -eq 0 ] && echo PASS || echo "FA
 # plan step C14: FreeMemory on both vendors' VRAM pools (the free list, and instance cycles on a small pool on both fakes)
 "$TG_TESTS/test_c14.sh" > "$TINYGPU_TEST_WORK/test_c14.log" 2>&1
 results+=("FreeMemory on both pools (C14): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c14.log)")")
-# plan step P4: BEAGLE_NV_RECOVER=1, a warm GPU torn down at boot (the fake AD107 suspended, halted or running; the refusals)
+# plan step P4: a warm GPU torn down at boot, the default (the fake AD107 suspended, halted or running; the refusals)
 "$TG_TESTS/test_p4.sh" > "$TINYGPU_TEST_WORK/test_p4.log" 2>&1
 results+=("warm-GPU recovery at boot (P4): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_p4.log)")")
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1

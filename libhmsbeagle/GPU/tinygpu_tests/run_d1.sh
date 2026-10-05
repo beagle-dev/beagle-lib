@@ -1,8 +1,9 @@
 #!/bin/bash
 # HARDWARE: one TODO.md plan step D1 run on the real eGPU: the d1_runs.txt line <label>, in the C++ runtime, with
 # run_point.sh's protections (run_point.sh stays tinygpuhybridtest's). Boots the GPU, so the eGPU must be cold
-# (power-cycled) or torn down by the previous run; a warm GPU is refused with nothing written. The user starts each run
-# (plan decision 8). Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
+# (power-cycled) or torn down by the previous run; a warm GPU is refused with nothing written, unless it is an Ada GPU whose
+# GSP-RM was unloaded, which the boot tears down first (plan step P4, the default). The user starts each run (plan
+# decision 8). Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
 #   [D1_DOUBLE=1] run_d1.sh <label>
 # D1_DOUBLE=1 (TODO.md plan step C16): a synthetictest line in double precision (--doubleprecision), compared at double
 # precision's tolerance (d1_compare.py --double); its runs are named apart (d1dp_), as their VRAM results differ.

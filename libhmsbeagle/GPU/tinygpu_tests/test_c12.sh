@@ -99,9 +99,9 @@ check "AD107: TinyGPU.app gone mid-run: the next write fails (EPIPE, no SIGPIPE 
 
 # 7. a warm GPU: an error from beagleCreateInstance, nothing written
 FAKE_WPR2_UP=1 run c12_warm
-check "AD107: a warm GPU: beagleCreateInstance returns an error (the test exits normally), after RESIZE_BAR, MAP_BAR and one read, nothing written" \
+check "AD107: a warm GPU: beagleCreateInstance returns an error (the test exits normally), after RESIZE_BAR, MAP_BAR and 4 reads (plan step P4's), nothing written" \
     "[ \"\$(status c12_warm)\" = 1 ] && grep -q 'beagleCreateInstance failed (error -1)' '$(out c12_warm)' \
-     && counts c12_warm | grep -q '\"cmd 1\": 1, \"cmd 11\": 1, \"cmd 3\": 2, \"cmd 6\": 1}' && device c12_warm | grep -q 'NO ERRORS'"
+     && counts c12_warm | grep -q '\"cmd 1\": 1, \"cmd 11\": 1, \"cmd 3\": 2, \"cmd 6\": 4}' && device c12_warm | grep -q 'NO ERRORS'"
 
 # 8. a failed instance on a healthy GPU: the GPU is still torn down at exit
 run c12_pool BEAGLE_NV_DATA_MB=1

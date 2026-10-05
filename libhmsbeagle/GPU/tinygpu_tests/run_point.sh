@@ -1,7 +1,8 @@
 #!/bin/bash
 # HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
-# written. Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
+# written, unless it is an Ada GPU whose GSP-RM was unloaded: the boot tears that down first (plan step P4, the default).
+# Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
 #   run_point.sh <state-count>[,<state-count>...] [default] [reps] [--poison] [--double] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS] [--oom-pool MB] [--leave-warm] [--recover]
 # (default, the only mode since plan step C13c: the plugin's C++ boot and runtime, with no daemon and no Python; the slot stays
 # so that earlier command lines keep their shape, and a removed mode is refused. The list, --instances, --threads and
@@ -13,8 +14,8 @@
 # VRAM pool of MB MiB (BEAGLE_NV_DATA_MB, for this run only) that the GPU cannot hold, so the run passes only if
 # beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMORY, said, and the GPU is torn down cleanly; --leave-warm and --recover,
 # plan step P4 on Ada: --leave-warm runs with BEAGLE_NV_TEARDOWN=0 and passes only if the GSP confirmed its unload and WPR2
-# stayed up, the GPU left warm on purpose; --recover runs with BEAGLE_NV_RECOVER=1 and passes only if the boot tore that warm
-# GPU down first, then everything else held; not the two together: BEAGLE_NV_TEARDOWN=0 leaves out the teardown's images, so
+# stayed up, the GPU left warm on purpose; --recover passes only if the boot tore that warm GPU down first (the default: it
+# sets nothing), then everything else held; not the two together: BEAGLE_NV_TEARDOWN=0 leaves out the teardown's images, so
 # the boot refuses the recovery, and a second recovery needs a --leave-warm run between)
 # Waits for the eGPU to enumerate, runs from the build tree with --diag-compare-cpu under log stream, keeps the output and
 # the log stream under $BEAGLE_TINYGPU_DATA/runs/, and prints a summary. Exits 0 only if the test passed, the fini report
@@ -42,7 +43,6 @@ done
 TEST_ENV=(); [ -n "$KILL" ] && TEST_ENV=(BEAGLE_NV_TEST_KILL=$KILL)
 [ -n "$OOM_POOL" ] && TEST_ENV+=(BEAGLE_NV_DATA_MB=$OOM_POOL)   # hw_begin refuses these set outside: only the options set them
 [ -n "$LEAVE_WARM" ] && TEST_ENV+=(BEAGLE_NV_TEARDOWN=0)
-[ -n "$RECOVER" ] && TEST_ENV+=(BEAGLE_NV_RECOVER=1)
 [ -n "$LEAVE_WARM$RECOVER" ] && { [ -z "$KILL$OOM_POOL" ] || { echo "--leave-warm and --recover take no --kill or --oom-pool"; exit 2; }; }
 [ -n "$LEAVE_WARM" ] && [ -n "$RECOVER" ] && { echo "--leave-warm and --recover cannot go together: the boot refuses a recovery under BEAGLE_NV_TEARDOWN=0"; exit 2; }
 pgrep -f "$GUARD_RE" > /dev/null && { echo "a crash guard is still running (it may hold the GPU); not running"; exit 2; }
@@ -61,7 +61,7 @@ for i in $(seq 60); do pgrep -f "$GUARD_RE" > /dev/null || break; sleep 1; done 
 hw_logstream_stop; ls_ok=$?
 echo "N=$N mode=$MODE ${FLAGS[*]} exit=$rc output=$OUT"
 grep -E "C\+\+ runtime:|load_programs|\] +(launch_batch|h2d|d2h) |launches in|maxAbsDiff|First mismatching|CPU-reference logL|per evaluation|repeats|^instance [0-9]+ \(|^tips:|^PASS|^FAIL|timed out|failed|rror" "$OUT" | grep -v "^  \[" | head -30
-grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app" "$OUT"
+grep -E "GPU teardown|TinyGPU/NV: teardown:|no teardown result|keeps the TinyGPU.app|TinyGPU/NV: (a warm GPU|the teardown at boot)" "$OUT"
 hw_hold_check || exit 1
 [ $ls_ok -eq 0 ] || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; exit 1; }
 # eGPU events: every line but the filter's header, the column header log stream prints before its first event, and the
@@ -78,7 +78,6 @@ if [ -n "$KILL" ]; then   # plan step C10: the plugin died before its fini repor
     exit 0
 fi
 if [ -n "$RECOVER" ]; then   # plan step P4: the boot must have found the GPU warm and torn it down before booting it
-    grep -E "TinyGPU/NV: (a warm GPU|the teardown at boot)" "$OUT" | cut -c1-240
     grep -q "TinyGPU/NV: a warm GPU (WPR2_HI=" "$OUT" && grep -q "TinyGPU/NV: the teardown at boot: done: .*WPR2 is down, so the boot goes on" "$OUT" \
         || { if fini_verdict "$OUT"; then echo "FAIL (P4): the boot recovered no warm GPU (exit $rc)"; exit 3; fi
              echo "STOP: the boot did not recover the warm GPU (lines above): power-cycle the eGPU before the next run"; exit 1; }
