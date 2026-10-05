@@ -2,35 +2,39 @@
 # HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
 # written. Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
-#   run_point.sh <state-count>[,<state-count>...] [default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS]
+#   run_point.sh <state-count>[,<state-count>...] [default] [reps] [--poison] [--double] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS] [--oom-pool MB]
 # (default, the only mode since plan step C13c: the plugin's C++ boot and runtime, with no daemon and no Python; the slot stays
 # so that earlier command lines keep their shape, and a removed mode is refused. The list, --instances, --threads and
 # --cycles: several instances in one process, TODO.md plan step P5; --exit-after MS: MS into the evaluations another thread
 # calls exit(0), as a host's shutdown would, plan step C12; --kill idle: the plugin SIGKILLs itself at fini once the GPU is
 # idle, as a crash would (BEAGLE_NV_TEST_KILL=idle), and the crash guard tears the GPU down, plan step C10; the run then passes
 # if the test died of the SIGKILL and the guard's TinyGPULog lines say its teardown left the next boot needing no power cycle,
-# guard_verdict, env.sh)
+# guard_verdict, env.sh); --double: the TinyGPU instances in double precision, plan step C16; --oom-pool MB: plan step M1's check, a
+# VRAM pool of MB MiB (BEAGLE_NV_DATA_MB, for this run only) that the GPU cannot hold, so the run passes only if
+# beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMORY, said, and the GPU is torn down cleanly)
 # Waits for the eGPU to enumerate, runs from the build tree with --diag-compare-cpu under log stream, keeps the output and
 # the log stream under $BEAGLE_TINYGPU_DATA/runs/, and prints a summary. Exits 0 only if the test passed, the fini report
 # says the next boot needs no power cycle (fini_verdict, env.sh), the crash guard exited and log stream saw nothing from the
-# eGPU; 1 stops a chain of runs after a run, 2 means nothing was started.
+# eGPU; 1 stops a chain of runs after a run, 2 means nothing was started, 3 an --oom-pool run without its refusal.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 N=$1; MODE=${2:-default}; REPS=${3:-200}; shift $(( $# < 3 ? $# : 3 ))
-USAGE="usage: run_point.sh <state-count>[,<state-count>...] [default] [reps] [--poison] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS]"
-FLAGS=(); KILL=
+USAGE="usage: run_point.sh <state-count>[,<state-count>...] [default] [reps] [--poison] [--double] [--instances K] [--threads] [--cycles C] [--kill idle] [--exit-after MS] [--oom-pool MB]"
+FLAGS=(); KILL=; OOM_POOL=
 while [ $# -gt 0 ]; do
     case $1 in
-        --poison|--threads) FLAGS+=("$1") ;;
+        --poison|--threads|--double) FLAGS+=("$1") ;;
         --instances|--cycles) [[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE"; exit 2; }; FLAGS+=("$1" "$2"); shift ;;
         --exit-after) [[ "$2" =~ ^[0-9]+$ ]] || { echo "$USAGE"; exit 2; }; FLAGS+=("$1" "$2"); shift ;;
         --kill) [ "$2" = idle ] || { echo "$USAGE"; exit 2; }; KILL=$2; shift ;;
+        --oom-pool) [[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "$USAGE"; exit 2; }; OOM_POOL=$2; shift ;;
         *) echo "$USAGE"; exit 2 ;;
     esac
     shift
 done
 [[ "$N" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "$USAGE"; exit 2; }
 [ "$MODE" = default ] || { echo "mode $MODE was removed in TODO.md plan step C13c: the plugin's only path is the C++ boot (default)"; exit 2; }
-KILL_ENV=(); [ -n "$KILL" ] && KILL_ENV=(BEAGLE_NV_TEST_KILL=$KILL)
+TEST_ENV=(); [ -n "$KILL" ] && TEST_ENV=(BEAGLE_NV_TEST_KILL=$KILL)
+[ -n "$OOM_POOL" ] && TEST_ENV+=(BEAGLE_NV_DATA_MB=$OOM_POOL)   # hw_begin refuses it set outside, so only this option sets it
 pgrep -f "$GUARD_RE" > /dev/null && { echo "a crash guard is still running (it may hold the GPU); not running"; exit 2; }
 hw_begin
 for i in $(seq 1 30); do [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -gt 0 ] && break; sleep 2; done
@@ -40,7 +44,7 @@ STAMP=$(date +%Y%m%d-%H%M%S)_$HW_HOST; OUT="$RUNS/${STAMP}_N${N}_${MODE}.txt"; L
 hw_logstream "$LS"
 TGLOG="$HOME/Library/Logs/beagle_tinygpu.log"; TGLOG_N=$(cat "$TGLOG" 2>/dev/null | wc -l)   # this run's TinyGPULog lines follow
 cd "$REPO"
-env "${KILL_ENV[@]}" BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" \
+env "${TEST_ENV[@]}" BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" \
     "$TEST_BIN" --state-count "$N" --reps "$REPS" --diag-compare-cpu "${FLAGS[@]}" > "$OUT" 2>&1
 rc=$?
 for i in $(seq 60); do pgrep -f "$GUARD_RE" > /dev/null || break; sleep 1; done   # it exits at the plugin's clean, or decides at EOF
@@ -64,5 +68,12 @@ if [ -n "$KILL" ]; then   # plan step C10: the plugin died before its fini repor
     exit 0
 fi
 fini_verdict "$OUT" || { echo "STOP: bad fini report (lines above): replug the eGPU before the next run"; exit 1; }
+if [ -n "$OOM_POOL" ]; then   # plan step M1: the refusal is the expected outcome
+    grep -E "out of GPU memory|beagleCreateInstance failed" "$OUT" | cut -c1-240
+    [ $rc -ne 0 ] && grep -q "beagleCreateInstance failed (error -2)" "$OUT" && grep -q "TinyGPU/NV: out of GPU memory: " "$OUT" \
+        || { echo "FAIL (M1): no BEAGLE_ERROR_OUT_OF_MEMORY for a ${OOM_POOL} MiB pool (exit $rc); the teardown was clean"; exit 3; }
+    echo "OK: BEAGLE_ERROR_OUT_OF_MEMORY for a ${OOM_POOL} MiB pool, said; WPR2 is down, the next boot needs no power cycle"
+    exit 0
+fi
 [ $rc -eq 0 ] || { echo "STOP: the test failed (exit $rc); the teardown was clean"; exit 1; }
 echo "OK: PASS; WPR2 is down, the next boot needs no power cycle"
