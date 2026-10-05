@@ -529,6 +529,9 @@ static int runInstances(const std::vector<int>& stateCounts, int instances, bool
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 int main(int argc, char** argv) {
+    // whole lines: where stdout and the plugin's stderr share a file (run_fake_device.sh), a block flush could split a line
+    // the harness greps for ("^per evaluation:") around the plugin's own lines
+    setvbuf(stdout, nullptr, _IOLBF, 0);
     int forceResource = -1;
     // --state-count N: exercise a different (padded) kernel variant. 4 (the
     // default) uses the real DNA dataset + JC69 model below, unchanged; any
@@ -667,7 +670,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < rList->length; ++i) {
         const char* name = rList->list[i].name;
         const char* desc = rList->list[i].description ? rList->list[i].description : "";
-        bool isHybrid = strstr(name, "Hybrid") != nullptr || strstr(desc, "hybrid") != nullptr;
+        bool isHybrid = (rList->list[i].supportFlags & BEAGLE_FLAG_FRAMEWORK_TINYGPU) != 0;   // named after its card
 
         printf("  [%d] %s", i, name);
         if (isHybrid) {

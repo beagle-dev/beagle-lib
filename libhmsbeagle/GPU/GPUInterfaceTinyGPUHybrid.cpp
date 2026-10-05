@@ -33,6 +33,8 @@
 #include <string>
 #include <vector>
 
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -303,13 +305,65 @@ GPUPtr GPUInterface::GetDeviceHostPointer(void* p) { return (GPUPtr)(uintptr_t)p
 
 // ── Device info ───────────────────────────────────────────────────────────────
 
-void GPUInterface::GetDeviceName(int, char* name, int len) {
-    if (isNVIDIA) snprintf(name, len, "TinyGPU-NV-Hybrid");
-    else          snprintf(name, len, "TinyGPU-AMD-Hybrid (%04x:%04x)", g_tgVendorId, g_tgDeviceId);
+// BEAGLE lists its resources before any boot, so the card is asked nothing: its name, and the memory, boost clock and cores
+// (NVIDIA) or compute units (AMD) that the CUDA and OpenCL plugins read from their drivers, come from the card's published
+// specifications, found by its PCI ids. The revision tells cards apart that share a device ID (Navi 31's RX 7900 XT and XTX).
+struct TGCard { uint16_t vendor, device; int revision; const char* name; int memoryMB; double clockGHz; int units; };
+static const TGCard kTGCards[] = {   // revision -1: any
+    {PCI_VENDOR_NVIDIA, 0x2882, -1,   "NVIDIA GeForce RTX 4060",  8192, 2.46, 3072},   // AD107, sm_89
+    {PCI_VENDOR_NVIDIA, 0x2f04, -1,   "NVIDIA GeForce RTX 5070", 12288, 2.51, 6144},   // GB205, sm_120
+    {PCI_VENDOR_AMD,    0x744c, 0xcc, "AMD Radeon RX 7900 XT",   20480, 2.40,   84},   // Navi 31, gfx1100
+};
+
+// The card's PCI revision ID from the IORegistry, macOS's copy of its config space: reading it sends TinyGPU.app nothing, so
+// the enumeration's requests stay those the recordings replay. -1 if no IOPCIDevice there has these vendor and device IDs.
+static int tg_registry_revision(uint16_t vendor, uint16_t device) {
+    io_iterator_t it = 0;
+    if (IOServiceGetMatchingServices(MACH_PORT_NULL, IOServiceMatching("IOPCIDevice"), &it) != KERN_SUCCESS) return -1;
+    auto prop = [](io_object_t s, CFStringRef key) -> long {   // a 32-bit little-endian property, as the registry keeps it
+        long v = -1;
+        CFTypeRef p = IORegistryEntryCreateCFProperty(s, key, kCFAllocatorDefault, 0);
+        if (p && CFGetTypeID(p) == CFDataGetTypeID() && CFDataGetLength((CFDataRef)p) >= 4) {
+            const UInt8* b = CFDataGetBytePtr((CFDataRef)p);
+            v = (long)b[0] | (long)b[1] << 8 | (long)b[2] << 16 | (long)b[3] << 24;
+        }
+        if (p) CFRelease(p);
+        return v;
+    };
+    int revision = -1;
+    for (io_object_t s = 0; revision < 0 && (s = IOIteratorNext(it)); IOObjectRelease(s))
+        if (prop(s, CFSTR("vendor-id")) == vendor && prop(s, CFSTR("device-id")) == device)
+            revision = (int)prop(s, CFSTR("revision-id"));
+    IOObjectRelease(it);
+    return revision;
 }
+
+static const TGCard* tg_card(int& revision) {
+    revision = tg_registry_revision(g_tgVendorId, g_tgDeviceId);
+    for (const TGCard& c : kTGCards)
+        if (c.vendor == g_tgVendorId && c.device == g_tgDeviceId && (c.revision < 0 || c.revision == revision)) return &c;
+    return nullptr;
+}
+
+// As the CUDA plugin names its devices (and the OpenCL plugin, with its version after the name), with the backend after it
+void GPUInterface::GetDeviceName(int, char* name, int len) {
+    int revision;
+    const TGCard* c = tg_card(revision);
+    if (c) snprintf(name, len, "%s (TinyGPU)", c->name);
+    else   snprintf(name, len, "%s GPU %04x:%04x (TinyGPU)",
+                    g_tgVendorId == PCI_VENDOR_NVIDIA ? "NVIDIA" : g_tgVendorId == PCI_VENDOR_AMD ? "AMD" : "Unknown",
+                    g_tgVendorId, g_tgDeviceId);
+}
+// The CUDA plugin's description on NVIDIA, the OpenCL plugin's (compute units) on AMD
 void GPUInterface::GetDeviceDescription(int, char* desc) {
-    if (isNVIDIA) snprintf(desc, 128, "BEAGLE hybrid NV backend via tinygrad + TinyGPU socket");
-    else          snprintf(desc, 128, "BEAGLE hybrid AMD backend via tinygrad + TinyGPU socket");
+    int revision;
+    const TGCard* c = tg_card(revision);
+    if (c) snprintf(desc, 128, "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of %s: %d",
+                    c->memoryMB, c->clockGHz, c->vendor == PCI_VENDOR_NVIDIA ? "cores" : "compute units", c->units);
+    else if (revision >= 0)
+        snprintf(desc, 128, "PCI id %04x:%04x, revision %02x: not in the TinyGPU card table", g_tgVendorId, g_tgDeviceId, revision);
+    else
+        snprintf(desc, 128, "PCI id %04x:%04x: not in the TinyGPU card table", g_tgVendorId, g_tgDeviceId);
 }
 long GPUInterface::GetDeviceTypeFlag(int) { return BEAGLE_FLAG_PROCESSOR_GPU; }
 BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {

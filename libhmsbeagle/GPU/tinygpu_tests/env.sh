@@ -64,7 +64,7 @@ fini_verdict() {
 d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     local got; got=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | xargs)
     [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
-    grep -q "Rsrc Name : TinyGPU-NV-Hybrid" "$1" || { echo "not the TinyGPU resource"; return 1; }
+    grep -qE "Rsrc Name : NVIDIA .*\(TinyGPU\)" "$1" || { echo "not the TinyGPU resource"; return 1; }
     grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin [SD]P_" "$2" || { echo "not the C++ runtime with an embedded cubin"; return 1; }
     ! grep -qE "not launched|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected or a step failed"; return 1; }
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
@@ -75,7 +75,7 @@ d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
 amd_d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     local got; got=$(sed -nE 's/^TinyGPU\/AMD: launch ([A-Za-z0-9_]+) grid=.*/\1/p' "$2" | LC_ALL=C sort -u | xargs)
     [ "$(grep -c "TinyGPU/AMD: C++ boot done" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
-    grep -q "Rsrc Name : TinyGPU-AMD-Hybrid" "$1" || { echo "not the TinyGPU AMD resource"; return 1; }
+    grep -qE "Rsrc Name : AMD .*\(TinyGPU\)" "$1" || { echo "not the TinyGPU AMD resource"; return 1; }
     grep -q "TinyGPU/AMD: C++ runtime: handed over after the C++ boot" "$2" || { echo "the C++ runtime never took over"; return 1; }
     ! grep -qE "TinyGPU/AMD: .*(failed|this instance fails|the GPU is lost)" "$2" || { echo "a step failed or the GPU was lost"; return 1; }
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }

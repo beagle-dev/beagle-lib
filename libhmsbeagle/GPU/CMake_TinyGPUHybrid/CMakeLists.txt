@@ -55,6 +55,8 @@ add_library(hmsbeagle-tinygpu-hybrid SHARED
 
 add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUKernels)
 add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUCubins)
+# the resource's card name and revision from the IORegistry (GPUInterfaceTinyGPUHybrid.cpp, GetDeviceName)
+target_link_libraries(hmsbeagle-tinygpu-hybrid "-framework IOKit" "-framework CoreFoundation")
 if(TINYGPU_COMGR)   # the AMD C++ runtime's ahead-of-time HSACOs (../CMakeLists.txt, TODO.md plan step A1j)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_hsaco.S" PROPERTIES GENERATED TRUE
             OBJECT_DEPENDS "${TINYGPU_HSACOS}")

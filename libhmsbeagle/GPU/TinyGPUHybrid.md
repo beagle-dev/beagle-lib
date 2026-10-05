@@ -56,8 +56,11 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 `BUILD_TINYGPU_HYBRID` (on by default) builds the plugin, `hmsbeagle-tinygpu-hybrid`, and the crash guard,
 `beagle-tinygpu-guard`. Both are installed to the same directory: the plugin looks for the guard next to itself (or at
 `BEAGLE_NV_GUARD`, and `BEAGLE_AMD_GUARD` for an AMD card), and refuses to boot without it. The resource appears in
-`beagleGetResourceList` as `TinyGPU-NV-Hybrid` (`TinyGPU-AMD-Hybrid (1002:744c)` for the AMD card), with
-`BEAGLE_FLAG_FRAMEWORK_TINYGPU`.
+`beagleGetResourceList` with `BEAGLE_FLAG_FRAMEWORK_TINYGPU`, named and described as the CUDA plugin (NVIDIA) and the OpenCL
+plugin (AMD) describe their devices, from the card's published specifications: `NVIDIA GeForce RTX 5070 (TinyGPU)`, with
+`Global memory (MB): 12288 | Clock speed (Ghz): 2.51 | Number of cores: 6144`. The list is made before any boot, so the plugin
+finds the card in a table by its PCI ids (`kTGCards` in `GPUInterfaceTinyGPUHybrid.cpp`; the revision, which tells an RX
+7900 XT from an XTX, from the IORegistry); a card not in it is listed by its PCI ids, as `NVIDIA GPU 10de:2b85 (TinyGPU)`.
 
 ## Running
 
