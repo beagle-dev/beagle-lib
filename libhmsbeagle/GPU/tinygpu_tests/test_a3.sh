@@ -23,6 +23,9 @@
 #     queue off, and the guard holds; the second beagleCreateInstance is refused at once (Initialize does not connect, so
 #     BeagleGPUImpl sees no device: BEAGLE_ERROR_NO_RESOURCE) instead of waiting forever on TinyGPU.app. (Since plan step A5
 #     every other hold comes at exit: the card outlives its instances.)
+#   - the firmware, as on NV (every blob located, or downloaded into BEAGLE's cache, before anything is written to the card):
+#     with none anywhere and downloads off, refused before the boot (nothing written, no guard); with downloads on, the six
+#     blobs downloaded from a file:// copy, then the boot; and the prefetch script's blobs through BEAGLE_TINYGPU_FW.
 # The test exits 1 on the fake (its logL is wrong by design): "exits normally" is a status below 128 that the test's own
 # error handling gave, not the plugin's exit. A guard that holds keeps the fake's connection as it would the eGPU's, so it is
 # ended here (offline only). One PASS or FAIL line per check; exit 0 only if all pass.
@@ -137,6 +140,29 @@ check "a hold, then another instance in the same process: the guard holds, and t
     "normal held && grep -q 'after the C++ boot: MemoryError' $W/held.txt && grep -q '=== cycle 2 of 2' $W/held.txt \
      && grep -q 'the crash guard (pid [0-9]*) holds the eGPU, since an earlier instance' $W/held.txt \
      && grep -q 'Error: No GPU devices' $W/held.txt && grep -q 'beagleCreateInstance failed (error -6)' $W/held.txt && glog held | grep -q 'HOLDING the TinyGPU.app connection' && [ -f $W/held.held ]"
+
+# 9. the firmware, as on NV: every blob located, or downloaded into BEAGLE's cache, before anything is written to the card. An
+#    empty XDG_CACHE_HOME hides BEAGLE's and tinygrad's caches; FW_TREE is a file:// copy of linux-firmware's six gfx1100
+#    blobs, taken from tinygrad's download cache.
+FW_TREE="$W/fw_tree"; mkdir -p "$FW_TREE/amdgpu"
+while read -r name md5; do cp "${XDG_CACHE_HOME:-$HOME/Library/Caches}/tinygrad/downloads/fw/$md5" "$FW_TREE/amdgpu/$name"; done \
+    < <(sed -n '/^namespace fw {/,/^} \/\/ namespace fw/p' "$GPU_DIR/TinyGPUAMDBootTables.h" \
+        | sed -nE 's/^    \{"gfx1100", "[^"]+", "amdgpu", "([^"]+)", "[0-9a-f]{64}", "([0-9a-f]{32})"\},.*/\1 \2/p')
+run fw_missing XDG_CACHE_HOME="$W/cache_empty"
+check "no firmware anywhere and downloads off: refused before the boot, nothing written to the card and no guard; beagleCreateInstance returns an error" \
+    "normal fw_missing && grep -q 'TinyGPU/AMD: not booting: nothing was written to the GPU' $W/fw_missing.txt \
+     && grep -q 'beagleCreateInstance failed (error -1)' $W/fw_missing.txt && ! grep -qE 'client done: .*\"cmd (2|4|7)\"' $W/fw_missing.dev \
+     && ! glog fw_missing | grep -q 'guard [0-9]*:' && verdict fw_missing | grep -q 'NO ERRORS'"
+run fw_download XDG_CACHE_HOME="$W/cache_dl" BEAGLE_TINYGPU_NO_DOWNLOAD=0 BEAGLE_TINYGPU_FW_BASE_URL="file://$FW_TREE"
+check "no firmware, downloads on: the six blobs downloaded into BEAGLE's cache before the boot, then the boot and the run, the card finalized (NO ERRORS)" \
+    "normal fw_download && [ \"\$(grep -c 'TinyGPU: downloading AMD firmware amdgpu/' $W/fw_download.txt)\" -eq 6 ] \
+     && [ \"\$(ls $W/cache_dl/beagle/firmware/amdgpu | wc -l | tr -d ' ')\" -eq 6 ] && grep -q 'C++ boot done' $W/fw_download.txt \
+     && glog fw_download | grep -q '$CLEAN' && verdict fw_download | grep -q 'NO ERRORS'"
+TINYGPU_FW_BASE_URL="file://$FW_TREE" "$GPU_DIR/tinygpu_fetch_firmware.sh" --chip gfx1100 "$W/fw_dir" > "$W/fw_script.txt" 2>&1
+run fw_prefetched XDG_CACHE_HOME="$W/cache_empty2" BEAGLE_TINYGPU_FW="$W/fw_dir"
+check "the prefetch script's gfx1100 blobs (BEAGLE_TINYGPU_FW), with no cache and downloads off: the boot and the run, nothing downloaded (NO ERRORS)" \
+    "[ \"\$(grep -c '^fetched: ' $W/fw_script.txt)\" -eq 6 ] && normal fw_prefetched && ! grep -q 'downloading' $W/fw_prefetched.txt \
+     && grep -q 'C++ boot done' $W/fw_prefetched.txt && glog fw_prefetched | grep -q '$CLEAN' && verdict fw_prefetched | grep -q 'NO ERRORS'"
 
 left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
 check "no fake or guard is left running" "[ $left -eq 0 ]"

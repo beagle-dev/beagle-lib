@@ -39,10 +39,13 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
   looks in `BEAGLE_TINYGPU_FW`, an installed `share/beagle/firmware`, its own cache (`~/Library/Caches/beagle/firmware`)
   and tinygrad's download cache (`~/Library/Caches/tinygrad/downloads/fw`). A file in none of them is downloaded from the
   pinned URL with `/usr/bin/curl` into BEAGLE's cache before anything is written to the GPU. Every file's sha256 is checked
-  against `TinyGPUFirmwareManifest.h`. To fetch by hand (or for a Mac without the network):
-  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
-- For an AMD card, AMD's firmware (the six gfx1100 blobs, from the same linux-firmware pin), located, downloaded if missing
-  and checked the same way.
+  against `TinyGPUFirmwareManifest.h`.
+- For an AMD card, AMD's firmware (the six gfx1100 blobs, from the same linux-firmware pin, listed in
+  `TinyGPUAMDBootTables.h`), the same way: located, or downloaded into BEAGLE's cache before anything is written to the GPU,
+  every file checked. A blob that cannot be had stops the boot before it starts: `not booting: nothing was written to the
+  GPU`.
+- To fetch either vendor's by hand (for debugging, or a Mac without the network):
+  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202|gfx1100] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
   `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses

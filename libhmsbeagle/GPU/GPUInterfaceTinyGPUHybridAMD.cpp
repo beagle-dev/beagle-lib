@@ -384,6 +384,18 @@ static void amdCppBootFini(AMDHybridState* g) {
 // of the first instance's variant for this card before any queue goes live. Null if the boot failed; once it succeeded, a
 // later failure finalizes the GPU. The crash guard (plan step A2k) keeps the GPU from before the boot's first request: it has
 // the AMDev's fini state before any queue is set up, and the state page says dispatch from just before the first one.
+// Every firmware file the card's boot reads (TinyGPUAMDBootTables.h's manifest), located, or downloaded into BEAGLE's cache
+// (TinyGPUFirmware.h), before anything is written to the GPU, as NV's nv_fw_prefetch does: a file that cannot be had stops
+// the boot before it starts rather than in its middle. "" or why not.
+static std::string amd_fw_prefetch() {
+    for (const nvfw::TGFirmware& f : am::fw::kFirmware) {
+        TGFirmwareFile file;
+        const std::string err = tg_fw_locate(f, file);
+        if (!err.empty()) return err;
+    }
+    return "";
+}
+
 static AMDHybridState* amdCppBootSetup(const std::string& variant) {
     auto t0 = amd_profile_start();
     TGTransport& tg = tg_transport();
@@ -568,9 +580,11 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     AMDInstance* in = (AMDInstance*)self->amdInstance;
     if (!in) {   // the first: it boots the card
         self->amdInstance = in = new AMDInstance;
-        g_amd = amdCppBootSetup(variant);
+        const std::string fw = amd_fw_prefetch();
+        if (!fw.empty()) fprintf(stderr, "%s\nTinyGPU/AMD: not booting: nothing was written to the GPU\n", fw.c_str());
+        g_amd = fw.empty() ? amdCppBootSetup(variant) : nullptr;
         if (!g_amd) {
-            in->oom = g_amdSetupOOM;
+            in->oom = fw.empty() && g_amdSetupOOM;
             fprintf(stderr, "TinyGPU/AMD: the GPU's setup failed (above); this instance fails\n");
         } else {
             self->tgpuSock = -1;   // plan step A5: the card's connection now, which outlives this instance
