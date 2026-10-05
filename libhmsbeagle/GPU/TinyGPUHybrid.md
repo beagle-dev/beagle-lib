@@ -49,7 +49,7 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
   `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses
-  AMD cards. Nothing is compiled at run time.
+  AMD cards. Nothing is compiled at run time. Step by step on a clean Mac: [TinyGPUHybridBuild.md](TinyGPUHybridBuild.md).
 
 ## Building and installing
 
