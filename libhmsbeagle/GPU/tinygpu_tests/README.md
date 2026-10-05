@@ -16,8 +16,8 @@ Background and plan: TODO.md `## Runtime roadmap` and `## Plan (2026-09-24)`; ST
 - The pinned tinygrad at `TINYGRAD_PATH` (default `~/Dropbox/Projects/tinygrad-hcq1`, commit a9830e2b4).
 - A Python with tinygrad's dependencies at `BEAGLE_PYTHON` (default `~/Dropbox/Projects/tinygrad/venv/bin/python`).
 - `clang++` (or `CXX`).
-- Cached cubins in `$BEAGLE_TINYGPU_DATA/cubins` (default `~/.beagle/tinygpu`): the reference for the 27 the plugin
-  embeds. A missing cubin is compiled once with `nv_compile_helper.compile_ptx`, which runs ptxas (through Docker on
+- Cached cubins in `$BEAGLE_TINYGPU_DATA/cubins` (default `~/.beagle/tinygpu`): the reference for the 54 the plugin
+  embeds (single and double precision). A missing cubin is compiled once with `nv_compile_helper.compile_ptx`, which runs ptxas (through Docker on
   this Mac, about 0.6 s each).
 
 ## Running
@@ -54,7 +54,7 @@ Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGP
 | File | What it checks |
 |---|---|
 | `oracle/` | plan steps C13b and A2l: `nv_dispatch_daemon.py`, `nv_init_helper.py` and `nv_compile_helper.py`, and `amd_dispatch_daemon.py`, `amd_compile_helper.py` and `amd_hcq_patch.py`, moved unchanged from `libhmsbeagle/GPU`: tinygrad plus BEAGLE's patches, which the goldens import (`tgpaths.setup()`). Not installed and off the run path: the plugin boots Ada, Blackwell and the RX 7900 XT itself and refuses any other. Since plan step C13c nothing runs the NV daemon (its command loop, the levels' commands included, stays as the reference it was); the AMD daemon runs only in the harness, as the oracle (`amd_daemon_session.py`, `run_amd_l0.sh`) |
-| `golden_program.py/.cpp` | `TinyGPUHybridNVProgram.h` (ELF loader, program records, relocated image) against real `BeagleNVProgram` objects, for the 9 SP modules on sm_86, sm_89 and sm_120 (the 27 cubins the plugin embeds) |
+| `golden_program.py/.cpp` | `TinyGPUHybridNVProgram.h` (ELF loader, program records, relocated image) against real `BeagleNVProgram` objects, for the 9 SP modules on sm_86, sm_89 and sm_120 (the single-precision 27 of the 54 cubins the plugin embeds) |
 | `test_c1_cubins.py` + `golden_cubins.cpp` | plan step C1: the embedded cubins, linked from the generated `.S` as the plugin links them: the table is the 9 SP modules × sm_86, sm_89, sm_120, each cubin byte-identical to `nv_compile_helper.compile_ptx` of the plugin's PTX (the daemon's compile_all), with kernel names equal to nv_compile_helper's; `TinyGPUHybridNVCubins.h`'s selection of every entry and its refusals (DP, a state count, an architecture, an entry holding another architecture's cubin); `nvd_elf_sm` against the cached cubins' file names; the build's ptxas is compile_all's; the real daemon's C++ runtime handoff right after boot (elf_size 0, no ELF); the real `cmd_boot` never selects tinygrad's renderer (on macOS that starts tinygrad's Docker compile server) and `cmd_compile_all` checks it, refusing NAK |
 | `check_upload.py` | after a fake-device run with `FAKE_COPY_LOG` (`test_c13.sh`: 4 and 64 states on both fakes, and P5's instances): the plugin loaded the module the harness ran (state count and architecture), and the program image it uploaded (the copy-engine copies to its `lib_va`) equals `BeagleNVProgram`'s relocation of the compile_ptx cubin of that module's PTX; with several instances (plan step P5), a comma list checks each instance's cubin and image in load order |
 | `golden_runtime.py/.cpp` | the C++ runtime pieces: boot-only handoff parsing, table cross-check, local-memory sizing and setup words (`_ensure_has_local_memory`), a second instance's local memory on the same GPU (plan step P5: a setup only when it needs more, as tinygrad's per-program growth), pool placement (`PCIIfaceBase.alloc` + `alloc_vaddr`) |

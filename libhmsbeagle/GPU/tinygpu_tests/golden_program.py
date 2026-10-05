@@ -1,8 +1,8 @@
 """Golden test for TinyGPUHybridNVProgram.h: the real BeagleNVProgram (nv_dispatch_daemon.py: tinygrad's
 NVProgram.__init__ plus BEAGLE's multi-kernel fixes) and the C++ port load the same real cubins (ptxas: the 9 SP
-modules for sm_86, sm_89 and sm_120, the 27 the plugin embeds). Their per-kernel records, in build_handoff's
-format (QMD template, cbuf0 prefix, kernargs layout), and the relocated image must be byte-identical. Both use
-slm_per_thread = the running max over all kernels."""
+modules for sm_86, sm_89 and sm_120, the single-precision 27 of the 54 the plugin embeds). Their per-kernel records,
+in build_handoff's format (QMD template, cbuf0 prefix, kernargs layout), and the relocated image must be
+byte-identical. Both use slm_per_thread = the running max over all kernels."""
 import os, sys, types, itertools, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths

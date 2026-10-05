@@ -88,7 +88,7 @@ hw_begin() {
     local v
     # the plugin's knobs, and the harness's (plan V1's markers and fakes, the log, C10's test kill, run_point.sh --kill, and the
     # guard's path); since plan step C13c no Python runs, so tinygrad's own variables change nothing
-    for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_DATA_MB APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_TEST_BIN BEAGLE_NV_FILL_LAUNCH_DIMS \
+    for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_RECOVER BEAGLE_NV_DATA_MB APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_TEST_BIN BEAGLE_NV_FILL_LAUNCH_DIMS \
              BEAGLE_TG_MARKERS BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
