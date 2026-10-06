@@ -1,8 +1,11 @@
 """Firmware staging check (TODO.md plan step S0): the NVIDIA firmware BEAGLE needs beyond what tinygrad's boot already
 downloads, and the Blackwell boot's own firmware (plan step B1: staged so no boot downloads inside the daemon, decision 5),
 is in tinygrad's download cache, so tinygrad's own fetch_fw returns it with the network off. Re-stages a
-missing or corrupt cache entry from $BEAGLE_TINYGPU_DATA/fw (macOS may purge ~/Library/Caches). Exit 0 on success."""
-import os, sys, hashlib, pathlib, urllib.request
+missing or corrupt cache entry from $BEAGLE_TINYGPU_DATA/fw (macOS may purge ~/Library/Caches). Then every file of
+TinyGPUFirmwareManifest.h and TinyGPUAMDBootTables.h's fw table is in BEAGLE's cache, where the C++ boots look for it
+(TinyGPUFirmware.h, which does not search tinygrad's cache since 2026-10-05): a missing or corrupt one is copied from
+tinygrad's cache through fetch_fw, network off. Exit 0 on success."""
+import os, re, sys, hashlib, pathlib, urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -41,4 +44,22 @@ for subdir, name, digest in FIRMWARE:
         ok &= sha(b) == digest
     except Exception as e:
         print(f"fetch_fw {subdir}/{name}: FAILED ({e})"); ok = False
+
+row = re.compile(r'^    \{"[^"]+", "[^"]+", "([^"]+)", "([^"]+)", "([0-9a-f]{64})", "[0-9a-f]{32}"\},')
+text = (tgpaths.GPU_DIR / "TinyGPUFirmwareManifest.h").read_text() \
+    + (tgpaths.GPU_DIR / "TinyGPUAMDBootTables.h").read_text().split("namespace fw {")[1].split("} // namespace fw")[0]
+beagle_cache = pathlib.Path(os.environ.get("XDG_CACHE_HOME", pathlib.Path.home() / "Library/Caches")) / "beagle" / "firmware"
+files = sorted({m.groups() for m in map(row.match, text.splitlines()) if m})   # gsp-570.144.bin serves every NVIDIA chip
+for subdir, name, digest in files:
+    dest = beagle_cache / subdir / name
+    if dest.is_file() and sha(dest.read_bytes()) == digest: continue
+    try: b = helpers.fetch_fw(subdir, name, digest)
+    except Exception as e:
+        print(f"MISSING {subdir}/{name}: not in BEAGLE's cache {dest}, and fetch_fw failed ({e})"); ok = False; continue
+    if sha(b) != digest: print(f"MISSING {subdir}/{name}: fetch_fw returned sha256 {sha(b)}, not {digest}"); ok = False; continue
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(f"{name}.part.{os.getpid()}")
+    tmp.write_bytes(b); tmp.replace(dest)
+    print(f"staged {subdir}/{name} into {dest} (from tinygrad's cache)")
+print(f"BEAGLE's cache {beagle_cache}: {len(files)} files checked")
 sys.exit(0 if ok else 1)

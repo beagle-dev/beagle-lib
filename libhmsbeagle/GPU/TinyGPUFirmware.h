@@ -2,17 +2,16 @@
  * TinyGPUFirmware.h
  *
  * TODO.md plan step C4: finds the NVIDIA firmware a C++ boot needs (TinyGPUFirmwareManifest.h) and checks it the way
- * tinygrad's fetch does before it uses a cached file (helpers.py:469-474: the file exists and its sha256 matches). Four
+ * tinygrad's fetch does before it uses a cached file (helpers.py:469-474: the file exists and its sha256 matches). Three
  * places, in order:
  *   1. $BEAGLE_TINYGPU_FW/<subdir>/<name>
  *   2. <the directory holding this code>/../share/beagle/firmware/<subdir>/<name> (an installed plugin's share/)
  *   3. BEAGLE's download cache, ${XDG_CACHE_HOME:-~/Library/Caches}/beagle/firmware/<subdir>/<name>
- *   4. tinygrad's download cache, where its fetch_fw leaves the file: ${XDG_CACHE_HOME:-~/Library/Caches}/tinygrad/
- *      downloads/fw/<md5(url)> (helpers.py:396, 454-472)
- * The file is mapped read-only (the GSP image is 63.5 MB) and its SHA-256 computed with CommonCrypto before it is
- * returned. When no place has it, it is downloaded (since 2026-10-01, the user's request; plan decision 5 had kept BEAGLE
- * off the network) from the manifest's pinned linux-firmware URL, as fetch_fw would, by /usr/bin/curl into a temporary
- * file in BEAGLE's cache, which is renamed into place only once its SHA-256 matches. The NV boot fetches its chip
+ * tinygrad's download cache (${XDG_CACHE_HOME:-~/Library/Caches}/tinygrad/downloads/fw/<md5(url)>) is not searched (since
+ * 2026-10-05, the user's request). The file is mapped read-only (the GSP image is 63.5 MB) and its SHA-256 computed with
+ * CommonCrypto before it is returned. When no place has it, it is downloaded (since 2026-10-01, the user's request; plan
+ * decision 5 had kept BEAGLE off the network) from the manifest's pinned linux-firmware URL, as fetch_fw would, by
+ * /usr/bin/curl into a temporary file in BEAGLE's cache, which is renamed into place only once its SHA-256 matches. The NV boot fetches its chip
  * family's files this way before it writes anything to the GPU (GPUInterfaceTinyGPUHybridNV.cpp nv_fw_prefetch).
  * BEAGLE_TINYGPU_NO_DOWNLOAD=1 turns downloading off (the offline tests set it), and BEAGLE_TINYGPU_FW_BASE_URL replaces
  * the linux-firmware URL (a mirror, or a file:// copy for the tests). Without the file, the error says what each place
@@ -131,11 +130,6 @@ inline std::string tg_fw_cache_root() {   // ${XDG_CACHE_HOME:-~/Library/Caches}
     return xdg ? xdg : std::string(home ? home : "") + "/Library/Caches";
 }
 
-// tinygrad's cache_dir/downloads/fw (helpers.py:396, 454-472, fetch_fw's subdir "fw"); not the tinybox /raid path
-inline std::string tg_fw_tinygrad_cache(const nvfw::TGFirmware& fw) {
-    return tg_fw_cache_root() + "/tinygrad/downloads/fw/" + fw.url_md5;
-}
-
 // BEAGLE's own download cache
 inline std::string tg_fw_beagle_cache(const nvfw::TGFirmware& fw) {
     return tg_fw_cache_root() + "/beagle/firmware/" + fw.subdir + "/" + fw.name;
@@ -157,7 +151,6 @@ inline std::vector<std::pair<std::string, std::string>> tg_fw_candidates(const n
     }
     out.push_back({"share/beagle/firmware", share});
     out.push_back({"BEAGLE's download cache", tg_fw_beagle_cache(fw)});
-    out.push_back({"tinygrad's download cache", tg_fw_tinygrad_cache(fw)});
     return out;
 }
 
@@ -230,10 +223,10 @@ inline std::string tg_fw_locate(const nvfw::TGFirmware& fw, TGFirmwareFile& out)
         dl = "the downloaded file: " + why;
     }
     report += "  the download: " + dl + "\n";
-    const std::string dest = tg_fw_tinygrad_cache(fw), url = tg_fw_url(fw);
+    const std::string dest = tg_fw_beagle_cache(fw), url = tg_fw_url(fw);
     return "TinyGPU: " + std::string(tg_fw_vendor(fw)) + " firmware " + std::string(fw.subdir) + "/" + fw.name + " (sha256 " + fw.sha256 +
            ") is missing or damaged:\n" +
-           report + "To fetch it by hand where tinygrad keeps it:\n" +
+           report + "To fetch it by hand into BEAGLE's cache:\n" +
            "  mkdir -p '" + dest.substr(0, dest.find_last_of('/')) + "' && curl -fL -o '" + dest + "' '" + url + "' && shasum -a 256 '" +
            dest + "'\n  (shasum must print " + fw.sha256 + "), or run libhmsbeagle/GPU/tinygpu_fetch_firmware.sh DIR and set "
            "BEAGLE_TINYGPU_FW=DIR.";

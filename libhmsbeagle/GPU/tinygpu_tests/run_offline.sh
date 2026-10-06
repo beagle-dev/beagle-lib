@@ -1,14 +1,18 @@
 #!/bin/bash
-# Everything that can be checked without the eGPU: the goldens (each C++ port against the tinygrad code it follows, in
-# tinygpu_tests/oracle), the C++ TinyGPU.app client, then the plugin end to end on fake_nv_device.py, which it boots itself as it
-# boots the eGPU (plan steps C11-C13): plan step V1's record/replay tools and the hardware recordings, the fake GB205, the crash
-# guard, the library's error returns, the uploads, D1's kernels, several instances in one process, the routing, the failures and
-# the kills; the AMD runtime, boot, V1 tools and crash guard on fake_amd_device.py; the firmware staging; then the no-launch
-# guard (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid, beagle-tinygpu-guard, tinygpuhybridtest, synthetictest and hmctest first.
+# Everything that can be checked without the eGPU: the firmware staging, the goldens (each C++ port against the tinygrad code it
+# follows, in tinygpu_tests/oracle), the C++ TinyGPU.app client, then the plugin end to end on fake_nv_device.py, which it boots
+# itself as it boots the eGPU (plan steps C11-C13): plan step V1's record/replay tools and the hardware recordings, the fake GB205,
+# the crash guard, the library's error returns, the uploads, D1's kernels, several instances in one process, the routing, the
+# failures and the kills; the AMD runtime, boot, V1 tools and crash guard on fake_amd_device.py; then the no-launch guard
+# (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid, beagle-tinygpu-guard, tinygpuhybridtest, synthetictest and hmctest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
 unset FAKE_TEST_BIN       # every run below is tinygpuhybridtest's unless it names another binary itself
 results=()
+# first, the firmware the C++ boots below read from BEAGLE's cache (downloads are off in every test)
+"$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
+rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
+results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
 "$TG_TESTS/run_goldens.sh"; results+=("goldens: $([ $? -eq 0 ] && echo PASS || echo FAIL)")
 # plan step C3: the C++ TinyGPU.app client against TinyGPU's real server.c on an IOKit stub (its limits, error replies,
 # sysmem, a lost server, the lock), the socket path and the TinyGPU.app check
@@ -71,9 +75,6 @@ results+=("FreeMemory on both pools (C14): $([ $? -eq 0 ] && echo PASS || echo "
 # plan step P4: a warm GPU torn down at boot, the default (the fake AD107 suspended, halted or running; the refusals)
 "$TG_TESTS/test_p4.sh" > "$TINYGPU_TEST_WORK/test_p4.log" 2>&1
 results+=("warm-GPU recovery at boot (P4): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_p4.log)")")
-"$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1
-rc=$?; cat "$TINYGPU_TEST_WORK/check_firmware.log"
-results+=("firmware staging: $([ $rc -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/check_firmware.log)")")
 
 # no-launch guard: point the plugin at a socket nobody listens on
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX")

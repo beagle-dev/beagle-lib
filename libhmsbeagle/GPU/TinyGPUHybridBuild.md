@@ -131,6 +131,15 @@ before anything is written to the GPU, BEAGLE downloads any missing file with `/
 `~/Library/Caches/beagle/firmware` and checks every file's sha256. A file that cannot be had stops the boot before it starts.
 `BEAGLE_TINYGPU_NO_DOWNLOAD=1` forbids the download.
 
+BEAGLE looks for each file in three places, in order, and uses the first copy whose sha256 matches:
+
+1. `$BEAGLE_TINYGPU_FW/<subdir>/<name>`, if `BEAGLE_TINYGPU_FW` is set
+2. `<plugin directory>/../share/beagle/firmware/<subdir>/<name>`, an installed plugin's `share/`
+3. BEAGLE's cache, `${XDG_CACHE_HOME:-~/Library/Caches}/beagle/firmware/<subdir>/<name>`, where downloads go
+
+`<subdir>` is `nvidia/<chip>/gsp` or `amdgpu`. tinygrad's download cache (`~/Library/Caches/tinygrad/downloads/fw`) is not
+searched, so firmware that tinygrad has already downloaded is not reused: BEAGLE downloads its own copy on first use.
+
 For debugging, or for a Mac without the network, the prefetch script fetches either vendor's firmware into a directory. Run
 it from BEAGLE's source tree (step 6) on a Mac with the network, and copy the directory over if needed:
 

@@ -36,8 +36,8 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 - TinyGPU.app release `c0d024f9`, installed in `/Applications` and its system extension approved. BEAGLE checks both
   binaries' sha256 and refuses any other release, with the install instructions. BEAGLE never installs the app.
 - NVIDIA's firmware, from linux-firmware at tinygrad's pin (GSP-RM 570.144, the booters, and on GB20x the FMC). BEAGLE
-  looks in `BEAGLE_TINYGPU_FW`, an installed `share/beagle/firmware`, its own cache (`~/Library/Caches/beagle/firmware`)
-  and tinygrad's download cache (`~/Library/Caches/tinygrad/downloads/fw`). A file in none of them is downloaded from the
+  looks in `BEAGLE_TINYGPU_FW`, an installed `share/beagle/firmware` and its own cache (`~/Library/Caches/beagle/firmware`),
+  in that order, and not in tinygrad's download cache. A file in none of them is downloaded from the
   pinned URL with `/usr/bin/curl` into BEAGLE's cache before anything is written to the GPU. Every file's sha256 is checked
   against `TinyGPUFirmwareManifest.h`.
 - For an AMD card, AMD's firmware (the six gfx1100 blobs, from the same linux-firmware pin, listed in

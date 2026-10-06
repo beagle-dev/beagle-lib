@@ -92,8 +92,8 @@ hw_begin() {
              BEAGLE_TG_MARKERS BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
-    # the firmware is staged where the boot looks for it (decision 5; macOS may purge tinygrad's cache): offline, re-staging
-    # from $BEAGLE_TINYGPU_DATA/fw if needed
+    # the firmware is staged where the boot looks for it, BEAGLE's cache (decision 5; macOS may purge ~/Library/Caches): offline,
+    # re-staging from tinygrad's cache and $BEAGLE_TINYGPU_DATA/fw if needed
     "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware_hw.log" 2>&1 \
         || { cat "$TINYGPU_TEST_WORK/check_firmware_hw.log"; echo "firmware not staged (check_firmware.py failed); not running"; exit 2; }
     # the one allowed knob: plan step B1's fallback unload (LEVEL_0 when 0), announced so the run's output says so
