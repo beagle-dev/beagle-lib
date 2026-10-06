@@ -6,7 +6,7 @@ amd_compile_helper.py — BEAGLE hybrid AMD backend: compile all kernels once.
 
 Mirrors nv_compile_helper.py's "_all" precompile-once path exactly (see that
 file's main()/_main_impl `kernel_name == "_all"` branch and
-GPUInterfaceTinyGPUHybrid.cpp's precompile_all_kernels()): one call compiles
+GPUInterfaceTinyGPU.cpp's precompile_all_kernels()): one call compiles
 every kernel in kernelResource->kernelCode (BEAGLE's existing FW_OPENCL
 source — reused unmodified, see the plan's compiler-backend decision) into
 one shared code image, and result.jsonl's line 0 is that image (code_b64)
@@ -141,7 +141,7 @@ def compile_opencl(comgr, C, src: str, arch: str) -> bytes:
 def compile_hip(src: str, arch: str) -> bytes:
     """
     Compile BEAGLE's kernel source via HIP language instead of OpenCL --
-    see GPUImplDefs.h's FW_TINYGPU_HYBRID_AMD branch and STATUS.md AMD §18
+    see GPUImplDefs.h's FW_TINYGPU_AMD branch and STATUS.md AMD §18
     for why: OpenCL's get_global_id() pulls in dispatch_ptr/queue_ptr/
     dispatch_id sgprs and heavy scratch usage this remote transport can't
     drive correctly, while HIP's group/local-id builtins read hardware-
@@ -157,10 +157,10 @@ def compile_hip(src: str, arch: str) -> bytes:
     flags, but tinygrad's compile_hip() doesn't take extra compiler options
     as a parameter).
 
-    Also defines FW_OPENCL alongside FW_TINYGPU_HYBRID_AMD, mirroring how
+    Also defines FW_OPENCL alongside FW_TINYGPU_AMD, mirroring how
     make_tinygpu_kernels.sh compiles the NV TinyGPU path with -DCUDA
     -DFW_TINYGPU together: GPUImplDefs.h's KW_* selection checks
-    FW_TINYGPU_HYBRID_AMD first so it still wins there, but several
+    FW_TINYGPU_AMD first so it still wins there, but several
     interface-level choices live outside that chain, gated directly on
     #ifdef CUDA / #elif defined(FW_OPENCL) in kernelsAll.cu/kernels4.cu
     (e.g. kernelMatrixMulADBFirstDeriv's distanceRate/distanceLength locals
@@ -170,7 +170,7 @@ def compile_hip(src: str, arch: str) -> bytes:
     with "undeclared identifier 'distanceRate'" etc.
     """
     from tinygrad.runtime.support.compiler_amd import compile_hip as _tinygrad_compile_hip
-    prefixed = "#define FW_TINYGPU_HYBRID_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n" + src
+    prefixed = "#define FW_TINYGPU_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n" + src
     return _tinygrad_compile_hip(prefixed, arch)
 
 
@@ -263,7 +263,7 @@ def _main_impl(cl_file, handoff_f, result_f):
         # work-item builtin (get_global_id/get_local_id/...), which is
         # essentially always for this kind of kernel (confirmed empirically
         # this session -- even a one-line get_global_id(0) kernel sets it) --
-        # GPUInterfaceTinyGPUHybridAMD.cpp implements this: an extra 64-byte
+        # GPUInterfaceTinyGPUAMD.cpp implements this: an extra 64-byte
         # hsa_kernel_dispatch_packet_t is appended after the kernel's own
         # kernarg_size and its VA is passed via user_data. This backend does
         # NOT implement enable_private_segment_sgpr (an older/legacy
@@ -274,7 +274,7 @@ def _main_impl(cl_file, handoff_f, result_f):
         enable_dispatch_ptr = bool(desc.kernel_code_properties & hsa.AMD_KERNEL_CODE_PROPERTIES_ENABLE_SGPR_DISPATCH_PTR)
         if enable_private_segment_sgpr:
             raise RuntimeError(f"kernel {kname} needs enable_private_segment_sgpr -- not "
-                                f"implemented in GPUInterfaceTinyGPUHybridAMD.cpp's LaunchKernelImpl")
+                                f"implemented in GPUInterfaceTinyGPUAMD.cpp's LaunchKernelImpl")
 
         max_private = max(max_private, private_segment_size)
         entries[kname] = dict(entry_offset=kd_addr + desc.kernel_code_entry_byte_offset,

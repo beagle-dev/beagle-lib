@@ -1,4 +1,4 @@
-"""Golden test for TODO.md plan step C8's C++ half against the code it ports: nv_gsp_init_hw (TinyGPUHybridNVRM.h) is
+"""Golden test for TODO.md plan step C8's C++ half against the code it ports: nv_gsp_init_hw (TinyGPUNVRM.h) is
 tinygrad's NV_GSP.init_hw (ip.py:510-520) with nv_init_helper's patch 3 (the 20 s sleep after SEC2's start, while init_hw
 runs) and init_golden_image (:468-508), on C5's GSP queues and CPU sequencer and C6's memory manager, with page_tables
 (TinyGPUMemory.h, memory.py:204-206). One fake TinyGPU.app: golden_mm.py's (BAR1 VRAM, tinygrad's memory manager after a
@@ -162,13 +162,13 @@ def run_case(case, exe, priv, saved_sleep, quiet=False):
     return same, summary
 
 # a perturbed copy of the port must be caught
-PERTURBED = [("TinyGPUHybridNVRM.h", 'rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).write({{"mode", 0}, {"target", 0}, {"ptr", 0}});',
+PERTURBED = [("TinyGPUNVRM.h", 'rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).write({{"mode", 0}, {"target", 0}, {"ptr", 0}});',
               'rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).write({{"mode", 1}, {"target", 0}, {"ptr", 0}});'),
-             ("TinyGPUHybridNVRM.h", "cfgs_sizes[x] = ctx_info(x + 14, 0, x == 5 ? (2 << 20) : 0);", "cfgs_sizes[x] = ctx_info(x + 14, 0, 0);"),
-             ("TinyGPUHybridNVRM.h", "l.size = i == 0 ? mm.pte_cnt[0] * 8 : 0x1000;", "l.size = 0x1000;"),
-             ("TinyGPUHybridNVRM.h", "rl[di.entries[i].engineData[2]] = di.entries[i].engineData[3];",
+             ("TinyGPUNVRM.h", "cfgs_sizes[x] = ctx_info(x + 14, 0, x == 5 ? (2 << 20) : 0);", "cfgs_sizes[x] = ctx_info(x + 14, 0, 0);"),
+             ("TinyGPUNVRM.h", "l.size = i == 0 ? mm.pte_cnt[0] * 8 : 0x1000;", "l.size = 0x1000;"),
+             ("TinyGPUNVRM.h", "rl[di.entries[i].engineData[2]] = di.entries[i].engineData[3];",
               "rl.emplace(di.entries[i].engineData[2], di.entries[i].engineData[3]);"),
-             ("TinyGPUHybridNVRM.h", "explicit InGspInit(NVFalcon& f) : flcn(f) { flcn.sleep_after_sec2_start = true; }",
+             ("TinyGPUNVRM.h", "explicit InGspInit(NVFalcon& f) : flcn(f) { flcn.sleep_after_sec2_start = true; }",
               "explicit InGspInit(NVFalcon& f) : flcn(f) {}"),
              ("TinyGPUMemory.h", "const uint64_t paddr = 0;\n        ctx.next(", "const uint64_t paddr = 0x1000;\n        ctx.next(")]
 
@@ -189,7 +189,7 @@ def main():
         gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
         for hdr, old, new in PERTURBED:
             inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            for f in ("TinyGPUHybridNVRM.h", "TinyGPUMemory.h"):
+            for f in ("TinyGPUNVRM.h", "TinyGPUMemory.h"):
                 text = (gpu / f).read_text()
                 if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
                 open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)

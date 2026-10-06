@@ -1,6 +1,6 @@
 """Golden test for the AMD handoff (TODO.md plan step A1e): amd_dispatch_daemon.py's own cmd_handoff runs on a stub AMDDevice
 (its queues, timeline, kernargs and sysmem as real files with fds, as BeagleTinyGPUDevice keeps them), and
-golden_amd_handoff.cpp parses the reply with TinyGPUHybridAMDRuntime.h and attaches the fds. Every field must reach the C++
+golden_amd_handoff.cpp parses the reply with TinyGPUAMDRuntime.h and attaches the fds. Every field must reach the C++
 side, and every object the C++ side reads or writes through the mappings (each ring's first dword, the read and write
 pointers, both timeline signals, kernargs, staging) must be the stub's own. The registers are this card's: tinygrad's
 register tables at the bases of its captured discovery table (STATUS.md R64-R65), so the C++ checks that they are inside

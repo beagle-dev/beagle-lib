@@ -12,10 +12,10 @@ attempts ever drove. This script stops hand-deriving the PM4 stream
 entirely and drives dispatch through tinygrad's real AMDProgram/
 HCQProgram.__call__ code instead.
 
-Architecture change from amd_init_helper.py/GPUInterfaceTinyGPUHybridAMD.cpp:
+Architecture change from amd_init_helper.py/GPUInterfaceTinyGPUAMD.cpp:
 Python now stays resident and handles EVERY GPU operation (compile, alloc,
 memcpy, launch, sync), not just bring-up — the C++ side
-(GPUInterfaceTinyGPUHybridAMD.cpp) becomes a thin RPC client. This trades
+(GPUInterfaceTinyGPUAMD.cpp) becomes a thin RPC client. This trades
 some per-call IPC overhead for using only code this session has verified
 actually works on this hardware.
 
@@ -31,7 +31,7 @@ bytes).
 Kernel launches are batched (cmd_launch_batch, STATUS.md AMD §26): profiling
 (BEAGLE_AMD_PROFILE=1) found steady-state per-launch RPC overhead (~150-190us)
 comparable to or larger than the actual GPU dispatch work (~100us).
-GPUInterfaceTinyGPUHybridAMD.cpp queues launches instead of sending each as
+GPUInterfaceTinyGPUAMD.cpp queues launches instead of sending each as
 its own round-trip, and flushes the queue (one batched RPC call) before any
 h2d/d2h/sync/fini. This is safe without any extra synchronization on either
 side: launches here only enqueue PM4 packets into the ring and never block
@@ -68,7 +68,7 @@ def log(msg):
 
 
 # Opt-in per-command timing (BEAGLE_AMD_PROFILE=1), matching the C++ side's
-# round-trip profiling (GPUInterfaceTinyGPUHybridAMD.cpp) -- breaks down how
+# round-trip profiling (GPUInterfaceTinyGPUAMD.cpp) -- breaks down how
 # much of that round-trip is real GPU work (the dispatch/sync/copy call
 # itself) vs. JSON parsing and Python/socket overhead. See the user's own
 # question this was built to answer: is host-side overhead here actually
@@ -256,7 +256,7 @@ class Daemon:
     def cmd_compile_all(self, req):
         with open(req["cl_path"]) as f:
             src = f.read()
-        # HIP language, not OpenCL -- see GPUImplDefs.h's FW_TINYGPU_HYBRID_AMD
+        # HIP language, not OpenCL -- see GPUImplDefs.h's FW_TINYGPU_AMD
         # branch and STATUS.md AMD §18: OpenCL's get_global_id() pulls in
         # dispatch_ptr/queue_ptr/dispatch_id sgprs and heavy scratch usage
         # this remote transport can't drive correctly; HIP's group/local-id
@@ -319,7 +319,7 @@ class Daemon:
         # here is dispatched exactly as cmd_launch (removed, superseded by
         # this) used to -- same _get_program/prg(...) calls, same wait=False
         # (ordering relative to h2d/d2h/sync is preserved on the C++ side:
-        # GPUInterfaceTinyGPUHybridAMD.cpp flushes any queued launches before
+        # GPUInterfaceTinyGPUAMD.cpp flushes any queued launches before
         # every h2d/d2h/sync/fini, and tinygrad's own _copyin/_copyout/
         # synchronize already wait for prior submitted work internally --
         # see the module-level comment for why that makes this safe).
@@ -379,7 +379,7 @@ class Daemon:
         self.send_json({"ok": True})
 
     def cmd_handoff(self, req):
-        # TODO.md plan step A1e, the boot-only handoff: from here the C++ side (TinyGPUHybridAMDRuntime.h) owns the GPU's
+        # TODO.md plan step A1e, the boot-only handoff: from here the C++ side (TinyGPUAMDRuntime.h) owns the GPU's
         # queues, and this daemon only waits for fini (run() refuses everything else). After a synchronize, it allocates
         # the C++ side's VRAM pool (pool_size, default half the VRAM) and a 16 MB staging buffer, then replies with flat
         # JSON: the sysmem mappings (sizes, in the order of the fds) and each object's (mapping, offset) in them, the

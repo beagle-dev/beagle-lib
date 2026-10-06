@@ -1,8 +1,8 @@
 /*
- * TinyGPUHybridAMDDevice.h -- TODO.md plan step A2g: what tinygrad's AMDDevice.__init__ allocates and sets up after PCIIface's
+ * TinyGPUAMDDevice.h -- TODO.md plan step A2g: what tinygrad's AMDDevice.__init__ allocates and sets up after PCIIface's
  * boot (tinygrad/runtime/ops_amd.py:997-1084 at a9830e2b4, with PCIIface.create_queue, :927-939, and HCQCompiled.__init__,
  * runtime/support/hcq.py:387-412), then the daemon's cmd_handoff (amd_dispatch_daemon.py: a synchronize, the VRAM pool and
- * the staging buffer), in C++ on TinyGPUHybridAMDBoot.h's AMDev, so that the plugin's C++ runtime (TinyGPUHybridAMDRuntime.h)
+ * the staging buffer), in C++ on TinyGPUAMDBoot.h's AMDev, so that the plugin's C++ runtime (TinyGPUAMDRuntime.h)
  * runs on objects this process made itself. In tinygrad's order, every buffer through PCIIfaceBase.alloc
  * (runtime/support/system.py:267-281) as AMDAllocator._alloc calls it:
  *   - the compute queue (create_queue: the 16 MiB ring and the 0x100 gart in sysmem, the 0x1000 EOP buffer in VRAM, then
@@ -20,8 +20,8 @@
  * A failure is TGPyError, as the boot's.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDEVICE_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDEVICE_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDDEVICE_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMDDEVICE_H
 
 #include <cstdint>
 #include <string>
@@ -29,8 +29,8 @@
 
 #include <unistd.h>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDBoot.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDRuntime.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDBoot.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDRuntime.h"
 
 namespace tinygpu_device {
 namespace amboot {
@@ -235,4 +235,4 @@ inline bool am_device_fini_safe(AMDev& adev, std::string& why) {
 } // namespace amboot
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDEVICE_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUAMDDEVICE_H

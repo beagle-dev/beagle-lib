@@ -1,10 +1,10 @@
-// The embedded cubins through TinyGPUHybridNVCubins.h, linked from the generated kernels/BeagleTinyGPU_cubins.S as the
+// The embedded cubins through TinyGPUNVCubins.h, linked from the generated kernels/BeagleTinyGPU_cubins.S as the
 // plugin links them (see test_c1_cubins.py):
 //     golden_cubins <dir> [<cubin>...]
 // selects and loads every entry of kTinyGPUNVCubins (single and double precision: plan step C16) and writes its bytes and
 // kernel names to <dir>, checks the refusals (a state count, an architecture, an entry holding another architecture's
 // cubin), then prints the SM nvd_elf_sm reads from each extra file.
-#include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
+#include "libhmsbeagle/GPU/TinyGPUNVCubins.h"
 #include <cstdio>
 #include <fstream>
 #include <iterator>

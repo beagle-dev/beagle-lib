@@ -37,7 +37,7 @@ dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
 device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
 counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
 glog() { sed -n "/c13 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
-status() { sed -n "s/^\[$1\] tinygpuhybridtest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
+status() { sed -n "s/^\[$1\] tinygputest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
 behind() {   # the guard's state-page line says the C++ timeline was behind the last submission
     glog $1 | sed -nE 's/.*last_submitted ([0-9]+), seq [0-9]+, C\+\+ timeline ([0-9]+).*/\1 \2/p' | awk '$2 < $1 {ok = 1} END {exit !ok}'
 }
@@ -96,7 +96,7 @@ while IFS='|' read -r label cmd kernels; do
 done < <(grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt")
 
 # 5. several instances in one process
-p5() {   # <label> <state counts, in load order> -- <tinygpuhybridtest args>
+p5() {   # <label> <state counts, in load order> -- <tinygputest args>
     local l=$1 states=$2 why=""; shift 3
     FAKE_COPY_LOG="$W/copies_$l.bin" run $l -- "$@" || why=" run"
     upload $l $states sm_89 || why="$why upload"

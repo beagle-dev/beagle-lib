@@ -1,5 +1,5 @@
-// Encodes golden_batch.txt with TinyGPUHybridNVDispatch.h from the handoff alone (see golden_encode.py).
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+// Encodes golden_batch.txt with TinyGPUNVDispatch.h from the handoff alone (see golden_encode.py).
+#include "libhmsbeagle/GPU/TinyGPUNVDispatch.h"
 #include <cstdio>
 #include <fstream>
 #include <iostream>

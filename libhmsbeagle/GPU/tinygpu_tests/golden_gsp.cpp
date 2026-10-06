@@ -1,9 +1,9 @@
-// C++ side of golden_gsp.py (TODO.md plan step C5): TinyGPUHybridNVGsp.h and TinyGPUHybridNVFalcon.h run one scenario
+// C++ side of golden_gsp.py (TODO.md plan step C5): TinyGPUNVGsp.h and TinyGPUNVFalcon.h run one scenario
 // against golden_gsp.py's scripted TinyGPU.app, through TinyGPUTransport.h (APL_REMOTE_SOCK), with the GSP queues in the
 // file GOLDEN_QUEUES, and print the result lines golden_gsp.py prints for tinygrad's and nv_init_helper's code. cot=1: GB20x's
 // COT boot (plan step B2), whose teardown is the RISC-V halt wait.
 //   golden_gsp <scenario> [key=value ...]
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGsp.h"
 
 #include <cstdio>
 #include <map>

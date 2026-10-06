@@ -1,11 +1,11 @@
 /*
- * GPUInterfaceTinyGPUHybrid.cpp
+ * GPUInterfaceTinyGPU.cpp
  *
- * BEAGLE TinyGPU hybrid backend, shared front end: connects to TinyGPU.app,
+ * BEAGLE TinyGPU backend, shared front end: connects to TinyGPU.app,
  * identifies the eGPU's vendor from PCI config space, selects the kernel
  * resource, and implements GPUInterface by calling the vendor's free
- * functions: GPUInterfaceTinyGPUHybridNV.cpp (the C++ boot and runtime, on Ada
- * and Blackwell GB20x GPUs) and GPUInterfaceTinyGPUHybridAMD.cpp. Built with
+ * functions: GPUInterfaceTinyGPUNV.cpp (the C++ boot and runtime, on Ada
+ * and Blackwell GB20x GPUs) and GPUInterfaceTinyGPUAMD.cpp. Built with
  * -DFW_TINYGPU.
  *
  * The NV path this file used to hand-roll here (nv_init_helper.py boot, then
@@ -22,8 +22,8 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
-#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridAMD.h"
-#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
+#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUAMD.h"
+#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUNV.h"
 
 #include <cstdarg>
 #include <cstdint>
@@ -52,7 +52,7 @@ static constexpr uint16_t PCI_VENDOR_NVIDIA = 0x10de;
 static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
 
 // ── KernelResource loader (LOAD_KERNEL_INTO_RESOURCE): the block sizes, and no kernel code, which only the CUDA and OpenCL
-// backends read (the NV path loads its embedded cubins, TinyGPUHybridNVCubins.h, and the AMD path its OpenCL source) ──
+// backends read (the NV path loads its embedded cubins, TinyGPUNVCubins.h, and the AMD path its OpenCL source) ──
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
@@ -87,7 +87,7 @@ GPUInterface::~GPUInterface() {
 }
 
 int GPUInterface::Initialize() {
-    fprintf(stderr, "TinyGPU: build stamp — GPUInterfaceTinyGPUHybrid.cpp compiled %s %s\n",
+    fprintf(stderr, "TinyGPU: build stamp — GPUInterfaceTinyGPU.cpp compiled %s %s\n",
             __DATE__, __TIME__);
 #ifdef TINYGPU_KERNELS_STAMP
     fprintf(stderr, "TinyGPU: build stamp — kernels/BeagleTinyGPU_kernels.h: %s\n",

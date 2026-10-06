@@ -1,11 +1,11 @@
-// C++ side of golden_flcn_hw.py (TODO.md plan step C9): TinyGPUHybridNVFalcon.h's NVFalcon::init_hw (NV_FLCN.init_hw with
+// C++ side of golden_flcn_hw.py (TODO.md plan step C9): TinyGPUNVFalcon.h's NVFalcon::init_hw (NV_FLCN.init_hw with
 // nv_init_helper's execute_hs wrapper) against golden_flcn_hw.py's scripted TinyGPU.app, through TinyGPUTransport.h
 // (APL_REMOTE_SOCK), printing the result lines golden_flcn_hw.py prints for tinygrad's and nv_init_helper's code.
 //   golden_flcn_hw key=value ...   (frts_paddr frts_offset imem_pa imem_va imem_sz dmem_pa dmem_sz pkc_off engid ucodeid booter_paddr
 //                                   booter_data_off booter_data_sz booter_code_off booter_code_sz libos wpr_meta chip_id wait_ms)
 // With cot=1 (plan step B2): NVFalcon::cot_init_hw instead, with boot_args fmc hash sig pkey, the FMC boot parameters' page in the
 // file GOLDEN_BOOT_ARGS.
-#include "libhmsbeagle/GPU/TinyGPUHybridNVFalcon.h"
+#include "libhmsbeagle/GPU/TinyGPUNVFalcon.h"
 
 #include <cstdio>
 #include <map>

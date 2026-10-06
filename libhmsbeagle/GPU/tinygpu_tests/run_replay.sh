@@ -42,7 +42,7 @@ SRV=$!
 for i in $(seq 300); do grep -q "tgreplay listening" "$RLOG" 2>/dev/null && break; kill -0 $SRV 2>/dev/null || break; sleep 0.1; done
 grep -q "tgreplay listening" "$RLOG" || { echo "tgreplay did not start:"; cat "$RLOG"; exit 2; }
 env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$SOCK" \
-    BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
+    BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
     BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" "${RECORD_ENV[@]}" \
     "$BIN" "${ARGS[@]}" > "$OUT" 2>&1 &
 TST=$!

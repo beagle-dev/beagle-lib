@@ -15,7 +15,7 @@ Writes:
                  reg_count, shmem_size, cbuf0_param_offset,
                  cbuf0_prefix_b64, slm_size
 
-The QMD is built entirely in C++ (GPUInterfaceTinyGPUHybrid.cpp) using the
+The QMD is built entirely in C++ (GPUInterfaceTinyGPU.cpp) using the
 metadata from result.json.  prog_addr is NOT embedded here because C++ decides
 where in the code buffer the kernel lives.
 

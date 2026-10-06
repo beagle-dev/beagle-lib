@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridAMDDispatch.h (TODO.md plan step A1b). hcq1's own AMDComputeQueue, with amd_hcq_patch's
+"""Golden test for TinyGPUAMDDispatch.h (TODO.md plan step A1b). hcq1's own AMDComputeQueue, with amd_hcq_patch's
 exec, and HCQProgram.fill_kernargs's CLikeArgsState encode random launch batches the way amd_dispatch_daemon.py's
 launch_batch chains them (wait and memory_barrier, then execs, then signal and submit), then submit them into a small
 ring through AMDQueueDesc.signal_doorbell. golden_amd_encode.cpp encodes the same batches with the C++ encoder alone.

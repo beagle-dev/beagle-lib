@@ -1,17 +1,17 @@
 /*
- * GPUInterfaceTinyGPUHybridNV.h
+ * GPUInterfaceTinyGPUNV.h
  *
- * Entry points implemented in GPUInterfaceTinyGPUHybridNV.cpp, called from
- * GPUInterfaceTinyGPUHybrid.cpp's vendor branch (GPUInterface::isNVIDIA ==
+ * Entry points implemented in GPUInterfaceTinyGPUNV.cpp, called from
+ * GPUInterfaceTinyGPU.cpp's vendor branch (GPUInterface::isNVIDIA ==
  * true) inside each shared GPUInterface method — mirrors
- * GPUInterfaceTinyGPUHybridAMD.h's role for the AMD branch exactly. One
+ * GPUInterfaceTinyGPUAMD.h's role for the AMD branch exactly. One
  * GPUInterface method definition per name can exist in the
- * hmsbeagle-tinygpu-hybrid target (link-wise), so these stay as plain free
+ * hmsbeagle-tinygpu target (link-wise), so these stay as plain free
  * functions rather than a second set of GPUInterface member definitions.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNV_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNV_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNV_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNV_H
 
 #ifdef FW_TINYGPU
 
@@ -40,10 +40,10 @@ bool       NvDeviceLost(GPUInterface* self);
 bool       NvOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... for lack of GPU memory
 bool       NvSupportsDouble();   // TODO.md plan step C16: the build's cubins include double precision's
 
-// Implemented in GPUInterfaceTinyGPUHybrid.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
+// Implemented in GPUInterfaceTinyGPU.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
 uint16_t   tg_pci_device_id();
 
 } // namespace tinygpu_device
 
 #endif // FW_TINYGPU
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNV_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNV_H

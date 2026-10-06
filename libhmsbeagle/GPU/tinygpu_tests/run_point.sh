@@ -1,5 +1,5 @@
 #!/bin/bash
-# HARDWARE: one tinygpuhybridtest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
+# HARDWARE: one tinygputest run on the real eGPU. Boots the GPU, so the eGPU must be cold (power-cycled) or torn
 # down by the previous run, as the teardown does by default (TODO.md plan step P3); a warm GPU is refused with nothing
 # written, unless it is an Ada GPU whose GSP-RM was unloaded: the boot tears that down first (plan step P4, the default).
 # Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.

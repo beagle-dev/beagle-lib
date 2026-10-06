@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridNVBoot.h (TODO.md plan step C11) against the code it ports, with nv_init_helper's patches as
+"""Golden test for TinyGPUNVBoot.h (TODO.md plan step C11) against the code it ports, with nv_init_helper's patches as
 the daemon applies them (imported here as the daemon imports it).
   C11a (early): PCIIfaceBase.__init__'s BAR resize and NVDev.__init__'s first statements (system.py:263; nvdev.py:75-147):
   map_bar(0), _early_ip_init under the WARM guard (Ada's wait_for_reset suppressed, COT's FSP wait logged), _early_mmu_init
@@ -300,38 +300,38 @@ def run_case(c, exe, priv, quiet=False):
 
 # (header, text, replacement, the case that must catch it)
 PERTURBED = [
-    ("TinyGPUHybridNVBoot.h", "const uint32_t wpr2_hi = d.rreg(0x001FA828);", "const uint32_t wpr2_hi = d.rreg(0x001FA824);", "AD107, WPR2 up"),
-    ("TinyGPUHybridNVBoot.h", "write_config_flush(0x04, cmd | 0x4, 2, err)", "write_config_flush(0x04, cmd | 0x2, 2, err)", "AD107, bus mastering off"),
-    ("TinyGPUHybridNVBoot.h", 'snprintf(impl, sizeof(impl), "%02u", d.implementation);', 'snprintf(impl, sizeof(impl), "%u", d.implementation);', "AD107 cold"),
-    ("TinyGPUHybridNVBoot.h", "if (!d.fmc_boot) return;   // NV_FLCN.wait_for_reset", "if (true) return;   // NV_FLCN.wait_for_reset", "GB205 cold"),
-    ("TinyGPUHybridNVBoot.h", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 20;", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 19;", "AD107 cold"),
-    ("TinyGPUHybridNVBoot.h", "if (d.bar1_size != 256ull << 20 || d.large_bar)", "if (d.large_bar)", "GB205, a 512 MiB BAR1"),
-    ("TinyGPUHybridNVBoot.h", "d.large_bar = d.bar1_size >= d.vram_size;", "d.large_bar = d.bar1_size > d.vram_size;", "AD107, a BAR1 as large as VRAM"),
+    ("TinyGPUNVBoot.h", "const uint32_t wpr2_hi = d.rreg(0x001FA828);", "const uint32_t wpr2_hi = d.rreg(0x001FA824);", "AD107, WPR2 up"),
+    ("TinyGPUNVBoot.h", "write_config_flush(0x04, cmd | 0x4, 2, err)", "write_config_flush(0x04, cmd | 0x2, 2, err)", "AD107, bus mastering off"),
+    ("TinyGPUNVBoot.h", 'snprintf(impl, sizeof(impl), "%02u", d.implementation);', 'snprintf(impl, sizeof(impl), "%u", d.implementation);', "AD107 cold"),
+    ("TinyGPUNVBoot.h", "if (!d.fmc_boot) return;   // NV_FLCN.wait_for_reset", "if (true) return;   // NV_FLCN.wait_for_reset", "GB205 cold"),
+    ("TinyGPUNVBoot.h", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 20;", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 19;", "AD107 cold"),
+    ("TinyGPUNVBoot.h", "if (d.bar1_size != 256ull << 20 || d.large_bar)", "if (d.large_bar)", "GB205, a 512 MiB BAR1"),
+    ("TinyGPUNVBoot.h", "d.large_bar = d.bar1_size >= d.vram_size;", "d.large_bar = d.bar1_size > d.vram_size;", "AD107, a BAR1 as large as VRAM"),
     # C11b
-    ("TinyGPUHybridNVBoot.h", "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE) block_size = imglen;",
+    ("TinyGPUNVBoot.h", "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE) block_size = imglen;",
      "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE && block_size < 0) block_size = imglen;", "two base images before the expansion ROM"),
-    ("TinyGPUHybridNVBoot.h", "            found = true;\n", "            found = true;\n            break;\n", "a later ucode entry FWSEC_PROD too: the last wins"),
-    ("TinyGPUHybridNVBoot.h", "flcn.frts_offset = d.vram_size - 0x100000 - 0x100000;", "flcn.frts_offset = d.vram_size - 0x100000;", "AD107 cold, NV_FLCN.init_sw"),
-    ("TinyGPUHybridNVBoot.h", "const size_t sn = std::min<size_t>(u.signature.size(), 0x180);", "const size_t sn = std::min<size_t>(u.signature.size(), 0x100);", "AD107 cold, NV_FLCN.init_sw"),
-    ("TinyGPUHybridNVBoot.h", "frts_cmd.frtsRegionDesc.frtsRegionMediaType = 2;", "frts_cmd.frtsRegionDesc.frtsRegionMediaType = 1;", "AD107 cold, NV_FLCN.init_sw"),
-    ("TinyGPUHybridNVBoot.h", "const std::vector<uint8_t> rv(fc, fc + sizeof(nv::FWSECLIC_READ_VBIOS_DESC));", "const std::vector<uint8_t> rv(fc, fc + sizeof(frts_cmd));", "AD107 cold, NV_FLCN.init_sw"),
-    ("TinyGPUHybridNVBoot.h", "nv_py_setslice(u.image, patch_loc, patch_loc + sig_len, sig.data(), sig.size());", "", "AD107 cold, NV_FLCN.init_sw"),
-    ("TinyGPUHybridNVBoot.h", "if (stat(path.c_str(), &st) != 0) {", "if (stat(path.c_str(), &st) == 0) {", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "            found = true;\n", "            found = true;\n            break;\n", "a later ucode entry FWSEC_PROD too: the last wins"),
+    ("TinyGPUNVBoot.h", "flcn.frts_offset = d.vram_size - 0x100000 - 0x100000;", "flcn.frts_offset = d.vram_size - 0x100000;", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "const size_t sn = std::min<size_t>(u.signature.size(), 0x180);", "const size_t sn = std::min<size_t>(u.signature.size(), 0x100);", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "frts_cmd.frtsRegionDesc.frtsRegionMediaType = 2;", "frts_cmd.frtsRegionDesc.frtsRegionMediaType = 1;", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "const std::vector<uint8_t> rv(fc, fc + sizeof(nv::FWSECLIC_READ_VBIOS_DESC));", "const std::vector<uint8_t> rv(fc, fc + sizeof(frts_cmd));", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "nv_py_setslice(u.image, patch_loc, patch_loc + sig_len, sig.data(), sig.size());", "", "AD107 cold, NV_FLCN.init_sw"),
+    ("TinyGPUNVBoot.h", "if (stat(path.c_str(), &st) != 0) {", "if (stat(path.c_str(), &st) == 0) {", "AD107 cold, NV_FLCN.init_sw"),
     # C11c, C11d
-    ("TinyGPUHybridNVBoot.h", "const uint64_t pte_cnt = queue_pte_cnt + tg_round_up(queue_pte_cnt * 8, 0x1000) / 0x1000;", "const uint64_t pte_cnt = queue_pte_cnt;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "h.writePtr = 0; h.flags = 1; h.rxHdrOff = sizeof(nv::msgqTxHeader);", "h.writePtr = 0; h.flags = 1; h.rxHdrOff = 0;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "r.kind = nv::LIBOS_MEMORY_REGION_CONTIGUOUS; r.loc = nv::LIBOS_MEMORY_REGION_LOC_SYSMEM; r.size = 0x10000;",
+    ("TinyGPUNVBoot.h", "const uint64_t pte_cnt = queue_pte_cnt + tg_round_up(queue_pte_cnt * 8, 0x1000) / 0x1000;", "const uint64_t pte_cnt = queue_pte_cnt;", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "h.writePtr = 0; h.flags = 1; h.rxHdrOff = sizeof(nv::msgqTxHeader);", "h.writePtr = 0; h.flags = 1; h.rxHdrOff = 0;", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "r.kind = nv::LIBOS_MEMORY_REGION_CONTIGUOUS; r.loc = nv::LIBOS_MEMORY_REGION_LOC_SYSMEM; r.size = 0x10000;",
      "r.kind = nv::LIBOS_MEMORY_REGION_CONTIGUOUS; r.loc = nv::LIBOS_MEMORY_REGION_LOC_SYSMEM; r.size = 0x8000;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", 'rm.id8 = nv_id8("RMARGS");', 'rm.id8 = nv_id8("RMARG");', "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "npages[i - 1] = ((npages[i] - 1) >> (nv::LIBOS_MEMORY_REGION_RADIX_PAGE_LOG2 - 3)) + 1;",
+    ("TinyGPUNVBoot.h", 'rm.id8 = nv_id8("RMARGS");', 'rm.id8 = nv_id8("RMARG");', "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "npages[i - 1] = ((npages[i] - 1) >> (nv::LIBOS_MEMORY_REGION_RADIX_PAGE_LOG2 - 3)) + 1;",
      "npages[i - 1] = ((npages[i] - 1) >> (nv::LIBOS_MEMORY_REGION_RADIX_PAGE_LOG2 - 4)) + 1;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "gsp_heap_sz = 0x8100000;", "gsp_heap_sz = 0x8000000;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "m.pmuReservedSize = 0x1820000;", "m.pmuReservedSize = 0x1800000;", "GB205 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "data.pciConfigMirrorBase = d.fmc_boot ? 0x92000 : 0x88000;", "data.pciConfigMirrorBase = d.fmc_boot ? 0x88000 : 0x92000;", "GB205 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "e.type = nv::REGISTRY_TABLE_ENTRY_TYPE_DWORD;", "e.type = 2;", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "pkey.insert(pkey.end(), 3, 0);", "pkey.insert(pkey.end(), 7, 0);", "GB205 cold, the whole init_sw"),
-    ("TinyGPUHybridNVBoot.h", "for (int i = 0; i < 5; ++i) {\n        nv::LibosMemoryRegionInitArgument r{};", "for (int i = 0; i < 4; ++i) {\n        nv::LibosMemoryRegionInitArgument r{};", "AD107 cold, the whole init_sw"),
-    ("TinyGPUHybridNVGsp.h", "if (!gsp_) { doorbell(); return; }", "if (!gsp_) { return; }", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "gsp_heap_sz = 0x8100000;", "gsp_heap_sz = 0x8000000;", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "m.pmuReservedSize = 0x1820000;", "m.pmuReservedSize = 0x1800000;", "GB205 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "data.pciConfigMirrorBase = d.fmc_boot ? 0x92000 : 0x88000;", "data.pciConfigMirrorBase = d.fmc_boot ? 0x88000 : 0x92000;", "GB205 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "e.type = nv::REGISTRY_TABLE_ENTRY_TYPE_DWORD;", "e.type = 2;", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "pkey.insert(pkey.end(), 3, 0);", "pkey.insert(pkey.end(), 7, 0);", "GB205 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "for (int i = 0; i < 5; ++i) {\n        nv::LibosMemoryRegionInitArgument r{};", "for (int i = 0; i < 4; ++i) {\n        nv::LibosMemoryRegionInitArgument r{};", "AD107 cold, the whole init_sw"),
+    ("TinyGPUNVGsp.h", "if (!gsp_) { doorbell(); return; }", "if (!gsp_) { return; }", "AD107 cold, the whole init_sw"),
 ]
 
 def main():

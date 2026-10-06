@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridAMDProgram.h (TODO.md plan step A1d). Every BEAGLE kernel variant (SP and DP, 9 padded state
+"""Golden test for TinyGPUAMDProgram.h (TODO.md plan step A1d). Every BEAGLE kernel variant (SP and DP, 9 padded state
 counts) is compiled offline exactly as the AMD daemon compiles it (amd_compile_helper.compile_hip, tinygrad's comgr
 compile_hip), then each kernel is loaded by amd_dispatch_daemon.BeagleAMDProgram on a stub device (its image upload
 captured, at a fixed base) and by golden_amd_program.cpp's C++ loader. The relocated image and each kernel's record

@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUMemory.h and TinyGPUHybridNVMemory.h (TODO.md plan step C6) against the code they port: tinygrad's
+"""Golden test for TinyGPUMemory.h and TinyGPUNVMemory.h (TODO.md plan step C6) against the code they port: tinygrad's
 TLSFAllocator, PageTableTraverseContext, MemoryManager, NVPageTableEntry, NVMemoryManager and PCIIfaceBase.alloc/free, with
 BEAGLE's palloc patch (nv_init_helper imported, as the daemon has it). Each case runs twice against the same fake TinyGPU.app
 (256 MiB of BAR1 VRAM, BAR0 writes recorded, MAP_SYSMEM_FD files with made-up DMA segments): tinygrad's code in this process,
@@ -370,9 +370,9 @@ PERTURBED = [("TinyGPUMemory.h", "uint64_t start = storage[l1][l2][0], nsize", "
              ("TinyGPUMemory.h", "uint64_t new_start = tg_round_up(start, align);", "uint64_t new_start = tg_round_up(start + base, align) - base;",
               "handoff vram, MMU v2 (8188 MiB)"),
              ("TinyGPUMemory.h", "kPallocZeroLimit = 64 << 10", "kPallocZeroLimit = 96 << 10", "random from the constructor, MMU v2, seed 1"),
-             ("TinyGPUHybridNVMemory.h", "nv_regs::nvbits hi = q(2 * entry_id + 1);\n        return (hi << 64) | q(2 * entry_id);",
+             ("TinyGPUNVMemory.h", "nv_regs::nvbits hi = q(2 * entry_id + 1);\n        return (hi << 64) | q(2 * entry_id);",
               "nv_regs::nvbits lo = q(2 * entry_id);\n        return ((nv_regs::nvbits)q(2 * entry_id + 1) << 64) | lo;", "handoff sysmem, MMU v2 (8188 MiB)"),
-             ("TinyGPUHybridNVMemory.h", 'if (is_page(entry_id)) return read_fields(entry_id)["valid"] != 0;',
+             ("TinyGPUNVMemory.h", 'if (is_page(entry_id)) return read_fields(entry_id)["valid"] != 0;',
               'if (is_page(entry_id)) return pte().decode(entry(entry_id))["valid"] != 0;', "random from the constructor, MMU v3, seed 1")]   # a vfree of huge pages
 
 def main():
@@ -393,7 +393,7 @@ def main():
     caught, gpu = 0, tgpaths.REPO / "libhmsbeagle" / "GPU"
     for hdr, old, new, case in PERTURBED:
         inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-        for f in ("TinyGPUMemory.h", "TinyGPUHybridNVMemory.h"):
+        for f in ("TinyGPUMemory.h", "TinyGPUNVMemory.h"):
             text = (gpu / f).read_text()
             if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
             open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)

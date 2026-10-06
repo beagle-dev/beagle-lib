@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridAMDBoot.h (TODO.md plan steps A2c-A2f) against the code it ports: tinygrad's AMDev
+"""Golden test for TinyGPUAMDBoot.h (TODO.md plan steps A2c-A2f) against the code it ports: tinygrad's AMDev
 (tinygrad/runtime/support/am/amdev.py and ip.py at the pin). Each case runs on two fake_amd_device.py cards brought to the
 same state: tinygrad's AMDev in a process of its own (as PCIIfaceBase.__init__ calls it, after its RESIZE_BAR), and
 golden_amd_boot.cpp on the other. Both must send TinyGPU.app the same requests byte for byte, leave the same VRAM and
@@ -11,7 +11,7 @@ registers, and print the same results or error. A state before a case comes from
   - am_reset: AM_RESET=1 on a warm card: the SOS is alive, so a mode1 reset too, and a full boot over a live PSP ring
     (destroyed and re-created); the same, and the same refusal, as dirty;
   - power: AM_POWER_LIMIT=200, the power limit and every clock's whole range.
-Then (A2g) the daemon's whole session against the C++ one (TinyGPUHybridAMDDevice.h), cold and warm, at two pool sizes, and
+Then (A2g) the daemon's whole session against the C++ one (TinyGPUAMDDevice.h), cold and warm, at two pool sizes, and
 (A2k) once more with the exit's fini run by an AMDev restored from the boot's fini state, as the crash guard runs it. No GPU,
 no TinyGPU.app and no network.
     python golden_amd_boot.py"""

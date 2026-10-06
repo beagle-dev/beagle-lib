@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridAMDProgram.h
+ * TinyGPUAMDProgram.h
  *
  * The AMD C++ runtime's HSACO loader and scratch sizing (TODO.md plan step A1d): AMDProgram.__init__ as BEAGLE runs it
  * (amd_dispatch_daemon.py BeagleAMDProgram: one multi-kernel HSACO, each kernel's descriptor at its .kd symbol as
@@ -7,16 +7,16 @@
  * AMDDevice._ensure_has_local_memory (tinygrad/runtime/ops_amd.py:1113-1128 at a9830e2b4). golden_amd_program.py compares
  * every record, the relocated image and the scratch sizing with tinygrad's own on a stub device.
  *
- * Two deliberate differences, as on NV (TinyGPUHybridNVProgram.h): all kernels share one image upload at lib_va
+ * Two deliberate differences, as on NV (TinyGPUNVProgram.h): all kernels share one image upload at lib_va
  * (BeagleAMDProgram allocates and copies the whole image per kernel), and scratch is sized for the largest private segment
  * of all of an HSACO's kernels, growing only for a later HSACO whose kernels need more (tinygrad grows it as each program
- * loads; a larger scratch serves every kernel; TinyGPUHybridAMDRuntime.h's amd_runtime_load_programs). Kernels with the
+ * loads; a larger scratch serves every kernel; TinyGPUAMDRuntime.h's amd_runtime_load_programs). Kernels with the
  * dispatch_ptr, queue_ptr, dispatch_id or private segment buffer SGPRs are refused, not ported
- * (TinyGPUHybridAMDDispatch.h).
+ * (TinyGPUAMDDispatch.h).
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDPROGRAM_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDPROGRAM_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDPROGRAM_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMDPROGRAM_H
 
 #include <cstdint>
 #include <cstring>
@@ -26,7 +26,7 @@
 
 #include "libhmsbeagle/GPU/TinyGPUAMDTables.h"
 #include "libhmsbeagle/GPU/TinyGPUElf.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDispatch.h"
 
 namespace tinygpu_device {
 
@@ -122,4 +122,4 @@ inline std::string amd_scratch(const AMDProps& p, uint32_t private_segment_size,
 
 }  // namespace tinygpu_device
 
-#endif  // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDPROGRAM_H
+#endif  // LIBHMSBEAGLE_GPU_TINYGPUAMDPROGRAM_H

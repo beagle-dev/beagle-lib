@@ -1,8 +1,8 @@
 /*
- * TinyGPUHybridNVDevice.h
+ * TinyGPUNVDevice.h
  *
  * TODO.md plan step C7, its second part: NVDevice.__init__ (tinygrad/runtime/ops_nv.py:590-640 at a9830e2b4) as it runs
- * after PCIIface's boot, ported statement by statement onto TinyGPUHybridNVRM.h's RM client and TinyGPUHybridNVMemory.h's
+ * after PCIIface's boot, ported statement by statement onto TinyGPUNVRM.h's RM client and TinyGPUNVMemory.h's
  * allocations: PCIIface's root client (ops_nv.py:564-568); the device, subdevice, virtual memory, PERF_BOOST, VA space,
  * channel group, GPFIFO area and context share; two GPFIFO channels (_new_gpu_fifo, :642-666: an error notifier, the
  * channel, its engine object, compute with a debugger or copy, and its work-submit token; then, as the daemon patches it,
@@ -15,17 +15,17 @@
  * the launch encoding's QMD, method and flag words from TinyGPUNVTables.h, which the daemon's build_handoff otherwise sends.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDEVICE_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDEVICE_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVDEVICE_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVDEVICE_H
 
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVRM.h"
+#include "libhmsbeagle/GPU/TinyGPUNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUNVRM.h"
 #include "libhmsbeagle/GPU/TinyGPUNVTables.h"
 
 namespace tinygpu_device {
@@ -325,4 +325,4 @@ inline void nvd_runtime_from_device(const NVDeviceState& d, uint32_t compute_cla
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDEVICE_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVDEVICE_H

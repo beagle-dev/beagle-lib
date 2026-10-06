@@ -1,4 +1,4 @@
-"""Golden test for TODO.md plan step C9's C++ half against the code it ports: NVFalcon::init_hw (TinyGPUHybridNVFalcon.h) is
+"""Golden test for TODO.md plan step C9's C++ half against the code it ports: NVFalcon::init_hw (TinyGPUNVFalcon.h) is
 tinygrad's NV_FLCN.init_hw (ip.py:186-210: FWSEC-FRTS on the GSP falcon, the WPR2 check, the GSP's RISC-V reset and libos
 mailboxes, then booter_load on SEC2, which starts GSP-RM, and the core check) with nv_init_helper's execute_hs wrapper
 (_execute_hs_with_frts_checks, plan step P1: FWSEC-FRTS's pre- and post-check reads; beagle_gsp_started from booter_load's
@@ -175,9 +175,9 @@ def main():
         gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
         for old, new, cases in PERTURBED:
             inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            text = (gpu / "TinyGPUHybridNVFalcon.h").read_text()
+            text = (gpu / "TinyGPUNVFalcon.h").read_text()
             assert text.count(old) == 1, old
-            open(f"{inc}/libhmsbeagle/GPU/TinyGPUHybridNVFalcon.h", "w").write(text.replace(old, new))
+            open(f"{inc}/libhmsbeagle/GPU/TinyGPUNVFalcon.h", "w").write(text.replace(old, new))
             tgpaths.build_cpp(f"{HERE}/golden_flcn_hw.cpp", f"{priv}/golden_flcn_hw_perturbed", "-iquote", inc)   # found before the repository's
             _, f = compare(f"{priv}/golden_flcn_hw_perturbed", srv, sock_path, priv, only=cases, quiet=True)
             fails += f == 0

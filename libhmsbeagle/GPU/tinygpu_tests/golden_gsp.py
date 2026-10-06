@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridNVGsp.h and TinyGPUHybridNVFalcon.h (TODO.md plan step C5) against the code they port:
+"""Golden test for TinyGPUNVGsp.h and TinyGPUNVFalcon.h (TODO.md plan step C5) against the code they port:
 tinygrad's NVRpcQueue, NV_GSP.run_cpu_seq and NV_FLCN primitives, and nv_init_helper's unload and teardown (plan steps
 P1, P2). Each scenario runs twice against the same scripted TinyGPU.app (BAR0 registers from a script, and a GSP in the
 shared queue memory that answers RPCs): once with tinygrad's and nv_init_helper's own code in this process, then with
@@ -309,11 +309,11 @@ def normalized(d):
     return d
 
 # a perturbed copy of the port must be caught: (header, text, replacement, the scenario that shows it)
-PERTURBED = [("TinyGPUHybridNVGsp.h", "c ^= w;", "c += w;", "RPC, one record"),
-             ("TinyGPUHybridNVFalcon.h", "xfered += 256;", "xfered += 512;", "teardown: happy path"),
-             ("TinyGPUHybridNVFalcon.h", "sleep(20);", "sleep(2);", "sequencer: op 8 with the 20 s SEC2 sleep"),
-             ("TinyGPUHybridNVFalcon.h", "val >> 16 != 0xbadf", "true", "COT fini: a PRI error and 0xffffffff read before the halt"),
-             ("TinyGPUHybridNVGsp.h", "if (flcn.cot) {", "if (false) {", "COT sequencer: ops 5-8 refused before any op runs")]
+PERTURBED = [("TinyGPUNVGsp.h", "c ^= w;", "c += w;", "RPC, one record"),
+             ("TinyGPUNVFalcon.h", "xfered += 256;", "xfered += 512;", "teardown: happy path"),
+             ("TinyGPUNVFalcon.h", "sleep(20);", "sleep(2);", "sequencer: op 8 with the 20 s SEC2 sleep"),
+             ("TinyGPUNVFalcon.h", "val >> 16 != 0xbadf", "true", "COT fini: a PRI error and 0xffffffff read before the halt"),
+             ("TinyGPUNVGsp.h", "if (flcn.cot) {", "if (false) {", "COT sequencer: ops 5-8 refused before any op runs")]
 
 def main():
     exe = f"{WORK}/golden_gsp"
@@ -334,7 +334,7 @@ def main():
         gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
         for hdr, old, new, scenario in PERTURBED:
             inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            for f in ("TinyGPUHybridNVGsp.h", "TinyGPUHybridNVFalcon.h"):
+            for f in ("TinyGPUNVGsp.h", "TinyGPUNVFalcon.h"):
                 text = (gpu / f).read_text()
                 if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
                 open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)

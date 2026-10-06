@@ -1,5 +1,5 @@
-// Loads a real cubin with TinyGPUHybridNVProgram.h and writes build_handoff-format records (see golden_program.py).
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
+// Loads a real cubin with TinyGPUNVProgram.h and writes build_handoff-format records (see golden_program.py).
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
 #include <cstdio>
 #include <fstream>
 #include <sstream>

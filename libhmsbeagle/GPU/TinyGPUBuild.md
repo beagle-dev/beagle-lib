@@ -1,10 +1,10 @@
-# Building BEAGLE with eGPU support (TinyGPU-Hybrid) on a clean Mac
+# Building BEAGLE with eGPU support (TinyGPU) on a clean Mac
 
-This guide sets up a new Mac to build and run BEAGLE's TinyGPU-Hybrid backend: BEAGLE on an NVIDIA or AMD GPU in a
-Thunderbolt or USB4 enclosure, through TinyGPU.app. [TinyGPUHybrid.md](TinyGPUHybrid.md) describes the backend itself:
+This guide sets up a new Mac to build and run BEAGLE's TinyGPU backend: BEAGLE on an NVIDIA or AMD GPU in a
+Thunderbolt or USB4 enclosure, through TinyGPU.app. [TinyGPU.md](TinyGPU.md) describes the backend itself:
 the supported GPUs, running, the crash guard, when to power-cycle, and the environment variables.
 
-The build makes two files that are installed side by side: the plugin, `hmsbeagle-tinygpu-hybrid`, and its crash guard,
+The build makes two files that are installed side by side: the plugin, `hmsbeagle-tinygpu`, and its crash guard,
 `beagle-tinygpu-guard`. The GPU kernels are compiled at build time and embedded in the plugin, so nothing is compiled
 when BEAGLE runs:
 
@@ -167,7 +167,7 @@ cmake -S ~/src/beagle-lib -B ~/src/beagle-build -DCMAKE_BUILD_TYPE=RelWithDebInf
 The configure output should include these lines. Without the comgr line the plugin will refuse AMD cards:
 
 ```
--- TinyGPUHybrid backend enabled (NV and AMD: the C++ boot, no Python)
+-- TinyGPU backend enabled (NV and AMD: the C++ boot, no Python)
 -- TinyGPU kernels: using nvcc at /Users/<you>/.local/bin/nvcc
 -- TinyGPU cubins: using ptxas at /Users/<you>/.local/bin/ptxas
 -- TinyGPU AMD HSACOs: using comgr at /opt/homebrew/lib/libamd_comgr.dylib
@@ -184,7 +184,7 @@ the 54 cubins and the 18 HSACOs. It then embeds them in the plugin. On Apple sil
 x86_64). To build only the backend and its test program:
 
 ```bash
-cmake --build ~/src/beagle-build -j 8 --target hmsbeagle-tinygpu-hybrid beagle-tinygpu-guard tinygpuhybridtest
+cmake --build ~/src/beagle-build -j 8 --target hmsbeagle-tinygpu beagle-tinygpu-guard tinygputest
 ```
 
 Install, if wanted. The plugin and the guard go to `<prefix>/lib`, side by side; the plugin refuses to boot a GPU without
@@ -198,10 +198,10 @@ cmake --install ~/src/beagle-build
 ## 7. Check it on the eGPU
 
 With the eGPU attached and TinyGPU.app installed, run the backend's test program from the build tree. Keep the Mac awake
-while the GPU runs (`caffeinate`), and never interrupt a run (TinyGPUHybrid.md says why):
+while the GPU runs (`caffeinate`), and never interrupt a run (TinyGPU.md says why):
 
 ```bash
-cd ~/src/beagle-lib && B=~/src/beagle-build && caffeinate -ims env DYLD_LIBRARY_PATH="$B/libhmsbeagle/GPU/CMake_TinyGPUHybrid:$B/libhmsbeagle/CPU:$B/libhmsbeagle" "$B/examples/tinygpuhybridtest" --state-count 4 --reps 200 --diag-compare-cpu
+cd ~/src/beagle-lib && B=~/src/beagle-build && caffeinate -ims env DYLD_LIBRARY_PATH="$B/libhmsbeagle/GPU/CMake_TinyGPU:$B/libhmsbeagle/CPU:$B/libhmsbeagle" "$B/examples/tinygputest" --state-count 4 --reps 200 --diag-compare-cpu
 ```
 
 Expect `PASS`, a GPU logL equal to the CPU reference's, and at exit a clean teardown: on NVIDIA `teardown: done: ... WPR2
@@ -232,4 +232,4 @@ BEAGLE_BUILD=~/src/beagle-build ~/src/beagle-lib/libhmsbeagle/GPU/tinygpu_tests/
 | `No JNI includes and libraries found` | Install a JDK, or configure with `-DBUILD_JNI=OFF`. |
 | `TinyGPU AMD HSACOs: no comgr found` | Step 3. |
 | `... is not TinyGPU release c0d024f9's` or `... is missing` at run time | Step 4. |
-| `WARM GPU: WPR2 is up ... Power-cycle the eGPU` | The previous process did not tear the GPU down: unplug the eGPU and plug it in again (TinyGPUHybrid.md). |
+| `WARM GPU: WPR2 is up ... Power-cycle the eGPU` | The previous process did not tear the GPU down: unplug the eGPU and plug it in again (TinyGPU.md). |

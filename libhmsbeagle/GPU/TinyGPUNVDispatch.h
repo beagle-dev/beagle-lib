@@ -1,20 +1,20 @@
 /*
- * TinyGPUHybridNVDispatch.h
+ * TinyGPUNVDispatch.h
  *
  * NV command encoding for the C++ runtime (TODO.md "Runtime roadmap", Step 3).
  * It began after the daemon's handoff, which gave, per kernel, the QMD
  * template and cbuf0 prefix tinygrad hcq1 would have used, plus QMD field
  * positions and method/flag words computed from tinygrad's own tables
  * (nv_dispatch_daemon.py build_handoff, now the harness's oracle); the plugin
- * now builds the same records itself (TinyGPUHybridNVProgram.h,
- * TinyGPUHybridNVDevice.h), so this file still hardcodes none of them. Everything here encodes into caller-provided memory; the transport
+ * now builds the same records itself (TinyGPUNVProgram.h,
+ * TinyGPUNVDevice.h), so this file still hardcodes none of them. Everything here encodes into caller-provided memory; the transport
  * (TinyGPU.app socket, shared buffers, polling) lives in
- * GPUInterfaceTinyGPUHybridNV.cpp. Each function names the hcq1 code it
+ * GPUInterfaceTinyGPUNV.cpp. Each function names the hcq1 code it
  * mirrors (tinygrad/runtime/ops_nv.py and support/hcq.py at a9830e2b4).
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDISPATCH_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDISPATCH_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVDISPATCH_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVDISPATCH_H
 
 #include <cstdint>
 #include <cstdlib>
@@ -301,4 +301,4 @@ static inline uint64_t nvd_gpfifo_entry(uint64_t pb_va, uint32_t nwords) {
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVDISPATCH_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVDISPATCH_H

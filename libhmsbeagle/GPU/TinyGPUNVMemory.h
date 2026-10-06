@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVMemory.h
+ * TinyGPUNVMemory.h
  *
  * TODO.md plan step C6: tinygrad's NV page tables and memory manager (tinygrad/runtime/support/nv/nvdev.py:33-72 at
  * a9830e2b4) on TinyGPUMemory.h, and PCIIfaceBase.alloc and free (runtime/support/system.py:267-284), ported statement by
@@ -13,8 +13,8 @@
  * nv_vram_end for plan step P3's WPR bound. nv_mm_import restores the manager the daemon exported at the handoff.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVMEMORY_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVMEMORY_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVMEMORY_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVMEMORY_H
 
 #include <cstdint>
 #include <memory>
@@ -24,7 +24,7 @@
 
 #include <unistd.h>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUMemory.h"
 #include "libhmsbeagle/GPU/TinyGPUNVBootTables.h"
 #include "libhmsbeagle/GPU/TinyGPUNVReg.h"
@@ -284,4 +284,4 @@ inline std::string nv_mm_import(const std::string& js, TGTransport* t, NVMemStat
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVMEMORY_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVMEMORY_H

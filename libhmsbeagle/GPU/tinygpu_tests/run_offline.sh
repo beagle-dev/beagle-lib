@@ -4,10 +4,10 @@
 # itself as it boots the eGPU (plan steps C11-C13): plan step V1's record/replay tools and the hardware recordings, the fake GB205,
 # the crash guard, the library's error returns, the uploads, D1's kernels, several instances in one process, the routing, the
 # failures and the kills; the AMD runtime, boot, V1 tools and crash guard on fake_amd_device.py; then the no-launch guard
-# (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu-hybrid, beagle-tinygpu-guard, tinygpuhybridtest, synthetictest and hmctest first.
+# (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu, beagle-tinygpu-guard, tinygputest, synthetictest and hmctest first.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard   # static check before anything below could reach a spawn path
-unset FAKE_TEST_BIN       # every run below is tinygpuhybridtest's unless it names another binary itself
+unset FAKE_TEST_BIN       # every run below is tinygputest's unless it names another binary itself
 results=()
 # first, the firmware the C++ boots below read from BEAGLE's cache (downloads are off in every test)
 "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware.log" 2>&1

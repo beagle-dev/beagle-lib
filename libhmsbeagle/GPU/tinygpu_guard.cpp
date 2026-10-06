@@ -1,7 +1,7 @@
 /*
  * tinygpu_guard.cpp -- beagle-tinygpu-guard, TODO.md plan step C10: the crash guard (inv:transport-teardown#7). The plugin spawns
  * it (posix_spawn, a new session, no fd but its end of a socketpair: never a fork, since BEAST hosts a JVM) before its first
- * request to the GPU, with the TinyGPU.app connection, the lock and the state page (TinyGPUHybridNVGuard.h's kGuardSetupHold),
+ * request to the GPU, with the TinyGPU.app connection, the lock and the state page (TinyGPUNVGuard.h's kGuardSetupHold),
  * waits for its "ready", and sends 'S' and the rest (the GSP queues and the C++ timeline, with what the teardown needs) once
  * the NVDevice is built (plan step C11). Until then the guard can only hold, or close in phase flcn_init.
  *
@@ -21,9 +21,9 @@
  *   beagle-tinygpu-guard   (its socketpair end is fd 3)
  */
 
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDevice.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDevice.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGuard.h"
 
 #include <cerrno>
 #include <csignal>
@@ -81,7 +81,7 @@ bool amd_fini(TGTransport& t, const amboot::AMFiniState& fs, std::string& why) {
     return false;
 }
 
-// TODO.md plan step A2k: the AMD C++ boot's guard (GPUInterfaceTinyGPUHybridAMD.cpp). Its setup holds the
+// TODO.md plan step A2k: the AMD C++ boot's guard (GPUInterfaceTinyGPUAMD.cpp). Its setup holds the
 // connection, tinygrad's am_usb4.lock and the state page; once the plugin's AMDev is booted, before any queue is set up, the
 // rest brings what AMDev.fini needs. At its own fini the plugin says clean or hold; 'N' is a boot that ended with no
 // queue ever live. At an EOF without either, the guard does what the daemon's EOF path did (amd_dispatch_daemon.py exited,

@@ -2,7 +2,7 @@
 """
 nv_init_helper.py — BEAGLE hybrid NV backend init via tinygrad.
 
-The C++ parent (GPUInterfaceTinyGPUHybrid) opens the TinyGPU socket,
+The C++ parent (GPUInterfaceTinyGPU) opens the TinyGPU socket,
 clears O_CLOEXEC so the FD survives exec(), then spawns this script:
 
     python3 nv_init_helper.py <sock_fd> <dev_id> <output_json>

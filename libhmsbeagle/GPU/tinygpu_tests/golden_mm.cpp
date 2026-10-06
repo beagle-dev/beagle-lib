@@ -1,4 +1,4 @@
-// C++ side of golden_mm.py (TODO.md plan step C6): TinyGPUMemory.h and TinyGPUHybridNVMemory.h run golden_mm.py's
+// C++ side of golden_mm.py (TODO.md plan step C6): TinyGPUMemory.h and TinyGPUNVMemory.h run golden_mm.py's
 // operations and print the result lines golden_mm.py prints for tinygrad's own memory manager.
 //   golden_mm tlsf OPS               TLSFAllocator: the first line "config size base", then "a size align" or "f addr"
 //   golden_mm mm EXPORT OPS          the manager restored from nv_dispatch_daemon.py's _mm_export (a JSON file), over
@@ -8,7 +8,7 @@
 //   valloc size align uncached contiguous zero | vfree i | alloc size host uncached cpu_access contiguous force_devmem zero |
 //   free i | palloc size align zero ptable | pfree paddr ptable | alloc_vaddr size align | fence size iova | booted
 // i counts valloc and alloc results from 0 (failures too). "state" lines at the end: each allocator's save().
-#include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
+#include "libhmsbeagle/GPU/TinyGPUNVMemory.h"
 
 #include <cstdio>
 #include <fstream>

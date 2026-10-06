@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVFalcon.h
+ * TinyGPUNVFalcon.h
  *
  * TODO.md plan step C5: tinygrad's falcon primitives (NV_FLCN.reset, disable_ctx_req, execute_dma, start_cpu,
  * wait_cpu_halted, execute_hs; tinygrad/runtime/support/nv/ip.py:212-283 at a9830e2b4) ported statement by statement onto
@@ -17,8 +17,8 @@
  * logged through TinyGPULog.h.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVFALCON_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVFALCON_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVFALCON_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVFALCON_H
 
 #include <cerrno>
 #include <chrono>
@@ -567,4 +567,4 @@ private:
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVFALCON_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVFALCON_H

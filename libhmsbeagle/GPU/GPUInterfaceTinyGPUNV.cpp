@@ -1,11 +1,11 @@
 /*
- * GPUInterfaceTinyGPUHybridNV.cpp
+ * GPUInterfaceTinyGPUNV.cpp
  *
- * BEAGLE's NV backend on TinyGPU.app (TinyGPUHybrid.md): tinygrad's NV driver, ported to C++. The first instance in a
- * process boots the GPU (TinyGPUHybridNVBoot.h, TinyGPUHybridNVFalcon.h, TinyGPUHybridNVGsp.h), builds tinygrad's NVDevice
- * on its own RM client and memory manager (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h, TinyGPUHybridNVMemory.h) and loads
- * its programs from the cubins linked into the plugin (TinyGPUHybridNVProgram.h, TinyGPUHybridNVCubins.h); nothing is
- * compiled at run time. This file encodes launches and copies (TinyGPUHybridNVDispatch.h) and submits them on the plugin's
+ * BEAGLE's NV backend on TinyGPU.app (TinyGPU.md): tinygrad's NV driver, ported to C++. The first instance in a
+ * process boots the GPU (TinyGPUNVBoot.h, TinyGPUNVFalcon.h, TinyGPUNVGsp.h), builds tinygrad's NVDevice
+ * on its own RM client and memory manager (TinyGPUNVRM.h, TinyGPUNVDevice.h, TinyGPUNVMemory.h) and loads
+ * its programs from the cubins linked into the plugin (TinyGPUNVProgram.h, TinyGPUNVCubins.h); nothing is
+ * compiled at run time. This file encodes launches and copies (TinyGPUNVDispatch.h) and submits them on the plugin's
  * own TinyGPU.app connection (TinyGPUTransport.h); completion is a timeline semaphore in shared memory, polled locally.
  * Every instance in the process shares that one boot, which lasts until exit (TODO.md plan step P5), when this file unloads
  * the GPU and runs NVIDIA's teardown. The crash guard (tinygpu_guard.cpp) keeps the GPU if this process dies, and a GPU lost
@@ -46,16 +46,16 @@
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
-#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUHybridNV.h"
+#include "libhmsbeagle/GPU/GPUInterfaceTinyGPUNV.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDevice.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGuard.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVBoot.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVCubins.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUNVMemory.h"
+#include "libhmsbeagle/GPU/TinyGPUNVDevice.h"
+#include "libhmsbeagle/GPU/TinyGPUNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGuard.h"
+#include "libhmsbeagle/GPU/TinyGPUNVBoot.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUNVCubins.h"
 
 // The embedded cubins were compiled from the current kernels header's PTX (TODO.md plan step C1): make_tinygpu_cubins.sh
 // copies the stamp of the header whose PTX it compiled, and GPUInterface.h includes that header's stamp (plan step C13).
@@ -86,7 +86,7 @@ static std::string nv_json_str(const std::string& js, const char* key) {
 
 // ── Opt-in profiling (BEAGLE_NV_PROFILE=1) ─────────────────────────────────
 // The NV counterpart of BEAGLE_AMD_PROFILE, aggregated instead of printed
-// per call so a many-evaluation benchmark (tinygpuhybridtest --reps) stays
+// per call so a many-evaluation benchmark (tinygputest --reps) stays
 // readable: the teardown at exit prints count/mean/min/max per call.
 static bool nv_profile_enabled() {
     static const bool enabled = (getenv("BEAGLE_NV_PROFILE") != nullptr);
@@ -122,7 +122,7 @@ static void nv_profile_report() {
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-struct NVHybridState {
+struct NVState {
     std::string arch;   // the NVDevice's: later instances pick their cubins for it (plan step P5)
     pid_t owner_pid;    // the process that booted; a child forked from it shares its connections and must never tear down
     bool lost = false;  // plan step C12: the GPU went to its keeper (nv_gpu_lost); nothing more is sent to it, and no instance uses it
@@ -136,7 +136,7 @@ struct NVKernelHandle {
 
 // The process's one GPU, which every instance shares (TODO.md plan step P5): here, and in g_nvd below, the TinyGPU.app
 // connection, rings, timeline, local memory and VRAM pool. What is an instance's own is its NVInstance.
-static NVHybridState* g_nv = nullptr;
+static NVState* g_nv = nullptr;
 static std::map<std::string, long long> g_nvKernelLaunches;   // released instances' launches per kernel, for the profile report
 
 // Plan step P5: one lock around everything the instances share, so a frame to TinyGPU.app never interleaves with another
@@ -150,7 +150,7 @@ static std::recursive_timed_mutex& nv_mutex() {
 // The state page (TODO.md plan step P3; nvdStatePage below): four 64-bit words shared with the crash guard, which reads them
 // only once this side can no longer write (at the end of its socketpair, after this process died or lost the GPU): the boot's
 // phase, whether a frame is in flight, the timeline value the last frame signals and the GSP command queue's sequence number
-// after this side's last RPC (plan step C5; TinyGPUHybridNVGuard.h).
+// after this side's last RPC (plan step C5; TinyGPUNVGuard.h).
 enum { kNVDStatePhase, kNVDStateInFlight, kNVDStateLastSubmitted, kNVDStateSeq, kNVDStateWords };
 static const uint64_t kNVDPhaseDispatch = 1;  // this side owns both GPFIFOs; the guard holds on any other phase
 static const uint64_t kNVDPhaseTeardown = 2;  // this side is unloading the GPU itself (plan step C5): the guard holds
@@ -320,7 +320,7 @@ static void nv_gpu_lost(bool hung) {
 }
 
 // ── Dispatch (TODO.md "Runtime roadmap", Step 3). This file encodes launches
-// and copies (TinyGPUHybridNVDispatch.h, golden-tested byte for byte against
+// and copies (TinyGPUNVDispatch.h, golden-tested byte for byte against
 // hcq1's own encoders) into four shared sysmem buffers, and submits them by
 // writing the GPFIFO entry, GPPut and doorbell as posted MMIO writes on the
 // plugin's TinyGPU.app connection. Completion is a
@@ -536,7 +536,7 @@ static std::string nvdOwnAllocations(NVDispatchState& d, uint64_t pool_mb) {
 }
 
 // TODO.md plan step P3: the state page, created before this side's first request to the GPU and shared with the crash guard
-// only (TinyGPUHybridNVGuard.h). A POSIX shm segment, not a TinyGPU allocation (TinyGPU.app's MAP_SYSMEM_FD sequence is
+// only (TinyGPUNVGuard.h). A POSIX shm segment, not a TinyGPU allocation (TinyGPU.app's MAP_SYSMEM_FD sequence is
 // unchanged), unlinked at once so only the two processes' descriptors reach it. It records the boot's phase, whether a frame
 // is in flight and the timeline value its work signals, and the GSP command queue's sequence number: if this process dies
 // or loses the GPU, the guard holds, or waits for that value before it tears the GPU down.
@@ -632,7 +632,7 @@ static std::string nv_guard_path() {
     return so.substr(0, so.rfind('/') + 1) + "beagle-tinygpu-guard";
 }
 
-// The crash guard's setup's rest (TinyGPUHybridNVGuard.h's kGuardSetupRest), from this side's teardown arguments (d.td) and
+// The crash guard's setup's rest (TinyGPUNVGuard.h's kGuardSetupRest), from this side's teardown arguments (d.td) and
 // buffers
 static GuardSetup nvGuardSetup(const NVDispatchState& d, uint32_t kind) {
     const NVDTeardown& t = d.td;
@@ -649,7 +649,7 @@ static GuardSetup nvGuardSetup(const NVDispatchState& d, uint32_t kind) {
 }
 
 // TODO.md plan step C11: the crash guard, spawned before this side's first request to the GPU with what holding
-// takes (the TinyGPU.app connection, its lock and the state page: TinyGPUHybridNVGuard.h's kGuardSetupHold). Before it said
+// takes (the TinyGPU.app connection, its lock and the state page: TinyGPUNVGuard.h's kGuardSetupHold). Before it said
 // ready nothing went to the GPU, so a failed start ends it.
 static std::string nvGuardBootStart(NVDispatchState& d) {
     const std::string path = nv_guard_path();
@@ -717,7 +717,7 @@ static bool nvd_boot_failed_idle(NVDispatchState& d) {
     return dev.timeline_value == 1 || *nv_signal_host(dev, dev.timeline_signal) >= dev.timeline_value - 1;
 }
 
-// TODO.md plan step C11 (level boot): no daemon and no Python. This side boots the GPU with the C++ boot (TinyGPUHybridNVBoot.h:
+// TODO.md plan step C11 (level boot): no daemon and no Python. This side boots the GPU with the C++ boot (TinyGPUNVBoot.h:
 // NVDev.__init__'s software half as the oracle's daemon runs it, nv_init_helper's patches included), then builds the NVDevice
 // (nvdBuildDevice) and allocates its buffers. The crash guard keeps the GPU from before the first request to it. The state page
 // says a frame is in flight until the NVDevice is built and the guard has the rest of its setup: a death before the falcons'
@@ -832,7 +832,7 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
 }
 
 // TODO.md plan step C5: the GPU teardown at fini from this side, on tinygrad's ported RPC queue and falcon primitives
-// (TinyGPUHybridNVGsp.h, TinyGPUHybridNVFalcon.h), in NVDev.fini's order: the GSP unload (nv_init_helper's suspend wait
+// (TinyGPUNVGsp.h, TinyGPUNVFalcon.h), in NVDev.fini's order: the GSP unload (nv_init_helper's suspend wait
 // included), then, only if the GSP confirmed it, NVIDIA's teardown; on the COT boot (plan step B2), NV_FLCN_COT.fini_hw's
 // wait for the GSP's RISC-V core to halt instead. The state page says so first, so the crash guard, if this process dies
 // meanwhile, holds instead of touching the GPU. Returns the report (in the daemon's fini format, which nv_report_unload
@@ -879,7 +879,7 @@ static bool nv_fill_launch_dims() {
     return !(v && strcmp(v, "0") == 0);
 }
 
-// NVProgram.__init__ for every kernel of the ELF (TinyGPUHybridNVProgram.h),
+// NVProgram.__init__ for every kernel of the ELF (TinyGPUNVProgram.h),
 // then the GPU work it submits, in tinygrad's order:
 // _ensure_has_local_memory's setup on the compute queue, the image upload,
 // and a synchronize. All kernels share one upload of the image, and local
@@ -1021,13 +1021,13 @@ static std::string nv_fw_prefetch(uint16_t device_id) {
 // TODO.md plan step C11: the GPU's setup (nvDispatchBoot): the C++ boot and the NVDevice; NvSetDevice then loads the programs
 // from the embedded cubin, as for an instance that shares the boot. Null if the boot failed, when the crash guard has the GPU
 // already (plan step C12).
-static NVHybridState* nvBootSetup(int tg_fd) {
+static NVState* nvBootSetup(int tg_fd) {
     fprintf(stderr, "TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
     auto t0 = nv_profile_start();
     g_nvd = nvDispatchBoot(tg_fd);
     nv_profile_end("boot", t0);
     if (!g_nvd) return nullptr;
-    NVHybridState* g = new NVHybridState{};
+    NVState* g = new NVState{};
     g->owner_pid = getpid();
     g->arch = g_nvd->dev.arch;
     fflush(stderr);

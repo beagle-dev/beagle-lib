@@ -134,7 +134,7 @@ std::string compile_hip(const std::string& prg, const std::string& arch) {
     return out;
 }
 
-const char* variant_source(const std::string& v) {   // GPUInterfaceTinyGPUHybridAMD.cpp amd_opencl_kernel_source
+const char* variant_source(const std::string& v) {   // GPUInterfaceTinyGPUAMD.cpp amd_opencl_kernel_source
 #define TG_V(P, N) if (v == #P "_" #N) return KERNELS_STRING_##P##_##N;
     TG_V(SP, 4) TG_V(SP, 16) TG_V(SP, 32) TG_V(SP, 48) TG_V(SP, 64) TG_V(SP, 80) TG_V(SP, 128) TG_V(SP, 192) TG_V(SP, 256)
     TG_V(DP, 4) TG_V(DP, 16) TG_V(DP, 32) TG_V(DP, 48) TG_V(DP, 64) TG_V(DP, 80) TG_V(DP, 128) TG_V(DP, 192) TG_V(DP, 256)
@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
         const char* src = variant_source(argv[i]);
         if (!src) { fprintf(stderr, "tinygpu_amd_compile: no variant %s\n", argv[i]); return 1; }
         try {
-            const std::string hsaco = compile_hip(std::string("#define FW_TINYGPU_HYBRID_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n") + src, arch);
+            const std::string hsaco = compile_hip(std::string("#define FW_TINYGPU_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n") + src, arch);
             const std::string path = dir + "/" + argv[i] + "_" + arch + ".hsaco";
             FILE* f = fopen(path.c_str(), "wb");
             if (!f || fwrite(hsaco.data(), 1, hsaco.size(), f) != hsaco.size() || fclose(f) != 0) { fprintf(stderr, "tinygpu_amd_compile: cannot write %s\n", path.c_str()); return 1; }

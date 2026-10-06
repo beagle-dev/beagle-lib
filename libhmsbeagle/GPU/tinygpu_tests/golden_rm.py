@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridNVRM.h (TODO.md plan step C7, its first part) against the code it ports: tinygrad's
+"""Golden test for TinyGPUNVRM.h (TODO.md plan step C7, its first part) against the code it ports: tinygrad's
 NV_GSP.rpc_rm_alloc (with its hooks), rpc_rm_control (with the work-submit-token fix-up), rpc_set_page_directory and
 promote_ctx, over C5's GSP queues and C6's memory manager. The RM calls are NVDevice.__init__'s (ops_nv.py:590-640, with
 _new_gpu_fifo twice and _query_gpu_info), in its order, with its allocations in between, from a fork point after a boot-like
@@ -188,10 +188,10 @@ def run_case(mmu, vram_mb, exe, priv, quiet=False):
     return same, summary
 
 # a perturbed copy of the port must be caught
-PERTURBED = [("TinyGPUHybridNVRM.h", "TGVirtMapping fresh = mm.valloc(desc.size, 0x1000, false, true);   // allocate buffers (dict.get's default: always)\n            const TGVirtMapping& x = bufs && bufs->count(buf) ? bufs->at(buf) : fresh;",
+PERTURBED = [("TinyGPUNVRM.h", "TGVirtMapping fresh = mm.valloc(desc.size, 0x1000, false, true);   // allocate buffers (dict.get's default: always)\n            const TGVirtMapping& x = bufs && bufs->count(buf) ? bufs->at(buf) : fresh;",
               "const TGVirtMapping& x = bufs && bufs->count(buf) ? bufs->at(buf) : mm.valloc(desc.size, 0x1000, false, true);"),
-             ("TinyGPUHybridNVRM.h", "p.workSubmitToken |= (it->second << 16) | (gb2 ? (1u << 30) : 0);", "p.workSubmitToken |= (it->second << 8);"),
-             ("TinyGPUHybridNVRM.h", "p.userdMem = {p.hUserdMemory[0] + p.userdOffset[0], 0x400, 2, 0};", "p.userdMem = {p.hUserdMemory[0], 0x400, 2, 0};")]
+             ("TinyGPUNVRM.h", "p.workSubmitToken |= (it->second << 16) | (gb2 ? (1u << 30) : 0);", "p.workSubmitToken |= (it->second << 8);"),
+             ("TinyGPUNVRM.h", "p.userdMem = {p.hUserdMemory[0] + p.userdOffset[0], 0x400, 2, 0};", "p.userdMem = {p.hUserdMemory[0], 0x400, 2, 0};")]
 
 def main():
     exe = f"{WORK}/golden_rm"

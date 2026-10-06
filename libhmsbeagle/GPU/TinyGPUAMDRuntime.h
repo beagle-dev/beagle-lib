@@ -1,9 +1,9 @@
 /*
- * TinyGPUHybridAMDRuntime.h
+ * TinyGPUAMDRuntime.h
  *
  * The AMD C++ runtime on the boot's handoff (TODO.md plan steps A1e-A1g): the GPU's compute and SDMA queues, its timeline, a
- * kernargs buffer, staging and a VRAM pool, as the C++ boot's am_handoff (TinyGPUHybridAMDDevice.h) fills them in. It
- * encodes and submits PM4 and SDMA (TinyGPUHybridAMDDispatch.h) over the plugin's TinyGPU.app connection. The handoff was
+ * kernargs buffer, staging and a VRAM pool, as the C++ boot's am_handoff (TinyGPUAMDDevice.h) fills them in. It
+ * encodes and submits PM4 and SDMA (TinyGPUAMDDispatch.h) over the plugin's TinyGPU.app connection. The handoff was
  * first the AMD daemon's cmd_handoff reply (flat JSON, then the sysmem fds): amd_parse_handoff and amd_runtime_attach still
  * read that reply, for the goldens (golden_amd_handoff.py, against the oracle's daemon); the plugin uses neither since plan
  * step A2l. It follows tinygrad's AMDDevice (tinygrad/runtime/ops_amd.py, support/hcq.py, support/am/ip.py at a9830e2b4):
@@ -15,14 +15,14 @@
  *   - copies: HCQAllocator._copyin/_copyout through staging (amd_copyin/amd_copyout);
  *   - allocations: PCIIfaceBase.alloc's rounding, carved from the pool, which takes freed blocks back (TinyGPUPool.h, as on
  *     NV; plan step C14).
- * Deliberate differences, beyond TinyGPUHybridAMDProgram.h's: hcq1 never waits before reusing compute ring or kernargs
+ * Deliberate differences, beyond TinyGPUAMDProgram.h's: hcq1 never waits before reusing compute ring or kernargs
  * space (ops_amd.py:419-422, memory.py:14-21); here a write that crosses the compute ring's end and a kernargs wrap first
  * wait for everything submitted (NV's wait for idle on wrap). SDMA's own wait for room times out (hcq1 spins forever).
  * The interrupt check runs every 200 ms of a long wait, not on every poll.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDRUNTIME_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDRUNTIME_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDRUNTIME_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMDRUNTIME_H
 
 #include <chrono>
 #include <cstdint>
@@ -37,8 +37,8 @@
 #include <unistd.h>
 
 #include "libhmsbeagle/GPU/TinyGPUAMDTables.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDispatch.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDProgram.h"
 #include "libhmsbeagle/GPU/TinyGPUPool.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
 
@@ -424,4 +424,4 @@ inline std::string amd_runtime_load_programs(AMDRuntime& rt, const uint8_t* hsac
 
 }  // namespace tinygpu_device
 
-#endif  // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDRUNTIME_H
+#endif  // LIBHMSBEAGLE_GPU_TINYGPUAMDRUNTIME_H

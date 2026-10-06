@@ -1,5 +1,5 @@
 #!/bin/bash
-# TODO.md plan step A2j: one tinygpuhybridtest run on the AMD eGPU with the plugin's C++ boot, through tgproxy.py --guard: the
+# TODO.md plan step A2j: one tinygputest run on the AMD eGPU with the plugin's C++ boot, through tgproxy.py --guard: the
 # AMD guard (replay/tgguard_amd.py) audits every TLB flush, queue and doorbell before it is forwarded, refuses a mode1 reset,
 # and holds the TinyGPU.app connection if the plugin goes away with a queue live instead of closing it under the GPU. The
 # sessions are recorded into $BEAGLE_TINYGPU_DATA/recordings/<stamp>_amd_cpp_N<n>. At DEBUG=2 (the C++ boot prints tinygrad's
@@ -9,12 +9,12 @@
 # the guard has exited, since its connection runs through the proxy. With --kill idle the plugin SIGKILLs itself at fini once the
 # GPU is idle (BEAGLE_AMD_TEST_KILL=idle), as a crash would, and the guard finalizes the card: the run then passes if the test
 # died of the SIGKILL and the guard's TinyGPULog lines say it saw every queue off and closed.
-#   run_amd_cpp_point.sh <state-count> [reps] [--kill idle] [tinygpuhybridtest args ...]
+#   run_amd_cpp_point.sh <state-count> [reps] [--kill idle] [tinygputest args ...]
 # Exits 0 only if the test passed (or died of --kill's SIGKILL), both sessions ended clean through the guard, the crash guard
 # exited, log stream saw nothing from the eGPU and the boot reset nothing; 1 is a STOP (stop all hardware work), 2 a refusal
 # before anything ran, 3 a clean run whose test failed.
 source "$(dirname "$0")/env.sh"
-USAGE="usage: $0 <state-count> [reps] [--kill idle] [tinygpuhybridtest args ...]"
+USAGE="usage: $0 <state-count> [reps] [--kill idle] [tinygputest args ...]"
 [ $# -ge 1 ] || { echo "$USAGE"; exit 2; }
 N=$1; REPS=${2:-5}; shift; [ $# -gt 0 ] && shift
 KILL=""; if [ "$1" = "--kill" ]; then [ "$2" = idle ] || { echo "$USAGE"; exit 2; }; KILL=$2; shift 2; fi

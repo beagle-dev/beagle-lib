@@ -319,7 +319,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     KW_LOCAL_FENCE;
 
 #if defined(FW_TINYGPU) && defined(TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH)
-    // Opt-in probe hook (nv_real_kernel_probe.py; tinygpuhybridtest
+    // Opt-in probe hook (nv_real_kernel_probe.py; tinygputest
     // --diag-matmul-ground-truth with a header rebuilt with this macro).
     // Thread (0,0) of every block writes csub0 (dbg[0]), row/column 0 of
     // As/Bs (dbg[1..8]), Ds[0..3] (dbg[9..12]) and %smid (dbg[13]) to a
@@ -877,7 +877,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#if defined(CUDA) || defined(FW_TINYGPU_HYBRID_AMD)
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
     REAL* B0  = &Bs[1][0];
     REAL* Bm1 = &Bs[0][0];
     REAL* Bp1 = &Bs[2][0];
@@ -1106,7 +1106,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#if defined(CUDA) || defined(FW_TINYGPU_HYBRID_AMD)
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
    	REAL* Bp1 = &Bs[2][0];

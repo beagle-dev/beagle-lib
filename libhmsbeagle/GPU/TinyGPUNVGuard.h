@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVGuard.h -- what the plugin and beagle-tinygpu-guard (tinygpu_guard.cpp, TODO.md plan step C10) share: the
+ * TinyGPUNVGuard.h -- what the plugin and beagle-tinygpu-guard (tinygpu_guard.cpp, TODO.md plan step C10) share: the
  * setup message, the state page's layout, and the guard's spawn.
  *
  * The setup comes in two stages (plan step C11). The plugin spawns the guard before its first request to the GPU with what
@@ -16,18 +16,18 @@
  * boot stopped before GSP-RM started, so nothing is to be unloaded); an EOF without any of them means the plugin is gone, or
  * lost the GPU (plan step C12), and the guard decides from the state page.
  *
- * The AMD C++ boot (plan step A2k, GPUInterfaceTinyGPUHybridAMD.cpp) uses the same guard and messages with its own kinds:
+ * The AMD C++ boot (plan step A2k, GPUInterfaceTinyGPUAMD.cpp) uses the same guard and messages with its own kinds:
  * kGuardSetupHoldAMD (the same three fds, its lock being tinygrad's am_usb4.lock, then the transport's nv_usb4.lock, which the
  * AMD path keeps too since plan step A5: a guard that holds keeps both, so another process fails at once on them instead of
  * waiting forever on TinyGPU.app, which serves the guard), and
  * once its AMDev is booted, before any queue is set up, kGuardSetupRestAMD (no fds), followed on the socketpair by what
- * AMDev.fini needs (amd_fini_size bytes: TinyGPUHybridAMDBoot.h's AMFiniState). Its state page uses the phase (am_boot until
+ * AMDev.fini needs (amd_fini_size bytes: TinyGPUAMDBoot.h's AMFiniState). Its state page uses the phase (am_boot until
  * just before the first queue goes live, then dispatch, and teardown in its own fini) and the in-flight word, which its
  * transport keeps around every request.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGUARD_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGUARD_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVGUARD_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVGUARD_H
 
 #include <cerrno>
 #include <cstdint>
@@ -40,7 +40,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridNVFalcon.h"
+#include "libhmsbeagle/GPU/TinyGPUNVFalcon.h"
 
 extern char** environ;
 
@@ -48,7 +48,7 @@ namespace tinygpu_device {
 
 constexpr int kGuardFd = 3;   // the guard's end of the socketpair
 enum { kGuardTinyGPU, kGuardLock, kGuardQueues, kGuardState, kGuardSignal, kGuardFds };
-// the state page (GPUInterfaceTinyGPUHybridNV.cpp's kNVDState* and kNVDPhase*, which static_assert they match these)
+// the state page (GPUInterfaceTinyGPUNV.cpp's kNVDState* and kNVDPhase*, which static_assert they match these)
 enum { kGuardStatePhase, kGuardStateInFlight, kGuardStateLastSubmitted, kGuardStateSeq, kNVDStateWordsGuard };
 constexpr uint64_t kGuardPhaseDispatch = 1, kGuardPhaseTeardown = 2, kGuardPhaseGspInit = 3, kGuardPhaseFlcnInit = 4;
 constexpr uint64_t kGuardPhaseAMBoot = 5;   // the AMD boot before any queue went live: nothing on the GPU reads sysmem
@@ -172,4 +172,4 @@ inline std::string guard_spawn(const std::string& path, int& ctl, pid_t& pid) {
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGUARD_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVGUARD_H

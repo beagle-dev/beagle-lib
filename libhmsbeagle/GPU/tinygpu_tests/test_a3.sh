@@ -32,7 +32,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
 W="$TINYGPU_TEST_WORK/a3"; rm -rf "$W"; mkdir -p "$W"
 TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs
@@ -45,7 +45,7 @@ verdict() { grep -E "fake TinyGPU.app \(AMD device\): (NO ERRORS|[0-9]+ ERRORS)"
 status() { cat "$W/$1.rc"; }
 CLEAN="the plugin finalized the GPU itself; exiting"
 
-run() {   # <label> [VAR=value ...] [-- tinygpuhybridtest args]: one run on a fresh fake card, then its guard: waited for, or
+run() {   # <label> [VAR=value ...] [-- tinygputest args]: one run on a fresh fake card, then its guard: waited for, or
           # ended if it holds. SIGINT_AFTER=<regex> among the VARs: SIGINT to the test's process group once its output matches.
     local l=$1 envs=() args=(--state-count 4 --reps 3) sigint=""; shift
     while [ $# -gt 0 ] && [ "$1" != "--" ]; do

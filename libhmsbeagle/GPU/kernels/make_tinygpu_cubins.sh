@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Generates the TinyGPUHybrid C++ runtime's ahead-of-time cubins (TODO.md plan
+# Generates the TinyGPU C++ runtime's ahead-of-time cubins (TODO.md plan
 # step C1). Each SP PTX module make_tinygpu_kernels.sh keeps
 # (tinygpu_cubins/SP_<N>.ptx: the bytes of KERNELS_STRING_SP_<N>, which the
 # daemon's compile_all compiles at run time), and each DP module (DP_<N>.ptx,

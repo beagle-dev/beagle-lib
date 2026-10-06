@@ -9,8 +9,8 @@ REPO="$(cd "$GPU_DIR/../.." && pwd)"
 : "${TINYGPU_TEST_WORK:=$HOME/Library/Caches/beagle-tinygpu-tests}"   # per computer: the repo may be a synced folder
 export TINYGRAD_PATH BEAGLE_PYTHON BEAGLE_TINYGPU_DATA TINYGPU_TEST_WORK
 mkdir -p "$TINYGPU_TEST_WORK"
-TEST_BIN="$BEAGLE_BUILD/examples/tinygpuhybridtest"
-TEST_LIBS="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid:$BEAGLE_BUILD/libhmsbeagle/CPU:$BEAGLE_BUILD/libhmsbeagle"
+TEST_BIN="$BEAGLE_BUILD/examples/tinygputest"
+TEST_LIBS="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU:$BEAGLE_BUILD/libhmsbeagle/CPU:$BEAGLE_BUILD/libhmsbeagle"
 # $BEAGLE_TINYGPU_DATA may be shared between computers (a synced folder), each with its own eGPU: the hardware scripts tag
 # their runs/ files with this computer's name and keep their lock on this computer
 HW_HOST=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
@@ -31,14 +31,14 @@ TG_AMD_L0="20261001-125155_Marcs-Mac-Studio-490_amd_l0_warm 20261002-083213_Marc
 # connection to a fake would start the real TinyGPU.app. (A static check: it runs nothing.)
 require_no_launch_guard() {
     local so
-    for so in "$BEAGLE_BUILD"/libhmsbeagle/GPU/CMake_TinyGPUHybrid/libhmsbeagle-tinygpu-hybrid*.so; do
-        [ -f "$so" ] || { echo "no TinyGPU plugin under $BEAGLE_BUILD; build hmsbeagle-tinygpu-hybrid first"; exit 2; }
+    for so in "$BEAGLE_BUILD"/libhmsbeagle/GPU/CMake_TinyGPU/libhmsbeagle-tinygpu*.so; do
+        [ -f "$so" ] || { echo "no TinyGPU plugin under $BEAGLE_BUILD; build hmsbeagle-tinygpu first"; exit 2; }
         grep -aq "BEAGLE_TINYGPU_NO_LAUNCH is set; not starting TinyGPU.app" "$so" || {
-            echo "$so lacks the no-launch guard; rebuild hmsbeagle-tinygpu-hybrid before running offline tests"; exit 2; }
+            echo "$so lacks the no-launch guard; rebuild hmsbeagle-tinygpu before running offline tests"; exit 2; }
     done
 }
 
-# run_point.sh's stop rule (TODO.md plan step P3), on the plugin's output (GPUInterfaceTinyGPUHybridNV.cpp nv_report_unload):
+# run_point.sh's stop rule (TODO.md plan step P3), on the plugin's output (GPUInterfaceTinyGPUNV.cpp nv_report_unload):
 # exactly one fini report, WPR2_HI 0 in it, and the teardown line saying the next boot needs no power cycle. Reads a file
 # and runs nothing, so run_offline.sh checks it on the fakes' output.
 # TODO.md plan step C10: after run_point.sh --kill the plugin printed no fini report, and the crash guard's TinyGPULog lines (<file>,
@@ -143,7 +143,7 @@ amd_hw_begin() {
     for v in APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH AM_RESET; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
-    pgrep -fl "beagle-tinygpu-guard|tinygpuhybridtest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
+    pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
         && { echo "a BEAGLE process is running; not running"; exit 2; }
     n=$(pgrep -f "TinyGPU.app/Contents/MacOS/TinyGPU server" | wc -l | tr -d ' ')
     [ "$n" -le 1 ] || { echo "$n TinyGPU.app servers are running (a duplicate); not running"; exit 2; }

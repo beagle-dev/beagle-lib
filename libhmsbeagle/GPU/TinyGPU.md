@@ -1,6 +1,6 @@
-# TinyGPU-Hybrid: BEAGLE on an eGPU through TinyGPU.app
+# TinyGPU: BEAGLE on an eGPU through TinyGPU.app
 
-The TinyGPU-Hybrid backend runs BEAGLE's GPU kernels on an NVIDIA GPU in a USB4 or Thunderbolt enclosure attached to a Mac,
+The TinyGPU backend runs BEAGLE's GPU kernels on an NVIDIA GPU in a USB4 or Thunderbolt enclosure attached to a Mac,
 where there is no CUDA driver. It talks to the GPU through [TinyGPU.app](https://github.com/tinygrad/tinygpu_releases),
 tinygrad's user-space PCIe server, and follows tinygrad's own NV driver (`tinygrad/runtime/ops_nv.py` and
 `support/nv/`), ported to C++: BEAGLE boots the GPU's GSP-RM firmware itself, builds tinygrad's `NVDevice`, loads
@@ -49,17 +49,17 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
   `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses
-  AMD cards. Nothing is compiled at run time. Step by step on a clean Mac: [TinyGPUHybridBuild.md](TinyGPUHybridBuild.md).
+  AMD cards. Nothing is compiled at run time. Step by step on a clean Mac: [TinyGPUBuild.md](TinyGPUBuild.md).
 
 ## Building and installing
 
-`BUILD_TINYGPU_HYBRID` (on by default) builds the plugin, `hmsbeagle-tinygpu-hybrid`, and the crash guard,
+`BUILD_TINYGPU` (on by default) builds the plugin, `hmsbeagle-tinygpu`, and the crash guard,
 `beagle-tinygpu-guard`. Both are installed to the same directory: the plugin looks for the guard next to itself (or at
 `BEAGLE_NV_GUARD`, and `BEAGLE_AMD_GUARD` for an AMD card), and refuses to boot without it. The resource appears in
 `beagleGetResourceList` with `BEAGLE_FLAG_FRAMEWORK_TINYGPU`, named and described as the CUDA plugin (NVIDIA) and the OpenCL
 plugin (AMD) describe their devices, from the card's published specifications: `NVIDIA GeForce RTX 5070 (TinyGPU)`, with
 `Global memory (MB): 12288 | Clock speed (Ghz): 2.51 | Number of cores: 6144`. The list is made before any boot, so the plugin
-finds the card in a table by its PCI ids (`kTGCards` in `GPUInterfaceTinyGPUHybrid.cpp`; the revision, which tells an RX
+finds the card in a table by its PCI ids (`kTGCards` in `GPUInterfaceTinyGPU.cpp`; the revision, which tells an RX
 7900 XT from an XTX, from the IORegistry); a card not in it is listed by its PCI ids, as `NVIDIA GPU 10de:2b85 (TinyGPU)`.
 
 ## Running
@@ -142,24 +142,24 @@ act on the AMD boot as on tinygrad's (an `AM_RESET=1` on a warm card is a mode1 
 
 | File | Part |
 |---|---|
-| `GPUInterfaceTinyGPUHybrid.cpp` | the `GPUInterface` BeagleGPUImpl calls; the PCI probe; the NV or AMD branch |
-| `GPUInterfaceTinyGPUHybridNV.cpp` | the NV entry points: setup, the shared boot, allocation, copies, launches, fini, the lost-GPU state |
+| `GPUInterfaceTinyGPU.cpp` | the `GPUInterface` BeagleGPUImpl calls; the PCI probe; the NV or AMD branch |
+| `GPUInterfaceTinyGPUNV.cpp` | the NV entry points: setup, the shared boot, allocation, copies, launches, fini, the lost-GPU state |
 | `TinyGPUTransport.h` | tinygrad's TinyGPU.app client (`RemotePCIDevice`), with the app check and the lock |
-| `TinyGPUHybridNVBoot.h` | `NVDev.__init__`'s software half: early init, the VBIOS and FWSEC, the booters, the GSP image, the WPR meta, COT's FMC |
-| `TinyGPUHybridNVFalcon.h`, `TinyGPUHybridNVGsp.h` | the falcons' and GSP-RM's boot and unload, the RPC queue, NVIDIA's teardown |
-| `TinyGPUMemory.h`, `TinyGPUHybridNVMemory.h` | tinygrad's memory manager and page tables (MMU v2 and v3) |
-| `TinyGPUHybridNVRM.h`, `TinyGPUHybridNVDevice.h` | tinygrad's RM client and `NVDevice` (channels, the golden image) |
-| `TinyGPUHybridNVProgram.h`, `TinyGPUHybridNVDispatch.h` | the program loader, QMDs, pushbuffers and the timeline |
+| `TinyGPUNVBoot.h` | `NVDev.__init__`'s software half: early init, the VBIOS and FWSEC, the booters, the GSP image, the WPR meta, COT's FMC |
+| `TinyGPUNVFalcon.h`, `TinyGPUNVGsp.h` | the falcons' and GSP-RM's boot and unload, the RPC queue, NVIDIA's teardown |
+| `TinyGPUMemory.h`, `TinyGPUNVMemory.h` | tinygrad's memory manager and page tables (MMU v2 and v3) |
+| `TinyGPUNVRM.h`, `TinyGPUNVDevice.h` | tinygrad's RM client and `NVDevice` (channels, the golden image) |
+| `TinyGPUNVProgram.h`, `TinyGPUNVDispatch.h` | the program loader, QMDs, pushbuffers and the timeline |
 | `TinyGPUFirmware.h`, `TinyGPUFirmwareManifest.h` | the firmware locator and the manifest it checks |
-| `tinygpu_guard.cpp`, `TinyGPUHybridNVGuard.h` | the crash guard |
+| `tinygpu_guard.cpp`, `TinyGPUNVGuard.h` | the crash guard |
 | `kernels/make_tinygpu_kernels.sh`, `kernels/make_tinygpu_cubins.sh` | the PTX and the embedded cubins, at build time |
-| `GPUInterfaceTinyGPUHybridAMD.cpp` | the AMD entry points: the boot and the crash guard's setup, allocation, copies, launches, fini |
-| `TinyGPUHybridAMDRuntime.h` | AMD's C++ runtime on the boot's handoff: queues, doorbells, waits, the IH drain, the pool, the programs |
-| `TinyGPUHybridAMDDispatch.h`, `TinyGPUHybridAMDProgram.h`, `TinyGPUAMDTables.h` | tinygrad's AMD PM4 and SDMA queues, its HSACO loader and scratch sizing, and their constants (generated by `make_tinygpu_amd_tables.py`) |
+| `GPUInterfaceTinyGPUAMD.cpp` | the AMD entry points: the boot and the crash guard's setup, allocation, copies, launches, fini |
+| `TinyGPUAMDRuntime.h` | AMD's C++ runtime on the boot's handoff: queues, doorbells, waits, the IH drain, the pool, the programs |
+| `TinyGPUAMDDispatch.h`, `TinyGPUAMDProgram.h`, `TinyGPUAMDTables.h` | tinygrad's AMD PM4 and SDMA queues, its HSACO loader and scratch sizing, and their constants (generated by `make_tinygpu_amd_tables.py`) |
 | `TinyGPUElf.h` | tinygrad's ELF loader, for cubins and HSACOs |
 | `tinygpu_amd_compile.cpp`, `kernels/make_tinygpu_hsaco.sh` | tinygrad's compile_hip in C++ (comgr), and the embedded HSACOs, at build time |
-| `TinyGPUHybridAMDBoot.h`, `TinyGPUAMDReg.h` | tinygrad's AM driver in C++ (AMDev, AMFirmware, its page tables and memory manager, the PSP, SMU, GMC, IH, GFX and SDMA blocks), and its registers |
-| `TinyGPUHybridAMDDevice.h` | AMDDevice.__init__'s queues and buffers and the old daemon's handoff, in C++, for the runtime |
+| `TinyGPUAMDBoot.h`, `TinyGPUAMDReg.h` | tinygrad's AM driver in C++ (AMDev, AMFirmware, its page tables and memory manager, the PSP, SMU, GMC, IH, GFX and SDMA blocks), and its registers |
+| `TinyGPUAMDDevice.h` | AMDDevice.__init__'s queues and buffers and the old daemon's handoff, in C++, for the runtime |
 | `TinyGPUAMDBootTables.h` | the boot's registers, structs, constants and firmware manifest, generated by `make_tinygpu_amd_boot_tables.py` |
 
 The Python this port was checked against, tinygrad plus BEAGLE's patches, lives in `tinygpu_tests/oracle/`, off the run

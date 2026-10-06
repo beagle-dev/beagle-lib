@@ -1,12 +1,12 @@
-// The C++ AM boot (TinyGPUHybridAMDBoot.h) on fake_amd_device.py's card, for golden_amd_boot.py: PCIIfaceBase.__init__'s
+// The C++ AM boot (TinyGPUAMDBoot.h) on fake_amd_device.py's card, for golden_amd_boot.py: PCIIfaceBase.__init__'s
 // RESIZE_BAR, AMDev's boot, then fini (after a line on stdin with --pause, so the harness can post interrupts first). Prints
 // what golden_amd_boot.py prints for tinygrad's AMDev. With --session <pool size>, the daemon's whole session instead
-// (TinyGPUHybridAMDDevice.h): the boot, AMDDevice.__init__, cmd_handoff's allocations (its reply printed as the daemon's
+// (TinyGPUAMDDevice.h): the boot, AMDDevice.__init__, cmd_handoff's allocations (its reply printed as the daemon's
 // JSON keys), then the exit's finalize; with --restore-fini, that finalize on an AMDev restored from the boot's fini_state()
 // (taken before AMDDevice's setup) over a second transport on the same connection, as the crash guard runs it (plan step A2k).
 //   golden_amd_boot <blobs file: name path sha256 per line> [--pause] [--allow-mode1] [--session <pool size> [--die-before-fini | --restore-fini]]
 #include "libhmsbeagle/GPU/TinyGPUFirmware.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDevice.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDevice.h"
 #include <cstdio>
 #include <fstream>
 #include <iostream>

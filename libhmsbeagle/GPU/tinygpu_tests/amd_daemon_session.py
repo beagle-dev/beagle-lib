@@ -1,7 +1,7 @@
 """One session of the real AMD daemon on a fake card, driven as the plugin drives it (TODO.md plan step A2): the plugin's
 TinyGPU.app connection to the fake (its first request the plugin's PCI id read), the command socket, amd_daemon_on_fake.py
 spawned with both, then boot, handoff and
-fini, each a length-prefixed JSON message as GPUInterfaceTinyGPUHybridAMD.cpp sends it. The daemon then exits, and
+fini, each a length-prefixed JSON message as GPUInterfaceTinyGPUAMD.cpp sends it. The daemon then exits, and
 tinygrad's atexit hook finalizes the device (AMDev.fini). No compile_all: the plugin's build-time HSACOs need none. The
 connection is closed last, which ends the session on the fake.
     session(fake_socket, pool_size, before_fini=None, env=None, daemon=None) -> (boot reply, handoff reply, its HSACO blob)

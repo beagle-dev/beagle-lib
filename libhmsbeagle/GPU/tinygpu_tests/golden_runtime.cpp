@@ -1,5 +1,5 @@
-// C++ side of golden_runtime.py: parses the boot-only handoff and computes each case with TinyGPUHybridNVProgram.h.
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
+// C++ side of golden_runtime.py: parses the boot-only handoff and computes each case with TinyGPUNVProgram.h.
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
 #include <cstdio>
 #include <fstream>
 #include <sstream>

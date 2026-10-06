@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridAMDDispatch.h
+ * TinyGPUAMDDispatch.h
  *
  * The AMD C++ runtime's PM4 compute encoder (TODO.md plan step A1b): a statement-by-statement port of tinygrad's
  * AMDComputeQueue (tinygrad/runtime/ops_amd.py:53-422 at a9830e2b4) as HCQProgram.__call__ drives it
@@ -13,8 +13,8 @@
  * refuses such kernels instead of porting them (A1d).
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDISPATCH_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDISPATCH_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDDISPATCH_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMDDISPATCH_H
 
 #include <cstdint>
 #include <cstdlib>
@@ -286,4 +286,4 @@ inline bool amd_copyout(Ctx& c, AMDStaging& s, uint8_t* dst, uint64_t src, uint6
 
 }  // namespace tinygpu_device
 
-#endif  // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDDISPATCH_H
+#endif  // LIBHMSBEAGLE_GPU_TINYGPUAMDDISPATCH_H

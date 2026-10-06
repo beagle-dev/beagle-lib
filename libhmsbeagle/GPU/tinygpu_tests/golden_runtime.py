@@ -1,4 +1,4 @@
-"""Golden test for the C++ runtime's device-side pieces (TinyGPUHybridNVProgram.h, TinyGPUHybridNVDispatch.h), each
+"""Golden test for the C++ runtime's device-side pieces (TinyGPUNVProgram.h, TinyGPUNVDispatch.h), each
 against the tinygrad (hcq1) code it ports:
   1. the boot-only handoff: build_handoff with no programs, plus cmd_handoff's runtime keys, parses in C++;
   2. nvd_check_tables accepts tinygrad's QMD layout for Ada and Blackwell, and rejects a perturbed one;

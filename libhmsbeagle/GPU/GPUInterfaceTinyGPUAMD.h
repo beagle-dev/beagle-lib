@@ -1,16 +1,16 @@
 /*
- * GPUInterfaceTinyGPUHybridAMD.h
+ * GPUInterfaceTinyGPUAMD.h
  *
- * Entry points implemented in GPUInterfaceTinyGPUHybridAMD.cpp, called from
- * GPUInterfaceTinyGPUHybrid.cpp's vendor branch (GPUInterface::isNVIDIA ==
+ * Entry points implemented in GPUInterfaceTinyGPUAMD.cpp, called from
+ * GPUInterfaceTinyGPU.cpp's vendor branch (GPUInterface::isNVIDIA ==
  * false) inside each shared GPUInterface method. One GPUInterface method
- * definition per name can exist in the hmsbeagle-tinygpu-hybrid target
+ * definition per name can exist in the hmsbeagle-tinygpu target
  * (link-wise), so these stay as plain free functions rather than a second
  * set of GPUInterface member definitions.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMD_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMD_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMD_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMD_H
 
 #ifdef FW_TINYGPU
 
@@ -39,4 +39,4 @@ void       AmdFini(GPUInterface* self);   // called from the destructor: release
 } // namespace tinygpu_device
 
 #endif // FW_TINYGPU
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMD_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUAMD_H

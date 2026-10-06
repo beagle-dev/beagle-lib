@@ -1,4 +1,4 @@
-// C++ side of golden_rm.py (TODO.md plan step C7): TinyGPUHybridNVRM.h's RM client runs golden_rm.py's operations over its
+// C++ side of golden_rm.py (TODO.md plan step C7): TinyGPUNVRM.h's RM client runs golden_rm.py's operations over its
 // fake TinyGPU.app (APL_REMOTE_SOCK), with the GSP queues in the file GOLDEN_QUEUES and the memory manager restored from
 // nv_dispatch_daemon.py's _mm_export, and prints the result lines golden_rm.py prints for tinygrad's own NV_GSP.
 //   golden_rm EXPORT STATE OPS
@@ -6,7 +6,7 @@
 //   runlist KEY VALUE, grctx ID SIZE PHYS VIRT LOCAL.
 // OPS, one per line (numbers as int(x, 0) reads them; "-" for params None; client 0 for None):
 //   rm_alloc PARENT CLASS CLIENT HEX | rm_control OBJECT CMD CLIENT HEX | alloc SIZE HOST UNCACHED CPU_ACCESS CONTIGUOUS FORCE_DEVMEM ZERO
-#include "libhmsbeagle/GPU/TinyGPUHybridNVRM.h"
+#include "libhmsbeagle/GPU/TinyGPUNVRM.h"
 
 #include <cstdio>
 #include <fstream>

@@ -1,10 +1,10 @@
 /**
- * libhmsbeagle plugin system — TinyGPUHybrid backend
+ * libhmsbeagle plugin system — TinyGPU backend
  * @author Marc Suchard
  */
 
 #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridPlugin.h"
+#include "libhmsbeagle/GPU/TinyGPUPlugin.h"
 
 namespace beagle {
 namespace gpu {
@@ -38,8 +38,8 @@ public:
 };
 }  // namespace
 
-TinyGPUHybridPlugin::TinyGPUHybridPlugin() :
-    Plugin("GPU-TinyGPUHybrid", "GPU-TinyGPUHybrid")
+TinyGPUPlugin::TinyGPUPlugin() :
+    Plugin("GPU-TinyGPU", "GPU-TinyGPU")
 {
     GPUInterface gpu;
     bool anyGPUFound  = false;
@@ -85,13 +85,13 @@ TinyGPUHybridPlugin::TinyGPUHybridPlugin() :
         beagleFactories.push_back(new TinyGPUImplFactory(anyGPUSupDP));
 }
 
-TinyGPUHybridPlugin::~TinyGPUHybridPlugin() {}
+TinyGPUPlugin::~TinyGPUPlugin() {}
 
 } // namespace gpu
 } // namespace beagle
 
 extern "C" {
 void* plugin_init(void) {
-    return new beagle::gpu::TinyGPUHybridPlugin();
+    return new beagle::gpu::TinyGPUPlugin();
 }
 }

@@ -25,7 +25,7 @@ def variant(name):
     return "\n".join(out) + "\n"
 
 for name in sys.argv[1:] or ["KERNELS_STRING_SP_4", "KERNELS_STRING_SP_64"]:
-    src = "#define FW_TINYGPU_HYBRID_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n" + variant(name)
+    src = "#define FW_TINYGPU_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n" + variant(name)
     t0 = time.time(); a = compile_hip(src, "gfx1100"); t1 = time.time(); b = compile_hip(src, "gfx1100")
     print(f"{name}: hsaco {len(a)} B, zlib-9 {len(zlib.compress(a, 9))} B, {t1 - t0:.1f} s, deterministic={a == b}, "
           f"sha={hashlib.sha256(a).hexdigest()[:12]}, e_flags={struct.unpack_from('<I', a, 0x30)[0]:#x}")

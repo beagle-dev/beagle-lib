@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridNVProgram.h: the real BeagleNVProgram (nv_dispatch_daemon.py: tinygrad's
+"""Golden test for TinyGPUNVProgram.h: the real BeagleNVProgram (nv_dispatch_daemon.py: tinygrad's
 NVProgram.__init__ plus BEAGLE's multi-kernel fixes) and the C++ port load the same real cubins (ptxas: the 9 SP
 modules for sm_86, sm_89 and sm_120, the single-precision 27 of the 54 the plugin embeds). Their per-kernel records,
 in build_handoff's format (QMD template, cbuf0 prefix, kernargs layout), and the relocated image must be

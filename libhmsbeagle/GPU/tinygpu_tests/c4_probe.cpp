@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "libhmsbeagle/GPU/TinyGPUFirmware.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
 
 using namespace tinygpu_device;
 

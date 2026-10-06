@@ -1,6 +1,6 @@
-// Parses cmd_handoff's reply and attaches its fds with TinyGPUHybridAMDRuntime.h alone (see golden_amd_handoff.py), then prints
+// Parses cmd_handoff's reply and attaches its fds with TinyGPUAMDRuntime.h alone (see golden_amd_handoff.py), then prints
 // what the C++ side reads through each mapping.   golden_amd_handoff <reply.json> <fd>...
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDRuntime.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDRuntime.h"
 #include <cstdio>
 #include <fstream>
 #include <sstream>

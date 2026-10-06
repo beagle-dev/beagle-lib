@@ -3,11 +3,11 @@
 nv_dispatch_daemon.py — BEAGLE NV hybrid backend, daemon architecture
 (STATUS.md §73/§75).
 
-Replaced GPUInterfaceTinyGPUHybrid.cpp's hand-rolled GPFIFO/QMD dispatch
+Replaced GPUInterfaceTinyGPU.cpp's hand-rolled GPFIFO/QMD dispatch
 and is the default NV path. Real GPU operations (boot, compile, alloc, memcpy, launch, sync) run in this
 resident daemon on tinygrad's NVDevice/NVProgram/HCQProgram.__call__, the
 same architecture as amd_dispatch_daemon.py, and
-GPUInterfaceTinyGPUHybridNV.cpp is a thin RPC client. The wrong-answer bug
+GPUInterfaceTinyGPUNV.cpp is a thin RPC client. The wrong-answer bug
 that motivated the move was not dispatch-specific: no path, tinygrad's
 NVProgram included, wrote the cbuf0 launch-dims words, and
 BeagleNVProgram.__call__ now does (TODO.md Phase 140, STATUS.md §203).
@@ -276,7 +276,7 @@ def log(msg):
 
 
 # Opt-in timing (BEAGLE_NV_PROFILE=1), the daemon half of the C++ side's
-# RPC round-trip profiling (GPUInterfaceTinyGPUHybridNV.cpp). Aggregated per
+# RPC round-trip profiling (GPUInterfaceTinyGPUNV.cpp). Aggregated per
 # label and logged at fini: "cmd.*" is each command handler, "launch.*" each
 # kernel launch inside launch_batch (plus one submit per batch when
 # chained), "wire.*" the framing (reading a message, measured from its first
@@ -373,7 +373,7 @@ def _install_inherited_tinygpu(tgpu_fd):
 # ── C++ dispatch handoff (TODO.md "Runtime roadmap", Step 3). After
 # cmd_handoff the C++ side builds QMDs and pushbuffers itself and submits both
 # GPFIFOs over the shared TinyGPU.app connection. build_handoff describes
-# everything its encoder (TinyGPUHybridNVDispatch.h) needs, taken from the
+# everything its encoder (TinyGPUNVDispatch.h) needs, taken from the
 # same tinygrad objects and tables hcq1 would have used, so the two cannot
 # drift apart: QMD field positions, method and flag words, GPFIFO/doorbell
 # BAR offsets, the C++ side's buffers, and per kernel the QMD template and
@@ -472,8 +472,8 @@ def _wpr_bound_name(dev_impl):
 
 
 # TODO.md plan step C6: at BEAGLE_NV_CPP_LEVEL=vram the C++ side allocates its VRAM pool itself, with tinygrad's memory
-# manager ported to C++ (TinyGPUMemory.h, TinyGPUHybridNVMemory.h), and at sysmem also the handoff's four buffers, which it
-# otherwise gets from here (_HANDOFF_BUFS, in this order: the C++ side's GPUInterfaceTinyGPUHybridNV.cpp kNVDBuffers is the
+# manager ported to C++ (TinyGPUMemory.h, TinyGPUNVMemory.h), and at sysmem also the handoff's four buffers, which it
+# otherwise gets from here (_HANDOFF_BUFS, in this order: the C++ side's GPUInterfaceTinyGPUNV.cpp kNVDBuffers is the
 # same list). The handoff reply then carries tinygrad's memory manager as it is (_mm_export), and this process allocates
 # nothing more: the C++ side continues from exactly this state, so it sends TinyGPU.app what this process would have.
 _HANDOFF_BUFS = (("cmdq", 2 << 20, dict(cpu_access=True)),                           # pushbuffers of both queues
@@ -497,7 +497,7 @@ def _tlsf_save(a):
 
 
 def _mm_export(dev):
-    """Plan step C6: tinygrad's memory manager as TinyGPUHybridNVMemory.h's nv_mm_import restores it: NVMemoryManager's
+    """Plan step C6: tinygrad's memory manager as TinyGPUNVMemory.h's nv_mm_import restores it: NVMemoryManager's
     configuration, its three allocators and the class's VA allocator, the root page table; and what PCIIfaceBase.alloc and
     the plugin's checks use: mmap.PAGESIZE, GMMU, the WPR bound, NVDev.vram_size, BAR1's size (bar_info is cached, so this
     sends nothing) and how many sysmem allocations this process made on the shared connection (TinyGPU.app keeps 128)."""
@@ -514,7 +514,7 @@ def _mm_export(dev):
 
 
 # TODO.md plan step C7: at BEAGLE_NV_CPP_LEVEL=rm this process boots only the NVDev, the GSP included, and the C++ side builds the
-# NVDevice with tinygrad's RM client ported to C++ (TinyGPUHybridNVRM.h, TinyGPUHybridNVDevice.h). _boot_nvdev_only runs
+# NVDevice with tinygrad's RM client ported to C++ (TinyGPUNVRM.h, TinyGPUNVDevice.h). _boot_nvdev_only runs
 # tinygrad's own PCIIface.__init__ (ops_nv.py:557-568) and stops it at its first RM call, the root client's allocation, which the
 # C++ side makes: so this process sends TinyGPU.app exactly what NVDevice's boot sends up to there. (NVDevice._select_iface tries
 # NVKIface first, which sends nothing here.) _RMDevice stands in for the NVDevice in the fini, EOF, state-page and export paths:
@@ -555,7 +555,7 @@ def _boot_nvdev_only(level="rm"):
     return iface
 
 
-# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUHybridNV.cpp nvdStatePage): five u64 words
+# The C++ side's state page (TODO.md plan step P3; GPUInterfaceTinyGPUNV.cpp nvdStatePage): five u64 words
 # [phase, frame_in_flight, last_submitted, seq, keeper] in a POSIX shm segment the plugin creates, unlinks and passes here right
 # after the handoff. Read only when the C++ side can no longer write: at fini (it has idled or hung) and after EOF (it is
 # gone). Plan step C5 added seq, the GSP command queue's sequence number after the C++ side's last RPC, and phase 2; plan step
@@ -775,7 +775,7 @@ class Daemon:
 
     def cmd_state_page(self, req):
         # C++ dispatch and the C++ runtime (plan step P3): one byte carrying the state page's fd as SCM_RIGHTS follows this
-        # command (GPUInterfaceTinyGPUHybridNV.cpp nv_send_fds). Taken before any check, so the command stream stays framed
+        # command (GPUInterfaceTinyGPUNV.cpp nv_send_fds). Taken before any check, so the command stream stays framed
         # when the page is refused. Not a TinyGPU allocation: nothing reaches the GPU.
         import mmap
         _, fds, _, _ = socket.recv_fds(self.sock, 1, 2)   # a second fd would be refused, and still closed here

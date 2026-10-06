@@ -1,6 +1,6 @@
-// Encodes golden_amd_batch.txt with TinyGPUHybridAMDDispatch.h alone (see golden_amd_encode.py): the queues, the kernargs
+// Encodes golden_amd_batch.txt with TinyGPUAMDDispatch.h alone (see golden_amd_encode.py): the queues, the kernargs
 // slots (BumpAllocator), and each submit's ring write, then signal_doorbell's wptr, HDP flush and doorbell, in order.
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDispatch.h"
 #include <cstdio>
 #include <fstream>
 #include <map>

@@ -5,7 +5,7 @@
  * ported statement by statement: TLSFAllocator (:23-115), PageTableTraverseContext (:124-179) and MemoryManager
  * (:181-290), with BEAGLE's palloc patch (nv_init_helper.py patch 2: palloc zeroes only allocations of at most 64 KiB;
  * palloc_zero_limit, which the AMD manager lifts, since AMD's daemon does not patch palloc).
- * The page-table type (NV's is TinyGPUHybridNVMemory.h's) reads and writes its entries where tinygrad's does, so the
+ * The page-table type (NV's is TinyGPUNVMemory.h's) reads and writes its entries where tinygrad's does, so the
  * manager sends TinyGPU.app the requests tinygrad sends, in the same order, reads included. tinygrad's exceptions become
  * TGPyError with the Python type's name; MemoryError is the one valloc recovers from.
  *

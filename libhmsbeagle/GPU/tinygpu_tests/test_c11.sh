@@ -1,5 +1,5 @@
 #!/bin/bash
-# TODO.md plan step C11, end to end with no eGPU: level boot, where the plugin boots the GPU itself (TinyGPUHybridNVBoot.h,
+# TODO.md plan step C11, end to end with no eGPU: level boot, where the plugin boots the GPU itself (TinyGPUNVBoot.h,
 # golden_boot.py) with no daemon, and the crash guard keeps the GPU from before the plugin's first request to it: at first it
 # can only hold, and once the NVDevice is built it has the queues and the timeline too. On the fake AD107 and the fake GB205
 # (fake_nv_device.py):

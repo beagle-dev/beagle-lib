@@ -93,11 +93,11 @@ private:
     std::map<int, cl_device_id> openClDeviceMap;
     const char* GetCLErrorDescription(int errorCode);
 #elif defined(FW_TINYGPU)
-    // AMD dispatch (GPUInterfaceTinyGPUHybridAMD.cpp) lives in free functions,
+    // AMD dispatch (GPUInterfaceTinyGPUAMD.cpp) lives in free functions,
     // not GPUInterface methods -- GPUInterface::SetDevice/LaunchKernelImpl/etc.
-    // (defined once, in GPUInterfaceTinyGPUHybrid.cpp) branch on isNVIDIA and
+    // (defined once, in GPUInterfaceTinyGPU.cpp) branch on isNVIDIA and
     // call out to them. They need private/protected member access the same
-    // way GPUInterfaceTinyGPUHybrid.cpp's own method bodies already do.
+    // way GPUInterfaceTinyGPU.cpp's own method bodies already do.
     friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
     // Their per-instance state is amdInstance (TODO.md plan step A5)
     friend int AmdAttachShared(GPUInterface*);
@@ -111,7 +111,7 @@ private:
     friend void AmdFreeMemory(GPUInterface*, GPUPtr);
     friend bool AmdDeviceLost(GPUInterface*);
     friend bool AmdOutOfMemory(GPUInterface*);
-    // Same for the NV path (GPUInterfaceTinyGPUHybridNV.cpp: the daemon by
+    // Same for the NV path (GPUInterfaceTinyGPUNV.cpp: the daemon by
     // default, C++ dispatch or the C++ runtime by environment variable), whose
     // per-instance state is nvGspState (TODO.md plan step P5).
     friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
@@ -132,9 +132,9 @@ private:
     uint32_t tgpuDevId;
     bool     isNVIDIA;    // true = NV (CUDA driver path), false = AMD (PM4 path)
 
-    // The NV path's per-instance state: its NVInstance (GPUInterfaceTinyGPUHybridNV.cpp; TODO.md plan step P5)
+    // The NV path's per-instance state: its NVInstance (GPUInterfaceTinyGPUNV.cpp; TODO.md plan step P5)
     void*    nvGspState = nullptr;
-    // The AMD path's: its AMDInstance (GPUInterfaceTinyGPUHybridAMD.cpp; TODO.md plan step A5)
+    // The AMD path's: its AMDInstance (GPUInterfaceTinyGPUAMD.cpp; TODO.md plan step A5)
     void*    amdInstance = nullptr;
 
     void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,

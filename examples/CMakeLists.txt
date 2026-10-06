@@ -72,25 +72,15 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
-add_executable(tinygputest
-        tinygputest/tinygputest.cpp)
-target_link_libraries(tinygputest
-        hmsbeagle
-        hmsbeagle-cpu
-        ${CMAKE_DL_LIBS})
-if(BUILD_SSE)
-    target_link_libraries(tinygputest hmsbeagle-cpu-sse)
-endif()
-
-if(BUILD_TINYGPU_HYBRID)
-    add_executable(tinygpuhybridtest
-            tinygpuhybridtest/tinygpuhybridtest.cpp)
-    target_link_libraries(tinygpuhybridtest
+if(BUILD_TINYGPU)
+    add_executable(tinygputest
+            tinygputest/tinygputest.cpp)
+    target_link_libraries(tinygputest
             hmsbeagle
             hmsbeagle-cpu
             ${CMAKE_DL_LIBS})
     if(BUILD_SSE)
-        target_link_libraries(tinygpuhybridtest hmsbeagle-cpu-sse)
+        target_link_libraries(tinygputest hmsbeagle-cpu-sse)
     endif()
 endif()
 

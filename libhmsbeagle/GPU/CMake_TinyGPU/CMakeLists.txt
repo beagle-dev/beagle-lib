@@ -1,6 +1,6 @@
 
-# TinyGPUHybrid backend: an eGPU through TinyGPU.app. NV and AMD both boot
-# and run in C++, with no Python (../TinyGPUHybrid.md; TODO.md plan steps
+# TinyGPU backend: an eGPU through TinyGPU.app. NV and AMD both boot
+# and run in C++, with no Python (../TinyGPU.md; TODO.md plan steps
 # C13c and A2l).
 #
 # Prerequisites:
@@ -9,7 +9,7 @@
 #     C++ runtime's embedded cubins
 #   - for AMD, comgr (libamd_comgr) at build time, for the embedded HSACOs
 #
-# Build:  cmake -DBUILD_TINYGPU_HYBRID=ON ..
+# Build:  cmake -DBUILD_TINYGPU=ON ..
 
 add_definitions(-DFW_TINYGPU)
 enable_language(ASM)  # ../kernels/BeagleTinyGPU_cubins.S
@@ -18,74 +18,74 @@ enable_language(ASM)  # ../kernels/BeagleTinyGPU_cubins.S
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_cubins.S" PROPERTIES GENERATED TRUE
         OBJECT_DEPENDS "${TINYGPU_CUBINS}")  # the files it .incbin's (../CMakeLists.txt)
 
-add_library(hmsbeagle-tinygpu-hybrid SHARED
+add_library(hmsbeagle-tinygpu SHARED
         ../BeagleGPUImpl.h
         ../BeagleGPUImpl.hpp
         ../GPUImplDefs.h
         ../GPUImplHelper.cpp
         ../GPUImplHelper.h
-        ../GPUInterfaceTinyGPUHybrid.cpp
-        ../GPUInterfaceTinyGPUHybridAMD.cpp
-        ../GPUInterfaceTinyGPUHybridAMD.h
-        ../GPUInterfaceTinyGPUHybridNV.cpp
-        ../GPUInterfaceTinyGPUHybridNV.h
+        ../GPUInterfaceTinyGPU.cpp
+        ../GPUInterfaceTinyGPUAMD.cpp
+        ../GPUInterfaceTinyGPUAMD.h
+        ../GPUInterfaceTinyGPUNV.cpp
+        ../GPUInterfaceTinyGPUNV.h
         ../TinyGPUTransport.h
         ../TinyGPUAMDTables.h
-        ../TinyGPUHybridAMDDispatch.h
-        ../TinyGPUHybridAMDProgram.h
-        ../TinyGPUHybridAMDRuntime.h
+        ../TinyGPUAMDDispatch.h
+        ../TinyGPUAMDProgram.h
+        ../TinyGPUAMDRuntime.h
         ../TinyGPUAMDBootTables.h
         ../TinyGPUAMDReg.h
-        ../TinyGPUHybridAMDBoot.h
-        ../TinyGPUHybridAMDDevice.h
-        ../TinyGPUHybridNVDispatch.h
+        ../TinyGPUAMDBoot.h
+        ../TinyGPUAMDDevice.h
+        ../TinyGPUNVDispatch.h
         ../TinyGPUElf.h
-        ../TinyGPUHybridNVProgram.h
-        ../TinyGPUHybridNVCubins.h
+        ../TinyGPUNVProgram.h
+        ../TinyGPUNVCubins.h
         ../TinyGPUNVTables.h
         ../KernelLauncher.cpp
         ../KernelLauncher.h
         ../KernelResource.cpp
         ../KernelResource.h
-        ../TinyGPUHybridPlugin.cpp
-        ../TinyGPUHybridPlugin.h
+        ../TinyGPUPlugin.cpp
+        ../TinyGPUPlugin.h
         ../Precision.h
         ../kernels/BeagleTinyGPU_cubins.S
         )
 
-add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUKernels)
-add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUCubins)
-# the resource's card name and revision from the IORegistry (GPUInterfaceTinyGPUHybrid.cpp, GetDeviceName)
-target_link_libraries(hmsbeagle-tinygpu-hybrid "-framework IOKit" "-framework CoreFoundation")
+add_dependencies(hmsbeagle-tinygpu TinyGPUKernels)
+add_dependencies(hmsbeagle-tinygpu TinyGPUCubins)
+# the resource's card name and revision from the IORegistry (GPUInterfaceTinyGPU.cpp, GetDeviceName)
+target_link_libraries(hmsbeagle-tinygpu "-framework IOKit" "-framework CoreFoundation")
 if(TINYGPU_COMGR)   # the AMD C++ runtime's ahead-of-time HSACOs (../CMakeLists.txt, TODO.md plan step A1j)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_hsaco.S" PROPERTIES GENERATED TRUE
             OBJECT_DEPENDS "${TINYGPU_HSACOS}")
-    target_sources(hmsbeagle-tinygpu-hybrid PRIVATE ../kernels/BeagleTinyGPU_hsaco.S)
-    target_compile_definitions(hmsbeagle-tinygpu-hybrid PRIVATE TINYGPU_AMD_HSACO=1)
-    add_dependencies(hmsbeagle-tinygpu-hybrid TinyGPUHsaco)
+    target_sources(hmsbeagle-tinygpu PRIVATE ../kernels/BeagleTinyGPU_hsaco.S)
+    target_compile_definitions(hmsbeagle-tinygpu PRIVATE TINYGPU_AMD_HSACO=1)
+    add_dependencies(hmsbeagle-tinygpu TinyGPUHsaco)
 endif()
-# AMD path (GPUInterfaceTinyGPUHybridAMD.cpp) compiles BEAGLE's existing
+# AMD path (GPUInterfaceTinyGPUAMD.cpp) compiles BEAGLE's existing
 # kernel source via comgr's HIP language (STATUS.md AMD §18-19) -- see
 # CMake_HIP/CMakeLists.txt and libhmsbeagle/GPU/CMakeLists.txt's
 # BeagleOpenCL_kernels.h comment for why this depends on that target rather
 # than defining its own generation rule.
-add_dependencies(hmsbeagle-tinygpu-hybrid HIPKernels)
+add_dependencies(hmsbeagle-tinygpu HIPKernels)
 
-install(TARGETS hmsbeagle-tinygpu-hybrid
+install(TARGETS hmsbeagle-tinygpu
     DESTINATION ${BEAGLE_INSTALL_DIR}
-    COMPONENT tinygpu-hybrid
+    COMPONENT tinygpu
     )
 
 # TODO.md plan steps C10 and C11: the crash guard the plugin spawns before its boot's first request to the GPU; the plugin
 # looks for it next to itself. Since plan step A2k it keeps the AMD C++ boot's GPU too.
-add_executable(beagle-tinygpu-guard ../tinygpu_guard.cpp ../TinyGPUHybridNVGuard.h)
-add_dependencies(hmsbeagle-tinygpu-hybrid beagle-tinygpu-guard)
+add_executable(beagle-tinygpu-guard ../tinygpu_guard.cpp ../TinyGPUNVGuard.h)
+add_dependencies(hmsbeagle-tinygpu beagle-tinygpu-guard)
 install(TARGETS beagle-tinygpu-guard
     DESTINATION ${BEAGLE_INSTALL_DIR}
-    COMPONENT tinygpu-hybrid
+    COMPONENT tinygpu
     )
 
-SET_TARGET_PROPERTIES(hmsbeagle-tinygpu-hybrid
+SET_TARGET_PROPERTIES(hmsbeagle-tinygpu
     PROPERTIES
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
     SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"

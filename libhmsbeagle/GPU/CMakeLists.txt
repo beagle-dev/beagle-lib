@@ -1,10 +1,10 @@
 
-if(BUILD_OPENCL OR BUILD_TINYGPU_HYBRID)
+if(BUILD_OPENCL OR BUILD_TINYGPU)
 	# BeagleOpenCL_kernels.h is backend-agnostic text (kernelsAll.cu/kernels4.cu/
 	# GPUImplDefs.h stringified as-is; see kernels/make_opencl_kernels.sh) --
-	# CMake_OpenCL compiles it as OpenCL-C (FW_OPENCL); CMake_TinyGPUHybrid's AMD
+	# CMake_OpenCL compiles it as OpenCL-C (FW_OPENCL); CMake_TinyGPU's AMD
 	# path compiles the *same* text via comgr's HIP language instead
-	# (GPUInterfaceTinyGPUHybridAMD.cpp / GPUImplDefs.h's FW_TINYGPU_HYBRID_AMD
+	# (GPUInterfaceTinyGPUAMD.cpp / GPUImplDefs.h's FW_TINYGPU_AMD
 	# branch -- STATUS.md AMD §18-19), selected entirely by which #defines get
 	# prepended at compile time, not by a different generated file.
 	#
@@ -55,7 +55,7 @@ if(BUILD_CUDA)
 	endif(CUDA_FOUND)
 endif(BUILD_CUDA)
 
-if(BUILD_TINYGPU_HYBRID)
+if(BUILD_TINYGPU)
 	# kernels/BeagleTinyGPU_kernels.h, generated here, is the PTX the cubins
 	# below are compiled from. The plugin includes only its stamp
 	# (kernels/BeagleTinyGPU_kernels_stamp.h, see GPUInterface.h's FW_TINYGPU
@@ -66,12 +66,12 @@ if(BUILD_TINYGPU_HYBRID)
 	find_program(TINYGPU_NVCC NAMES nvcc HINTS "$ENV{HOME}/.local/bin" "/usr/local/cuda/bin")
 	if(NOT TINYGPU_NVCC)
 		message(FATAL_ERROR "nvcc not found (required to build kernels/BeagleTinyGPU_kernels.h "
-			"for the TinyGPU/TinyGPUHybrid backend). Add nvcc to PATH, or pass "
+			"for the TinyGPU backend). Add nvcc to PATH, or pass "
 			"-DTINYGPU_NVCC=/path/to/nvcc.")
 	endif()
 	message(STATUS "TinyGPU kernels: using nvcc at ${TINYGPU_NVCC}")
 	set(TINYGPU_NVCCFLAGS "-O3 -Wno-deprecated-gpu-targets")
-	# The script also keeps the SP and DP modules for the TinyGPUHybrid cubins
+	# The script also keeps the SP and DP modules for the TinyGPU cubins
 	# (TODO.md plan steps C1, C16). Declared as outputs, so a missing one reruns
 	# the script.
 	set(TINYGPU_SP_STATES 4 16 32 48 64 80 128 192 256)   # as in make_tinygpu_kernels.sh and make_tinygpu_cubins.sh
@@ -98,8 +98,8 @@ if(BUILD_TINYGPU_HYBRID)
 			"${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels_stamp.h")
 endif()
 
-if(BUILD_TINYGPU_HYBRID)
-	message(STATUS "TinyGPUHybrid backend enabled (NV and AMD: the C++ boot, no Python)")
+if(BUILD_TINYGPU)
+	message(STATUS "TinyGPU backend enabled (NV and AMD: the C++ boot, no Python)")
 	# The C++ runtime's ahead-of-time cubins (TODO.md plan steps C1 and C16,
 	# decision 15): the SP and DP modules kept above, compiled with ptxas for sm_86, sm_89 and
 	# sm_120 and embedded in the plugin by kernels/BeagleTinyGPU_cubins.S.
@@ -110,12 +110,12 @@ if(BUILD_TINYGPU_HYBRID)
 	find_program(TINYGPU_PTXAS NAMES ptxas HINTS "$ENV{HOME}/.local/bin" "/usr/local/cuda/bin")
 	if(NOT TINYGPU_PTXAS)
 		message(FATAL_ERROR "ptxas not found (required to build kernels/BeagleTinyGPU_cubins.S "
-			"for the TinyGPUHybrid backend). Add ptxas to PATH, or pass "
+			"for the TinyGPU backend). Add ptxas to PATH, or pass "
 			"-DTINYGPU_PTXAS=/path/to/ptxas.")
 	endif()
 	message(STATUS "TinyGPU cubins: using ptxas at ${TINYGPU_PTXAS}")
 	# The cubins are outputs too (a missing one reruns the script) and, in
-	# CMake_TinyGPUHybrid, dependencies of the .S's object (.incbin is not
+	# CMake_TinyGPU, dependencies of the .S's object (.incbin is not
 	# scanned, so a changed cubin would not be re-embedded otherwise).
 	foreach(p SP DP)
 		foreach(s ${TINYGPU_SP_STATES})
@@ -161,8 +161,8 @@ if(BUILD_TINYGPU_HYBRID)
 		message(STATUS "TinyGPU AMD HSACOs: no comgr found; the plugin will refuse AMD cards (no run-time compile)")
 	endif()
 	# CMake_HIP only defines the HIPKernels target (see the BeagleOpenCL_kernels.h
-	# comment above) -- added before CMake_TinyGPUHybrid so that target exists
-	# by the time CMake_TinyGPUHybrid/CMakeLists.txt's add_dependencies needs it.
+	# comment above) -- added before CMake_TinyGPU so that target exists
+	# by the time CMake_TinyGPU/CMakeLists.txt's add_dependencies needs it.
 	add_subdirectory("CMake_HIP")
-	add_subdirectory("CMake_TinyGPUHybrid")
-endif(BUILD_TINYGPU_HYBRID)
+	add_subdirectory("CMake_TinyGPU")
+endif(BUILD_TINYGPU)

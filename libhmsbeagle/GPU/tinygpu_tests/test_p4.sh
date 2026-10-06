@@ -24,7 +24,7 @@ dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
 device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
 counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
 glog() { sed -n "/p4 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
-status() { sed -n "s/^\[$1\] tinygpuhybridtest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
+status() { sed -n "s/^\[$1\] tinygputest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
 run() {   # <label> [VAR=value ...] [-- test args]: one fake run, its TinyGPULog lines marked; the VARs reach the fake and the test
     local l=$1 envs=() args=(--state-count 4 --reps 3 --poison); shift
     while [ $# -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done

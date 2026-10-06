@@ -1,6 +1,6 @@
-// Runs golden_amd_copy_ops.txt with TinyGPUHybridAMDDispatch.h alone (see golden_amd_copy.py): copyin/copyout through the
+// Runs golden_amd_copy_ops.txt with TinyGPUAMDDispatch.h alone (see golden_amd_copy.py): copyin/copyout through the
 // staging slots on the timeline, and queues of their own, each submitted with amd_sdma_ring_write and signal_doorbell.
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDDispatch.h"
 #include <cstdio>
 #include <fstream>
 #include <sstream>

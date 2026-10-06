@@ -1,6 +1,6 @@
 #!/bin/bash
 # HARDWARE: one TODO.md plan step D1 run on the real eGPU: the d1_runs.txt line <label>, in the C++ runtime, with
-# run_point.sh's protections (run_point.sh stays tinygpuhybridtest's). Boots the GPU, so the eGPU must be cold
+# run_point.sh's protections (run_point.sh stays tinygputest's). Boots the GPU, so the eGPU must be cold
 # (power-cycled) or torn down by the previous run; a warm GPU is refused with nothing written, unless it is an Ada GPU whose
 # GSP-RM was unloaded, which the boot tears down first (plan step P4, the default). The user starts each run (plan
 # decision 8). Never Ctrl-C or kill a run; a hung or holding GPU must be unplugged before anything is killed.
@@ -31,7 +31,7 @@ prev=$(ls -t "$RUNS"/*_${HW_HOST}_d1${DP}_$LABEL.out 2>/dev/null | head -1)
 [ -z "$prev" ] || [ "$D1_REPLUGGED" = 1 ] || { echo "$LABEL already ran on this card ($prev): its results may still be in VRAM; power-cycle the eGPU, then rerun with D1_REPLUGGED=1; not running"; exit 2; }
 pgrep -f "$GUARD_RE" > /dev/null && { echo "a crash guard is still running (it may hold the GPU); not running"; exit 2; }
 # TinyGPU.app serves one client: a second BEAGLE example would hang in tg_cfg_read (plan decision 8's ps check)
-pgrep -f "^[^ ]*/examples/(tinygpuhybridtest|synthetictest|hmctest)( |$)" > /dev/null && { echo "another BEAGLE example is running; not running"; exit 2; }
+pgrep -f "^[^ ]*/examples/(tinygputest|synthetictest|hmctest)( |$)" > /dev/null && { echo "another BEAGLE example is running; not running"; exit 2; }
 hw_begin
 for i in $(seq 1 30); do [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -gt 0 ] && break; sleep 2; done
 if [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -eq 0 ]; then echo "eGPU not enumerated; not running"; exit 2; fi

@@ -9,8 +9,8 @@
 //   3. instance cycles (programs that stay, NV's per-instance programs, buffers; all of an instance freed at its end): every
 //      cycle gets the first cycle's addresses, and the pool's fill level never passes the first cycle's.
 // One PASS or FAIL line per check; exit 0 only if all pass.
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDRuntime.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDRuntime.h"
 
 #include <algorithm>
 #include <cmath>

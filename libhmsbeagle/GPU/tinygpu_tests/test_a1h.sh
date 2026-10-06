@@ -1,6 +1,6 @@
 #!/bin/bash
 # TODO.md plan step A1h, on the C++ boot since plan step A2l: the AMD C++ runtime end to end, offline. The real plugin boots
-# fake_amd_device.py's card itself and runs tinygpuhybridtest on it; the fake runs every PM4 and SDMA packet and checks every
+# fake_amd_device.py's card itself and runs tinygputest on it; the fake runs every PM4 and SDMA packet and checks every
 # address the GPU would touch (the DART check), the doorbell protocol and, with FAKE_AMD_HSACO, each dispatch's kernel against
 # the build's HSACO. Kernels are not run, so logL is wrong by design: a case passes when the plugin booted and handed over, ran
 # to the end with no runtime error and the fake saw NO ERRORS (the fault case: when the plugin decoded the fake's SQ MEMVIOL
@@ -8,10 +8,10 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 results=()
 
-run_case() {   # <label> <ok|fault> [VAR=value ...] -- [tinygpuhybridtest args ...]
+run_case() {   # <label> <ok|fault> [VAR=value ...] -- [tinygputest args ...]
     local label=$1 expect=$2; shift 2
     local envs=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done; [ "$1" = "--" ] && shift
     local sockdir; sockdir=$(mktemp -d /tmp/tga.XXXXXX)

@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVCubins.h
+ * TinyGPUNVCubins.h
  *
  * The C++ runtime's ahead-of-time cubins (TODO.md plan step C1). The build compiles the single-precision PTX modules, and the
  * double-precision ones (plan step C16), for every supported architecture with the daemon's own ptxas command line and links
@@ -11,8 +11,8 @@
  * C++ boot's NVDevice. There is no run-time fallback (decision 15).
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVCUBINS_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVCUBINS_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVCUBINS_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVCUBINS_H
 
 #include <cstdint>
 #include <cstdlib>
@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "libhmsbeagle/GPU/kernels/TinyGPUNVCubins.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
 
 namespace tinygpu_device {
 
@@ -66,4 +66,4 @@ static inline std::vector<std::string> nvd_kernel_names(const NVDElf& elf) {
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVCUBINS_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVCUBINS_H

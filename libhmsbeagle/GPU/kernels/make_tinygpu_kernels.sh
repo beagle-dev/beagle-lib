@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Generates BeagleTinyGPU_kernels.h — the TinyGPU/TinyGPUHybrid-specific PTX
+# Generates BeagleTinyGPU_kernels.h — the TinyGPU-specific PTX
 # kernel header. Mirrors make_cuda_kernels.sh (same KERNELS_STRING_<PREC>_<N>
 # macro names, same source files, same state-count sweep) but compiles with
 # both -DCUDA and -DFW_TINYGPU. With no other -D flags the PTX is

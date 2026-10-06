@@ -1,7 +1,7 @@
 #!/bin/bash
 # TODO.md plan step A2, end to end with no eGPU, on fake_amd_device.py's register-level card (fake_am_gpu.py), which runs every
 # PM4 and SDMA packet through the GMC page tables and audits every system address the GPU could reach (the DART check):
-#   - A2h: the plugin boots the card itself, cold (a full boot) and warm (a partial one), and runs tinygpuhybridtest. Its instance
+#   - A2h: the plugin boots the card itself, cold (a full boot) and warm (a partial one), and runs tinygputest. Its instance
 #     session, through the handoff, must send the requests golden_amd_boot's C++ session sends on a card in the same state, byte
 #     for byte; that session is the oracle daemon's (golden_amd_boot.py, A2g). A dirty card is refused before the mode1 reset.
 #   - A2j: the AMD L0 recordings (TG_AMD_L0, env.sh) replay exactly to the oracle's daemon and to the C++ boot (amd_l0_replay.py).
@@ -10,11 +10,11 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 POOL_MB=64
 results=()
 
-run_case() {   # <label> [VAR=value ...] -- [tinygpuhybridtest args ...]
+run_case() {   # <label> [VAR=value ...] -- [tinygputest args ...]
     local label=$1; shift
     local envs=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done; [ "$1" = "--" ] && shift
     local sockdir; sockdir=$(mktemp -d /tmp/tga.XXXXXX)

@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVProgram.h
+ * TinyGPUNVProgram.h
  *
  * C++ port of tinygrad's NV program loading, as BEAGLE uses it: elf_loader()
  * (tinygrad/runtime/support/elf.py) and NVProgram.__init__ with BEAGLE's two
@@ -18,8 +18,8 @@
  * addresses its own copy would have had at that base.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVPROGRAM_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVPROGRAM_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVPROGRAM_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVPROGRAM_H
 
 #include <algorithm>
 #include <cstdint>
@@ -30,7 +30,7 @@
 
 #include "libhmsbeagle/GPU/TinyGPUElf.h"
 #include "libhmsbeagle/GPU/TinyGPUNVTables.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVDispatch.h"
+#include "libhmsbeagle/GPU/TinyGPUNVDispatch.h"
 #include "libhmsbeagle/GPU/TinyGPUPool.h"
 
 namespace tinygpu_device {
@@ -288,4 +288,4 @@ static inline uint64_t nvd_pool_alloc(const NVDBuffer& pool, uint64_t& pos, uint
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVPROGRAM_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVPROGRAM_H

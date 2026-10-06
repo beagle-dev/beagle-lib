@@ -12,7 +12,7 @@
  * CommonCrypto before it is returned. When no place has it, it is downloaded (since 2026-10-01, the user's request; plan
  * decision 5 had kept BEAGLE off the network) from the manifest's pinned linux-firmware URL, as fetch_fw would, by
  * /usr/bin/curl into a temporary file in BEAGLE's cache, which is renamed into place only once its SHA-256 matches. The NV boot fetches its chip
- * family's files this way before it writes anything to the GPU (GPUInterfaceTinyGPUHybridNV.cpp nv_fw_prefetch).
+ * family's files this way before it writes anything to the GPU (GPUInterfaceTinyGPUNV.cpp nv_fw_prefetch).
  * BEAGLE_TINYGPU_NO_DOWNLOAD=1 turns downloading off (the offline tests set it), and BEAGLE_TINYGPU_FW_BASE_URL replaces
  * the linux-firmware URL (a mirror, or a file:// copy for the tests). Without the file, the error says what each place
  * held and how to fetch it by hand (curl and shasum, or tinygpu_fetch_firmware.sh). fetch_fw's

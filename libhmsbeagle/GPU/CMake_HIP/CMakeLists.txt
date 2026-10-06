@@ -1,8 +1,8 @@
 
 # CMake_HIP — not a build target of its own. Defines HIPKernels, the target
-# CMake_TinyGPUHybrid's AMD path depends on for the kernel source it compiles
-# via comgr's HIP language (GPUInterfaceTinyGPUHybridAMD.cpp / GPUImplDefs.h's
-# FW_TINYGPU_HYBRID_AMD branch -- STATUS.md AMD §18-19).
+# CMake_TinyGPU's AMD path depends on for the kernel source it compiles
+# via comgr's HIP language (GPUInterfaceTinyGPUAMD.cpp / GPUImplDefs.h's
+# FW_TINYGPU_AMD branch -- STATUS.md AMD §18-19).
 #
 # BeagleOpenCL_kernels.h's content is backend-agnostic text (kernelsAll.cu/
 # kernels4.cu/GPUImplDefs.h stringified as-is); which language it's compiled

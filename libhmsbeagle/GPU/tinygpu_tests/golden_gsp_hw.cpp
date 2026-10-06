@@ -1,11 +1,11 @@
-// C++ side of golden_gsp_hw.py (TODO.md plan step C8): TinyGPUHybridNVRM.h's nv_gsp_init_hw (NV_GSP.init_hw with
+// C++ side of golden_gsp_hw.py (TODO.md plan step C8): TinyGPUNVRM.h's nv_gsp_init_hw (NV_GSP.init_hw with
 // nv_init_helper's patch 3, and init_golden_image) over golden_gsp_hw.py's fake TinyGPU.app (APL_REMOTE_SOCK), with the GSP
 // queues in the file GOLDEN_QUEUES and the memory manager restored from nv_dispatch_daemon.py's _mm_export, and prints the
 // result lines golden_gsp_hw.py prints for tinygrad's own.
 //   golden_gsp_hw EXPORT STATE
 // STATE, one "key value" per line: seq, gpfifo_class, compute_class, dma_class, viddec_class, gb2, fmc_boot, chip_id, libos,
 //   wait_ms, rpc_timeout_ms.
-#include "libhmsbeagle/GPU/TinyGPUHybridNVRM.h"
+#include "libhmsbeagle/GPU/TinyGPUNVRM.h"
 
 #include <cstdio>
 #include <fstream>

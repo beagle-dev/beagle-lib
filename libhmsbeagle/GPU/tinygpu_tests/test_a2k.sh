@@ -18,7 +18,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
 W="$TINYGPU_TEST_WORK/a2k"; rm -rf "$W"; mkdir -p "$W"
 TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs
@@ -42,7 +42,7 @@ start_fake() {   # <label> [VAR=value ...]: a fresh fake card, its log $W/<label
     for i in $(seq 100); do grep -q listening "$DEV" 2>/dev/null && break; sleep 0.1; done
 }
 stop_fake() { kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; rm -rf "$SOCKDIR"; SRV=""; }
-run_test() {   # <label> [VAR=value ...]: tinygpuhybridtest on the fake, then its guard: waited for, or ended if it holds
+run_test() {   # <label> [VAR=value ...]: tinygputest on the fake, then its guard: waited for, or ended if it holds
     local l=$1; shift
     echo "a2k run $l starts" >> "$TL"
     rm -f "$SOCKDIR/guard.pid"

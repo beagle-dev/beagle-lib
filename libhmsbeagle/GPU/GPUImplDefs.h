@@ -129,8 +129,8 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      __restrict__
-#elif defined(FW_TINYGPU_HYBRID_AMD)
-    // TinyGPU-Hybrid backend, AMD path: kernels compiled via comgr's HIP
+#elif defined(FW_TINYGPU_AMD)
+    // TinyGPU backend, AMD path: kernels compiled via comgr's HIP
     // language, not OpenCL. OpenCL's get_global_id() has a global_work_offset
     // concept HIP has no equivalent of, so its compiled implementation reads
     // the full HSA dispatch packet (dispatch_ptr/queue_ptr/dispatch_id sgprs,

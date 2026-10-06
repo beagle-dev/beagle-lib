@@ -1,9 +1,9 @@
-// golden_boot.cpp -- the C++ side of TODO.md plan step C11's golden test (golden_boot.py drives it): TinyGPUHybridNVBoot.h's
+// golden_boot.cpp -- the C++ side of TODO.md plan step C11's golden test (golden_boot.py drives it): TinyGPUNVBoot.h's
 // steps against golden_boot.py's fake TinyGPU.app (APL_REMOTE_SOCK), printing what golden_boot.py's tinygrad side prints.
 //   golden_boot early     C11a: PCIIfaceBase's BAR resize, then NVDev.__init__'s map_bar(0), _early_ip_init, _early_mmu_init
 //   golden_boot flcn      C11b: the same, then NV_FLCN.init_sw with nv_init_helper's VBIOS capture and teardown images
 //   golden_boot sw        C11c, C11d: the same, then NV_GSP.init_sw (on a COT boot NV_FLCN_COT.init_sw instead of NV_FLCN's)
-#include "libhmsbeagle/GPU/TinyGPUHybridNVBoot.h"
+#include "libhmsbeagle/GPU/TinyGPUNVBoot.h"
 
 #include <cstdio>
 #include <string>

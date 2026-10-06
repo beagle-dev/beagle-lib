@@ -1,4 +1,4 @@
-"""Golden test for the SDMA half of TinyGPUHybridAMDDispatch.h (TODO.md plan step A1c). hcq1's own AMDCopyQueue, submitted
+"""Golden test for the SDMA half of TinyGPUAMDDispatch.h (TODO.md plan step A1c). hcq1's own AMDCopyQueue, submitted
 into a small ring through AMDQueueDesc.signal_doorbell, and HCQAllocator._copyin/_copyout on a stub device (its timeline,
 and staging slots in one buffer) run random sequences; golden_amd_copy.cpp runs the same with the C++ encoder and flows.
 The ring (random-filled first, so the tail's zero fill shows), put_value, one ordered list of the host waits, synchronizes

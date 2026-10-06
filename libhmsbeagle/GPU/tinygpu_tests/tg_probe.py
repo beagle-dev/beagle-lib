@@ -1,5 +1,5 @@
 """Which GPU TinyGPU.app serves now: one read-only PCI config read (offset 0: vendor and device ID), as BEAGLE's own probe
-does (GPUInterfaceTinyGPUHybrid.cpp Initialize), under the same nv_usb4.lock. Starts TinyGPU.app's server as the plugin
+does (GPUInterfaceTinyGPU.cpp Initialize), under the same nv_usb4.lock. Starts TinyGPU.app's server as the plugin
 does (TinyGPUTransport.h spawn_server) if nothing listens. Prints the vendor:device and exits; nothing else is sent.
 TinyGPU.app (c0d024f9) serves only the first eGPU whose driver registered (STATUS.md R61), so the AMD hardware scripts
 check this first (amd_hw_begin in env.sh)."""

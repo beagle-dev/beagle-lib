@@ -1,7 +1,7 @@
-// Loads golden_amd_program.hsaco with TinyGPUHybridAMDProgram.h alone (see golden_amd_program.py): one line per kernel,
+// Loads golden_amd_program.hsaco with TinyGPUAMDProgram.h alone (see golden_amd_program.py): one line per kernel,
 // the relocated image, and the scratch sizing for each private size given.
 //   golden_amd_program <dir> <lib_va> <cu_cnt> <se_cnt> <xccs> <max_slots_scratch_cu> <lds_size_in_kb> <private size>...
-#include "libhmsbeagle/GPU/TinyGPUHybridAMDProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDProgram.h"
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>

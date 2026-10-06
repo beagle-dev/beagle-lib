@@ -1,8 +1,8 @@
 /*
- * TinyGPUHybridNVRM.h
+ * TinyGPUNVRM.h
  *
  * TODO.md plan step C7: NV_GSP's RM client (tinygrad/runtime/support/nv/ip.py:457-466, 538-599 at a9830e2b4), ported
- * statement by statement on C5's GSP queues (TinyGPUHybridNVGsp.h) and C6's memory manager (TinyGPUHybridNVMemory.h):
+ * statement by statement on C5's GSP queues (TinyGPUNVGsp.h) and C6's memory manager (TinyGPUNVMemory.h):
  * rpc_rm_alloc with its hooks (a GPFIFO channel's RAMFC, instance memory and method buffer, and a user client's error
  * notifier and USERD; the channel's runlist; a user VA space's page directory; the user device and subdevice; a compute
  * object's context, promoted physically, then virtually), rpc_rm_control with the work-submit-token fix-up,
@@ -14,8 +14,8 @@
  * nv_init_helper's patch 3, the 20 s sleep after SEC2's start) and init_golden_image (:468-508): nv_gsp_init_hw.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVRM_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVRM_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVRM_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVRM_H
 
 #include <cstdint>
 #include <cstring>
@@ -26,8 +26,8 @@
 #include <utility>
 #include <vector>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUNVMemory.h"
 #include "libhmsbeagle/GPU/TinyGPUNVRMTables.h"
 
 namespace tinygpu_device {
@@ -318,4 +318,4 @@ inline void nv_gsp_init_hw(NVRMClient& rm, bool fmc_boot = false, const std::fun
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVRM_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVRM_H

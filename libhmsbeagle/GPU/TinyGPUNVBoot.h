@@ -1,17 +1,17 @@
 /*
- * TinyGPUHybridNVBoot.h -- TODO.md plan step C11 (level boot): tinygrad's NVDev boot (nvdev.py:75-162 and the IP blocks'
+ * TinyGPUNVBoot.h -- TODO.md plan step C11 (level boot): tinygrad's NVDev boot (nvdev.py:75-162 and the IP blocks'
  * init_sw in ip.py, at the pin) in C++, ported statement by statement with the patches nv_init_helper.py applies to it in the
  * daemon, so that the plugin boots the GPU with no Python. Each part is golden-tested against the code it ports
  * (tinygpu_tests/golden_boot.py): the same requests to TinyGPU.app, byte for byte, the same results and the same errors.
  *
  * C11a, here: PCIIfaceBase.__init__'s BAR resize (system.py:263) and NVDev.__init__'s first statements (nvdev.py:75-80):
  * map_bar(0), then _early_ip_init under nv_init_helper's WARM guard, then _early_mmu_init with its BAR check, which builds
- * C6's memory manager (TinyGPUHybridNVMemory.h) as tinygrad builds its own. Ada's wait_for_reset is nv_init_helper's no-op
+ * C6's memory manager (TinyGPUNVMemory.h) as tinygrad builds its own. Ada's wait_for_reset is nv_init_helper's no-op
  * (tinygrad's polls a register the suppressed PCI reset would have set); the COT boot's (GB20x) waits for the FSP, logged.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVBOOT_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVBOOT_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVBOOT_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVBOOT_H
 
 #include <cctype>
 #include <cerrno>
@@ -25,11 +25,11 @@
 #include <sys/stat.h>
 
 #include "libhmsbeagle/GPU/TinyGPUFirmware.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVFalcon.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVGsp.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVMemory.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVProgram.h"
-#include "libhmsbeagle/GPU/TinyGPUHybridNVRM.h"   // nv_bytes
+#include "libhmsbeagle/GPU/TinyGPUNVFalcon.h"
+#include "libhmsbeagle/GPU/TinyGPUNVGsp.h"
+#include "libhmsbeagle/GPU/TinyGPUNVMemory.h"
+#include "libhmsbeagle/GPU/TinyGPUNVProgram.h"
+#include "libhmsbeagle/GPU/TinyGPUNVRM.h"   // nv_bytes
 #include "libhmsbeagle/GPU/TinyGPULog.h"
 
 namespace tinygpu_device {
@@ -715,4 +715,4 @@ inline void nv_boot_cot_init_sw(NVBootDev& d, NVCotImages& cot, NVBootMem& fmc_a
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVBOOT_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVBOOT_H

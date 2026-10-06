@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridAMDBoot.h -- TODO.md plan step A2c-A2f: tinygrad's AM driver (tinygrad/runtime/support/am/amdev.py and ip.py at
+ * TinyGPUAMDBoot.h -- TODO.md plan step A2c-A2f: tinygrad's AM driver (tinygrad/runtime/support/am/amdev.py and ip.py at
  * a9830e2b4) in C++, ported statement by statement, so that the plugin boots the AMD GPU with no Python. Only the branches
  * the RX 7900 XT takes are ported (GC 11.0.0, MP0 and MP1 13.0.0, SDMA 6.0.0, NBIO 4.3.0, MMHUB 3.0.0, OSSSYS 6.0.0, HDP
  * 6.0.0; TinyGPUAMDBootTables.h is generated for them): another IP set, a VF and a hive are refused before anything is
@@ -21,8 +21,8 @@
  * fault instead), PMC/SQTT and the ACA bank dump (smu_13_0_0 has no PPSMC_MSG_QueryValidMcaCount).
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDBOOT_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDBOOT_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDBOOT_H
+#define LIBHMSBEAGLE_GPU_TINYGPUAMDBOOT_H
 
 #include <algorithm>
 #include <array>
@@ -1427,4 +1427,4 @@ inline am::struct_psp_gfx_cmd_resp AM_PSP::rlc_autoload_cmd() {
 } // namespace amboot
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDAMDBOOT_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUAMDBOOT_H

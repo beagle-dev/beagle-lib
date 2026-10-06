@@ -9,7 +9,7 @@
 # pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
 W="$TINYGPU_TEST_WORK/a4"; rm -rf "$W"; mkdir -p "$W"
 TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs

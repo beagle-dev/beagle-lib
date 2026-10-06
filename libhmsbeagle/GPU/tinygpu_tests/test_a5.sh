@@ -18,7 +18,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
-GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard"
+GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
 W="$TINYGPU_TEST_WORK/a5"; rm -rf "$W"; mkdir -p "$W"
 TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs
@@ -30,9 +30,9 @@ glog() { sed -n "/a5 run $1 starts/,/a5 run .* starts/p" "$TL"; }   # one run's 
 verdict() { grep -E "fake TinyGPU.app \(AMD device\): (NO ERRORS|[0-9]+ ERRORS)" "$W/$1.dev" | tail -1; }
 CLEAN="the plugin finalized the GPU itself; exiting"
 
-run() {   # <label> <variants, comma-separated> [VAR=value ...] [-- tinygpuhybridtest args]: one run on a fresh fake card, then
+run() {   # <label> <variants, comma-separated> [VAR=value ...] [-- tinygputest args]: one run on a fresh fake card, then
           # its guard (waited for, or ended if it holds). SECOND_AFTER=<regex> among the VARs: once the output matches, a second
-          # tinygpuhybridtest (--reps 1) against the same fake and lock files, given 30 s; SECOND_WHEN_HELD=1: the same while
+          # tinygputest (--reps 1) against the same fake and lock files, given 30 s; SECOND_WHEN_HELD=1: the same while
           # the guard holds, before it is ended.
     local l=$1 v=$2 envs=() args=(--state-count 4 --reps 3) second="" when_held=""; shift 2
     while [ $# -gt 0 ] && [ "$1" != "--" ]; do
@@ -87,7 +87,7 @@ loaded_once() {   # <label> <variants, comma-separated>: each variant's programs
 }
 
 # 1. several instances in one process
-p5() {   # <label> <variants> -- <tinygpuhybridtest args>
+p5() {   # <label> <variants> -- <tinygputest args>
     local l=$1 v=$2 why=""; shift 3
     run $l $v -- "$@"
     normal $l || why="$why exit($(cat $W/$l.rc))"

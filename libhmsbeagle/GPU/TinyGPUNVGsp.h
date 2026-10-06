@@ -1,5 +1,5 @@
 /*
- * TinyGPUHybridNVGsp.h
+ * TinyGPUNVGsp.h
  *
  * TODO.md plan step C5: the C++ side's GSP client for the unload at exit. Ported statement by statement from tinygrad
  * (tinygrad/runtime/support/nv/ip.py at a9830e2b4): NVRpcQueue (ip.py:19-91: the RPC framing, the checksum, continuation
@@ -13,8 +13,8 @@
  * report starts not halted, and a CPU sequence with ops 5-8 (NV_FLCN's primitives) is refused before any op runs.
  */
 
-#ifndef LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGSP_H
-#define LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGSP_H
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVGSP_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVGSP_H
 
 #include <algorithm>
 #include <atomic>
@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-#include "libhmsbeagle/GPU/TinyGPUHybridNVFalcon.h"
+#include "libhmsbeagle/GPU/TinyGPUNVFalcon.h"
 #include "libhmsbeagle/GPU/TinyGPUNVRMTables.h"
 
 namespace tinygpu_device {
@@ -352,4 +352,4 @@ template <class V> inline void NVRpcQueue::read_resp(V&& visit) {
 
 } // namespace tinygpu_device
 
-#endif // LIBHMSBEAGLE_GPU_TINYGPUHYBRIDNVGSP_H
+#endif // LIBHMSBEAGLE_GPU_TINYGPUNVGSP_H

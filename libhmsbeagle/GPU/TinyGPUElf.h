@@ -2,8 +2,8 @@
  * TinyGPUElf.h
  *
  * tinygrad's elf_loader (tinygrad/runtime/support/elf.py) in C++, shared by the NV program loader
- * (TinyGPUHybridNVProgram.h: cubins, and the Blackwell FMC image, TODO.md plan step C4) and the AMD HSACO loader
- * (TinyGPUHybridAMDProgram.h, plan step A1d). Moved here unchanged from TinyGPUHybridNVProgram.h; the names keep the
+ * (TinyGPUNVProgram.h: cubins, and the Blackwell FMC image, TODO.md plan step C4) and the AMD HSACO loader
+ * (TinyGPUAMDProgram.h, plan step A1d). Moved here unchanged from TinyGPUNVProgram.h; the names keep the
  * NV prefix of the path that ported it first.
  */
 

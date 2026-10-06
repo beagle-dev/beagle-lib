@@ -8,9 +8,9 @@
 # the test in its own process group and, once its output matches, sends that group SIGINT, as a terminal's Ctrl-C would.
 # FAKE_SECOND_AFTER=<regex> (plan step P5) starts a second test process (--reps 1) against the same fake and lock once the
 # output matches, and gives it 30 s. FAKE_TEST_BIN=<another BEAGLE example> runs that instead (plan step D1).
-#   run_fake_device.sh <label> [VAR=value ...] -- [tinygpuhybridtest args ...]
+#   run_fake_device.sh <label> [VAR=value ...] -- [tinygputest args ...]
 # Exit status 0 only if the test booted once, loaded its programs, the teardown says the next boot needs no power cycle
-# (fini_verdict), and the fake device reports NO ERRORS (and the proxy, if any, ended every session cleanly); tinygpuhybridtest
+# (fini_verdict), and the fake device reports NO ERRORS (and the proxy, if any, ended every session cleanly); tinygputest
 # must also have timed its evaluations. Kernels are not run by the fake, so logL is wrong by design.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
@@ -48,7 +48,7 @@ fi
 # binary's environment).
 run_test() {
     exec ${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" \
-        BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPUHybrid/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
+        BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
         BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" "$TEST_BIN" "$@"
 }
 run_test "$@" > "$OUT" 2>&1 &
@@ -96,7 +96,7 @@ if [ -n "$PRX" ]; then
 fi
 sleep 0.3; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 [ -n "$FAKE_TG_PROXY" ] && [ -d "$FAKE_TG_PROXY" ] && cp "$SOCKDIR/run.json" "$FAKE_TG_PROXY/run.json"
-echo "[$LABEL] tinygpuhybridtest exit=$RC (output: $OUT)"
+echo "[$LABEL] tinygputest exit=$RC (output: $OUT)"
 grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600
 if [ -n "$TRIP" ]; then   # the run stopped at a refusal: its verdict is whether that refusal was the one expected
     echo "[$LABEL] the proxy stopped forwarding: $TRIP"

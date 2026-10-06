@@ -3,7 +3,7 @@
 # (they do since plan step C16, for sm_86, sm_89 and sm_120), and BEAGLE's double-precision instances run on them. On
 # fake_nv_device.py's AD107 and GB205, each run through run_fake_device.sh (one boot, its programs, the teardown's clean
 # report, NO ERRORS):
-#   - tinygpuhybridtest --double at 4 and 64 states, and two instances at 4 and 64 in one process: the resource lists DOUBLE,
+#   - tinygputest --double at 4 and 64 states, and two instances at 4 and 64 in one process: the resource lists DOUBLE,
 #     each instance is TinyGPU-Double on the DP_ cubin for the GPU's architecture (sm_89, sm_120);
 #   - without --double the test stays in single precision (SP_ cubins), as before;
 #   - on the AD107, every synthetictest line of d1_runs.txt with --doubleprecision: exactly the line's kernels (d1_verdict).

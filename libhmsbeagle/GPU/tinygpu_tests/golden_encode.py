@@ -1,4 +1,4 @@
-"""Golden test for TinyGPUHybridNVDispatch.h: hcq1's own NVComputeQueue/NVCopyQueue encode a batch into real
+"""Golden test for TinyGPUNVDispatch.h: hcq1's own NVComputeQueue/NVCopyQueue encode a batch into real
 memory; golden_encode.cpp encodes the same batch from nv_dispatch_daemon.build_handoff's output alone; both
 results must be byte-identical. Templates are random bytes so every neighbouring bit is live."""
 import os, sys, json, struct, ctypes, random, subprocess, types
