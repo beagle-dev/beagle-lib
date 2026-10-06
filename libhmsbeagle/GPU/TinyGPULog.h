@@ -25,6 +25,17 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+// Status notes on stderr (the boot's progress, the build stamps, a clean teardown's report) print only in a build with
+// BEAGLE_TINYGPU_STATUS defined (CMake -DBEAGLE_TINYGPU_STATUS=ON), as the test harness needs; errors print in every build.
+// TG_STATUS_OR_ERROR(is_error, ...) is a note that is an error when is_error holds (an unconfirmed unload, say).
+#ifdef BEAGLE_TINYGPU_STATUS
+#define TG_STATUS(...) fprintf(stderr, __VA_ARGS__)
+#define TG_STATUS_OR_ERROR(is_error, ...) fprintf(stderr, __VA_ARGS__)
+#else
+#define TG_STATUS(...) ((void)0)
+#define TG_STATUS_OR_ERROR(is_error, ...) ((is_error) ? (void)fprintf(stderr, __VA_ARGS__) : (void)0)
+#endif
+
 namespace tinygpu_device {
 
 inline std::string tg_log_path() {

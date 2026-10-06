@@ -36,7 +36,7 @@ run() {   # <label> <variant> <program> [args ...]: one run on a fresh fake card
     for i in $(seq 100); do grep -q listening "$W/$l.dev" 2>/dev/null && break; sleep 0.1; done
     env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" \
         BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$d/guard.pid" \
-        BEAGLE_AMD_DATA_MB=${POOL_MB:-512} DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAGLE_BUILD/examples/$prog" "$@" > "$W/$l.out" 2> "$W/$l.err" < /dev/null
+        BEAGLE_AMD_DATA_MB=${POOL_MB:-512} BEAGLE_AMD_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAGLE_BUILD/examples/$prog" "$@" > "$W/$l.out" 2> "$W/$l.err" < /dev/null
     echo $? > "$W/$l.rc"
     local gpid; gpid=$(cat "$d/guard.pid" 2>/dev/null)
     if [ -n "$gpid" ]; then   # it exits at the plugin's clean; one that holds keeps the fake's connection

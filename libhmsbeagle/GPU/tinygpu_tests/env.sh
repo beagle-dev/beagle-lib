@@ -36,6 +36,17 @@ require_no_launch_guard() {
         grep -aq "BEAGLE_TINYGPU_NO_LAUNCH is set; not starting TinyGPU.app" "$so" || {
             echo "$so lacks the no-launch guard; rebuild hmsbeagle-tinygpu before running offline tests"; exit 2; }
     done
+    require_status_build
+}
+# The harness reads the plugin's status notes (the boot, the runtime, the teardown's report), which only a build with
+# -DBEAGLE_TINYGPU_STATUS=ON prints (TinyGPULog.h); without them a clean run would read as a failure. A static check.
+require_status_build() {
+    local so
+    for so in "$BEAGLE_BUILD"/libhmsbeagle/GPU/CMake_TinyGPU/libhmsbeagle-tinygpu*.so; do
+        [ -f "$so" ] || { echo "no TinyGPU plugin under $BEAGLE_BUILD; build hmsbeagle-tinygpu first"; exit 2; }
+        grep -aq "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$so" || {
+            echo "$so prints no status notes: reconfigure with -DBEAGLE_TINYGPU_STATUS=ON and rebuild hmsbeagle-tinygpu"; exit 2; }
+    done
 }
 
 # run_point.sh's stop rule (TODO.md plan step P3), on the plugin's output (GPUInterfaceTinyGPUNV.cpp nv_report_unload):
@@ -71,9 +82,10 @@ d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
 }
 # TODO.md plan step A4, D1 on the AMD card: as d1_verdict, from the AMD plugin's lines: one C++ boot, the TinyGPU resource
 # with the C++ runtime, no failed step and no lost GPU (plan step A3), and exactly the line's kernels launched (the plugin's
-# launch lines, in byte order as d1_runs.txt lists them). Reads files and runs nothing (test_a4.sh checks it on the fake).
+# BEAGLE_AMD_PROFILE report at the fini, in byte order as d1_runs.txt lists them). Reads files and runs nothing (test_a4.sh
+# checks it on the fake).
 amd_d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
-    local got; got=$(sed -nE 's/^TinyGPU\/AMD: launch ([A-Za-z0-9_]+) grid=.*/\1/p' "$2" | LC_ALL=C sort -u | xargs)
+    local got; got=$(sed -nE 's/^TinyGPU\/AMD: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | LC_ALL=C sort -u | xargs)
     [ "$(grep -c "TinyGPU/AMD: C++ boot done" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
     grep -qE "Rsrc Name : AMD .*\(TinyGPU\)" "$1" || { echo "not the TinyGPU AMD resource"; return 1; }
     grep -q "TinyGPU/AMD: C++ runtime: handed over after the C++ boot" "$2" || { echo "the C++ runtime never took over"; return 1; }
@@ -92,6 +104,7 @@ hw_begin() {
              BEAGLE_TG_MARKERS BEAGLE_TINYGPU_LOG BEAGLE_NV_TEST_KILL BEAGLE_NV_GUARD; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
+    require_status_build
     # the firmware is staged where the boot looks for it, BEAGLE's cache (decision 5; macOS may purge ~/Library/Caches): offline,
     # re-staging from tinygrad's cache and $BEAGLE_TINYGPU_DATA/fw if needed
     "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware_hw.log" 2>&1 \
@@ -143,6 +156,7 @@ amd_hw_begin() {
     for v in APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH AM_RESET; do
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
+    require_status_build
     pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
         && { echo "a BEAGLE process is running; not running"; exit 2; }
     n=$(pgrep -f "TinyGPU.app/Contents/MacOS/TinyGPU server" | wc -l | tr -d ' ')

@@ -36,7 +36,7 @@ TLOG="${OUT%.out}_tinygpulog.txt"   # the plugin's and the crash guard's TinyGPU
 trap '' INT HUP
 hw_logstream "$LS"
 cd "$REPO"
-caffeinate -ims env DEBUG=2 BEAGLE_TINYGPU_LOG="$TLOG" DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAGLE_BUILD/examples/$PROG" "$@" \
+caffeinate -ims env DEBUG=2 BEAGLE_AMD_PROFILE=1 BEAGLE_TINYGPU_LOG="$TLOG" DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAGLE_BUILD/examples/$PROG" "$@" \
     > "$OUT" 2> "$ERR" < /dev/null
 rc=$?
 for i in $(seq 60); do pgrep -f "$GUARD_RE" > /dev/null || break; grep -q "HOLDING" "$TLOG" 2>/dev/null && break; sleep 1; done

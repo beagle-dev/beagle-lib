@@ -275,15 +275,16 @@ static void nvFlushLaunchQueue(NVInstance& in) {
 static bool nv_report_unload(const std::string& resp, const char* who) {
     uint64_t mbx = 0, cpuctl = 0, wlo = 0, whi = 0, pid = 0;
     bool unload_ok = nv_json_bool(resp, "unload_ok");
+    const bool torn_down = resp.find("\"teardown_ok\":") != std::string::npos && nv_json_bool(resp, "teardown_ok");
     if (nvd_json_u64(resp, "mailbox0", mbx) && nvd_json_u64(resp, "riscv_cpuctl", cpuctl) &&
         nvd_json_u64(resp, "wpr2_lo", wlo) && nvd_json_u64(resp, "wpr2_hi", whi))
-        fprintf(stderr, "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
+        TG_STATUS_OR_ERROR(!(unload_ok && torn_down),
+                "TinyGPU/NV: GPU teardown: unload %s (GSP MAILBOX0=0x%08llx, RISCV_CPUCTL=0x%08llx, WPR2_LO=0x%08llx, "
                 "WPR2_HI=0x%08llx)\n", unload_ok ? "confirmed" : "NOT confirmed", (unsigned long long)mbx,
                 (unsigned long long)cpuctl, (unsigned long long)wlo, (unsigned long long)whi);
     if (resp.find("\"teardown_ok\":") != std::string::npos)
-        fprintf(stderr, "TinyGPU/NV: teardown: %s; %s\n", nv_json_str(resp, "result").c_str(),
-                nv_json_bool(resp, "teardown_ok") ? "WPR2 is down, the next boot needs no power cycle"
-                                                  : "power-cycle the eGPU before the next boot");
+        TG_STATUS_OR_ERROR(!torn_down, "TinyGPU/NV: teardown: %s; %s\n", nv_json_str(resp, "result").c_str(),
+                torn_down ? "WPR2 is down, the next boot needs no power cycle" : "power-cycle the eGPU before the next boot");
     else if (resp.find("\"unload_ok\":") != std::string::npos && (!unload_ok || whi != 0))
         // no teardown result: BEAGLE_NV_TEARDOWN=0, a hung fini, a failed boot, an unconfirmed unload (Blackwell: plan step B1)
         fprintf(stderr, "TinyGPU/NV: no teardown result (%s); power-cycle the eGPU before the next boot\n",
@@ -530,7 +531,7 @@ static std::string nvdOwnAllocations(NVDispatchState& d, uint64_t pool_mb) {
                 (unsigned long long)(pool_size >> 20), which, (unsigned long long)((d.mem->wpr_bound - (end - d.rt.pool.size)) >> 20));
         return std::string(msg) + ", where GSP-RM's reserved region starts (lower BEAGLE_NV_DATA_MB)";
     }
-    fprintf(stderr, "TinyGPU/NV: C++ memory manager: buffers and pool, VRAM pool %llu MiB @ 0x%llx; %s\n",
+    TG_STATUS("TinyGPU/NV: C++ memory manager: buffers and pool, VRAM pool %llu MiB @ 0x%llx; %s\n",
             (unsigned long long)(d.rt.pool.size >> 20), (unsigned long long)d.rt.pool.va, msg);
     return "";
 }
@@ -677,7 +678,7 @@ static std::string nvGuardBootStart(NVDispatchState& d) {
     }
     d.guard_ctl = ctl;
     d.guard_pid = pid;
-    fprintf(stderr, "TinyGPU/NV: level boot: the crash guard (pid %d) keeps the GPU from here, holding it until the NVDevice is built\n", (int)pid);
+    TG_STATUS("TinyGPU/NV: level boot: the crash guard (pid %d) keeps the GPU from here, holding it until the NVDevice is built\n", (int)pid);
     tg_log("level boot: the crash guard (pid %d) keeps the GPU", (int)pid);
     return "";
 }
@@ -745,7 +746,7 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
             if (bd.fmc_boot) nv_boot_cot_init_sw(bd, st.cim, fmc_args, fmc_image);
             else nv_boot_flcn_init_sw(bd, st.im, t.images);
             if (bd.recover) {   // plan step P4: a warm GPU, torn down before GSP-RM boots
-                fprintf(stderr, "TinyGPU/NV: a warm GPU (WPR2_HI=0x%08x, the GSP %s: MAILBOX0=0x%08x, RISCV_CPUCTL=0x%08x): NVIDIA's "
+                TG_STATUS("TinyGPU/NV: a warm GPU (WPR2_HI=0x%08x, the GSP %s: MAILBOX0=0x%08x, RISCV_CPUCTL=0x%08x): NVIDIA's "
                         "teardown first (BEAGLE_NV_RECOVER=0 refuses instead)\n", bd.warm_wpr2_hi, bd.warm_mailbox0 == 0x80000000 ? "suspended" : "halted",
                         bd.warm_mailbox0, bd.warm_cpuctl);
                 NVFiniDiag rd;
@@ -754,7 +755,7 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
                     if (rd.teardown_ran) fprintf(stderr, "TinyGPU/NV: the teardown at boot: %s\n", rd.json().c_str());
                     throw;
                 }
-                fprintf(stderr, "TinyGPU/NV: the teardown at boot: %s; WPR2 is down, so the boot goes on\n", rd.td_result.c_str());
+                TG_STATUS("TinyGPU/NV: the teardown at boot: %s; WPR2 is down, so the boot goes on\n", rd.td_result.c_str());
             }
             nv_boot_gsp_init_sw(bd, gb, bd.fmc_boot ? nullptr : &st.im);
         } catch (const NVError& e) {
@@ -824,9 +825,9 @@ static NVDispatchState* nvDispatchBoot(int tg_sock) {
     nv_profile_end("handoff", t0);
     tg_transport().marker(TGM_HANDOFF, 1);
     __atomic_store_n(&d->state[kNVDStateInFlight], 0, __ATOMIC_RELEASE);   // built: from here nvd_submit keeps the word
-    fprintf(stderr, "TinyGPU/NV: C++ runtime: built the NVDevice after the C++ boot, with no daemon (level boot: %s, QMD v%u, VRAM pool %llu MiB)\n",
+    TG_STATUS("TinyGPU/NV: C++ runtime: built the NVDevice after the C++ boot, with no daemon (level boot: %s, QMD v%u, VRAM pool %llu MiB)\n",
             d->dev.arch.c_str(), d->h.qmd_ver, (unsigned long long)(d->rt.pool.size >> 20));
-    fprintf(stderr, "TinyGPU/NV: C++ teardown: the GSP unload%s run here at exit\n",
+    TG_STATUS("TinyGPU/NV: C++ teardown: the GSP unload%s run here at exit\n",
             t.cot ? " and the RISC-V halt wait (COT)" : t.images.present ? " and NVIDIA's teardown" : "");
     return d;
 }
@@ -952,11 +953,11 @@ static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& n
     nv_profile_end("load_programs", t0);
     tg_transport().marker(TGM_PROGRAMS_LOADED, names.size());
     if (grow)
-        fprintf(stderr, "TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
+        TG_STATUS("TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
                 "local memory %llu KiB at 0x%llx)\n", names.size(), image.size(), (unsigned long long)p.lib_va, p.slm_per_thread,
                 (unsigned long long)(local_mem_size >> 10), (unsigned long long)local_mem);
     else
-        fprintf(stderr, "TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
+        TG_STATUS("TinyGPU/NV: C++ runtime: %zu kernels loaded (image %zu bytes at 0x%llx, slm_per_thread 0x%x, "
                 "local memory unchanged)\n", names.size(), image.size(), (unsigned long long)p.lib_va, p.slm_per_thread);
     return true;
 }
@@ -973,7 +974,7 @@ static bool nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, const 
         return false;
     }
     for (const std::string& kname : nvd_kernel_names(cubin)) in.kernels[kname] = new NVKernelHandle{kname};
-    fprintf(stderr, "TinyGPU/NV: C++ runtime: embedded cubin %s_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", dp ? "DP" : "SP",
+    TG_STATUS("TinyGPU/NV: C++ runtime: embedded cubin %s_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", dp ? "DP" : "SP",
             paddedStateCount, arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
     return true;
 }
@@ -1022,7 +1023,7 @@ static std::string nv_fw_prefetch(uint16_t device_id) {
 // from the embedded cubin, as for an instance that shares the boot. Null if the boot failed, when the crash guard has the GPU
 // already (plan step C12).
 static NVState* nvBootSetup(int tg_fd) {
-    fprintf(stderr, "TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
+    TG_STATUS("TinyGPU/NV: level boot: the C++ boot, with no daemon\n");
     auto t0 = nv_profile_start();
     g_nvd = nvDispatchBoot(tg_fd);
     nv_profile_end("boot", t0);

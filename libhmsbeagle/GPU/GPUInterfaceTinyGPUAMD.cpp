@@ -94,6 +94,7 @@ static void amd_profile_end(const char* label, std::chrono::steady_clock::time_p
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
     fprintf(stderr, "TinyGPU/AMD: [profile] %-24s %8lld us\n", label, (long long)us);
 }
+static std::map<std::string, long long> g_amdKernelLaunches;   // the launches per kernel, for the profile's report at the fini
 
 // GetFunction's handle: one kernel of a variant's programs
 struct AMDKernelHandle {
@@ -317,7 +318,7 @@ static std::string amdGuardStart(AMDState& g, int am_lock_fd) {
     }
     g.guard_ctl = ctl;
     g.guard_pid = pid;
-    fprintf(stderr, "TinyGPU/AMD: the crash guard (pid %d) keeps the GPU from here\n", (int)pid);
+    TG_STATUS("TinyGPU/AMD: the crash guard (pid %d) keeps the GPU from here\n", (int)pid);
     tg_log("AMD C++ boot: the crash guard (pid %d) keeps the GPU", (int)pid);
     return "";
 }
@@ -368,6 +369,9 @@ static void amdGuardEnd(AMDState* g, char m) {
 // not ('N' if no queue was ever live). The state page says teardown first once a queue may be live, so that a death meanwhile
 // holds. Errors are reported, never fatal: the process is on its way out.
 static void amdCppBootFini(AMDState* g) {
+    for (const auto& kv : g_amdKernelLaunches)   // BEAGLE_AMD_PROFILE: each kernel's launches, as NV's report lists them
+        fprintf(stderr, "TinyGPU/AMD: [profile]   kernel %s n=%lld\n", kv.first.c_str(), kv.second);
+    g_amdKernelLaunches.clear();
     if (!g->adev) return;
     const bool live = g->state && __atomic_load_n(&g->state[kGuardStatePhase], __ATOMIC_ACQUIRE) == kGuardPhaseDispatch;
     if (live) amd_phase(g, kGuardPhaseTeardown);
@@ -424,7 +428,7 @@ static AMDState* amdCppBootSetup(const std::string& variant) {
             }
         return "not in the AMD firmware manifest (TinyGPUAMDBootTables.h)";
     };
-    fprintf(stderr, "TinyGPU/AMD: the C++ boot...\n");
+    TG_STATUS("TinyGPU/AMD: the C++ boot...\n");
     fflush(stderr);
     err.clear();
     try { g->adev = std::make_unique<amboot::AMDev>(tg, loader); }
@@ -439,7 +443,7 @@ static AMDState* amdCppBootSetup(const std::string& variant) {
     const amboot::Ver& gc = g->adev->ip_ver.at(amboot::GC);
     char arch[16];
     snprintf(arch, sizeof(arch), "gfx%d%x%x", gc[0], gc[1], gc[2]);
-    fprintf(stderr, "TinyGPU/AMD: C++ boot done (%s boot) — arch=%s\n", g->adev->partial_boot ? "partial" : "full", arch);
+    TG_STATUS("TinyGPU/AMD: C++ boot done (%s boot) — arch=%s\n", g->adev->partial_boot ? "partial" : "full", arch);
     err = amdGuardRest(*g);
     if (!err.empty()) {   // still no queue: this side finalizes the card, and the guard may close
         fprintf(stderr, "TinyGPU/AMD: %s; finalizing the GPU\n", err.c_str());
@@ -465,7 +469,7 @@ static AMDState* amdCppBootSetup(const std::string& variant) {
         g->rt = new AMDRuntime;
         amd_runtime_attach_mapped(*g->rt, h, maps.data(), tg);
         amd_profile_end("C++ boot", t0);
-        fprintf(stderr, "TinyGPU/AMD: C++ runtime: handed over after the C++ boot (VRAM pool %llu MiB, timeline %llu)\n",
+        TG_STATUS("TinyGPU/AMD: C++ runtime: handed over after the C++ boot (VRAM pool %llu MiB, timeline %llu)\n",
                 (unsigned long long)(h.pool_size >> 20), (unsigned long long)g->rt->timeline_value);
     } catch (const std::exception& e) {
         const TGPyError* py = dynamic_cast<const TGPyError*>(&e);
@@ -516,7 +520,7 @@ static AMDProgramSet* amd_programs(const std::string& variant, bool& oom) {
         return nullptr;
     }
     for (const auto& kv : ps.kernels) ps.handles[kv.first] = AMDKernelHandle{kv.first, &kv.second};
-    fprintf(stderr, "TinyGPU/AMD: C++ runtime: %s's programs loaded (%zu kernels, scratch %llu MiB)\n", variant.c_str(),
+    TG_STATUS("TinyGPU/AMD: C++ runtime: %s's programs loaded (%zu kernels, scratch %llu MiB)\n", variant.c_str(),
             ps.kernels.size(), (unsigned long long)(g_amd->rt->exec.scratch_size >> 20));
     return &ps;
 }
@@ -725,10 +729,7 @@ void AmdLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3
     if (!in || amd_failed(*in) || !fn) return;
     const AMDKernelHandle* ke = (const AMDKernelHandle*)fn;
     int nInt = nTotal - nPtr;
-
-    fprintf(stderr, "TinyGPU/AMD: launch %s grid=(%d,%d,%d) block=(%d,%d,%d) nPtr=%d nInt=%d\n",
-            ke->name.c_str(), grid.x, grid.y, grid.z, block.x, block.y, block.z, nPtr, nInt);
-    fflush(stderr);
+    if (amd_profile_enabled()) g_amdKernelLaunches[ke->name]++;
 
     // Queued, not submitted (STATUS.md AMD §26): amdFlushLaunchQueue() submits the backlog before this instance's next h2d,
     // d2h, sync or release, so ordering relative to its memory operations is preserved.

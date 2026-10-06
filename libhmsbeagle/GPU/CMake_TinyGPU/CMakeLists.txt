@@ -57,6 +57,11 @@ add_dependencies(hmsbeagle-tinygpu TinyGPUKernels)
 add_dependencies(hmsbeagle-tinygpu TinyGPUCubins)
 # the resource's card name and revision from the IORegistry (GPUInterfaceTinyGPU.cpp, GetDeviceName)
 target_link_libraries(hmsbeagle-tinygpu "-framework IOKit" "-framework CoreFoundation")
+# the plugin's status notes on stderr (TinyGPULog.h's TG_STATUS), which the test harness reads; off, it prints errors only
+option(BEAGLE_TINYGPU_STATUS "Print the TinyGPU plugin's status notes on stderr (the test harness needs them)" OFF)
+if(BEAGLE_TINYGPU_STATUS)
+    target_compile_definitions(hmsbeagle-tinygpu PRIVATE BEAGLE_TINYGPU_STATUS)
+endif()
 if(TINYGPU_COMGR)   # the AMD C++ runtime's ahead-of-time HSACOs (../CMakeLists.txt, TODO.md plan step A1j)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_hsaco.S" PROPERTIES GENERATED TRUE
             OBJECT_DEPENDS "${TINYGPU_HSACOS}")

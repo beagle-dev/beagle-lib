@@ -67,8 +67,11 @@ finds the card in a table by its PCI ids (`kTGCards` in `GPUInterfaceTinyGPU.cpp
 - One process at a time uses the eGPU: the first takes `$TMPDIR/nv_usb4.lock`, and a second fails at once. Every BEAGLE
   instance in that process shares one boot (about 2 s), which lasts until the process exits.
 - Keep the Mac awake while the GPU runs (`caffeinate -ims`): a sleeping Mac with a live GPU risks the IOMMU (DART).
-- A normal exit tears the GPU down (the GSP unload, then NVIDIA's teardown), and says so on stderr:
-  `teardown: done: ... WPR2 is down, the next boot needs no power cycle`.
+- A normal exit tears the GPU down (the GSP unload, then NVIDIA's teardown). A build configured with
+  `-DBEAGLE_TINYGPU_STATUS=ON` says so on stderr: `teardown: done: ... WPR2 is down, the next boot needs no power cycle`.
+  A teardown that leaves the next boot needing a power cycle says so in every build.
+- The plugin prints its errors on stderr in every build. Its status notes (the build stamps, the boot, the runtime, a
+  clean teardown) print only with `-DBEAGLE_TINYGPU_STATUS=ON` (`TG_STATUS` in TinyGPULog.h), which the test harness needs.
 - Errors come back as BEAGLE errors. A failed boot, a GPU that hangs, or a lost TinyGPU.app connection makes
   `beagleCreateInstance`, or the calls that read results back, return `BEAGLE_ERROR_GENERAL`, and read-backs are NaN.
   BEAGLE never exits its host. A lost GPU stays lost for the rest of the process.
@@ -132,7 +135,7 @@ For users:
 | `BEAGLE_NV_GUARD` | the crash guard's path (default: next to the plugin); `BEAGLE_AMD_GUARD` for the AMD C++ boot |
 | `APL_REMOTE_SOCK` | TinyGPU.app's socket (default `$TMPDIR/tinygpu.sock`, as tinygrad) |
 | `BEAGLE_AMD_DATA_MB` | AMD: the VRAM pool, in MiB (default: half the VRAM) |
-| `BEAGLE_AMD_PROFILE=1` | AMD: each operation's time on stderr |
+| `BEAGLE_AMD_PROFILE=1` | AMD: each operation's time on stderr, and each kernel's launches at exit |
 
 The test harness's own, not for production: `BEAGLE_NV_TEST_KILL`, `BEAGLE_AMD_TEST_KILL`, `BEAGLE_TG_MARKERS`,
 `BEAGLE_TINYGPU_APP`, `BEAGLE_TINYGPU_NO_LAUNCH` and `BEAGLE_NV_FILL_LAUNCH_DIMS`. tinygrad's `AM_RESET` and `AM_POWER_LIMIT`

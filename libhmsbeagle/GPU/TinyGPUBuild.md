@@ -158,7 +158,9 @@ The backend is on the `usb2` branch. Clone it under your home directory (see ste
 mkdir -p ~/src && cd ~/src && git clone https://github.com/beagle-dev/beagle-lib.git && cd beagle-lib && git checkout usb2
 ```
 
-Configure. Add `-DBUILD_JNI=OFF` if there is no JDK:
+Configure. Add `-DBUILD_JNI=OFF` if there is no JDK, and `-DBEAGLE_TINYGPU_STATUS=ON` to see the plugin's status notes
+on stderr (its boot, its runtime and its teardown at exit): steps 7 and 8 read them. Without it the plugin prints errors
+only:
 
 ```bash
 cmake -S ~/src/beagle-lib -B ~/src/beagle-build -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -204,8 +206,9 @@ while the GPU runs (`caffeinate`), and never interrupt a run (TinyGPU.md says wh
 cd ~/src/beagle-lib && B=~/src/beagle-build && caffeinate -ims env DYLD_LIBRARY_PATH="$B/libhmsbeagle/GPU/CMake_TinyGPU:$B/libhmsbeagle/CPU:$B/libhmsbeagle" "$B/examples/tinygputest" --state-count 4 --reps 200 --diag-compare-cpu
 ```
 
-Expect `PASS`, a GPU logL equal to the CPU reference's, and at exit a clean teardown: on NVIDIA `teardown: done: ... WPR2
-is down, the next boot needs no power cycle`; on AMD the card finalized. Add `--double` for double precision.
+Expect `PASS` and a GPU logL equal to the CPU reference's. A build with `-DBEAGLE_TINYGPU_STATUS=ON` also reports a clean
+teardown at exit: on NVIDIA `teardown: done: ... WPR2 is down, the next boot needs no power cycle`; on AMD the card
+finalized. Add `--double` for double precision.
 
 ## 8. Optional: the offline tests
 
@@ -213,6 +216,8 @@ The harness in `libhmsbeagle/GPU/tinygpu_tests` checks the backend without a GPU
 of the GPUs; [its README](tinygpu_tests/README.md) has the details. It runs for about 25 minutes. Besides the build, it
 needs:
 
+- a build configured with `-DBEAGLE_TINYGPU_STATUS=ON` (step 6): the harness reads the plugin's status notes, and refuses
+  a build without them;
 - tinygrad at the pinned commit a9830e2b4 ([github.com/tinygrad/tinygrad](https://github.com/tinygrad/tinygrad)), at
   `TINYGRAD_PATH` (default `~/Dropbox/Projects/tinygrad-hcq1`);
 - a Python with tinygrad's dependencies, at `BEAGLE_PYTHON` (default `~/Dropbox/Projects/tinygrad/venv/bin/python`);

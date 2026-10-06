@@ -22,6 +22,7 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/KernelResource.h"
 #include "libhmsbeagle/GPU/TinyGPUTransport.h"
+#include "libhmsbeagle/GPU/TinyGPULog.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUAMD.h"
 #include "libhmsbeagle/GPU/GPUInterfaceTinyGPUNV.h"
 
@@ -87,10 +88,10 @@ GPUInterface::~GPUInterface() {
 }
 
 int GPUInterface::Initialize() {
-    fprintf(stderr, "TinyGPU: build stamp — GPUInterfaceTinyGPU.cpp compiled %s %s\n",
+    TG_STATUS("TinyGPU: build stamp — GPUInterfaceTinyGPU.cpp compiled %s %s\n",
             __DATE__, __TIME__);
 #ifdef TINYGPU_KERNELS_STAMP
-    fprintf(stderr, "TinyGPU: build stamp — kernels/BeagleTinyGPU_kernels.h: %s\n",
+    TG_STATUS("TinyGPU: build stamp — kernels/BeagleTinyGPU_kernels.h: %s\n",
             TINYGPU_KERNELS_STAMP);
 #else
     fprintf(stderr, "TinyGPU: build stamp — TINYGPU_KERNELS_STAMP not defined "
@@ -102,7 +103,7 @@ int GPUInterface::Initialize() {
     int shared = NvAttachShared(this);
     if (shared < 0) return BEAGLE_ERROR_GENERAL;
     if (shared > 0) {
-        fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (NVIDIA), booted by another instance in this process\n",
+        TG_STATUS("TinyGPU: device 0 PCI id = %04x:%04x (NVIDIA), booted by another instance in this process\n",
                 g_tgVendorId, g_tgDeviceId);
         tgpuDevId = g_tgDevId;
         isNVIDIA  = true;
@@ -112,7 +113,7 @@ int GPUInterface::Initialize() {
     shared = AmdAttachShared(this);
     if (shared < 0) return BEAGLE_ERROR_GENERAL;
     if (shared > 0) {
-        fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (AMD), booted by another instance in this process\n",
+        TG_STATUS("TinyGPU: device 0 PCI id = %04x:%04x (AMD), booted by another instance in this process\n",
                 g_tgVendorId, g_tgDeviceId);
         tgpuDevId = g_tgDevId;
         isNVIDIA  = false;
@@ -141,11 +142,8 @@ int GPUInterface::Initialize() {
     uint32_t id01 = (uint32_t)cfg0;
     g_tgVendorId = (uint16_t)(id01 & 0xffff);
     g_tgDeviceId = (uint16_t)(id01 >> 16);
-    const char* vendorName = (g_tgVendorId == PCI_VENDOR_NVIDIA) ? "NVIDIA"
-                            : (g_tgVendorId == PCI_VENDOR_AMD)    ? "AMD"
-                            : "unknown";
-    fprintf(stderr, "TinyGPU: device 0 PCI id = %04x:%04x (%s)\n",
-            g_tgVendorId, g_tgDeviceId, vendorName);
+    TG_STATUS("TinyGPU: device 0 PCI id = %04x:%04x (%s)\n", g_tgVendorId, g_tgDeviceId,
+              g_tgVendorId == PCI_VENDOR_NVIDIA ? "NVIDIA" : g_tgVendorId == PCI_VENDOR_AMD ? "AMD" : "unknown");
     fflush(stderr);
 
     tgpuSock  = g_tgSock;
