@@ -5,7 +5,7 @@
 #   - on fake_nv_device.py's AD107 (run_fake_device.sh) and fake_amd_device.py's card (through the crash guard, each dispatch
 #     checked against the build's HSACOs of the run's variants, so an image that reused memory overwrote fails it): 20 cycles
 #     of two instances at 4 and 64 states in one process on a pool that holds a few instances at once (BEAGLE_NV_DATA_MB=64,
-#     BEAGLE_AMD_DATA_MB=192) all run, every cycle's instances reading back their own tips (on NV, every cycle's programs
+#     BEAGLE_AMD_DATA_MB=64) all run, every cycle's instances reading back their own tips (on NV, every cycle's programs
 #     at the first cycle's addresses), and the GPU is torn down cleanly; the same 40 instances alive at once on that pool
 #     fail with BEAGLE_ERROR_OUT_OF_MEMORY, so the cycles ran on memory the earlier ones freed.
 # The fakes run no kernel. One PASS or FAIL line per check; exit 0 only if all pass.
@@ -61,7 +61,7 @@ amd() {   # <label> <variants, comma-separated> [args ...]: one run on a fresh f
     for i in $(seq 100); do grep -q listening "$W/$l.dev" 2>/dev/null && break; sleep 0.1; done
     env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" \
         BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$d/guard.pid" \
-        BEAGLE_AMD_DATA_MB=192 DYLD_LIBRARY_PATH="$TEST_LIBS" "$TEST_BIN" "$@" > "$W/$l.txt" 2>&1 < /dev/null
+        BEAGLE_AMD_DATA_MB=64 DYLD_LIBRARY_PATH="$TEST_LIBS" "$TEST_BIN" "$@" > "$W/$l.txt" 2>&1 < /dev/null
     echo $? > "$W/$l.rc"
     local gpid; gpid=$(cat "$d/guard.pid" 2>/dev/null)
     if [ -n "$gpid" ]; then   # it exits at the plugin's clean; one that holds keeps the fake's connection
@@ -79,13 +79,13 @@ loaded() {   # <label> <variants, comma-separated>: exactly these variants' prog
     [ "$(grep -c "C++ runtime: [SD]P_[0-9]*'s programs loaded" "$W/$1.txt")" -eq $n ]
 }
 amd c14_amd_cycles SP_4,SP_64 --cycles 20 --state-count 4,64 --reps 3
-check "AMD: 20 cycles of two instances (4 and 64 states) on a 192 MiB pool: all run, each cycle's tips read back exactly, SP_4 and SP_64 loaded once, every dispatch's image intact, the card finalized (NO ERRORS)" \
+check "AMD: 20 cycles of two instances (4 and 64 states) on a 64 MiB pool: all run, each cycle's tips read back exactly, SP_4 and SP_64 loaded once, every dispatch's image intact, the card finalized (NO ERRORS)" \
     "[ \"\$(cat $W/c14_amd_cycles.rc)\" -lt 128 ] && [ \"\$(grep -c '^tips: every instance read back its own tip partials exactly' $W/c14_amd_cycles.txt)\" -eq 20 ] \
      && loaded c14_amd_cycles SP_4,SP_64 && ! grep -q 'out of GPU memory' $W/c14_amd_cycles.txt \
      && glog c14_amd_cycles | grep -q '$CLEAN' && verdict c14_amd_cycles | grep -q 'NO ERRORS'"
 amd c14_amd_live SP_4,SP_64 --instances 40 --state-count 4,64 --reps 3
 check "AMD: the same 40 instances alive at once on that pool: BEAGLE_ERROR_OUT_OF_MEMORY, said, and the card finalized (NO ERRORS)" \
-    "grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with [0-9.]* MiB left of the 192 MiB VRAM pool' $W/c14_amd_live.txt \
+    "grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with [0-9.]* MiB left of the 64 MiB VRAM pool' $W/c14_amd_live.txt \
      && grep -q 'beagleCreateInstance failed (error -2)' $W/c14_amd_live.txt \
      && glog c14_amd_live | grep -q '$CLEAN' && verdict c14_amd_live | grep -q 'NO ERRORS'"
 

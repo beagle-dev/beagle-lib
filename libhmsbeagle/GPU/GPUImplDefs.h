@@ -106,6 +106,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      __restrict__
+    #define KW_NO_UNROLL
 #elif defined(FW_TINYGPU)
     // TinyGPU backend: single-stream, NVIDIA PTX execution model.
     // BEAGLE_STREAM_COUNT and BEAGLE_MULTI_GRID_MAX match CUDA defaults.
@@ -129,6 +130,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      __restrict__
+    #define KW_NO_UNROLL
 #elif defined(FW_TINYGPU_AMD)
     // TinyGPU backend, AMD path: kernels compiled via comgr's HIP
     // language, not OpenCL. OpenCL's get_global_id() has a global_work_offset
@@ -166,6 +168,10 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  ((int)__ockl_get_num_groups(1))
     #define KW_NUM_GROUPS_2  ((int)__ockl_get_num_groups(2))
     #define KW_RESTRICT      __restrict__
+    // Before a loop over the states peeled through shared memory, BLOCK_PEELING_SIZE states at a time: comgr unrolls
+    // such a loop fully and moves its FMAs past the last barrier, so every operand read from shared memory stays live
+    // and spills to scratch. Unroll 1 keeps the loop, with its FMAs between the barriers, as nvcc's PTX does.
+    #define KW_NO_UNROLL     _Pragma("unroll 1")
     // Defensive OpenCL-builtin compatibility: the only raw (non-KW_*)
     // OpenCL builtin call anywhere in kernels/*.cu is get_global_id(1)
     // inside kernelsX.cu's DETERMINE_INDICES_X_CPU macro, an OpenCL-CPU-
@@ -269,6 +275,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  get_num_groups(1)
     #define KW_NUM_GROUPS_2  get_num_groups(2)
     #define KW_RESTRICT      restrict
+    #define KW_NO_UNROLL
 #endif
 
 /* Compiler definitions

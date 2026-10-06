@@ -6,7 +6,7 @@
 #   - a 1 MiB VRAM pool (BEAGLE_AMD_DATA_MB=1): the program upload fails after the queues are set up; beagleCreateInstance
 #     returns BEAGLE_ERROR_OUT_OF_MEMORY (plan step M1), and the plugin still finalizes the card at exit (the guard sees its
 #     clean; NO ERRORS);
-#   - a pool the programs fill exactly (132 MiB at 64 states): the instance's first allocation fails, so it fails instead of
+#   - a pool the programs fill exactly (26 MiB at 64 states): the instance's first allocation fails, so it fails instead of
 #     handing address 0 to the GPU; BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized;
 #   - a pool larger than the VRAM (BEAGLE_AMD_DATA_MB=1000000): the setup says the card's VRAM cannot hold it, and
 #     BEAGLE_ERROR_OUT_OF_MEMORY; the card finalized;
@@ -99,10 +99,10 @@ check "a 1 MiB VRAM pool: beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMOR
      && glog pool1 | grep -q '$CLEAN' && verdict pool1 | grep -q 'NO ERRORS'"
 
 # 3. a pool the programs fill: the instance's allocation fails instead of handing address 0 to the GPU
-run pool132 BEAGLE_AMD_DATA_MB=132 -- --state-count 64 --reps 3
-check "a pool the programs fill (132 MiB at 64 states): the instance's allocation fails, BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized" \
-    "normal pool132 && grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with 0.0 MiB left of the 132 MiB VRAM pool .*; this instance fails' $W/pool132.txt \
-     && grep -q 'beagleCreateInstance failed (error -2)' $W/pool132.txt && glog pool132 | grep -q '$CLEAN' && verdict pool132 | grep -q 'NO ERRORS'"
+run pool26 BEAGLE_AMD_DATA_MB=26 -- --state-count 64 --reps 3
+check "a pool the programs fill (26 MiB at 64 states): the instance's allocation fails, BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized" \
+    "normal pool26 && grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with 0.0 MiB left of the 26 MiB VRAM pool .*; this instance fails' $W/pool26.txt \
+     && grep -q 'beagleCreateInstance failed (error -2)' $W/pool26.txt && glog pool26 | grep -q '$CLEAN' && verdict pool26 | grep -q 'NO ERRORS'"
 
 # 3b. a pool larger than the VRAM (plan step M1)
 run poolbig BEAGLE_AMD_DATA_MB=1000000

@@ -11,7 +11,8 @@ when BEAGLE runs:
 - **NVIDIA:** `nvcc` and `ptxas` from CUDA 12.8 build the PTX and 54 cubins (single and double precision, 9 state counts,
   for sm_86, sm_89 and sm_120). NVIDIA ships no CUDA for macOS, so both run in a Linux container under Docker.
 - **AMD:** tinygrad's build of AMD's Code Object Manager (comgr) compiles 18 HSACOs for gfx1100 (the RX 7900 series).
-  Without comgr the build still succeeds, but the plugin has no AMD kernels and refuses AMD cards.
+  The build fails if any of their kernels spills registers to scratch. Without comgr the build still succeeds, but the
+  plugin has no AMD kernels and refuses AMD cards.
 
 Running needs TinyGPU.app and the GPUs' firmware, but not Docker or comgr.
 
@@ -236,5 +237,6 @@ BEAGLE_BUILD=~/src/beagle-build ~/src/beagle-lib/libhmsbeagle/GPU/tinygpu_tests/
 | nvcc or ptxas cannot find a file during the build | The source or build directory is outside your home directory (step 2). |
 | `No JNI includes and libraries found` | Install a JDK, or configure with `-DBUILD_JNI=OFF`. |
 | `TinyGPU AMD HSACOs: no comgr found` | Step 3. |
+| `tinygpu_amd_compile: ...: kernels spill registers to scratch` | A kernel change made comgr spill. Put `KW_NO_UNROLL` (`GPUImplDefs.h`) before a loop over the states that it unrolled, or give the kernel its block size, as `kernelMatrixMulADBComplex` has. |
 | `... is not TinyGPU release c0d024f9's` or `... is missing` at run time | Step 4. |
 | `WARM GPU: WPR2 is up ... Power-cycle the eGPU` | The previous process did not tear the GPU down: unplug the eGPU and plug it in again (TinyGPU.md). |

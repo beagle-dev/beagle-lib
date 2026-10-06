@@ -827,7 +827,12 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 	    }
 }
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* offsets,
                                    KW_GLOBAL_VAR REAL* Alist,
                                    KW_GLOBAL_VAR REAL* Dlist,
@@ -1047,7 +1052,12 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
 }
 
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,
                                    KW_GLOBAL_VAR REAL* D,

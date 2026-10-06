@@ -7,6 +7,7 @@
  * defines amd_compile_helper.compile_hip prepends, then KERNELS_STRING_<precision>_<padded state count> from
  * BeagleOpenCL_kernels.h. The same actions, options and option splitting, so the HSACOs are tinygrad's byte for byte
  * (golden_amd_hsaco.py); the plugin embeds them (kernels/BeagleTinyGPU_hsaco.S) and the daemon no longer compiles.
+ * A variant fails, and so the build, if any of its kernels spills registers to scratch (the code object's metadata).
  *   tinygpu_amd_compile <libamd_comgr path> <arch> <out dir> <variant (SP_4 ... DP_256)>...
  */
 
@@ -21,7 +22,7 @@
 
 namespace {
 
-struct Handle { uint64_t handle; };   // amd_comgr_data_t, amd_comgr_data_set_t, amd_comgr_action_info_t
+struct Handle { uint64_t handle; };   // amd_comgr_data_t, amd_comgr_data_set_t, amd_comgr_action_info_t, amd_comgr_metadata_node_t
 typedef int Status;                   // amd_comgr_status_t: 0 is success
 enum : uint32_t {                     // comgr 3 (tinygrad/runtime/autogen/comgr_3.py)
     LANGUAGE_HIP = 3, KIND_SOURCE = 1, KIND_LOG = 5, KIND_EXECUTABLE = 8,
@@ -47,6 +48,12 @@ struct Comgr {
     Status (*release_data)(Handle);
     Status (*destroy_data_set)(Handle);
     Status (*destroy_action_info)(Handle);
+    Status (*get_data_metadata)(Handle, Handle*);
+    Status (*metadata_lookup)(Handle, const char*, Handle*);
+    Status (*get_metadata_string)(Handle, size_t*, char*);
+    Status (*get_metadata_list_size)(Handle, size_t*);
+    Status (*index_list_metadata)(Handle, size_t, Handle*);
+    Status (*destroy_metadata)(Handle);
 };
 
 Comgr g;
@@ -64,6 +71,9 @@ bool load(const char* path) {
     sym(g.action_data_get_data, "amd_comgr_action_data_get_data"); sym(g.get_data, "amd_comgr_get_data");
     sym(g.release_data, "amd_comgr_release_data"); sym(g.destroy_data_set, "amd_comgr_destroy_data_set");
     sym(g.destroy_action_info, "amd_comgr_destroy_action_info");
+    sym(g.get_data_metadata, "amd_comgr_get_data_metadata"); sym(g.metadata_lookup, "amd_comgr_metadata_lookup");
+    sym(g.get_metadata_string, "amd_comgr_get_metadata_string"); sym(g.get_metadata_list_size, "amd_comgr_get_metadata_list_size");
+    sym(g.index_list_metadata, "amd_comgr_index_list_metadata"); sym(g.destroy_metadata, "amd_comgr_destroy_metadata");
     return ok;
 }
 
@@ -134,6 +144,41 @@ std::string compile_hip(const std::string& prg, const std::string& arch) {
     return out;
 }
 
+// The kernels of an HSACO that spill registers to scratch, from its metadata's .vgpr_spill_count and .sgpr_spill_count:
+// " name (v VGPRs, s SGPRs)" each, "" if none. Spilled registers live in scratch memory, in VRAM: GPUImplDefs.h's
+// KW_NO_UNROLL says how the 64-state kernels came to spill.
+std::string spills(const std::string& hsaco) {
+    Handle data, meta, kernels;
+    check(g.create_data(KIND_EXECUTABLE, &data));
+    check(g.set_data(data, hsaco.size(), hsaco.data()));
+    check(g.get_data_metadata(data, &meta));
+    check(g.metadata_lookup(meta, "amdhsa.kernels", &kernels));
+    size_t n = 0;
+    check(g.get_metadata_list_size(kernels, &n));
+    std::string out;
+    for (size_t i = 0; i < n; ++i) {
+        Handle k;
+        check(g.index_list_metadata(kernels, i, &k));
+        auto field = [&](const char* key) {
+            Handle v;
+            if (g.metadata_lookup(k, key, &v) != 0) throw Fail{std::string("no ") + key + " in a kernel's metadata"};
+            size_t len = 0;   // with the terminating NUL
+            check(g.get_metadata_string(v, &len, nullptr));
+            std::string s(len, '\0');
+            check(g.get_metadata_string(v, &len, &s[0]));
+            check(g.destroy_metadata(v));
+            return std::string(s.c_str());
+        };
+        const std::string vgpr = field(".vgpr_spill_count"), sgpr = field(".sgpr_spill_count");
+        if (vgpr != "0" || sgpr != "0") out += " " + field(".name") + " (" + vgpr + " VGPRs, " + sgpr + " SGPRs)";
+        check(g.destroy_metadata(k));
+    }
+    check(g.destroy_metadata(kernels));
+    check(g.destroy_metadata(meta));
+    check(g.release_data(data));
+    return out;
+}
+
 const char* variant_source(const std::string& v) {   // GPUInterfaceTinyGPUAMD.cpp amd_opencl_kernel_source
 #define TG_V(P, N) if (v == #P "_" #N) return KERNELS_STRING_##P##_##N;
     TG_V(SP, 4) TG_V(SP, 16) TG_V(SP, 32) TG_V(SP, 48) TG_V(SP, 64) TG_V(SP, 80) TG_V(SP, 128) TG_V(SP, 192) TG_V(SP, 256)
@@ -156,6 +201,8 @@ int main(int argc, char** argv) {
         if (!src) { fprintf(stderr, "tinygpu_amd_compile: no variant %s\n", argv[i]); return 1; }
         try {
             const std::string hsaco = compile_hip(std::string("#define FW_TINYGPU_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n") + src, arch);
+            const std::string spilled = spills(hsaco);
+            if (!spilled.empty()) { fprintf(stderr, "tinygpu_amd_compile: %s: kernels spill registers to scratch:%s\n", argv[i], spilled.c_str()); return 1; }
             const std::string path = dir + "/" + argv[i] + "_" + arch + ".hsaco";
             FILE* f = fopen(path.c_str(), "wb");
             if (!f || fwrite(hsaco.data(), 1, hsaco.size(), f) != hsaco.size() || fclose(f) != 0) { fprintf(stderr, "tinygpu_amd_compile: cannot write %s\n", path.c_str()); return 1; }

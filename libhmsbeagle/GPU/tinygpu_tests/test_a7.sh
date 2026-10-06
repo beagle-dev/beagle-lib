@@ -79,7 +79,7 @@ while IFS='|' read -r label cmd kernels; do
     set -- $cmd; prog=$1; shift
     [ $prog = synthetictest ] || continue
     states=$(echo "$cmd" | sed -nE 's/.*--states ([0-9]+).*/\1/p'); v=DP_$(padded $states)
-    POOL_MB=2048 run d1_$label $v $prog "$@" --doubleprecision   # at 63 states in double, 655 MB of buffers besides DP_64's 318 MiB of scratch
+    POOL_MB=2048 run d1_$label $v $prog "$@" --doubleprecision   # at 63 states in double, 655 MB of buffers besides DP_64's 24 MiB of scratch
     why=$(amd_d1_verdict "$W/d1_$label.out" "$W/d1_$label.err" "$kernels")
     if [ -z "$why" ] && [ "$(cat $W/d1_$label.rc)" = 0 ] && grep -q "Impl Name : TinyGPU-Double" "$W/d1_$label.out" \
        && glog d1_$label | grep -q "$CLEAN" && verdict d1_$label | grep -q "NO ERRORS"; then
