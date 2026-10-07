@@ -4,9 +4,9 @@
  * BEAGLE TinyGPU backend, shared front end: connects to TinyGPU.app,
  * identifies the eGPU's vendor from PCI config space, selects the kernel
  * resource, and implements GPUInterface by calling the vendor's free
- * functions: GPUInterfaceTinyGPUNV.cpp (the C++ boot and runtime, on Ada
- * and Blackwell GB20x GPUs) and GPUInterfaceTinyGPUAMD.cpp. Built with
- * -DFW_TINYGPU.
+ * functions: GPUInterfaceTinyGPUNV.cpp (the C++ boot and runtime, on Ampere
+ * GA10x, Ada AD10x and Blackwell GB20x GPUs) and GPUInterfaceTinyGPUAMD.cpp.
+ * Built with -DFW_TINYGPU.
  *
  * The NV path this file used to hand-roll here (nv_init_helper.py boot, then
  * its own QMDs, GPFIFO and BAR1 copies) was replaced by the C++ runtime, which

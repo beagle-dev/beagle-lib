@@ -1,6 +1,6 @@
 #!/bin/bash
 # TODO.md plan step C12, end to end with no eGPU: the Python-free default, and a library that returns errors instead of exiting
-# its host. On fake_nv_device.py, the fake AD107 and (where it says so) the fake GB205:
+# its host. On fake_nv_device.py, the fake AD107 and (where it says so) the fake GA104 (Ampere, plan step G1) and GB205:
 #   - the plugin boots at level boot, with no daemon; so does a GB202's device ID on the fake GB205, the device receiving the
 #     GB205's bytes (every GB20x family boots in C++ since 2026-09-28; the refusal of the other GPUs is test_c13.sh's);
 #   - the finalize order: with the GPU running each doorbell's work 20 ms late (FAKE_GPU_LAG_MS), the plugin's teardown at exit
@@ -33,8 +33,8 @@ check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
 TL="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log"   # the plugin's and the guard's TinyGPULog lines in these runs
 out() { echo "$TINYGPU_TEST_WORK/run_device_$1.txt"; }   # the plugin's output ($W/<label>.txt: run_fake_device.sh's)
 dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
-device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
-counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
+device() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$(dev $1)" | tail -1; }
+counts() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): client done: " "$(dev $1)" | tail -1; }
 glog() { sed -n "/c12 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
 status() { sed -n "s/^\[$1\] tinygputest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
 run() {   # <label> [VAR=value ...] [-- tinygputest args]: one fake run, its TinyGPULog lines marked
@@ -47,8 +47,8 @@ run() {   # <label> [VAR=value ...] [-- tinygputest args]: one fake run, its Tin
 UNLOAD='"rpc NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER": 1'
 CLEAN="the plugin tore the GPU down itself; exiting"
 
-for chip in ad107 gb205; do
-    if [ $chip = gb205 ]; then export FAKE_NV_CHIP=gb205; else unset FAKE_NV_CHIP; fi
+for chip in ad107 ga104 gb205; do
+    if [ $chip = ad107 ]; then unset FAKE_NV_CHIP; else export FAKE_NV_CHIP=$chip; fi
     C=$(echo $chip | tr a-z A-Z)
 
     # 1. the default

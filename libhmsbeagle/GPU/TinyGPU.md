@@ -20,10 +20,15 @@ Python daemon booted the card; it is now the tests' oracle.
 
 | Family | PCI device IDs | Status |
 |---|---|---|
-| Ada (AD10x) | `0x26xx`-`0x28xx` | tested on an RTX 4060 (AD107) |
+| Ada (AD10x) | `0x26xx`-`0x28xx` | tested on an RTX 4060 (AD107); the other AD10x boot the same way, untested |
 | Blackwell (GB20x) | `0x2bxx`-`0x2dxx`, `0x2fxx` | tested on an RTX 5070 (GB205); the other GB20x boot the same way, untested |
-| Ampere (GA10x) | `0x22xx`-`0x25xx` | not supported: refused at `beagleCreateInstance` (its path, the Python daemon, was removed) |
+| Ampere (GA10x) | `0x22xx`, `0x24xx`, `0x25xx` | boots as Ada does (TODO.md plan step G1), untested: no Ampere card has run it |
 | AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT; another AMD card's IP versions are refused at its boot |
+
+These are tinygrad's NVIDIA families. Any other NVIDIA GPU (Turing, GA100, Hopper, GB100) is refused at
+`beagleCreateInstance`, with nothing written to it. The NVIDIA boot also needs a 256 MiB BAR1, as GeForce cards come: a
+card with another size (data-center and some professional cards have a larger one) is refused at the start of its boot
+(`BarLayoutError`), before any firmware is set up.
 
 Both precisions are built, for padded state counts 4, 16, 32, 48, 64, 80, 128, 192 and 256: on NVIDIA 18 cubins per
 architecture (sm_86, sm_89, sm_120), on AMD 18 HSACOs for gfx1100. The resource offers `BEAGLE_FLAG_PRECISION_DOUBLE` as
@@ -45,7 +50,7 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
   every file checked. A blob that cannot be had stops the boot before it starts: `not booting: nothing was written to the
   GPU`.
 - To fetch either vendor's by hand (for debugging, or a Mac without the network):
-  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ad102|gb202|gfx1100] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
+  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ga102|ad102|gb202|gfx1100] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
   `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses
@@ -111,10 +116,10 @@ BEAGLE itself, as at exit, so it needs no power cycle.
 
 Power-cycle the eGPU (unplug it, then plug it in again) only then, and always before killing a holding guard. A GPU left
 warm by an earlier process that was not torn down (WPR2 still up) is refused with nothing written:
-`WARM GPU: WPR2 is up ... Power-cycle the eGPU`. The exception (plan step P4, Ada only, the default since two clean
-recoveries on the RTX 4060): a warm GPU whose GSP-RM was unloaded, so that only the teardown is missing (after
-`BEAGLE_NV_TEARDOWN=0`, or a teardown that failed after the unload), is torn down at boot and then boots. Only reads come
-before that decision. NVIDIA's driver refuses such a GPU instead; `BEAGLE_NV_RECOVER=0` does too.
+`WARM GPU: WPR2 is up ... Power-cycle the eGPU`. The exception (plan step P4, on Ada and Ampere GPUs; the default since two
+clean recoveries on the RTX 4060, untested on Ampere): a warm GPU whose GSP-RM was unloaded, so that only the teardown is
+missing (after `BEAGLE_NV_TEARDOWN=0`, or a teardown that failed after the unload), is torn down at boot and then boots.
+Only reads come before that decision. NVIDIA's driver refuses such a GPU instead; `BEAGLE_NV_RECOVER=0` does too.
 
 ## Environment variables
 
@@ -131,7 +136,7 @@ For users:
 | `BEAGLE_NV_PROFILE=1` | per-call timings and launch counts on stderr at exit |
 | `BEAGLE_NV_TEARDOWN=0` | the GSP unload only, no teardown: the next boot then needs a power cycle (for diagnosis) |
 | `BEAGLE_NV_UNLOAD_LEVEL=0` | the LEVEL_0 unload instead of FAST_UNLOAD (a fallback) |
-| `BEAGLE_NV_RECOVER=0` | a warm Ada GPU whose GSP is suspended or halted is refused, as NVIDIA's driver does, instead of torn down at boot |
+| `BEAGLE_NV_RECOVER=0` | a warm Ada or Ampere GPU whose GSP is suspended or halted is refused, as NVIDIA's driver does, instead of torn down at boot |
 | `BEAGLE_NV_GUARD` | the crash guard's path (default: next to the plugin); `BEAGLE_AMD_GUARD` for the AMD C++ boot |
 | `APL_REMOTE_SOCK` | TinyGPU.app's socket (default `$TMPDIR/tinygpu.sock`, as tinygrad) |
 | `BEAGLE_AMD_DATA_MB` | AMD: the VRAM pool, in MiB (default: half the VRAM) |

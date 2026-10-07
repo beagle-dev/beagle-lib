@@ -41,6 +41,8 @@ AD107 = dict(cfg={0x0: 0x288210de, 0x4: 0x00100007, 0x8: 0x030000a1, 0x2c: 0x893
 GB205 = dict(cfg={0x0: 0x2f0410de, 0x4: 0x00100007, 0x8: 0x030000a1, 0x2c: 0x89e71043},
              bars={0: (0x118000000, 64 * MB), 1: (0x11c000000, 256 * MB), 3: (0x12fcbc000, 32 * MB)},
              regs={BOOT_0: 0x1b5000a1, BOOT_42: 0x1b5a1000, SCRATCH_42: 0x2fc3, I2CS: 0xff}, l0="20260927-093033_Marcs-Mac-Studio-490_gb205_l0")
+# plan step G1: an Ampere (an RTX 3070's ids, architecture 0x17, implementation 4) on the AD107's BARs and VRAM; no card, no recording
+GA104 = dict(cfg={**AD107["cfg"], 0x0: 0x248410de}, bars=AD107["bars"], regs={BOOT_0: 0x174000a1, BOOT_42: 0x174a1000, SCRATCH_42: 0x1ffc}, l0=None)
 
 # ── the VBIOS: the captured dumps, the L0 recording's own, and malformed or ambiguous copies ───────────────────────────────
 def captured_vbios():
@@ -98,6 +100,7 @@ def cases():
     cs = [
         Case("AD107 cold", AD107, l0=True, expect=r"^chip 0x197000a1 AD107 ad102 mmu 2 fmc 0 vram 8585740288 bar1 268435456 large 0 root "),
         Case("GB205 cold", GB205, l0=True, expect=r"^chip 0x1b5000a1 GB205 gb202 mmu 3 fmc 1 vram 12820938752 bar1 268435456 large 0 root "),
+        Case("GA104 cold", GA104, expect=r"^chip 0x174000a1 GA104 ga102 mmu 2 fmc 0 vram 8585740288 bar1 268435456 large 0 root "),
         Case("AD107, bus mastering off", AD107, cfg={0x4: 0x00100002}, expect=r"^chip 0x197000a1 AD107 "),
         Case("GB205, the FSP ready at the 5th read", GB205, regs={I2CS: lambda n: 0xff if n >= 5 else 0}, expect=r"^chip 0x1b5000a1 GB205 "),
         Case("AD107, WPR2 up", AD107, regs={WPR2_HI: 0x2fad}, expect=r"^error WarmGPUError: WARM GPU: WPR2 is up \(NV_PFB_PRI_MMU_WPR2_ADDR_HI=0x00002fad\)",
@@ -119,6 +122,10 @@ def cases():
         Case("NV_FLCN.init_sw, the teardown off", AD107, mode="flcn", vbios=roms[0], teardown=False, expect=r"booter at 0x1211000 .*\nteardown off$"),
         Case("AD107 cold, the whole init_sw" + (" (the recording's VBIOS)" if rec_rom else ""), AD107, mode="sw", l0=rec_rom is not None,
              vbios=rec_rom or roms[0], expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc9c0 0xc7b5 0xc9b0$"),
+        Case("GA104 cold, NV_FLCN.init_sw (ga102's booters)", GA104, mode="flcn", vbios=roms[0],
+             expect=r"\nflcn frts 0x1ffa00000 at 0x1200000 desc .* booter at 0x[0-9a-f]+ data .*\nteardown sb at 0x[0-9a-f]+ unload at 0x[0-9a-f]+ data "),
+        Case("GA104 cold, the whole init_sw", GA104, mode="sw", vbios=roms[0],
+             expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc7c0 0xc7b5 0x0$"),
         Case("GB205 cold, the whole init_sw", GB205, mode="sw", l0=True,
              expect=r"^chip 0x1b5000a1 .*\ncot boot_args 0x[0-9a-f]+ fmc 0x[0-9a-f]+ hash 12 .*\ngsp rm_args .* seq 2 classes 0xc96f 0xcec0 0xcab5 0xcfb0$"),
         Case("a later ucode entry FWSEC_PROD too: the last wins", AD107, mode="flcn", expect=r"\nflcn frts 0x1ffa00000 at 0x1200000 desc ",
@@ -213,7 +220,7 @@ def py_boot(path, c, data_dir):
             g.init_sw()
             out.append(f"gsp rm_args {g.rm_args_sysmem:#x} libos {g.libos_args_sysmem:#x} wpr_meta {g.wpr_meta_sysmem:#x} radix3 {g.gsp_radix3_addrs[0]:#x} "
                        f"sig {g.gsp_signature_bar1:#x} booter {g.booter_bar1:#x} seq {g.cmd_q.seq} classes {g.gpfifo_class:#x} {g.compute_class:#x} "
-                       f"{g.dma_class:#x} {g.viddec_class:#x}")
+                       f"{g.dma_class:#x} {g.viddec_class or 0:#x}")   # None (an Ampere's) as the port's 0
     except Exception as e: out.append(f"error {type(e).__name__}: {e}")
     finally:
         nv_init_helper._TEARDOWN = saved_td
@@ -307,6 +314,7 @@ PERTURBED = [
     ("TinyGPUNVBoot.h", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 20;", "NV_PGC6_AON_SECURE_SCRATCH_GROUP_42).read() << 19;", "AD107 cold"),
     ("TinyGPUNVBoot.h", "if (d.bar1_size != 256ull << 20 || d.large_bar)", "if (d.large_bar)", "GB205, a 512 MiB BAR1"),
     ("TinyGPUNVBoot.h", "d.large_bar = d.bar1_size >= d.vram_size;", "d.large_bar = d.bar1_size > d.vram_size;", "AD107, a BAR1 as large as VRAM"),
+    ("TinyGPUNVBoot.h", '? "ad102" : "ga102";', '? "ad102" : "ad102";', "GA104 cold"),   # plan step G1
     # C11b
     ("TinyGPUNVBoot.h", "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE) block_size = imglen;",
      "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE && block_size < 0) block_size = imglen;", "two base images before the expansion ROM"),
@@ -327,6 +335,7 @@ PERTURBED = [
      "npages[i - 1] = ((npages[i] - 1) >> (nv::LIBOS_MEMORY_REGION_RADIX_PAGE_LOG2 - 4)) + 1;", "AD107 cold, the whole init_sw"),
     ("TinyGPUNVBoot.h", "gsp_heap_sz = 0x8100000;", "gsp_heap_sz = 0x8000000;", "AD107 cold, the whole init_sw"),
     ("TinyGPUNVBoot.h", "m.pmuReservedSize = 0x1820000;", "m.pmuReservedSize = 0x1800000;", "GB205 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "g.compute_class = nv_gpu::AMPERE_COMPUTE_B;", "g.compute_class = nv_gpu::ADA_COMPUTE_A;", "GA104 cold, the whole init_sw"),
     ("TinyGPUNVBoot.h", "data.pciConfigMirrorBase = d.fmc_boot ? 0x92000 : 0x88000;", "data.pciConfigMirrorBase = d.fmc_boot ? 0x88000 : 0x92000;", "GB205 cold, the whole init_sw"),
     ("TinyGPUNVBoot.h", "e.type = nv::REGISTRY_TABLE_ENTRY_TYPE_DWORD;", "e.type = 2;", "AD107 cold, the whole init_sw"),
     ("TinyGPUNVBoot.h", "pkey.insert(pkey.end(), 3, 0);", "pkey.insert(pkey.end(), 7, 0);", "GB205 cold, the whole init_sw"),

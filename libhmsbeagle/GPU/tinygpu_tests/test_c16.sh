@@ -1,10 +1,10 @@
 #!/bin/bash
 # TODO.md plan step C16, double precision on NV, offline: the plugin offers it when the build's cubins include the DP_ modules
 # (they do since plan step C16, for sm_86, sm_89 and sm_120), and BEAGLE's double-precision instances run on them. On
-# fake_nv_device.py's AD107 and GB205, each run through run_fake_device.sh (one boot, its programs, the teardown's clean
-# report, NO ERRORS):
+# fake_nv_device.py's AD107, GA104 (Ampere, plan step G1) and GB205, each run through run_fake_device.sh (one boot, its
+# programs, the teardown's clean report, NO ERRORS):
 #   - tinygputest --double at 4 and 64 states, and two instances at 4 and 64 in one process: the resource lists DOUBLE,
-#     each instance is TinyGPU-Double on the DP_ cubin for the GPU's architecture (sm_89, sm_120);
+#     each instance is TinyGPU-Double on the DP_ cubin for the GPU's architecture (sm_89, sm_86, sm_120);
 #   - without --double the test stays in single precision (SP_ cubins), as before;
 #   - on the AD107, every synthetictest line of d1_runs.txt with --doubleprecision: exactly the line's kernels (d1_verdict).
 # The fakes run no kernel, so the numbers are wrong by design (run_point.sh ... --double compares them on the GPU). One PASS
@@ -30,8 +30,9 @@ on() {   # <label> <run's exit> <Double|Single> <cubins, space-separated>: the r
     for c in "$@"; do grep -q "TinyGPU/NV: C++ runtime: embedded cubin $c " "$(out $l)" || return 1; done
 }
 
-for chip in ad107 gb205; do
-    if [ $chip = gb205 ]; then export FAKE_NV_CHIP=gb205; arch=sm_120; else unset FAKE_NV_CHIP; arch=sm_89; fi
+for chip in ad107 ga104 gb205; do
+    case $chip in ad107) unset FAKE_NV_CHIP; arch=sm_89;; ga104) export FAKE_NV_CHIP=ga104; arch=sm_86;;
+                  gb205) export FAKE_NV_CHIP=gb205; arch=sm_120;; esac
     C=$(echo $chip | tr a-z A-Z)
     run c16_${chip}_dp4 -- --double --state-count 4 --reps 3 --diag-compare-cpu; r=$?
     check "$C: --double at 4 states: the resource lists DOUBLE, a TinyGPU-Double instance on DP_4 $arch, the GPU torn down cleanly" "on c16_${chip}_dp4 $r Double 'DP_4 $arch'"

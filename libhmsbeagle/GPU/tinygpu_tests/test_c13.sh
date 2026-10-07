@@ -4,7 +4,7 @@
 # AD107 unless it says otherwise:
 #   - runs at 4 and 64 states, and on the fake GB205 (the probe's 10de:2f04, sm_120 on QMD v5, the COT unload): each uploads the
 #     image compile_all's path would have (check_upload.py, on the fake's copy log), and tears the GPU down;
-#   - the routing: an Ampere's device ID (0x2204) is refused before the boot, with nothing written and no guard;
+#   - the routing: a Turing's device ID (0x1e04) is refused before the boot, with nothing written and no guard;
 #   - a GPU no embedded cubin serves (sm_75): refused after the boot, which is still torn down at exit;
 #   - every d1_runs.txt line (plan step D1) launches exactly the kernels it lists (d1_verdict);
 #   - several instances in one process (plan step P5) share one boot and one connection besides the probe's, each instance's
@@ -72,11 +72,11 @@ for chip in ad107 gb205; do
     done
 done
 
-# 2. the routing: an Ampere is refused before the boot
-FAKE_PCI_DEVICE_ID=2204 run c13_ga102
-check "an Ampere's device ID (0x2204): refused before the boot (beagleCreateInstance fails), no guard, nothing but the probe's two reads" \
-    "grep -q 'this GPU (PCI device ID 2204) is not one BEAGLE boots' '$(out c13_ga102)' && grep -q 'beagleCreateInstance failed (error -1)' '$(out c13_ga102)' \
-     && ! grep -q 'crash guard' '$(out c13_ga102)' && counts c13_ga102 | grep -q 'client done: {\"cmd 3\": 2}$' && device c13_ga102 | grep -q 'NO ERRORS'"
+# 2. the routing: a GPU outside tinygrad's families is refused before the boot (an Ampere boots since plan step G1)
+FAKE_PCI_DEVICE_ID=1e04 run c13_tu102
+check "a Turing's device ID (0x1e04): refused before the boot (beagleCreateInstance fails), no guard, nothing but the probe's two reads" \
+    "grep -q 'this GPU (PCI device ID 1e04) is not one BEAGLE boots' '$(out c13_tu102)' && grep -q 'beagleCreateInstance failed (error -1)' '$(out c13_tu102)' \
+     && ! grep -q 'crash guard' '$(out c13_tu102)' && counts c13_tu102 | grep -q 'client done: {\"cmd 3\": 2}$' && device c13_tu102 | grep -q 'NO ERRORS'"
 
 # 3. a GPU no embedded cubin serves
 FAKE_SM_VERSION=0x705 run c13_sm75

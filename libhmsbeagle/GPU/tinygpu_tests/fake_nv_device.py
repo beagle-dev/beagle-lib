@@ -38,7 +38,7 @@ without its teardown leaves it (BEAGLE_NV_TEARDOWN=0's exit): the GSP suspended 
 GSP falcon run FWSEC-SB and the next SEC2 run Booter Unload; FAKE_WPR2_UP=halted: the same, with MAILBOX0 0. FWSEC-FRTS with
 WPR2 up is an error, and once Booter Unload brings WPR2 down the GPU boots again as from cold.
 Plan step C12's exit matrix: FAKE_PCI_DEVICE_ID=<hex> puts another device ID in the config space, the chip staying as FAKE_NV_CHIP
-says (a GB202's 0x2b85, which the plugin boots as a GB20x; an Ampere's 0x2204, which it refuses); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
+says (a GB202's 0x2b85, which the plugin boots as a GB20x; a Turing's 0x1e04, which it refuses); FAKE_GPU_HANG_AT=<k>: from the k-th doorbell on the GPU runs
 nothing (a hang); FAKE_DROP_AT=<k>: from the k-th doorbell on, at the first doorbell its client waits for (nothing more comes
 within 50 ms), TinyGPU.app quits, closing the connection before the GPU runs that doorbell's work: the client's wait ends, and
 its next write fails with EPIPE.
@@ -51,8 +51,10 @@ MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
 from the host. At the unload the GSP suspends; its RISC-V core halts after two more reads of RISCV_CPUCTL, and only then
 does WPR2 come down (R23). A session that ends before that halt is an error: the FMC's images are in sysmem.
+FAKE_NV_CHIP=ga104 (plan step G1) plays an Ampere, an RTX 3070: its ids (10de:2484, architecture 0x17, sm_86) and AMPERE_COMPUTE_B,
+on the AD107's model otherwise (its BARs, VRAM, registers and captured VBIOS: Ampere boots as Ada does, and the fake runs no ucode).
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
-It prints "fake TinyGPU.app (AD107 device) listening" (GB205 with FAKE_NV_CHIP=gb205), and after each session its counts and
+It prints "fake TinyGPU.app (AD107 device) listening" (GB205 or GA104 with FAKE_NV_CHIP), and after each session its counts and
 NO ERRORS or the errors."""
 import os, sys, json, mmap, glob, time, socket, select, struct, ctypes, types, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -67,18 +69,20 @@ REQ, RESP = struct.Struct("<BIIQQQ"), struct.Struct("<BQQ")
 MAP_BAR, MAP_SYSMEM_FD, CFG_READ, CFG_WRITE, MMIO_READ, MMIO_WRITE, RESIZE_BAR = 1, 2, 3, 4, 6, 7, 11
 PAGE, MB = 0x1000, 1 << 20
 GB205 = os.environ.get("FAKE_NV_CHIP", "") == "gb205"
-NAME = "GB205" if GB205 else "AD107"
+GA104 = os.environ.get("FAKE_NV_CHIP", "") == "ga104"   # plan step G1: the AD107's model with an RTX 3070's ids
+NAME = "GB205" if GB205 else "GA104" if GA104 else "AD107"
 VRAM_MB = 12227 if GB205 else 8188              # NV_PGC6_AON_SECURE_SCRATCH_GROUP_42: the RTX 5070's (R22), the RTX 4060's
 BARS = {0: (0x1c_0000_0000, (64 if GB205 else 16) * MB), 1: (0x1d_0000_0000, 256 * MB), 3: (0x1e_0000_0000, 32 * MB)}
-# GB205 (architecture 0x1b, implementation 5; the RTX 5070's own reads, R22) or AD107 (0x19, 7; as test_b1_cot.py)
-BOOT_0, BOOT_42 = (0x1b5000a1, 0x1b5a1000) if GB205 else (0x197000a1, 0x19700000)
+# GB205 (architecture 0x1b, implementation 5; the RTX 5070's own reads, R22), GA104 (0x17, 4) or AD107 (0x19, 7; as test_b1_cot.py)
+BOOT_0, BOOT_42 = (0x1b5000a1, 0x1b5a1000) if GB205 else (0x174000a1, 0x17400000) if GA104 else (0x197000a1, 0x19700000)
 CFG = {0: 0x2f0410de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x89e71043} if GB205 else \
-      {0: 0x288210de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x88861458}   # 10de:2f04 or 10de:2882, command/status, class+revision, subsystem
+      {0: 0x248410de if GA104 else 0x288210de, 4: 0x00100006, 8: 0x030000a1, 0x2c: 0x88861458}
+# 10de:2f04, 10de:2484 or 10de:2882; command/status, class+revision, subsystem
 GSP_BASE, SEC2_BASE = 0x110000, 0x840000
 IOVA_BASE, IOVA_STRIDE = 0x40_0000_0000, 0x4000_0000
-# a GB205 reports sm_version 0xa04 and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64)
+# a GB205 reports sm_version 0xa04 and GB202's full topology, 12 GPCs x 8 TPCs (STATUS.md §62, §64); a GA104 0x806 (sm_86)
 GR_INFO = {"num_gpcs": 12 if GB205 else 3, "num_tpc_per_gpc": 8 if GB205 else 4, "num_sm_per_tpc": 2, "max_warps_per_sm": 48,
-           "sm_version": 0xa04 if GB205 else 0x809}
+           "sm_version": 0xa04 if GB205 else 0x806 if GA104 else 0x809}
 if os.environ.get("FAKE_SM_VERSION"): GR_INFO["sm_version"] = int(os.environ["FAKE_SM_VERSION"], 16)
 NO_HALT = os.environ.get("FAKE_NO_HALT") == "1"
 COPY_LOG = open(os.environ["FAKE_COPY_LOG"], "ab") if os.environ.get("FAKE_COPY_LOG") else None
@@ -162,7 +166,7 @@ class Device:
         self.memory = tggpu.Memory(self.vram, self.sys_rw, R, mmu_ver=3 if GB205 else 2)
         self.channels = tggpu.Channels()
         self.frontend = tggpu.Frontend(self.memory, self.channels, counts, err,
-                                       compute_class=nv_gpu.BLACKWELL_COMPUTE_B if GB205 else nv_gpu.ADA_COMPUTE_A)
+                                       compute_class=nv_gpu.BLACKWELL_COMPUTE_B if GB205 else nv_gpu.AMPERE_COMPUTE_B if GA104 else nv_gpu.ADA_COMPUTE_A)
         if COPY_LOG: self.frontend.on_copy = lambda dst, data: (COPY_LOG.write(struct.pack("<QQ", dst, len(data)) + bytes(data)), COPY_LOG.flush())
 
     # sysmem by device address

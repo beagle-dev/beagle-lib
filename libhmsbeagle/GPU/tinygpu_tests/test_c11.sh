@@ -1,11 +1,11 @@
 #!/bin/bash
 # TODO.md plan step C11, end to end with no eGPU: level boot, where the plugin boots the GPU itself (TinyGPUNVBoot.h,
 # golden_boot.py) with no daemon, and the crash guard keeps the GPU from before the plugin's first request to it: at first it
-# can only hold, and once the NVDevice is built it has the queues and the timeline too. On the fake AD107 and the fake GB205
-# (fake_nv_device.py):
+# can only hold, and once the NVDevice is built it has the queues and the timeline too. On the fake AD107, the fake GA104
+# (Ampere, plan step G1) and the fake GB205 (fake_nv_device.py):
 #   - a normal run passes with no daemon, and the guard exits at the plugin's clean;
-#   - a warm GPU (FAKE_WPR2_UP=1) is refused after RESIZE_BAR, MAP_BAR and reads only (plan step P4's checks: 4 on the AD107,
-#     2 on the GB205), nothing written, and the guard closes;
+#   - a warm GPU (FAKE_WPR2_UP=1) is refused after RESIZE_BAR, MAP_BAR and reads only (plan step P4's checks: 4 on the AD107
+#     and the GA104, 2 on the GB205), nothing written, and the guard closes;
 #   - killed right after the guard started, and after the software half, before any falcon ran: the guard closes, and the
 #     device reports NO ERRORS;
 #   - killed once the NVDevice is built but before the guard has the rest of its setup: the guard holds and sends nothing;
@@ -27,8 +27,8 @@ check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
 TL="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log"   # the plugin's and the guard's TinyGPULog lines in these runs
 out() { echo "$TINYGPU_TEST_WORK/run_device_$1.txt"; }   # the plugin's output ($W/<label>.txt: run_fake_device.sh's)
 dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
-device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
-counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
+device() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$(dev $1)" | tail -1; }
+counts() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): client done: " "$(dev $1)" | tail -1; }
 glog() { sed -n "/c11 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
 run() {   # <label> [VAR=value ...]: one fake run, its TinyGPULog lines marked
     local l=$1; shift
@@ -37,8 +37,8 @@ run() {   # <label> [VAR=value ...]: one fake run, its TinyGPULog lines marked
 }
 UNLOAD='"rpc NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER": 1'
 
-for chip in ad107 gb205; do
-    if [ $chip = gb205 ]; then export FAKE_NV_CHIP=gb205; else unset FAKE_NV_CHIP; fi
+for chip in ad107 ga104 gb205; do
+    if [ $chip = ad107 ]; then unset FAKE_NV_CHIP; else export FAKE_NV_CHIP=$chip; fi
     C=$(echo $chip | tr a-z A-Z)
 
     # 1. a normal run
@@ -51,7 +51,7 @@ for chip in ad107 gb205; do
     export FAKE_WPR2_UP=1
     run c11_${chip}_warm
     unset FAKE_WPR2_UP
-    reads=4; [ $chip = gb205 ] && reads=2   # plan step P4's: WPR2, BOOT_42 (Ada only), then the GSP's MAILBOX0 and RISCV_CPUCTL
+    reads=4; [ $chip = gb205 ] && reads=2   # plan step P4's: WPR2, BOOT_42 (Ampere and Ada only), then the GSP's MAILBOX0 and RISCV_CPUCTL
     check "$C: a warm GPU is refused after RESIZE_BAR, MAP_BAR and $reads reads, nothing written, and the guard closes" \
         "grep -q 'WarmGPUError: WARM GPU: WPR2 is up' '$(out c11_${chip}_warm)' && counts c11_${chip}_warm | grep -q '\"cmd 1\": 1, \"cmd 11\": 1, \"cmd 3\": 2, \"cmd 6\": '$reads'}' \
          && glog c11_${chip}_warm | grep -q 'closing is safe'"

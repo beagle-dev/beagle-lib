@@ -1,6 +1,6 @@
 #!/bin/bash
 # Offline end-to-end run of the real plugin, which boots the GPU itself (plan steps C11-C13), against fake_nv_device.py, a
-# fake TinyGPU.app playing an AD107 (or with FAKE_NV_CHIP=gb205 a GB205) at the register level (TODO.md plan step V1). No GPU
+# fake TinyGPU.app playing an AD107 (with FAKE_NV_CHIP=gb205 a GB205, ga104 a GA104) at the register level (TODO.md plan step V1). No GPU
 # and no TinyGPU.app: BEAGLE_TINYGPU_NO_LAUNCH=1 and a short per-run socket. FAKE_TG_PROXY=<new recording dir> puts the
 # recording proxy in between. FAKE_TG_GUARD=1 runs that proxy in guard mode (replay/tgguard.py): a
 # refusal ends the run at once (the proxy holds, as it would on the eGPU; offline everything is then ended), and the run
@@ -97,7 +97,7 @@ fi
 sleep 0.3; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 [ -n "$FAKE_TG_PROXY" ] && [ -d "$FAKE_TG_PROXY" ] && cp "$SOCKDIR/run.json" "$FAKE_TG_PROXY/run.json"
 echo "[$LABEL] tinygputest exit=$RC (output: $OUT)"
-grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600
+grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600
 if [ -n "$TRIP" ]; then   # the run stopped at a refusal: its verdict is whether that refusal was the one expected
     echo "[$LABEL] the proxy stopped forwarding: $TRIP"
     [ -n "$FAKE_EXPECT_TRIP" ] && echo "$TRIP" | grep -qE "$FAKE_EXPECT_TRIP" && { echo "[$LABEL] PASS (the expected refusal)"; exit 0; }
@@ -110,7 +110,7 @@ need "TinyGPU/NV: C\+\+ runtime: built the NVDevice after the C\+\+ boot, with n
 need "C\+\+ runtime: [1-9][0-9]* kernels loaded" "C++ program loading"
 [ -n "$FAKE_TEST_BIN" ] || need "^per evaluation:" "timed evaluations"
 fini_verdict "$OUT" || missing+=("a clean fini report")
-grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$DLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake device NO ERRORS")
+grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$DLOG" | tail -1 | grep -q "NO ERRORS" || missing+=("fake device NO ERRORS")
 if [ -n "$FAKE_TG_PROXY" ]; then
     grep -q "tgproxy: recording ended after" "$PLOG" && ! grep "tgproxy: session [0-9]* ended:" "$PLOG" | grep -qv " ended: eof;" \
         || missing+=("the proxy's clean sessions")

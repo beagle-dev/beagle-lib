@@ -84,10 +84,10 @@ inline bool nv_recover_on() {
 // NVDev._early_ip_init (nvdev.py:97-121), under nv_init_helper's _guarded_early_ip_init: WPR2 up means the previous boot was
 // not torn down, refused before tinygrad's bus-master write (its own branch would issue a PCIe reset, a no-op on macOS, and
 // a doomed boot). The includes are the register sets' concern; wait_for_reset is Ada's no-op or COT's FSP wait.
-// Unless BEAGLE_NV_RECOVER=0 (plan step P4) the guard first reads, writing nothing, whether an Ada GPU's GSP is suspended
-// (MAILBOX0 0x80000000, as the unload's suspend wait sees it) or its RISC-V core halted: then no GSP-RM runs, the previous
-// session's teardown did not run or failed (BEAGLE_NV_TEARDOWN=0, say), and the boot goes on to run it (nv_boot_recover)
-// instead of tinygrad's reset. Anything else is refused as before.
+// Unless BEAGLE_NV_RECOVER=0 (plan step P4) the guard first reads, writing nothing, whether an Ampere or Ada GPU's GSP is
+// suspended (MAILBOX0 0x80000000, as the unload's suspend wait sees it) or its RISC-V core halted: then no GSP-RM runs, the
+// previous session's teardown did not run or failed (BEAGLE_NV_TEARDOWN=0, say), and the boot goes on to run it
+// (nv_boot_recover) instead of tinygrad's reset. Anything else is refused as before.
 inline void nv_boot_early_ip_init(NVBootDev& d) {
     const uint32_t wpr2_hi = d.rreg(0x001FA828);   // _WPR2_ADDR_HI, read first by tinygrad too (nvdev.py:105)
     if (wpr2_hi != 0) {
@@ -100,9 +100,9 @@ inline void nv_boot_early_ip_init(NVBootDev& d) {
         if (teardown && strcmp(teardown, "0") == 0)
             throw NVError("WarmGPUError", up + ", and BEAGLE_NV_RECOVER runs NVIDIA's teardown, which BEAGLE_NV_TEARDOWN=0 turns off. " + retry);
         const uint32_t arch = (uint32_t)d.reg(nv_regs::NV_PMC_BOOT_42).read_bitfields()["architecture"];
-        if (arch != 0x19) {
-            char a[96];
-            snprintf(a, sizeof(a), ", and BEAGLE_NV_RECOVER recovers Ada GPUs only (NV_PMC_BOOT_42 architecture 0x%x). ", arch);
+        if (arch != 0x17 && arch != 0x19) {   // Ampere since plan step G1 (the user's choice, untested on hardware)
+            char a[112];
+            snprintf(a, sizeof(a), ", and BEAGLE_NV_RECOVER recovers Ampere and Ada GPUs only (NV_PMC_BOOT_42 architecture 0x%x). ", arch);
             throw NVError("WarmGPUError", up + a + retry);
         }
         d.warm_wpr2_hi = wpr2_hi;
@@ -135,9 +135,7 @@ inline void nv_boot_early_ip_init(NVBootDev& d) {
     d.fw_name = d.architecture == 0x1b ? "gb202" : d.architecture == 0x19 ? "ad102" : "ga102";
     d.mmu_ver = d.architecture >= 0x1a ? 3 : 2;
     d.fmc_boot = d.architecture >= 0x1a;
-    if (d.architecture == 0x17)   // plan decision 17: Ampere keeps tinygrad's code path, but C2 generated no tables for it
-        throw NVError("RuntimeError", "the C++ boot has no register tables for " + d.chip_name + " (Ampere, plan decision 17): nothing was "
-                      "written but the bus-master bit");
+    // C2's "Ada" set is NV_FLCN's, which Ampere includes as well (nvdev.py:101-127, ip.py:99-105; plan step G1)
     d.regs = d.fmc_boot ? nv_regs::kGB20xRegs : nv_regs::kAdaRegs;
     if (!d.fmc_boot) return;   // NV_FLCN.wait_for_reset: nv_init_helper's no-op (the PCI reset is suppressed)
     // NV_FLCN_COT.wait_for_reset (ip.py:285-288) with nv_init_helper's log: the FSP takes the COT message once

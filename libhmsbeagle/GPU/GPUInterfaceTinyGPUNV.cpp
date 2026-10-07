@@ -9,9 +9,9 @@
  * own TinyGPU.app connection (TinyGPUTransport.h); completion is a timeline semaphore in shared memory, polled locally.
  * Every instance in the process shares that one boot, which lasts until exit (TODO.md plan step P5), when this file unloads
  * the GPU and runs NVIDIA's teardown. The crash guard (tinygpu_guard.cpp) keeps the GPU if this process dies, and a GPU lost
- * to it (a hang, a broken connection) returns errors to BEAGLE instead of exiting its host (plan step C12). Only Ada and
- * Blackwell GPUs are booted (plan step C13c: the Python daemon this backend began with is the test harness's oracle now,
- * tinygpu_tests/oracle).
+ * to it (a hang, a broken connection) returns errors to BEAGLE instead of exiting its host (plan step C12). Only Ampere, Ada
+ * and Blackwell GPUs are booted (plan step G1; since plan step C13c the Python daemon this backend began with is the test
+ * harness's oracle, tinygpu_tests/oracle).
  */
 
 #ifdef FW_TINYGPU
@@ -216,15 +216,19 @@ static NVDispatchState* g_nvd = nullptr;
 static uint64_t nvd_pool_left(const NVDispatchState& d) { return d.rt.pool.size - d.pool_pos + d.pool_free.bytes(); }
 static void nv_test_kill(const char* point, NVDispatchState* d = nullptr);   // plan step C10's test hook (below)
 
-// TODO.md plan decision 16: the GPUs this backend boots, by the PCI device ID Initialize's probe read (tinygrad's PCIIface
-// family list, ops_nv.py:559): Ada (AD10x, 0x26xx-0x28xx; tested on an RTX 4060) and Blackwell (GB20x, 0x2bxx-0x2dxx and
-// 0x2fxx; tested on an RTX 5070, the user's choice for the others). Ampere (0x22xx-0x25xx) is refused: the C++ boot has no
-// register tables for it (decision 17), and since plan step C13c there is no Python path either.
-static bool nv_boot_gpu() {
-    const uint16_t family = tg_pci_device_id() & 0xff00;
-    return family == 0x2600 || family == 0x2700 || family == 0x2800 || family == 0x2b00 || family == 0x2c00 || family == 0x2d00 ||
-           family == 0x2f00;
+// TODO.md plan step G1: the GPUs this backend boots, by the PCI device ID Initialize's probe read: tinygrad's PCIIface family
+// list (ops_nv.py:560), each with the firmware NVDev.fw_name gives its chips (nvdev.py:115). Ampere (GA10x, 0x22xx, 0x24xx and
+// 0x25xx; untested), Ada (AD10x, 0x26xx-0x28xx; tested on an RTX 4060) and Blackwell (GB20x, 0x2bxx-0x2dxx and 0x2fxx; tested
+// on an RTX 5070). nullptr for any other GPU, which is refused before the boot.
+static const char* nv_fw_family(uint16_t device_id) {
+    switch (device_id & 0xff00) {
+    case 0x2200: case 0x2400: case 0x2500: return "ga102";
+    case 0x2600: case 0x2700: case 0x2800: return "ad102";
+    case 0x2b00: case 0x2c00: case 0x2d00: case 0x2f00: return "gb202";
+    default: return nullptr;
+    }
 }
+static bool nv_boot_gpu() { return nv_fw_family(tg_pci_device_id()) != nullptr; }
 
 // ── Launch batching (mirrors AMD's, STATUS.md AMD §26 -- built in from the
 // start here rather than added later, since that overhead finding already
@@ -1005,9 +1009,9 @@ static bool nvRuntimePrograms(NVInstance& in, const NVDElf& cubin) {
 
 // Every firmware file this GPU's boot reads (TinyGPUFirmwareManifest.h), located, or downloaded into BEAGLE's cache
 // (TinyGPUFirmware.h; since 2026-10-01, the user's request), before anything is written to the GPU: the chip family comes
-// from the probe's PCI device ID, as nv_boot_gpu tells them apart. "" or why not.
+// from the probe's PCI device ID (nv_fw_family). "" or why not.
 static std::string nv_fw_prefetch(uint16_t device_id) {
-    const char* family = device_id >= 0x2b00 ? "gb202" : "ad102";
+    const char* family = nv_fw_family(device_id);
     const char* teardown = getenv("BEAGLE_NV_TEARDOWN");
     const bool unload = !(teardown && strcmp(teardown, "0") == 0);
     for (const nvfw::TGFirmware& f : nvfw::kFirmware) {
@@ -1126,8 +1130,8 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     self->nvGspState = in;
     const bool boot = !shared && tg_fd >= 0 && nv_boot_gpu();
     if (!shared && !boot)   // plan step C13c: there is no other path
-        fprintf(stderr, "TinyGPU/NV: this GPU (PCI device ID %04x) is not one BEAGLE boots: Ada (0x26xx-0x28xx) and Blackwell "
-                "(0x2bxx-0x2dxx, 0x2fxx) only\n", tg_pci_device_id());
+        fprintf(stderr, "TinyGPU/NV: this GPU (PCI device ID %04x) is not one BEAGLE boots: Ampere (0x22xx, 0x24xx, 0x25xx), Ada "
+                "(0x26xx-0x28xx) and Blackwell (0x2bxx-0x2dxx, 0x2fxx) only\n", tg_pci_device_id());
     try {
         if (boot) {
             const std::string fw = nv_fw_prefetch(tg_pci_device_id());

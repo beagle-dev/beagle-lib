@@ -5,9 +5,11 @@
 # fake_nv_device.py (run_fake_device.sh):
 #   - the AD107 as an unload without its teardown leaves it (FAKE_WPR2_UP=suspended: BEAGLE_NV_TEARDOWN=0's exit), and with its
 #     GSP core halted instead (FAKE_WPR2_UP=halted): FWSEC-SB and Booter Unload at boot bring WPR2 down, then FWSEC-FRTS,
-#     booter_load, the whole run and the teardown at exit (NO ERRORS);
+#     booter_load, the whole run and the teardown at exit (NO ERRORS); the same on the GA104 with its GSP suspended (Ampere,
+#     recovered since plan step G1: the user's choice, untested on hardware);
 #   - refused before any write, as with BEAGLE_NV_RECOVER=0, after reads only: a GSP that may still run (FAKE_WPR2_UP=1), with
-#     BEAGLE_NV_TEARDOWN=0, and the GB205 (Ada only); with BEAGLE_NV_RECOVER=0 the suspended AD107 is refused as before;
+#     BEAGLE_NV_TEARDOWN=0, and the GB205 (Ampere and Ada only); with BEAGLE_NV_RECOVER=0 the suspended AD107 is refused as
+#     before;
 #   - a Booter Unload that leaves WPR2 up (FAKE_FALCON_FAIL=unload): the boot stops before GSP-RM starts, and the guard closes.
 # One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -21,8 +23,8 @@ check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
 TL="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log"   # the plugin's and the guard's TinyGPULog lines in these runs
 out() { echo "$TINYGPU_TEST_WORK/run_device_$1.txt"; }   # the plugin's output ($W/<label>.txt: run_fake_device.sh's)
 dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
-device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
-counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
+device() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$(dev $1)" | tail -1; }
+counts() { grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): client done: " "$(dev $1)" | tail -1; }
 glog() { sed -n "/p4 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
 status() { sed -n "s/^\[$1\] tinygputest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
 run() {   # <label> [VAR=value ...] [-- test args]: one fake run, its TinyGPULog lines marked; the VARs reach the fake and the test
@@ -44,6 +46,14 @@ for gsp in suspended halted; do
          && device p4_$gsp | grep -q 'NO ERRORS'"
 done
 
+# 1b. an Ampere, recovered as an Ada (plan step G1)
+run p4_ga104 FAKE_NV_CHIP=ga104 FAKE_WPR2_UP=suspended; r=$?
+check "GA104, WPR2 up with the GSP suspended: NVIDIA's teardown at boot (ga102's Booter Unload) brings WPR2 down, then the boot and the whole run, and the teardown at exit (NO ERRORS)" \
+    "[ $r -eq 0 ] && grep -q 'TinyGPU/NV: a warm GPU (WPR2_HI=0x[0-9a-f]*, the GSP suspended: MAILBOX0=0x[0-9a-f]*, RISCV_CPUCTL=0x[0-9a-f]*): NVIDIA.s teardown first (BEAGLE_NV_RECOVER=0 refuses instead)' '$(out p4_ga104)' \
+     && grep -q 'TinyGPU/NV: the teardown at boot: done: Booter Unload lowered WPR2; WPR2 is down, so the boot goes on' '$(out p4_ga104)' \
+     && counts p4_ga104 | grep -q '\"FWSEC-FRTS\": 1, \"FWSEC-SB\": 2, .*\"booter_load\": 1, \"booter_unload\": 2' \
+     && device p4_ga104 | grep -q 'NO ERRORS'"
+
 # 2. refused before any write
 run p4_running FAKE_WPR2_UP=1
 check "AD107, WPR2 up with a GSP that may still run: refused after four reads (WPR2, BOOT_42, the GSP's MAILBOX0 and RISCV_CPUCTL), nothing written" \
@@ -55,8 +65,8 @@ check "AD107, BEAGLE_NV_TEARDOWN=0: refused after one read, nothing written" \
     "[ \"\$(status p4_teardown0)\" = 1 ] && grep -q 'which BEAGLE_NV_TEARDOWN=0 turns off' '$(out p4_teardown0)' \
      && counts p4_teardown0 | grep -q '$READS_ONLY''1}' && device p4_teardown0 | grep -q 'NO ERRORS'"
 run p4_gb205 FAKE_NV_CHIP=gb205 FAKE_WPR2_UP=1
-check "GB205, WPR2 up: refused after two reads (Ada only), nothing written" \
-    "[ \"\$(status p4_gb205)\" = 1 ] && grep -q 'BEAGLE_NV_RECOVER recovers Ada GPUs only (NV_PMC_BOOT_42 architecture 0x1b)' '$(out p4_gb205)' \
+check "GB205, WPR2 up: refused after two reads (Ampere and Ada only), nothing written" \
+    "[ \"\$(status p4_gb205)\" = 1 ] && grep -q 'BEAGLE_NV_RECOVER recovers Ampere and Ada GPUs only (NV_PMC_BOOT_42 architecture 0x1b)' '$(out p4_gb205)' \
      && counts p4_gb205 | grep -q '$READS_ONLY''2}' && device p4_gb205 | grep -q 'NO ERRORS'"
 run p4_off FAKE_WPR2_UP=suspended BEAGLE_NV_RECOVER=0
 check "AD107, the GSP suspended but BEAGLE_NV_RECOVER=0: refused as before, after one read, nothing written" \
