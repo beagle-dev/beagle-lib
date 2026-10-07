@@ -3,8 +3,9 @@ exec, and HCQProgram.fill_kernargs's CLikeArgsState encode random launch batches
 launch_batch chains them (wait and memory_barrier, then execs, then signal and submit), then submit them into a small
 ring through AMDQueueDesc.signal_doorbell. golden_amd_encode.cpp encodes the same batches with the C++ encoder alone.
 Every queue dword, every kernargs byte (random-filled first, so untouched bytes compare too), the ring, put_value and
-the order and values of the wptr, HDP flush and doorbell writes must be identical, across ring and kernargs wraps.
-First, TinyGPUAMDTables.h must regenerate byte for byte (plan step A1a)."""
+the order and values of the wptr, HDP flush and doorbell writes must be identical, across ring and kernargs wraps; on gfx11,
+and on gfx12 (GC 12.0.0 with nbif 6.3.1, as AMDDevice builds it on RDNA 4: TODO.md plan step N2), where hcq1 encodes the
+same streams. First, TinyGPUAMDTables.h must regenerate byte for byte (plan step A1a)."""
 import os, sys, ctypes, random, subprocess, types, importlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -33,12 +34,13 @@ class Recorder:
     def __init__(self, events, what): self.events, self.what = events, what
     def __setitem__(self, i, v): self.events.append((self.what, v))
 
-def make_dev(rng, ring_dwords, put_value, events):
+def make_dev(rng, ring_dwords, put_value, events, gfx=11):
     off = importlib.import_module("tinygrad.runtime.autogen.am.navi_offsets")
-    dev = types.SimpleNamespace(target=(11, 0, 0), xccs=1, sqtt_enabled=False, is_am=lambda: True, is_usb=lambda: False)
+    target, (nbio, nbio_ver) = ((12, 0, 0), ("nbif", (6, 3, 1))) if gfx == 12 else ((11, 0, 0), ("nbio", (4, 3, 0)))
+    dev = types.SimpleNamespace(target=target, xccs=1, sqtt_enabled=False, is_am=lambda: True, is_usb=lambda: False)
     dev.soc, dev.pm4 = import_soc(dev.target), importlib.import_module("tinygrad.runtime.autogen.am.pm4_nv")
-    dev.gc = AMDIP("gc", (11, 0, 0), bases={i: tuple(getattr(off, f"GC_BASE__INST{i}_SEG{s}", 0) for s in range(6)) for i in range(6)})
-    dev.nbio = AMDIP("nbio", (4, 3, 0), bases={i: tuple(getattr(off, f"NBIO_BASE__INST{i}_SEG{s}", 0) for s in range(9)) for i in range(6)})
+    dev.gc = AMDIP("gc", target, bases={i: tuple(getattr(off, f"GC_BASE__INST{i}_SEG{s}", 0) for s in range(6)) for i in range(6)})
+    dev.nbio = AMDIP(nbio, nbio_ver, bases={i: tuple(getattr(off, f"NBIO_BASE__INST{i}_SEG{s}", 0) for s in range(9)) for i in range(6)})
     dev.scratch = types.SimpleNamespace(va_addr=0x7f_4000_0000 + (rng.getrandbits(20) << 8), size=rng.choice([1 << 20, 85 << 20]))
     dev.tmpring_size = rng.getrandbits(27)
     dev.ring_mem = (ctypes.c_uint32 * ring_dwords)(*[rng.getrandbits(32) for _ in range(ring_dwords)])
@@ -59,10 +61,10 @@ def make_prog(dev, rng, name, nptr, nint, hidden):
     p.kernargs_alloc_size = p.kernargs_segment_size
     return p
 
-def run(seed, ring_dwords, put_value, kargs_size, nbatches):
+def run(seed, ring_dwords, put_value, kargs_size, nbatches, gfx=11):
     rng = random.Random(seed)
     events = []
-    dev = make_dev(rng, ring_dwords, put_value, events)
+    dev = make_dev(rng, ring_dwords, put_value, events, gfx)
     ring_before = bytes(dev.ring_mem)
     kmem = (ctypes.c_uint8 * kargs_size)(*[rng.getrandbits(8) for _ in range(kargs_size)])
     kargs_before = bytes(kmem)
@@ -113,10 +115,11 @@ def run(seed, ring_dwords, put_value, kargs_size, nbatches):
         if what == "wptr/HDP/doorbell": print(f"  events ref {events[:9]}\n         c++ {got_ev[:9]}")
     ok = all(checks.values())
     wraps = (put_value + sum(map(len, queues))) // ring_dwords
-    print(f"seed {seed}: {nbatches} batches, {sum(map(len, queues))} dwords into a {ring_dwords}-dword ring from {put_value} ({wraps} wrap(s)), "
+    print(f"gfx{gfx} seed {seed}: {nbatches} batches, {sum(map(len, queues))} dwords into a {ring_dwords}-dword ring from {put_value} ({wraps} wrap(s)), "
           f"{kargs_size} B kernargs: {'IDENTICAL' if ok else 'MISMATCH ' + str([w for w, v in checks.items() if not v])}")
     return ok
 
-results = [tables_ok, run(1, 1024, 900, 1 << 16, 4), run(2, 512, 0, 1500, 12), run(3, 4096, 4000, 4096, 30), run(4, 1 << 16, 12345, 1 << 20, 3)]
+results = [tables_ok, run(1, 1024, 900, 1 << 16, 4), run(2, 512, 0, 1500, 12), run(3, 4096, 4000, 4096, 30), run(4, 1 << 16, 12345, 1 << 20, 3),
+           run(5, 1024, 900, 1 << 16, 4, gfx=12), run(6, 512, 0, 1500, 12, gfx=12), run(7, 4096, 4000, 4096, 30, gfx=12)]
 print("A1a tables and A1b PM4 encoder vs hcq1:", "all identical" if all(results) else "MISMATCH")
 sys.exit(0 if all(results) else 1)

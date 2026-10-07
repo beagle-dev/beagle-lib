@@ -33,6 +33,7 @@ TINYGRAD = pathlib.Path(tgpaths.TINYGRAD_PATH)
 SCANNED = [TINYGRAD / "tinygrad/runtime/support/am/amdev.py", TINYGRAD / "tinygrad/runtime/support/am/ip.py"]
 IP = {"GC_HWIP": (11, 0, 0), "MP0_HWIP": (13, 0, 0), "MP1_HWIP": (13, 0, 0), "SDMA0_HWIP": (6, 0, 0), "NBIO_HWIP": (4, 3, 0),
       "MMHUB_HWIP": (3, 0, 0), "OSSSYS_HWIP": (6, 0, 0), "HDP_HWIP": (6, 0, 0)}   # the card's (STATUS.md R64)
+PCI_IDS = [0x744c]   # its PCI device ids (TODO.md plan step N1: the plugin refuses any other AMD card before touching it)
 # AMDev._build_regs' modules in its order (amdev.py:399-409); a later module's name replaces an earlier one's
 MODS = [("mp", "MP0_HWIP"), ("hdp", "HDP_HWIP"), ("gc", "GC_HWIP"), ("mmhub", "MMHUB_HWIP"), ("osssys", "OSSSYS_HWIP"), ("nbio", "NBIO_HWIP"),
         ("mp", "MP1_HWIP", (11, 0, 0))]
@@ -115,7 +116,7 @@ def main():
     reg_lines, nfields = register_lines(cov)
 
     # structs: fixed ones, plus the versioned ones this card's discovery table and blobs select
-    table, meta = open(sorted((tgpaths.DATA / "discovery").glob("1002_744c_*.bin"))[0], "rb").read(), None
+    table, meta = open(sorted((tgpaths.DATA / "discovery").glob(f"1002_{PCI_IDS[0]:04x}_*.bin"))[0], "rb").read(), None
     bhdr = am.struct_binary_header.from_buffer(bytearray(table))
     gc_off = bhdr.table_list[am.GC].offset
     gc_hdr = am.struct_gc_info_v1_0.from_buffer(bytearray(table[gc_off:gc_off + ctypes.sizeof(am.struct_gc_info_v1_0)]))
@@ -145,7 +146,7 @@ def main():
         "discovered base for its segment plus its offset (AMDReg.__post_init__). am: the boot's constants, hw_id_map, the log "
         f"lines' name tables, and {len(structs)} structs ({sum(len(t._real_fields_) for t in structs)} fields: the discovery "
         "table, this card's firmware headers, the PSP command and ring frame, the v11 compute MQD) at tinygrad's offsets. "
-        "am::smu13 and am::soc11: smu_13_0_0's and soc_11's.",
+        "am::smu13 and am::soc11: smu_13_0_0's and soc_11's. am::kChips: the cards (PCI device ids) the tables are for.",
         ["the card's IP versions: " + ", ".join(f"{k} {'.'.join(map(str, v))}" for k, v in IP.items()),
          "its firmware headers: " + ", ".join(f"{FW[k]} v{v[0]}.{v[1]}" for k, v in vers.items()),
          "the coverage sessions: " + ", ".join(f"{label} ({verdict})" for label, verdict, _ in cov["sessions"])])
@@ -154,6 +155,11 @@ def main():
             '#include "libhmsbeagle/GPU/TinyGPUNVReg.h"   // nv_bitfield_get/set (c.py\'s bitfields)', "",
             "namespace tinygpu_device {", "namespace am {", "", "namespace regs {"] + reg_lines + ["} // namespace regs", ""]
     out += ["// the IP versions the tables are for"] + [f"constexpr uint8_t kIP_{k}[3] = {{{v[0]}, {v[1]}, {v[2]}}};" for k, v in IP.items()]
+    arch = "gfx%d%x%x" % IP["GC_HWIP"]
+    out += ["", "// the cards the tables are for: PCI device id, and the arch that names their HSACOs and firmware rows (the plugin",
+            "// refuses any other AMD card before it sends the card anything: TODO.md plan step N1)",
+            "struct Chip { uint16_t device_id; const char* arch; };",
+            "constexpr Chip kChips[] = {" + ", ".join(f'{{{d:#06x}, "{arch}"}}' for d in PCI_IDS) + "};"]
     out += ["", "// am.*"] + [nvgen.const_line(n, getattr(am, n)) for n in consts]
     out += ["", "// hw_id_map: an IP's hardware id (0: none), by IP"]
     out += [f"constexpr uint16_t hw_id_map[{am.MAX_HWIP}] = {{" + ", ".join(str(am.hw_id_map.get(i, 0)) for i in range(am.MAX_HWIP)) + "};"]
@@ -178,7 +184,6 @@ def main():
     out += ["} // namespace hsa"]
     import hashlib
     fwrows = firmware_rows()
-    arch = "gfx%d%x%x" % IP["GC_HWIP"]
     out += ["", "namespace fw {  // AMFirmware's fetch_fw calls on this card, in order (TinyGPUFirmware.h finds and checks them)"]
     out += [f'constexpr nvfw::TGFirmware kFirmware[] = {{']
     out += [f'    {{"{arch}", "{name}", "{path}", "{name}", "{sha}", "{hashlib.md5(url.encode()).hexdigest()}"}},' for path, name, sha, url in fwrows]

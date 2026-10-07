@@ -75,6 +75,9 @@ results+=("FreeMemory on both pools (C14): $([ $? -eq 0 ] && echo PASS || echo "
 # plan step P4: a warm GPU torn down at boot, the default (the fake AD107 suspended, halted or running; the refusals)
 "$TG_TESTS/test_p4.sh" > "$TINYGPU_TEST_WORK/test_p4.log" 2>&1
 results+=("warm-GPU recovery at boot (P4): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_p4.log)")")
+# plan step N3: the AMD discovery capture that sends only the pin's pre-boot requests (the fake RX 7900 XT; its stops)
+"$TG_TESTS/test_n3.sh" > "$TINYGPU_TEST_WORK/test_n3.log" 2>&1
+results+=("AMD discovery capture, no boot (N3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_n3.log)")")
 
 # no-launch guard: point the plugin at a socket nobody listens on
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX")

@@ -1,5 +1,5 @@
 """Golden test for tinygpu_amd_compile.cpp (TODO.md plan step A1j): its HSACO of every BEAGLE variant (SP and DP, 9 padded state
-counts, gfx1100) against tinygrad's own compile_hip of the same source, as the AMD daemon compiles it at run time
+counts; gfx1100, and RDNA 4's gfx1200 and gfx1201 since TODO.md plan step N2) against tinygrad's own compile_hip of the same source, as the AMD daemon compiles it at run time
 (amd_compile_helper.compile_hip), through the same comgr. The two are not byte-identical, and two tinygrad runs are not
 either: clang names a marker symbol __hip_cuid_<16 hex digits> after the compile's temporary file, different in every
 process. So everything else must be the same: every other section byte for byte (the symbol and string tables and the
@@ -16,9 +16,11 @@ HERE, WORK = tgpaths.HERE, tgpaths.WORK
 tgpaths.build_cpp(tgpaths.GPU_DIR / "tinygpu_amd_compile.cpp", WORK / "tinygpu_amd_compile")
 COMGR = os.environ.get("COMGR_PATH", "/opt/homebrew/lib/libamd_comgr.dylib")
 VARIANTS = [f"{p}_{n}" for p in ("SP", "DP") for n in (4, 16, 32, 48, 64, 80, 128, 192, 256)]
+ARCHS = ["gfx1100", "gfx1200", "gfx1201"]   # the build embeds gfx1100's; RDNA 4's are compiled here only (TODO.md plan step N2)
 out = WORK / "hsaco"; out.mkdir(exist_ok=True)
 for f in out.glob("*.hsaco"): f.unlink()
-subprocess.run([str(WORK / "tinygpu_amd_compile"), COMGR, "gfx1100", str(out)] + VARIANTS, check=True, capture_output=True)
+for arch in ARCHS:   # the compiler also refuses a variant whose kernels spill registers (STATUS.md R97)
+    subprocess.run([str(WORK / "tinygpu_amd_compile"), COMGR, arch, str(out)] + VARIANTS, check=True, capture_output=True)
 
 hdr = (tgpaths.GPU_DIR / "kernels/BeagleOpenCL_kernels.h").read_text().split("\n")
 def variant(name):   # as golden_amd_program.py: KERNELS_STRING_<name>, the source the plugin sends the daemon
@@ -68,10 +70,11 @@ def compare(got, ref):
     return ""
 
 ok = True
-for v in VARIANTS:
-    got, ref = (out / f"{v}_gfx1100.hsaco").read_bytes(), ach.compile_hip(variant(v), "gfx1100")
-    why = compare(got, ref)
-    ok &= not why
-    print(f"{v}: {len(got)} bytes, {len(ach.parse_kernels(got)[1])} kernels: " + ("IDENTICAL but for the compile's __hip_cuid_" if not why else f"DIFFERS: {why}"))
+for arch in ARCHS:
+    for v in VARIANTS:
+        got, ref = (out / f"{v}_{arch}.hsaco").read_bytes(), ach.compile_hip(variant(v), arch)
+        why = compare(got, ref)
+        ok &= not why
+        print(f"{v} {arch}: {len(got)} bytes, {len(ach.parse_kernels(got)[1])} kernels: " + ("IDENTICAL but for the compile's __hip_cuid_" if not why else f"DIFFERS: {why}"))
 print("A1j build-time HSACOs vs tinygrad's compile_hip:", "all identical" if ok else "MISMATCH")
 sys.exit(0 if ok else 1)

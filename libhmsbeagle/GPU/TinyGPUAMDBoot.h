@@ -2,9 +2,11 @@
  * TinyGPUAMDBoot.h -- TODO.md plan step A2c-A2f: tinygrad's AM driver (tinygrad/runtime/support/am/amdev.py and ip.py at
  * a9830e2b4) in C++, ported statement by statement, so that the plugin boots the AMD GPU with no Python. Only the branches
  * the RX 7900 XT takes are ported (GC 11.0.0, MP0 and MP1 13.0.0, SDMA 6.0.0, NBIO 4.3.0, MMHUB 3.0.0, OSSSYS 6.0.0, HDP
- * 6.0.0; TinyGPUAMDBootTables.h is generated for them): another IP set, a VF and a hive are refused before anything is
- * written. Each part is golden-tested against the code it ports on fake_amd_device.py's card (tinygpu_tests/golden_amd_boot.py):
- * the same requests to TinyGPU.app, byte for byte, the same VRAM, the same results and errors.
+ * 6.0.0; TinyGPUAMDBootTables.h is generated for them): another IP set, a VF and a hive are refused before the boot proper,
+ * after only the PCIe link-control write and the discovery reads tinygrad makes first (the plugin refuses a card whose PCI
+ * device ID am::kChips lacks before sending it anything, TODO.md plan step N1). Each part is golden-tested against the
+ * code it ports on fake_amd_device.py's card (tinygpu_tests/golden_amd_boot.py): the same requests to TinyGPU.app, byte for
+ * byte, the same VRAM, the same results and errors.
  *
  * Requests: every read and write tinygrad makes, in its order, reads included (a page-table entry is one 8-byte BAR0 read
  * each time tinygrad indexes it, an IH entry is eight 4-byte reads); registers past BAR5 go through the RSMU window, as
@@ -552,6 +554,13 @@ inline void AMDev::run_discovery() {
     const uint32_t mmRCC_CONFIG_MEMSIZE = 0xde3;
     vram_size = (uint64_t)rreg(mmRCC_CONFIG_MEMSIZE) << 20;
     large_bar = vram_bytes >= vram_size;
+    // BEAGLE's (TODO.md plan step N1), as NV refuses a BAR1 but 256 MiB (TinyGPUNVBoot.h): another BAR0, or one as large as
+    // VRAM, takes paths no fake has run (am_iface_alloc keys on 256 MiB, TinyGPUAMDDevice.h). Refused before the discovery's
+    // first index write; it reads nothing.
+    if (vram_bytes != (256ull << 20) || large_bar)
+        throw TGPyError("BarLayoutError", "BAR0 is " + std::to_string(vram_bytes >> 20) + " MiB with " + std::to_string(vram_size >> 20) +
+                        " MiB of VRAM (large_bar=" + (large_bar ? "True" : "False") + "): BEAGLE supports only a 256 MiB BAR0 smaller than VRAM "
+                        "(TODO.md plan step N1). Only the PCIe link control was written; nothing reached the card's VRAM or registers.");
     uint64_t tmr_offset = vram_size - (64 << 10), tmr_size = 10 << 10;
     if (large_bar) { bhdr.resize(tmr_size); vram_read(tmr_offset, bhdr.data(), tmr_size); }
     else bhdr = read_vram(tmr_offset, tmr_size);

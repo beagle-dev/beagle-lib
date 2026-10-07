@@ -36,6 +36,8 @@ bool       AmdGpuHeld();      // ... and a crash guard of this process holds the
 bool       AmdSupportsDouble();   // TODO.md plan step A7: the build's HSACOs include double precision's
 void       AmdFini(GPUInterface* self);   // called from the destructor: releases the instance (the card stays until exit, plan step A5)
 
+uint16_t   tg_pci_device_id();   // Initialize's probe (GPUInterfaceTinyGPU.cpp): the card's PCI device ID
+
 } // namespace tinygpu_device
 
 #endif // FW_TINYGPU

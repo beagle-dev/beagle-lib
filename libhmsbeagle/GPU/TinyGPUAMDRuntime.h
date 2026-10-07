@@ -227,8 +227,10 @@ struct AMDRuntime {
             rptr = (rptr + 8) % ring_dwords;
             const uint32_t client = amdt::ih_get(e, amdt::IH_CLIENT_ID), src = amdt::ih_get(e, amdt::IH_SOURCE_ID);
             const char* src_name = "";
-            if (client == amdt::SOC21_IH_CLIENTID_GRBM_CP || client == amdt::SOC21_IH_CLIENTID_GFX)
-                for (const amdt::IHName& s : amdt::IH_GFX11_SRCS) if (s.id == src) src_name = s.name;
+            if (client == amdt::SOC21_IH_CLIENTID_GRBM_CP || client == amdt::SOC21_IH_CLIENTID_GFX) {   // the GC major's GFX_<n> sources
+                if (h.target_major == 12) { for (const amdt::IHName& s : amdt::IH_GFX12_SRCS) if (s.id == src) src_name = s.name; }
+                else for (const amdt::IHName& s : amdt::IH_GFX11_SRCS) if (s.id == src) src_name = s.name;
+            }
             if (!strcmp(src_name, "SDMA_TRAP") || !strcmp(src_name, "CP_EOP_INTR")) continue;
             const char* client_name = "None";
             for (const amdt::IHName& c : amdt::IH_SOC21_CLIENTS) if (c.id == client) client_name = c.name;

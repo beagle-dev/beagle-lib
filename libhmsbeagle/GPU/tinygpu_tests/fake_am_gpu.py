@@ -17,7 +17,9 @@ window (BIF_BX_PF0_RSMU_INDEX/DATA). Every register reads what was last written,
   - an SMU mode1 reset (the debug message) puts the card back to its power-on state.
 Starting states (FAKE_AMD_STATE): cold (power-on: SCRATCH_REG7 0, the SOS not alive, no PSP ring), warm (an AM boot
 finalized: SCRATCH_REG7 = AMDev.Version, SCRATCH_REG6 0; a partial boot) or dirty (SCRATCH_REG6 1: a full boot with a
-mode1 reset first). The state lasts across client sessions, as the GPU's does.
+mode1 reset first). The state lasts across client sessions, as the GPU's does. TODO.md plan step N1's checks:
+FAKE_AMD_DEVICE_ID=<hex> puts another device ID in the config space (the card staying an RX 7900 XT), and FAKE_AMD_BAR0_MB=<n>
+serves a BAR0 of n MiB; plan step N3's: FAKE_AMD_MEMSIZE=<hex> is what RCC_CONFIG_MEMSIZE reads.
 
 The GPU: a queue goes live when its registers say so (CP_HQD_ACTIVE for the compute queue, SDMA0_QUEUE0_RB_CNTL's rb_enable
 for SDMA), and a doorbell then runs it (fake_amd_device.py's PM4 and SDMA 6 executor), every address translated through
@@ -34,7 +36,8 @@ from tinygrad.runtime.autogen.am import am
 PAGE = 0x1000
 WEDGED = os.environ.get("FAKE_AMD_WEDGED", "") == "1"   # a dequeue request leaves the compute queue active (plan step A2k)
 VERSION = 0xA0000008                       # AMDev.Version (amdev.py:147)
-BARS = {0: (0x2e_4000_0000, 256 << 20), 2: (0x2e_5000_0000, 2 << 20), 5: (0x2e_0030_0000, 1 << 20)}   # the card's (STATUS.md R64)
+BARS = {0: (0x2e_4000_0000, int(os.environ.get("FAKE_AMD_BAR0_MB", "256")) << 20), 2: (0x2e_5000_0000, 2 << 20),
+        5: (0x2e_0030_0000, 1 << 20)}   # the card's (STATUS.md R64)
 BAR5_DWORDS = BARS[5][1] // 4
 MM_INDEX, MM_DATA, MM_INDEX_HI = 0x0, 0x1, 0x6   # AMDev._read_vram's window (amdev.py:341-348)
 MEMSIZE = 0xde3                            # mmRCC_CONFIG_MEMSIZE (amdev.py:353)
@@ -45,6 +48,7 @@ DPM = {0: [500, 2394], 1: [500, 960, 1200], 2: [96, 456, 772, 1250], 3: [400, 11
 DPM_FINE = {0}                             # fine-grained DPM: the count's bit 31 set (tinygrad masks it)
 CFG = {0x00: 0x744c1002, 0x04: 0x00100006, 0x08: 0x030000cc, 0x2c: 0x0e3b1002, 0x34: 0x48,
        0x48: 0x5009, 0x50: 0x6401, 0x64: 0xa010, 0x74: 0x0042, 0xa0: 0x0005}   # caps: vendor 0x48 -> PM 0x50 -> PCIe 0x64 -> MSI 0xa0
+if os.environ.get("FAKE_AMD_DEVICE_ID"): CFG[0x00] = int(os.environ["FAKE_AMD_DEVICE_ID"], 16) << 16 | 0x1002
 
 def card():
     """The captured discovery table (its binary_size bytes) and what was recorded with it."""
@@ -140,7 +144,7 @@ class AMGpu:
 
     def rd(self, dw):
         self.touched[("r", self.name.get(dw, hex(dw)))] += 1
-        if dw == MEMSIZE: return self.vram_size >> 20
+        if dw == MEMSIZE: return int(os.environ["FAKE_AMD_MEMSIZE"], 16) if os.environ.get("FAKE_AMD_MEMSIZE") else self.vram_size >> 20
         if dw == MM_DATA:
             addr = (self.r.get(MM_INDEX_HI, 0) << 31) | (self.r.get(MM_INDEX, 0) & 0x7fffffff)
             return self.u32(addr) if addr + 4 <= self.vram_size else 0

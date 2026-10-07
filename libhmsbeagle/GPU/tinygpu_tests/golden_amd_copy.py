@@ -2,7 +2,8 @@
 into a small ring through AMDQueueDesc.signal_doorbell, and HCQAllocator._copyin/_copyout on a stub device (its timeline,
 and staging slots in one buffer) run random sequences; golden_amd_copy.cpp runs the same with the C++ encoder and flows.
 The ring (random-filled first, so the tail's zero fill shows), put_value, one ordered list of the host waits, synchronizes
-and wptr/HDP/doorbell writes, the staging bytes and the copied-out bytes must be identical, across ring wraps."""
+and wptr/HDP/doorbell writes, the staging bytes and the copied-out bytes must be identical, across ring wraps; on gfx11, and on
+gfx12 (GC 12.0.0 with SDMA 7.0.0, which AMDDevice clamps to sdma_6_0_0's packets, ops_amd.py:1025: TODO.md plan step N2)."""
 import os, sys, ctypes, random, subprocess, types, functools
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -19,13 +20,14 @@ class Recorder:
     def __init__(self, events, what): self.events, self.what = events, what
     def __setitem__(self, i, v): self.events.append((self.what, v))
 
-def run(seed, ring_bytes, put_value, slot, nslots, nops):
+def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11):
     rng = random.Random(seed)
     events = []
     ring = (ctypes.c_uint32 * (ring_bytes // 4))(*[rng.getrandbits(32) for _ in range(ring_bytes // 4)])
     ring_before = bytes(ring)
     rptr = (ctypes.c_uint64 * 1)(1 << 62)   # never makes _submit wait (the C++ side's room() is asked, and says yes)
-    dev = types.SimpleNamespace(target=(11, 0, 0), device="AMD", is_am=lambda: True, is_usb=lambda: False, sdma=import_module("sdma", (6, 0, 0)))
+    target, sdma_ver = ((12, 0, 0), (7, 0, 0)) if gfx == 12 else ((11, 0, 0), (6, 0, 0))
+    dev = types.SimpleNamespace(target=target, device="AMD", is_am=lambda: True, is_usb=lambda: False, sdma=import_module("sdma", min(sdma_ver, (6, 0, 0))))
     queue = ops_amd.AMDQueueDesc(ring=MMIOInterface(ctypes.addressof(ring), ring_bytes, fmt="I"),
                                  read_ptr=MMIOInterface(ctypes.addressof(rptr), 8, fmt="Q"), write_ptr=Recorder(events, "wptr"),
                                  doorbell=Recorder(events, "doorbell"), put_value=put_value)
@@ -83,7 +85,7 @@ def run(seed, ring_bytes, put_value, slot, nslots, nops):
         i = next((i for i, (a, b) in enumerate(zip(events, got_ev)) if a != b), min(len(events), len(got_ev)))
         print(f"  events differ at {i}: ref {events[i:i+4]} c++ {got_ev[i:i+4]} (lengths {len(events)}, {len(got_ev)})")
     ok = all(checks.values())
-    print(f"seed {seed}: {nops} ops, {queue.put_value - put_value} bytes into a {ring_bytes}-byte ring from {put_value} "
+    print(f"gfx{gfx} seed {seed}: {nops} ops, {queue.put_value - put_value} bytes into a {ring_bytes}-byte ring from {put_value} "
           f"({(queue.put_value // ring_bytes) - (put_value // ring_bytes)} wrap(s)), {nslots} staging slots of {slot} B, "
           f"{len(events)} events: {'IDENTICAL' if ok else 'MISMATCH ' + str([w for w, v in checks.items() if not v])}")
     return ok
@@ -91,6 +93,7 @@ def run(seed, ring_bytes, put_value, slot, nslots, nops):
 # plus a first packet (a 6-dword wait), and a copyin's wait and copy (13 dwords), that would end exactly at the ring's end:
 # tinygrad then zero-fills and wraps instead of filling the ring to its end
 results = [run(1, 4096, 3900, 4096, 4, 40), run(2, 1024, 0, 512, 3, 80), run(3, 65536, 65000, 8192, 8, 60), run(4, 512, 500, 256, 2, 120),
-           run(5, 1024, 1024 - 24, 256, 2, 30), run(6, 2048, 3 * 2048 - 52, 512, 2, 1), run(7, 4096, 4096 - 52, 512, 2, 1)]
+           run(5, 1024, 1024 - 24, 256, 2, 30), run(6, 2048, 3 * 2048 - 52, 512, 2, 1), run(7, 4096, 4096 - 52, 512, 2, 1),
+           run(8, 4096, 3900, 4096, 4, 40, gfx=12), run(9, 1024, 0, 512, 3, 80, gfx=12), run(10, 2048, 3 * 2048 - 52, 512, 2, 1, gfx=12)]
 print("A1c SDMA encoder and copy flows vs hcq1:", "all identical" if all(results) else "MISMATCH")
 sys.exit(0 if all(results) else 1)

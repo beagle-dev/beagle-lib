@@ -7,7 +7,8 @@
  * that the card has none of. A register's address on an instance is the IP's discovered base for its segment plus its
  * offset (AMDReg.__post_init__). am: the boot's constants, hw_id_map, the log lines' name tables, and 44 structs (787
  * fields: the discovery table, this card's firmware headers, the PSP command and ring frame, the v11 compute MQD) at
- * tinygrad's offsets. am::smu13 and am::soc11: smu_13_0_0's and soc_11's.
+ * tinygrad's offsets. am::smu13 and am::soc11: smu_13_0_0's and soc_11's. am::kChips: the cards (PCI device ids) the
+ * tables are for.
  *
  * the card's IP versions: GC_HWIP 11.0.0, MP0_HWIP 13.0.0, MP1_HWIP 13.0.0, SDMA0_HWIP 6.0.0, NBIO_HWIP 4.3.0, MMHUB_HWIP 3.0.0, OSSSYS_HWIP 6.0.0, HDP_HWIP 6.0.0
  * its firmware headers: psp_13_0_0_sos.bin v2.0, smu_13_0_0.bin v2.1, sdma_6_0_0.bin v2.0, gc_11_0_0_mec.bin v2.0, gc_11_0_0_imu.bin v1.0, gc_11_0_0_rlc.bin v2.3
@@ -751,6 +752,11 @@ constexpr uint8_t kIP_NBIO_HWIP[3] = {4, 3, 0};
 constexpr uint8_t kIP_MMHUB_HWIP[3] = {3, 0, 0};
 constexpr uint8_t kIP_OSSSYS_HWIP[3] = {6, 0, 0};
 constexpr uint8_t kIP_HDP_HWIP[3] = {6, 0, 0};
+
+// the cards the tables are for: PCI device id, and the arch that names their HSACOs and firmware rows (the plugin
+// refuses any other AMD card before it sends the card anything: TODO.md plan step N1)
+struct Chip { uint16_t device_id; const char* arch; };
+constexpr Chip kChips[] = {{0x744c, "gfx1100"}};
 
 // am.*
 constexpr uint32_t AMDGPU_NAVI10_DOORBELL_MEC_RING0 = 0x3;

@@ -8,7 +8,9 @@ HSACO loader and its IH drain use, taken from tinygrad itself (the pinned hcq1 t
     self.gc and self.nbio (ops_amd.py:1026-1030): PM4 register offsets, not the discovered MMIO bases, which the
     daemon's handoff carries (AMDev._build_regs);
   - osssys 6.0.0's IH ring fields (AM_IH.drain), hsa's kernel code property bits and COMPUTE_TMPRING_SIZE_GFX11
-    bitfields, and the llvm_amdhsa_kernel_descriptor_t layout (AMDProgram.__init__).
+    bitfields, and the llvm_amdhsa_kernel_descriptor_t layout (AMDProgram.__init__);
+  - gfx12's (GC 12.0.x, nbif 6.3.1, osssys 7.0.0: RDNA 4, TODO.md plan step N2): only its GFX_12 IH sources and
+    COMPUTE_TMPRING_SIZE_GFX12 bitfields, after checking that every other constant above is the same there.
 A field macro is emitted as (mask, shift) only after checking that it is exactly (x & mask) << shift. Rerun after
 changing the tinygrad pin:
 
@@ -115,22 +117,27 @@ for n in ["SDMA_PKT_COPY_LINEAR_HEADER_SUB_OP", "SDMA_PKT_COPY_LINEAR_COUNT_COUN
     emit(f"constexpr Field {n} = {{{u(m)}, {s}}};")
 emit()
 
+GC_REGS = ["regCOMPUTE_PGM_LO", "regCOMPUTE_PGM_RSRC1", "regCOMPUTE_PGM_RSRC3", "regCOMPUTE_TMPRING_SIZE",
+           "regCOMPUTE_DISPATCH_SCRATCH_BASE_LO", "regCOMPUTE_RESTART_X", "regCOMPUTE_USER_DATA_0", "regCOMPUTE_RESOURCE_LIMITS",
+           "regCOMPUTE_START_X", "regCOMPUTE_DISPATCH_INITIATOR"]
+GC_FIELDS = [("regCOMPUTE_DISPATCH_INITIATOR", ["compute_shader_en", "force_start_at_000", "cs_w32_en"]),
+             ("regCOMPUTE_RESOURCE_LIMITS", ["waves_per_sh"]),
+             ("regGCVM_L2_PROTECTION_FAULT_CNTL", ["clear_protection_fault_status_addr"])]   # AM_IH.interrupt_handler's UTCL2 clear
+NBIO_REGS = ["regBIF_BX_PF0_GPU_HDP_FLUSH_REQ", "regBIF_BX_PF0_GPU_HDP_FLUSH_DONE"]
+OSS_FIELDS = [("regIH_RB_WPTR", ["offset", "rb_overflow"]), ("regIH_RB_CNTL", ["wptr_overflow_clear"])]
+
 emit("// ---- gc 11.0.0 at navi_offsets' GC bases (AMDDevice.gc): PM4 register offsets, and the fields encode() names")
-for r in ["regCOMPUTE_PGM_LO", "regCOMPUTE_PGM_RSRC1", "regCOMPUTE_PGM_RSRC3", "regCOMPUTE_TMPRING_SIZE",
-          "regCOMPUTE_DISPATCH_SCRATCH_BASE_LO", "regCOMPUTE_RESTART_X", "regCOMPUTE_USER_DATA_0", "regCOMPUTE_RESOURCE_LIMITS",
-          "regCOMPUTE_START_X", "regCOMPUTE_DISPATCH_INITIATOR"]:
+for r in GC_REGS:
     emit(f"constexpr uint32_t {r} = {u(getattr(gc, r).addr[0])};")
-for r, fs in [("regCOMPUTE_DISPATCH_INITIATOR", ["compute_shader_en", "force_start_at_000", "cs_w32_en"]),
-              ("regCOMPUTE_RESOURCE_LIMITS", ["waves_per_sh"]),
-              ("regGCVM_L2_PROTECTION_FAULT_CNTL", ["clear_protection_fault_status_addr"])]:   # AM_IH.interrupt_handler's UTCL2 clear
+for r, fs in GC_FIELDS:
     for f in fs:
         lo, hi = getattr(gc, r).fields[f]
         emit(f"constexpr Bits {r[3:]}__{f} = {{{lo}, {hi}}};")
 emit("// nbio 4.3.0 at navi_offsets' NBIO bases (AMDDevice.nbio): memory_barrier's HDP flush request and done")
-for r in ["regBIF_BX_PF0_GPU_HDP_FLUSH_REQ", "regBIF_BX_PF0_GPU_HDP_FLUSH_DONE"]:
+for r in NBIO_REGS:
     emit(f"constexpr uint32_t {r} = {u(getattr(nbio, r).addr[0])};")
 emit("// osssys 6.0.0: the IH ring fields AM_IH.drain reads and updates (the registers' MMIO addresses are the handoff's)")
-for r, fs in [("regIH_RB_WPTR", ["offset", "rb_overflow"]), ("regIH_RB_CNTL", ["wptr_overflow_clear"])]:
+for r, fs in OSS_FIELDS:
     for f in fs:
         lo, hi = getattr(osssys, r).fields[f]
         emit(f"constexpr Bits {r[3:]}__{f} = {{{lo}, {hi}}};")
@@ -149,8 +156,9 @@ for name, dw, sh, m in IH: emit(f"constexpr IHField IH_{name} = {{{dw}, {sh}, {u
 emit("constexpr uint32_t ih_get(const uint32_t e[8], IHField f) { return (e[f.dword] >> f.shift) & f.mask; }")
 emit(f"constexpr uint32_t SOC21_IH_CLIENTID_GRBM_CP = {am.SOC21_IH_CLIENTID_GRBM_CP}, SOC21_IH_CLIENTID_GFX = {am.SOC21_IH_CLIENTID_GFX};   // gfx_ih_clients")
 emit("struct IHName { uint32_t id; const char* name; };")
-gfx_srcs = sorted({getattr(am, k): k[k.find('__SRCID__') + 9:] for k in dir(am) if k.startswith(f'GFX_{GFX[0]}') and '__SRCID__' in k}.items())
-emit(f"constexpr IHName IH_GFX{GFX[0]}_SRCS[] = {{" + ", ".join(f'{{{i}, "{n}"}}' for i, n in gfx_srcs) + "};")
+def gfx_srcs(major):   # AM_SOC's _ih_srcs('GFX', GC_HWIP) (ip.py:24-27): by the GC major version
+    return sorted({getattr(am, k): k[k.find('__SRCID__') + 9:] for k in dir(am) if k.startswith(f'GFX_{major}') and '__SRCID__' in k}.items())
+emit(f"constexpr IHName IH_GFX{GFX[0]}_SRCS[] = {{" + ", ".join(f'{{{i}, "{n}"}}' for i, n in gfx_srcs(GFX[0])) + "};")
 emit("constexpr IHName IH_SOC21_CLIENTS[] = {" + ", ".join(f'{{{i}, "{n}"}}' for i, n in sorted(am.enum_soc21_ih_clientid.items())) + "};")
 emit()
 
@@ -158,8 +166,11 @@ emit("// ---- hsa.py: kernel code properties and COMPUTE_TMPRING_SIZE_GFX11")
 for n in sorted(n for n in dir(hsa) if n.startswith("AMD_KERNEL_CODE_PROPERTIES_ENABLE_SGPR") and not n.endswith(("_SHIFT", "_WIDTH"))):
     emit(f"constexpr uint32_t {n} = {u(getattr(hsa, n))};")
 emit("constexpr uint32_t KERNEL_CODE_PROPERTIES_WAVE32 = 0x400u;   // AMDProgram.__init__ tests this bit")
-for name, _typ, byte, width, bit in hsa.union_COMPUTE_TMPRING_SIZE_GFX11_bitfields._real_fields_:
-    emit(f"constexpr Bits TMPRING_GFX11_{name} = {{{byte * 8 + bit}, {byte * 8 + bit + width - 1}}};")
+def tmpring(major):   # AMDDevice._ensure_has_local_memory's union_COMPUTE_TMPRING_SIZE_GFX<major>_bitfields (ops_amd.py:1127)
+    return [(name, byte * 8 + bit, byte * 8 + bit + width - 1)
+            for name, _typ, byte, width, bit in getattr(hsa, f"union_COMPUTE_TMPRING_SIZE_GFX{major}_bitfields")._real_fields_]
+for name, lo, hi in tmpring(GFX[0]):
+    emit(f"constexpr Bits TMPRING_GFX{GFX[0]}_{name} = {{{lo}, {hi}}};")
 emit()
 
 emit("// ---- amdgpu_kd.py: llvm_amdhsa_kernel_descriptor_t (byte offsets)")
@@ -168,6 +179,29 @@ emit(f"constexpr uint32_t KD_SIZE = {kd.SIZE};")
 for name, typ, byte, *rest in kd._real_fields_:
     if name.startswith("reserved"): continue
     emit(f"constexpr uint32_t KD_{name.upper()} = {byte};   // {ctypes.sizeof(typ)} bytes")
+
+# ---- gfx12 (TODO.md plan step N2): AMDDevice on GC 12.0.x builds self.gc and self.nbio as on gfx11 (ops_amd.py:1026-1030),
+# nbif in place of nbio (amdev.py:400) and osssys 7.0.0, with SDMA clamped to 6.0.0 (ops_amd.py:1025). Every constant above
+# must be the same there; only the GFX_12 IH sources and the TMPRING bitfields differ, and are emitted.
+G12, NBIF, OSS12, SDMA12 = (12, 0, 0), (6, 3, 1), (7, 0, 0), (7, 0, 0)
+gc12 = AMDIP("gc", G12, bases={i: tuple(getattr(off, f"GC_BASE__INST{i}_SEG{s}", 0) for s in range(6)) for i in range(6)})
+nbif = AMDIP("nbif", NBIF, bases={i: tuple(getattr(off, f"NBIO_BASE__INST{i}_SEG{s}", 0) for s in range(9)) for i in range(6)})
+oss12 = AMDIP("osssys", OSS12, bases={0: (0,) * 6})
+assert import_module("sdma", min(SDMA12, (6, 0, 0))) is sdma
+assert import_soc(G12).CS_PARTIAL_FLUSH == soc.CS_PARTIAL_FLUSH
+assert nbif.version[:2] != (7, 11)
+for r in GC_REGS: assert getattr(gc12, r).addr[0] == getattr(gc, r).addr[0], r
+for r, fs in GC_FIELDS:
+    for f in fs: assert getattr(gc12, r).fields[f] == getattr(gc, r).fields[f], (r, f)
+for r in NBIO_REGS: assert getattr(nbif, r).addr[0] == getattr(nbio, r).addr[0], r
+for r, fs in OSS_FIELDS:
+    for f in fs: assert getattr(oss12, r).fields[f] == getattr(osssys, r).fields[f], (r, f)
+emit()
+emit("// ---- gfx12 (GC 12.0.x: Navi 44 and 48, TODO.md plan step N2): what differs from gfx11's; every other constant is the same")
+emit(f"constexpr IHName IH_GFX{G12[0]}_SRCS[] = {{" + ", ".join(f'{{{i}, "{n}"}}' for i, n in gfx_srcs(G12[0])) + "};")
+for name, lo, hi in tmpring(G12[0]):
+    emit(f"constexpr Bits TMPRING_GFX{G12[0]}_{name} = {{{lo}, {hi}}};")
+
 emit("""
 }  // namespace amdt
 }  // namespace tinygpu_device

@@ -25,7 +25,10 @@
 #     every other hold comes at exit: the card outlives its instances.)
 #   - the firmware, as on NV (every blob located, or downloaded into BEAGLE's cache, before anything is written to the card):
 #     with none anywhere and downloads off, refused before the boot (nothing written, no guard); with downloads on, the six
-#     blobs downloaded from a file:// copy, then the boot; and the prefetch script's blobs through BEAGLE_TINYGPU_FW.
+#     blobs downloaded from a file:// copy, then the boot; and the prefetch script's blobs through BEAGLE_TINYGPU_FW;
+#   - TODO.md plan step N1: a card whose PCI device ID am::kChips lacks (FAKE_AMD_DEVICE_ID=7550, an RDNA4's) is refused
+#     before anything is sent to it (the probe's config read only, no guard, no firmware located or downloaded); a BAR0 of
+#     512 MiB (FAKE_AMD_BAR0_MB=512) is refused at the boot (BarLayoutError) before the discovery's first index write.
 # The test exits 1 on the fake (its logL is wrong by design): "exits normally" is a status below 128 that the test's own
 # error handling gave, not the plugin's exit. A guard that holds keeps the fake's connection as it would the eGPU's, so it is
 # ended here (offline only). One PASS or FAIL line per check; exit 0 only if all pass.
@@ -163,6 +166,21 @@ run fw_prefetched XDG_CACHE_HOME="$W/cache_empty2" BEAGLE_TINYGPU_FW="$W/fw_dir"
 check "the prefetch script's gfx1100 blobs (BEAGLE_TINYGPU_FW), with no cache and downloads off: the boot and the run, nothing downloaded (NO ERRORS)" \
     "[ \"\$(grep -c '^fetched: ' $W/fw_script.txt)\" -eq 6 ] && normal fw_prefetched && ! grep -q 'downloading' $W/fw_prefetched.txt \
      && grep -q 'C++ boot done' $W/fw_prefetched.txt && glog fw_prefetched | grep -q '$CLEAN' && verdict fw_prefetched | grep -q 'NO ERRORS'"
+
+# 10. TODO.md plan step N1: an AMD card the boot is not for, refused before anything is sent to it (an empty cache and the
+#     downloads off: the prefetch would say so if it ran)
+run unknown FAKE_AMD_DEVICE_ID=7550 XDG_CACHE_HOME="$W/cache_empty3"
+check "an AMD card whose device ID am::kChips lacks (7550): refused before anything is sent to it, no guard, no firmware looked for; beagleCreateInstance returns an error" \
+    "normal unknown && grep -q 'TinyGPU/AMD: this card (PCI device ID 7550) is not one BEAGLE boots: 744c (gfx1100) only; nothing was sent to it' $W/unknown.txt \
+     && grep -q 'beagleCreateInstance failed (error -1)' $W/unknown.txt && ! grep -qiE 'firmware|not booting' $W/unknown.txt \
+     && ! grep -qE 'client done: .*\"cmd (1|2|4|6|7|11)\"' $W/unknown.dev && ! glog unknown | grep -q 'guard [0-9]*:' && verdict unknown | grep -q 'NO ERRORS'"
+
+# 11. a BAR0 but 256 MiB: refused at the boot, before the discovery's index writes (no MMIO write at all: cmd 7)
+run bar512 FAKE_AMD_BAR0_MB=512
+check "a 512 MiB BAR0: the boot refuses it (BarLayoutError) before the discovery's first index write, the guard exits ('N'), beagleCreateInstance returns an error" \
+    "normal bar512 && grep -q 'BarLayoutError: BAR0 is 512 MiB with 20464 MiB of VRAM (large_bar=False): BEAGLE supports only a 256 MiB BAR0' $W/bar512.txt \
+     && grep -q 'beagleCreateInstance failed (error -1)' $W/bar512.txt && ! grep -qE 'client done: .*\"cmd 7\"' $W/bar512.dev \
+     && glog bar512 | grep -q 'boot ended with no queue ever live' && verdict bar512 | grep -q 'NO ERRORS' && [ ! -f $W/bar512.held ]"
 
 left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
 check "no fake or guard is left running" "[ $left -eq 0 ]"

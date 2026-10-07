@@ -100,8 +100,9 @@ inline std::string amd_load_hsaco(const uint8_t* hsaco, size_t n, uint64_t lib_v
     return "";
 }
 
-// AMDDevice._ensure_has_local_memory (gfx11, wave64 lanes, 256-byte alignment) for private_segment_size: the scratch
-// buffer's size and COMPUTE_TMPRING_SIZE. "" or why not (a value tinygrad's bitfield would not hold).
+// AMDDevice._ensure_has_local_memory (gfx11 and gfx12, wave64 lanes, 256-byte alignment) for private_segment_size: the
+// scratch buffer's size and COMPUTE_TMPRING_SIZE, in the GC major's bitfields (ops_amd.py:1127; gfx12's since TODO.md plan
+// step N2). "" or why not (a value tinygrad's bitfield would not hold).
 inline std::string amd_scratch(const AMDProps& p, uint32_t private_segment_size, uint64_t& scratch_size, uint32_t& tmpring_size) {
     const uint64_t lanes_per_wave = 64, mem_alignment_size = p.target_major != 9 ? 256 : 1024;
     const uint64_t a = mem_alignment_size / lanes_per_wave;
@@ -113,10 +114,11 @@ inline std::string amd_scratch(const AMDProps& p, uint32_t private_segment_size,
     if (wave_scratch == 0 || p.se_cnt == 0) return "no scratch to size";
     const uint64_t num_waves = (size_per_xcc / (wave_scratch * mem_alignment_size)) / (p.target_major != 9 ? p.se_cnt : 1);
     const uint64_t waves = num_waves < max_scratch_waves ? num_waves : max_scratch_waves;
-    if (waves >> (amdt::TMPRING_GFX11_WAVES.hi - amdt::TMPRING_GFX11_WAVES.lo + 1) ||
-        wave_scratch >> (amdt::TMPRING_GFX11_WAVESIZE.hi - amdt::TMPRING_GFX11_WAVESIZE.lo + 1))
+    const amdt::Bits w = p.target_major == 12 ? amdt::TMPRING_GFX12_WAVES : amdt::TMPRING_GFX11_WAVES;
+    const amdt::Bits ws = p.target_major == 12 ? amdt::TMPRING_GFX12_WAVESIZE : amdt::TMPRING_GFX11_WAVESIZE;
+    if (waves >> (w.hi - w.lo + 1) || wave_scratch >> (ws.hi - ws.lo + 1))
         return "COMPUTE_TMPRING_SIZE does not hold " + std::to_string(waves) + " waves of " + std::to_string(wave_scratch);
-    tmpring_size = (uint32_t)(amdt::encode(amdt::TMPRING_GFX11_WAVES, waves) | amdt::encode(amdt::TMPRING_GFX11_WAVESIZE, wave_scratch));
+    tmpring_size = (uint32_t)(amdt::encode(w, waves) | amdt::encode(ws, wave_scratch));
     return "";
 }
 

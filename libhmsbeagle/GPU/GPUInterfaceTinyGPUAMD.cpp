@@ -388,11 +388,21 @@ static void amdCppBootFini(AMDState* g) {
 // of the first instance's variant for this card before any queue goes live. Null if the boot failed; once it succeeded, a
 // later failure finalizes the GPU. The crash guard (plan step A2k) keeps the GPU from before the boot's first request: it has
 // the AMDev's fini state before any queue is set up, and the state page says dispatch from just before the first one.
-// Every firmware file the card's boot reads (TinyGPUAMDBootTables.h's manifest), located, or downloaded into BEAGLE's cache
-// (TinyGPUFirmware.h), before anything is written to the GPU, as NV's nv_fw_prefetch does: a file that cannot be had stops
-// the boot before it starts rather than in its middle. "" or why not.
-static std::string amd_fw_prefetch() {
+// TODO.md plan step N1: the arch of an AMD card the boot is for, by the PCI device ID Initialize's probe read (am::kChips,
+// generated with the boot's tables), as NV's nv_fw_family; nullptr for any other card, which is refused before anything is
+// sent to it: the boot's own refusal of another IP set (AMDev::build_regs) comes after its first writes.
+static const char* amd_chip(uint16_t device_id) {
+    for (const am::Chip& c : am::kChips)
+        if (c.device_id == device_id) return c.arch;
+    return nullptr;
+}
+
+// Every firmware file the card's boot reads (TinyGPUAMDBootTables.h's manifest rows for its arch), located, or downloaded
+// into BEAGLE's cache (TinyGPUFirmware.h), before anything is written to the GPU, as NV's nv_fw_prefetch does: a file that
+// cannot be had stops the boot before it starts rather than in its middle. "" or why not.
+static std::string amd_fw_prefetch(const char* chip) {
     for (const nvfw::TGFirmware& f : am::fw::kFirmware) {
+        if (strcmp(f.chip, chip) != 0) continue;
         TGFirmwareFile file;
         const std::string err = tg_fw_locate(f, file);
         if (!err.empty()) return err;
@@ -400,7 +410,7 @@ static std::string amd_fw_prefetch() {
     return "";
 }
 
-static AMDState* amdCppBootSetup(const std::string& variant) {
+static AMDState* amdCppBootSetup(const std::string& variant, const char* chip) {
     auto t0 = amd_profile_start();
     TGTransport& tg = tg_transport();
     int am_lock = -1;
@@ -417,9 +427,9 @@ static AMDState* amdCppBootSetup(const std::string& variant) {
     }
     amd_test_kill("boot_guard", g);
     tg.resize_bar(0, err);   // PCIIfaceBase.__init__ (system.py:263): contextlib.suppress(Exception)
-    amboot::AMBlobLoader loader = [](const std::string& name, std::vector<uint8_t>& out) -> std::string {
+    amboot::AMBlobLoader loader = [chip](const std::string& name, std::vector<uint8_t>& out) -> std::string {
         for (const nvfw::TGFirmware& f : am::fw::kFirmware)
-            if (name == f.name) {
+            if (name == f.name && strcmp(f.chip, chip) == 0) {
                 TGFirmwareFile file;
                 std::string e = tg_fw_locate(f, file);
                 if (!e.empty()) return e;
@@ -584,11 +594,22 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     AMDInstance* in = (AMDInstance*)self->amdInstance;
     if (!in) {   // the first: it boots the card
         self->amdInstance = in = new AMDInstance;
-        const std::string fw = amd_fw_prefetch();
+        const char* chip = amd_chip(tg_pci_device_id());
+        if (!chip) {
+            std::string ids;
+            for (const am::Chip& c : am::kChips) {
+                char b[32];
+                snprintf(b, sizeof(b), "%s%04x (%s)", ids.empty() ? "" : ", ", c.device_id, c.arch);
+                ids += b;
+            }
+            fprintf(stderr, "TinyGPU/AMD: this card (PCI device ID %04x) is not one BEAGLE boots: %s only; nothing was sent to it\n",
+                    tg_pci_device_id(), ids.c_str());
+        }
+        const std::string fw = chip ? amd_fw_prefetch(chip) : "";
         if (!fw.empty()) fprintf(stderr, "%s\nTinyGPU/AMD: not booting: nothing was written to the GPU\n", fw.c_str());
-        g_amd = fw.empty() ? amdCppBootSetup(variant) : nullptr;
+        g_amd = chip && fw.empty() ? amdCppBootSetup(variant, chip) : nullptr;
         if (!g_amd) {
-            in->oom = fw.empty() && g_amdSetupOOM;
+            in->oom = chip && fw.empty() && g_amdSetupOOM;
             fprintf(stderr, "TinyGPU/AMD: the GPU's setup failed (above); this instance fails\n");
         } else {
             self->tgpuSock = -1;   // plan step A5: the card's connection now, which outlives this instance
