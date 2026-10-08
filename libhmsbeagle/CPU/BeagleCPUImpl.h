@@ -173,10 +173,11 @@ protected:
     std::vector<BranchEigenInfo> gBranchEigenInfo;
 
     // The per-matrix eigen info that BranchEigenInfo points into (time, expat, cosbt, sinbt, expatcosbt,
-    // expatsinbt), in chunks of 64 matrices. A chunk is one block holding the six sub-arrays, at the offsets
+    // expatsinbt), in chunks of 32 matrices. A chunk is one block holding the six sub-arrays, at the offsets
     // kEigenInfoChunkOffset; it is allocated zero-filled when one of its matrices is first updated and never
-    // moves, so the stored pointers stay valid.
-    static const int kEigenInfoChunkShift = 6;
+    // moves, so the stored pointers stay valid. 32 matrices keep a chunk below 32 KiB for S <= 20 with one rate
+    // category, or S = 4 with four (macOS rounds larger blocks up to a multiple of 32 KiB).
+    static const int kEigenInfoChunkShift = 5;
     std::vector<REALTYPE*> gEigenInfoChunks;
     size_t kEigenInfoChunkOffset[6];
     size_t kEigenInfoChunkSize;

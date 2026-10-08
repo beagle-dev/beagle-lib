@@ -516,7 +516,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
     gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
 
-    // chunk layout: time[64 * C], then expat, cosbt, sinbt, expatcosbt and expatsinbt, each [64 * C * (S + P_PAD)],
+    // chunk layout: time[32 * C], then expat, cosbt, sinbt, expatcosbt and expatsinbt, each [32 * C * (S + P_PAD)],
     // every sub-array starting at a multiple of 64 bytes from the chunk base
     const size_t chunkMatrices = size_t(1) << kEigenInfoChunkShift;
     const size_t alignedLength = 64 / sizeof(REALTYPE);
@@ -1297,14 +1297,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
                                                              int count) {
     for (int i = 0; i < count; i++) {
         const int index = probabilityIndices[i];
+        REALTYPE* chunk = gEigenInfoChunks[index >> kEigenInfoChunkShift];
+        if (chunk == NULL && (chunk = allocateEigenInfoChunk(index >> kEigenInfoChunkShift)) == NULL)
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+
         auto& info = gBranchEigenInfo[index];
         info.branchLength = edgeLengths[i];
         info.eigenIndex = eigenIndex;
         info.categoryRatesIndex = 0; // TODO: Implement category rates index
 
-        REALTYPE* chunk = gEigenInfoChunks[index >> kEigenInfoChunkShift];
-        if (chunk == NULL && (chunk = allocateEigenInfoChunk(index >> kEigenInfoChunkShift)) == NULL)
-            return BEAGLE_ERROR_OUT_OF_MEMORY;
         const int slot = index & ((1 << kEigenInfoChunkShift) - 1);
         const size_t slotOffset = size_t(slot) * (kCategoryCount * kPartialsPaddedStateCount);
 
@@ -6491,7 +6492,7 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
     return ptr;
 }
 
-// allocates the zero-filled eigen-info chunk for matrices [64 * chunkIndex, 64 * chunkIndex + 64); NULL if out of memory
+// allocates the zero-filled eigen-info chunk for matrices [32 * chunkIndex, 32 * chunkIndex + 32); NULL if out of memory
 BEAGLE_CPU_TEMPLATE
 REALTYPE* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateEigenInfoChunk(int chunkIndex) {
     REALTYPE* chunk = (REALTYPE*) mallocAligned(kEigenInfoChunkSize);
