@@ -1,6 +1,7 @@
-"""A fake TinyGPU.app serving a fake RX 7900 (1002:744c), for the AMD boot (TODO.md plan step A2) and the AMD C++ runtime
-(A1h), offline: the plugin boots it and runs on it as on the eGPU. The card is fake_am_gpu.py's register-level model, on
-which tinygrad's AMDev and BEAGLE's C++ port boot.
+"""A fake TinyGPU.app serving a fake RX 7900 (1002:744c), or with FAKE_AMD_CHIP=gfx1201 a fake RX 9070 XT (1002:7550, TODO.md
+plan step N13), for the AMD boot (TODO.md plan step A2) and the AMD C++ runtime (A1h), offline: the plugin boots it and runs on
+it as on the eGPU. The card is fake_am_gpu.py's register-level model, on which tinygrad's AMDev and BEAGLE's C++ port boot;
+dispatches are checked against the build's HSACOs for its arch, and its registers are at its own table's addresses.
 
 What it models:
   - the protocol of TinyGPU.app's server.c: CFG_READ and CFG_WRITE (the card's config space), MAP_BAR, RESIZE_BAR (BAR0
@@ -33,6 +34,7 @@ import fake_am_gpu as amg
 REQ, RESP = struct.Struct("<BIIQQQ"), struct.Struct("<BQQ")
 MAP_BAR, MAP_SYSMEM_FD, CFG_READ, CFG_WRITE, MMIO_READ, MMIO_WRITE, RESIZE_BAR = 1, 2, 3, 4, 6, 7, 11
 BARS = amg.BARS
+def reg(name): return amg.card_regs()[name].addr[0]   # a register's dword address on this card (its table's bases)
 IOVA_BASE, IOVA_STRIDE = 0x80_0000_0000, 0x1_0000_0000
 
 def msgpack(b, i=0):
@@ -63,7 +65,7 @@ def load_hsaco(variant):
     table) and the kernarg offsets of its pointer arguments (the global_buffer args of its NT_AMDGPU_METADATA note)."""
     import amd_compile_helper as ach   # the oracle's (tgpaths.setup, through fake_am_gpu)
     from tinygrad.runtime.support.elf import elf_loader
-    h = (amg.tgpaths.GPU_DIR / f"kernels/tinygpu_hsaco/{variant}_gfx1100.hsaco").read_bytes()
+    h = (amg.tgpaths.GPU_DIR / f"kernels/tinygpu_hsaco/{variant}_{'gfx%d%x%x' % amg.IPV['GC_HWIP']}.hsaco").read_bytes()
     _image, kernels = ach.parse_kernels(h)
     img, sections, relocs = elf_loader(h)
     img = bytearray(img)
@@ -81,7 +83,7 @@ def load_hsaco(variant):
     table = {}
     for name, (kd, d) in kernels.items():
         lds = ((d.group_segment_fixed_size + 511) // 512) & 0x1FF
-        table[name] = dict(kd_off=kd, entry=d.kernel_code_entry_byte_offset, rsrc1=d.compute_pgm_rsrc1 | (1 << 20),
+        table[name] = dict(kd_off=kd, entry=d.kernel_code_entry_byte_offset, rsrc1=d.compute_pgm_rsrc1 | ((1 << 20) if amg.IPV["GC_HWIP"][0] == 11 else 0),   # priv on gfx11 (ops_amd.py:594)
                            rsrc2=d.compute_pgm_rsrc2 | (lds << 15), rsrc3=d.compute_pgm_rsrc3, kernarg_size=d.kernarg_size,
                            ptrs=ptrs[name])
     return table, bytes(img)
@@ -180,7 +182,8 @@ class Gpu:
             if v[0] & (1 << 4):
                 cur = self.u32(v[1] | (v[2] << 32), "WAIT_REG_MEM")
                 if (v[0] & 7) != 5 or (cur & v[4]) < v[3]: self.err(f"WAIT_REG_MEM on {v[1] | (v[2] << 32):#x} for >= {v[3]} sees {cur}: the GPU would wait forever")
-            elif (v[1], v[2]) != (0xe26, 0xe27): self.err(f"WAIT_REG_MEM on registers {v[1]:#x}/{v[2]:#x}, not the HDP flush request/done")
+            elif (v[1], v[2]) != (reg("regBIF_BX_PF0_GPU_HDP_FLUSH_REQ"), reg("regBIF_BX_PF0_GPU_HDP_FLUSH_DONE")):
+                self.err(f"WAIT_REG_MEM on registers {v[1]:#x}/{v[2]:#x}, not the HDP flush request/done")
         elif op == 0x58:   # ACQUIRE_MEM
             if n != 7: return self.err(f"ACQUIRE_MEM with {n} dwords")
         elif op == 0x76:   # SET_SH_REG
@@ -212,9 +215,9 @@ class Gpu:
         self.counts["launches"] += 1
         if FAULT and self.counts["launches"] >= 3: return self.fault()
         if HANG and self.counts["launches"] >= 3: self.stopped = True; return
-        prog = (sh(0x2e0c) | (sh(0x2e0d) << 32)) << 8
-        kargs = sh(0x2e40) | (sh(0x2e41) << 32)
-        scratch = (sh(0x2e10) | (sh(0x2e11) << 32)) << 8
+        prog = (sh(reg("regCOMPUTE_PGM_LO")) | (sh(reg("regCOMPUTE_PGM_HI")) << 32)) << 8
+        kargs = sh(reg("regCOMPUTE_USER_DATA_0")) | (sh(reg("regCOMPUTE_USER_DATA_1")) << 32)
+        scratch = (sh(reg("regCOMPUTE_DISPATCH_SCRATCH_BASE_LO")) | (sh(reg("regCOMPUTE_DISPATCH_SCRATCH_BASE_HI")) << 32)) << 8
         if self.last_kargs is not None and kargs < self.last_kargs: self.counts["kernargs wraps"] += 1   # the slots start over
         self.last_kargs = kargs
         in_vram = lambda va: self.mapped(va) and not (self.am.translate(va, 1) or (True,))[0]
@@ -239,8 +242,8 @@ class Gpu:
             if match: break
         if match is None: return self.err(f"a dispatch of {prog:#x}, which is no kernel of the uploaded image")
         self.counts[f"kernel {match}"] += 1
-        for reg, want in ((0x2e12, k["rsrc1"]), (0x2e13, k["rsrc2"]), (0x2e28, k["rsrc3"])):
-            if sh(reg) != want: self.err(f"{match}: register {reg:#x} is {sh(reg):#x}, not {want:#x}")
+        for r, want in ((reg("regCOMPUTE_PGM_RSRC1"), k["rsrc1"]), (reg("regCOMPUTE_PGM_RSRC2"), k["rsrc2"]), (reg("regCOMPUTE_PGM_RSRC3"), k["rsrc3"])):
+            if sh(r) != want: self.err(f"{match}: register {r:#x} is {sh(r):#x}, not {want:#x}")
         if k["kernarg_size"]:
             args = self.rw(kargs, k["kernarg_size"], what="the kernargs")
             for o in k["ptrs"]:   # its pointer arguments (plan step A4: by the metadata, so an int is never taken for one)

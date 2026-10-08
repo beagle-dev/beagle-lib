@@ -100,10 +100,12 @@ kill $srv 2>/dev/null; wait $srv 2>/dev/null; rm -rf "$sockdir"
 if [ $rc -ne 0 ] && grep -q "needs an SMU mode1 reset" "$out" && grep -q "NO ERRORS" "$dlog" && ! grep -q '"mode1 resets"' "$dlog" \
    && ! grep -q '"compute queues activated"' "$dlog"; then results+=("$label: PASS (refused before the mode1 reset; exit $rc, no queue set up)")
 else results+=("$label: FAIL (exit $rc; $out, $dlog)"); fi
-# A2j: the AMD L0 recordings, replayed under the guard to the oracle's daemon and to the C++ boot
+# A2j: the AMD L0 recordings of this card's chip, replayed under the guard to the oracle's daemon and to the C++ boot (TODO.md
+# plan step N14: each card's in its own pass)
 for r in $TG_AMD_L0; do
     R="$BEAGLE_TINYGPU_DATA/recordings/$r"
     if [ ! -f "$R/events.bin" ]; then results+=("$r: (not on this computer: its replay skipped)"); continue; fi
+    [ "$("$BEAGLE_PYTHON" "$TG_TESTS/amd_l0_replay.py" --chip "$R")" = "${FAKE_AMD_CHIP:-gfx1100}" ] || continue
     if "$BEAGLE_PYTHON" "$TG_TESTS/amd_l0_replay.py" "$R" > "$TINYGPU_TEST_WORK/a2j_replay_$r.txt" 2>&1; then
         results+=("$r: PASS (replays exactly to the oracle's daemon and to the C++ boot)")
     else results+=("$r: FAIL ($(tail -1 "$TINYGPU_TEST_WORK/a2j_replay_$r.txt" | cut -c1-200); $TINYGPU_TEST_WORK/a2j_replay_$r.txt)"); fi

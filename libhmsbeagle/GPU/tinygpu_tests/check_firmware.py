@@ -1,7 +1,8 @@
 """Firmware staging check (TODO.md plan step S0): the NVIDIA firmware BEAGLE needs beyond what tinygrad's boot already
 downloads, and the Blackwell boot's own firmware (plan step B1: staged so no boot downloads inside the daemon, decision 5),
 is in tinygrad's download cache, so tinygrad's own fetch_fw returns it with the network off. Re-stages a
-missing or corrupt cache entry from $BEAGLE_TINYGPU_DATA/fw (macOS may purge ~/Library/Caches). Then every file of
+missing or corrupt cache entry from $BEAGLE_TINYGPU_DATA/fw (macOS may purge ~/Library/Caches), the AMD cards' blobs too
+(TODO.md plan steps N8 and N13: amdgpu-<name>, for the oracle and the goldens, which read tinygrad's cache). Then every file of
 TinyGPUFirmwareManifest.h and TinyGPUAMDBootTables.h's fw table is in BEAGLE's cache, where the C++ boots look for it
 (TinyGPUFirmware.h, which does not search tinygrad's cache since 2026-10-05): a missing or corrupt one is copied from
 tinygrad's cache through fetch_fw, network off. Exit 0 on success."""
@@ -34,6 +35,16 @@ for subdir, name, digest in FIRMWARE:
             print(f"re-staged {subdir}/{name} from {backup}")
         else:
             print(f"MISSING {subdir}/{name}: neither {cached} nor {backup} has sha256 {digest}"); ok = False; continue
+
+amd_text = (tgpaths.GPU_DIR / "TinyGPUAMDBootTables.h").read_text().split("namespace fw {")[1].split("} // namespace fw")[0]
+for subdir, name, digest, md5 in re.findall(r'^    \{"gfx\w+", "[^"]+", "(amdgpu)", "([^"]+)", "([0-9a-f]{64})", "([0-9a-f]{32})"\},', amd_text, re.M):
+    cached = helpers._ensure_downloads_dir() / "fw" / md5   # md5 of fetch_fw's URL: its cache name
+    if cached.is_file() and sha(cached.read_bytes()) == digest: continue
+    backup = tgpaths.DATA / "fw" / f"{subdir}-{name}"
+    if backup.is_file() and sha(backup.read_bytes()) == digest:
+        cached.parent.mkdir(parents=True, exist_ok=True); cached.write_bytes(backup.read_bytes())
+        print(f"re-staged {subdir}/{name} from {backup}")
+    else: print(f"MISSING {subdir}/{name}: neither {cached} nor {backup} has sha256 {digest}"); ok = False
 
 def offline(*a, **k): raise RuntimeError("network access attempted")
 urllib.request.urlopen = offline   # fetch() imports urllib.request at call time, so this blocks any download

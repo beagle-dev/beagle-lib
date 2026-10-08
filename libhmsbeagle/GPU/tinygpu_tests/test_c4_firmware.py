@@ -4,7 +4,7 @@ tinygrad's own fetch_fw returns with the network off (from BEAGLE's cache, where
 where fetch_fw would have to download when downloads are off; it searches $BEAGLE_TINYGPU_FW, share/beagle/firmware and
 BEAGLE's cache in that order, never tinygrad's cache, rejects a 2,679-byte HTML page and a partial download, and says how to
 fetch; it downloads a missing file into BEAGLE's cache (from a file:// mirror), checks it and keeps nothing bad; tinygpu_fetch_firmware.sh fetches (from a file:// copy), checks and refuses a bad file,
-for NVIDIA's chips and the AMD card's gfx1100;
+for NVIDIA's chips and the AMD cards' gfx1100 and gfx1201 (TODO.md plan step N13);
 nvd_elf_load reads the ELF32 FMC image, the ELF64 GSP image and small ELF32 and ELF64 objects with relocations exactly as
 tinygrad's elf_loader does. No GPU, no network.
     python test_c4_firmware.py"""
@@ -188,20 +188,22 @@ def test_fetch_script():
     assert r4.returncode == 1 and r4.stderr.count("FAILED: ") == 2 and "present: " in r4.stdout and not list((dest / "nvidia/gb202").rglob("*.bin*")), r4
     r5 = run("--chip", "tu102", dest)
     assert r5.returncode == 2 and "lists no firmware for tu102" in r5.stderr, r5
-    am = amd_rows()   # the AMD card's six blobs, as fetch_fw returns them from tinygrad's cache
-    assert len(am) == 6 and {r["chip"] for r in am} == {"gfx1100"}, am
+    am = amd_rows()   # the AMD cards' blobs (six gfx1100, eight gfx1201), as fetch_fw returns them from tinygrad's cache
+    counts = {c: sum(1 for r in am if r["chip"] == c) for c in {r["chip"] for r in am}}
+    assert counts == {"gfx1100": 6, "gfx1201": 8}, counts
     for r in am:
         p = tree / r["subdir"] / r["name"]
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(helpers.fetch_fw(r["subdir"], r["name"], r["sha256"]))
-    r6 = run("--chip", "gfx1100", dest)
-    assert r6.returncode == 0 and r6.stdout.count("fetched: ") == 6, r6
-    assert all(sha((dest / r["subdir"] / r["name"]).read_bytes()) == r["sha256"] for r in am), r6
-    r7 = run("--chip", "gfx1100", dest)
-    assert r7.returncode == 0 and r7.stdout.count("present: ") == 6, r7
+    for chip, n in sorted(counts.items()):
+        r6 = run("--chip", chip, dest)
+        assert r6.returncode == 0 and r6.stdout.count("fetched: ") == n, r6
+        assert all(sha((dest / r["subdir"] / r["name"]).read_bytes()) == r["sha256"] for r in am if r["chip"] == chip), r6
+        r7 = run("--chip", chip, dest)
+        assert r7.returncode == 0 and r7.stdout.count("present: ") == n, r7
     print("fetch script: fetches and checks every file of a chip (file:// copy), keeps a good file, refuses an HTML page in "
-          "place of one and a missing one (nothing kept), refuses an unknown chip; the locator then finds them; the AMD card's "
-          "six gfx1100 blobs the same way")
+          "place of one and a missing one (nothing kept), refuses an unknown chip; the locator then finds them; the AMD cards' "
+          "six gfx1100 and eight gfx1201 blobs the same way")
 
 def elf_rows(path, align=1):
     img, secs, rel = elf_loader(pathlib.Path(path).read_bytes(), force_section_align=align)

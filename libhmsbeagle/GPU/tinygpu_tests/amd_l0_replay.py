@@ -1,14 +1,25 @@
 """TODO.md plan step A2j, offline: an AMD L0 recording (run_amd_l0.sh) replayed under the guard (tgreplay.py --guard, the AMD
 guard) to the daemon again (amd_daemon_session.py, as recorded) and to the C++ boot's own session (golden_amd_boot --session,
 the daemon's default pool), each from a fresh replay of the card's own replies: every request must equal the recorded one,
-byte for byte, and every audit pass. No GPU and no TinyGPU.app: tgreplay serves the recording on a private socket.
-    python amd_l0_replay.py <recording dir>"""
+byte for byte, and every audit pass. No GPU and no TinyGPU.app: tgreplay serves the recording on a private socket. The
+recorded card's chip (its first config read of dword 0: TODO.md plan step N14) chooses the firmware and FAKE_AMD_CHIP;
+--chip prints it and exits.
+    python amd_l0_replay.py [--chip] <recording dir>"""
 import os, sys, time, tempfile, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay"))
 import tgpaths
-tgpaths.setup()
-import golden_amd_boot as gab
-import amd_daemon_session as ds
+
+def chip_of(rec):
+    """The recorded card's chip, by the device ID its first config read of dword 0 replied (fake_am_gpu.CHIP_IDS, not
+    imported here: it reads FAKE_AMD_CHIP when imported)."""
+    import tgwire as w
+    events, _ = w.read(rec)
+    for i, e in enumerate(events):
+        if e.kind == w.K_REQ and e.f["req"][0] == w.CFG_READ and e.f["req"][3] == 0:
+            rep = next(x for x in events[i:] if x.kind == w.K_REPLY and x.seq == e.seq)
+            return {0x744c: "gfx1100", 0x7550: "gfx1201"}[(rep.f["reply"][1] >> 16) & 0xffff]
+    raise RuntimeError(f"{rec}: no config read of dword 0 to tell the card")
 
 HERE, WORK = tgpaths.HERE, tgpaths.WORK / "a2j"
 PY = os.environ.get("BEAGLE_PYTHON", sys.executable)
@@ -38,6 +49,10 @@ def replay(rec, client, work, exe, blobs):
 
 def main():
     rec = sys.argv[1]
+    global gab, ds
+    tgpaths.setup()
+    import golden_amd_boot as gab   # after FAKE_AMD_CHIP is the recorded card's: its firmware (FW_NAMES), the daemon's id
+    import amd_daemon_session as ds
     WORK.mkdir(parents=True, exist_ok=True)
     work = tempfile.mkdtemp(dir=WORK)
     exe = gab.WORK / "golden_amd_boot"
@@ -55,4 +70,6 @@ def main():
     sys.exit(0 if ok else 1)
 
 if __name__ == "__main__":
+    if sys.argv[1] == "--chip": print(chip_of(sys.argv[2])); sys.exit(0)
+    os.environ["FAKE_AMD_CHIP"] = chip_of(sys.argv[1])
     main()

@@ -87,6 +87,23 @@ def regs_for(meta):
         R.update(import_asic_regs(prefix, ver, cls=functools.partial(AMDReg, bases=bases[ip])))
     return R
 
+def props_for(device):
+    """PCIIface._compute_props (ops_amd.py:910-925) and AMDDevice.__init__'s counts (:1003-1012) on the captured table of the
+    card with this PCI device ID, one XCC: its target, arch, xccs, cu_cnt, se_cnt, max_slots_scratch_cu and lds_size_in_kb."""
+    import ctypes, types
+    from tinygrad.runtime.ops_amd import PCIIface
+    table, meta = table_for(device)
+    off = am.struct_binary_header.from_buffer_copy(table).table_list[am.GC].offset
+    h = am.struct_gc_info_v1_0.from_buffer_copy(table[off:off + ctypes.sizeof(am.struct_gc_info_v1_0)]).header
+    T = getattr(am, f"struct_gc_info_v{h.version_major}_{h.version_minor}")
+    gc = ipv(meta)["GC_HWIP"]
+    it = types.SimpleNamespace(dev_impl=types.SimpleNamespace(ip_ver={am.GC_HWIP: gc}, gc_info=T.from_buffer_copy(table[off:off + ctypes.sizeof(T)]),
+                                                              gfx=types.SimpleNamespace(xccs=1)))
+    PCIIface._compute_props(it)
+    p = it.props
+    return dict(target=gc, arch="gfx%d%x%x" % gc, xccs=1, cu_cnt=p["simd_count"] // p["simd_per_cu"], se_cnt=p["array_count"] // p["simd_arrays_per_engine"],
+                max_slots_scratch_cu=p["max_slots_scratch_cu"], lds_size_in_kb=p["lds_size_in_kb"])
+
 @functools.cache
 def card_regs():
     """name -> AMDReg at this card's bases, as AMDev._build_regs builds them (amdev.py:398-409)."""

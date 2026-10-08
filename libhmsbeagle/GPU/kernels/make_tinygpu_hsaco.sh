@@ -14,7 +14,7 @@ COMPILER="$1"
 COMGR="$2"
 
 VARIANT_LIST='SP_4 SP_16 SP_32 SP_48 SP_64 SP_80 SP_128 SP_192 SP_256 DP_4 DP_16 DP_32 DP_48 DP_64 DP_80 DP_128 DP_192 DP_256'
-ARCH_LIST='gfx1100'
+ARCH_LIST='gfx1100 gfx1201'   # am::kChips' arches (TODO.md plan step N13: only the cards' own, decision 11)
 
 srcdir="$(cd "$(dirname "$0")" && pwd)"
 hsacodir="${srcdir}/tinygpu_hsaco"

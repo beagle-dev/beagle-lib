@@ -1,7 +1,8 @@
 /*
  * GPUInterfaceTinyGPUAMD.cpp
  *
- * BEAGLE's AMD eGPU backend (an RX 7900 XT, gfx1100, through TinyGPU.app), with no Python (TODO.md plan step A2l): this
+ * BEAGLE's AMD eGPU backend (an RX 7900 XT, gfx1100, or since TODO.md plan step N13 an RX 9070 XT, gfx1201, through
+ * TinyGPU.app), with no Python (TODO.md plan step A2l): this
  * process boots the card with tinygrad's AM driver in C++ (TinyGPUAMDBoot.h, plan step A2), sets up AMDDevice.__init__'s
  * queues and buffers (TinyGPUAMDDevice.h), and runs launches, copies, allocations and synchronization on tinygrad's
  * PM4 and SDMA queues (TinyGPUAMDRuntime.h, TinyGPUAMDDispatch.h; plan step A1), with the build's ahead-of-time
@@ -119,7 +120,7 @@ struct AMDState {
     int state_fd = -1;
     bool lost_said = false;      // plan step A3: the lost GPU was reported
     pid_t owner_pid = 0;         // plan step A5: the process that booted; a child forked from it never finalizes the card
-    std::string arch;            // the card's (gfx1100): which of the build's HSACOs serve it
+    std::string arch;            // the card's (gfx1100, gfx1201): which of the build's HSACOs serve it
     std::map<std::string, AMDProgramSet> programs;   // the variants loaded so far (amd_programs)
 };
 

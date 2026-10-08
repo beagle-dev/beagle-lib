@@ -311,6 +311,7 @@ static const TGCard kTGCards[] = {   // revision -1: any
     {PCI_VENDOR_NVIDIA, 0x2882, -1,   "NVIDIA GeForce RTX 4060",  8192, 2.46, 3072},   // AD107, sm_89
     {PCI_VENDOR_NVIDIA, 0x2f04, -1,   "NVIDIA GeForce RTX 5070", 12288, 2.51, 6144},   // GB205, sm_120
     {PCI_VENDOR_AMD,    0x744c, 0xcc, "AMD Radeon RX 7900 XT",   20480, 2.40,   84},   // Navi 31, gfx1100
+    {PCI_VENDOR_AMD,    0x7550, 0xc0, "AMD Radeon RX 9070 XT",   16384, 2.97,   64},   // Navi 48, gfx1201 (STATUS.md R101)
 };
 
 // The card's PCI revision ID from the IORegistry, macOS's copy of its config space: reading it sends TinyGPU.app nothing, so

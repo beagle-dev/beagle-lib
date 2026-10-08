@@ -38,35 +38,42 @@ results+=("default boot and error returns (C12): $([ $? -eq 0 ] && echo PASS || 
 # instances in one process, the routing, the ring's wrap, no teardown, the falcons' and the GSP's failures, the kills)
 "$TG_TESTS/test_c13.sh" > "$TINYGPU_TEST_WORK/test_c13_e2e.log" 2>&1
 results+=("fake-daemon checks on the C++ boot (C13): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c13_e2e.log)")")
-# plan step A1h: the AMD C++ runtime end to end on fake_amd_device.py's card, booted by the plugin (the DART audit, each dispatch
-# against the build's HSACO, tinygrad's rings and kernargs wrapping, a fault)
-"$TG_TESTS/test_a1h.sh" > "$TINYGPU_TEST_WORK/test_a1h.log" 2>&1
-results+=("AMD C++ runtime end to end (A1h): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a1h.log)")")
-# plan step A2: the plugin's C++ boot on fake_amd_device.py's register-level card, cold and warm, its session through the handoff
-# byte for byte against golden_amd_boot's (the oracle daemon's), and the AMD L0 recordings replayed to it; then the V1 tools on
-# it (the AMD guard, recordings through tgproxy, replays to the oracle's daemon and to the C++ boot)
-"$TG_TESTS/test_a2.sh" > "$TINYGPU_TEST_WORK/test_a2.log" 2>&1
-results+=("AMD C++ boot end to end (A2h, A2j): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2.log)")")
-"$BEAGLE_PYTHON" "$TG_TESTS/test_a2i.py" > "$TINYGPU_TEST_WORK/test_a2i.log" 2>&1
-results+=("AMD V1 tools: guard, record, replay (A2i): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2i.log)")")
-# plan step A2k: the AMD C++ boot's crash guard (kills in the boot, with a batch on the GPU, idle, mid-request and in the fini;
-# a queue that survives its dequeue), its fini after an idle kill against the plugin's own byte for byte
-"$TG_TESTS/test_a2k.sh" > "$TINYGPU_TEST_WORK/test_a2k.log" 2>&1
-results+=("AMD crash guard (A2k): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2k.log)")")
-# plan step A3: errors instead of exits on the AMD path (a dirty card, small pools, a fault, a hang, TinyGPU.app gone, SIGINT,
-# a hold then a second instance)
-"$TG_TESTS/test_a3.sh" > "$TINYGPU_TEST_WORK/test_a3.log" 2>&1
-results+=("AMD error returns (A3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a3.log)")")
-# plan step A4: every d1_runs.txt line on the fake AMD card, each dispatch against the build's HSACO
-"$TG_TESTS/test_a4.sh" > "$TINYGPU_TEST_WORK/test_a4.log" 2>&1
-results+=("D1 lines on the AMD card (A4): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a4.log)")")
-# plan step A5: one AMD boot per process, shared by every instance until exit (several instances, threads, cycles, a fork, exit()
-# from another thread, a second process, a GPU lost in the first cycle)
-"$TG_TESTS/test_a5.sh" > "$TINYGPU_TEST_WORK/test_a5.log" 2>&1
-results+=("one AMD boot per process (A5): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a5.log)")")
-# plan steps A7 and C16: double precision on the fake AMD card and on the fake NV GPUs
-"$TG_TESTS/test_a7.sh" > "$TINYGPU_TEST_WORK/test_a7.log" 2>&1
-results+=("double precision on the AMD card (A7): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a7.log)")")
+# the AMD block on each card's fake (TODO.md plan step N13: FAKE_AMD_CHIP, the RX 7900 XT's gfx1100 and the RX 9070 XT's
+# gfx1201): the plugin boots, runs and finalizes each
+for chip in gfx1100 gfx1201; do
+    export FAKE_AMD_CHIP=$chip
+    # plan step A1h: the AMD C++ runtime end to end on fake_amd_device.py's card, booted by the plugin (the DART audit, each dispatch
+    # against the build's HSACO, tinygrad's rings and kernargs wrapping, a fault)
+    "$TG_TESTS/test_a1h.sh" > "$TINYGPU_TEST_WORK/test_a1h_$chip.log" 2>&1
+    results+=("AMD C++ runtime end to end (A1h) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a1h_$chip.log)")")
+    # plan step A2: the plugin's C++ boot on fake_amd_device.py's register-level card, cold and warm, its session through the handoff
+    # byte for byte against golden_amd_boot's (the oracle daemon's), and the AMD L0 recordings replayed to it; then the V1 tools on
+    # it (the AMD guard, recordings through tgproxy, replays to the oracle's daemon and to the C++ boot)
+    "$TG_TESTS/test_a2.sh" > "$TINYGPU_TEST_WORK/test_a2_$chip.log" 2>&1
+    results+=("AMD C++ boot end to end (A2h, A2j) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2_$chip.log)")")
+    "$BEAGLE_PYTHON" "$TG_TESTS/test_a2i.py" > "$TINYGPU_TEST_WORK/test_a2i_$chip.log" 2>&1
+    results+=("AMD V1 tools: guard, record, replay (A2i) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2i_$chip.log)")")
+    # plan step A2k: the AMD C++ boot's crash guard (kills in the boot, with a batch on the GPU, idle, mid-request and in the fini;
+    # a queue that survives its dequeue), its fini after an idle kill against the plugin's own byte for byte
+    "$TG_TESTS/test_a2k.sh" > "$TINYGPU_TEST_WORK/test_a2k_$chip.log" 2>&1
+    results+=("AMD crash guard (A2k) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a2k_$chip.log)")")
+    # plan step A3: errors instead of exits on the AMD path (a dirty card, small pools, a fault, a hang, TinyGPU.app gone, SIGINT,
+    # a hold then a second instance)
+    "$TG_TESTS/test_a3.sh" > "$TINYGPU_TEST_WORK/test_a3_$chip.log" 2>&1
+    results+=("AMD error returns (A3) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a3_$chip.log)")")
+    # plan step A4: every d1_runs.txt line on the fake AMD card, each dispatch against the build's HSACO
+    "$TG_TESTS/test_a4.sh" > "$TINYGPU_TEST_WORK/test_a4_$chip.log" 2>&1
+    results+=("D1 lines on the AMD card (A4) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a4_$chip.log)")")
+    # plan step A5: one AMD boot per process, shared by every instance until exit (several instances, threads, cycles, a fork, exit()
+    # from another thread, a second process, a GPU lost in the first cycle)
+    "$TG_TESTS/test_a5.sh" > "$TINYGPU_TEST_WORK/test_a5_$chip.log" 2>&1
+    results+=("one AMD boot per process (A5) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a5_$chip.log)")")
+    # plan step A7: double precision on the fake AMD card
+    "$TG_TESTS/test_a7.sh" > "$TINYGPU_TEST_WORK/test_a7_$chip.log" 2>&1
+    results+=("double precision on the AMD card (A7) on $chip: $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_a7_$chip.log)")")
+done
+unset FAKE_AMD_CHIP
+# plan step C16: double precision on the fake NV GPUs
 "$TG_TESTS/test_c16.sh" > "$TINYGPU_TEST_WORK/test_c16.log" 2>&1
 results+=("double precision on NV (C16): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_c16.log)")")
 # plan step C14: FreeMemory on both vendors' VRAM pools (the free list, and instance cycles on a small pool on both fakes)

@@ -108,7 +108,8 @@ inline std::string amd_parse_handoff(const std::string& js, AMDHandoff& h) {
             return std::string("the handoff's ") + name + " is outside its mapping";
     }
     if (h.is_vf) return "a virtual function (is_vf): the C++ runtime drives a physical function only";
-    if (h.target_major != 11 || h.xccs != 1) return "gfx" + std::to_string(h.target_major) + " with " + std::to_string(h.xccs) + " XCCs: the C++ runtime is gfx11 with one XCC";
+    if ((h.target_major != 11 && h.target_major != 12) || h.xccs != 1)   // TODO.md plan step N13: gfx12 too
+        return "gfx" + std::to_string(h.target_major) + " with " + std::to_string(h.xccs) + " XCCs: the C++ runtime is gfx11 or gfx12 with one XCC";
     if (h.compute_ring_size == 0 || h.compute_ring_size % 4 || h.sdma_ring_size == 0 || h.sdma_ring_size % 4) return "the handoff's rings are not whole dwords";
     for (uint64_t db : {h.compute_doorbell, h.sdma_doorbell})
         if (db % 8 || db + 8 > h.bar2_size) return "a doorbell outside BAR2";
