@@ -72,8 +72,9 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
     const int internal = kPartialsCount - kTips;
     const int scaleCount = manualOrDynamic ? kScaleCount : (mode.flag == BEAGLE_FLAG_SCALING_AUTO ? 1 : internal + 1);
 
-    // a symmetric 4-state model: Q = 1/3 off the diagonal, eigenvalues 0 and -4/3
-    const double evec[16] = {1, 1, 1, 1, 1, -1, 0, 0, 1, 1, -2, 0, 1, 1, 1, -3};
+    // the 4-state Jukes-Cantor model, Q = 1/3 off the diagonal: orthogonal eigenvectors (the columns), eigenvalues 0
+    // and -4/3
+    const double evec[16] = {1, 1, 1, 1, 1, -1, 1, 1, 1, 0, -2, 1, 1, 0, 0, -3};
     double ivec[16];
     for (int i = 0; i < 4; i++) {
         double norm = 0;
@@ -225,13 +226,37 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
             const BeagleOperation op[1] = {{4, scaleCount, scaleCount, 0, 0, 1, 1}};
             rejected(beagleUpdatePartials(instance, op, 1, postCumulative), "updatePartials scale");
             rejected(beagleUpdatePartials(instance, post, 1, bs), "updatePartials cumulative scale");
-            rejected(beagleCalculateRootLogLikelihoods(instance, &root, &weightsIndex, &frequenciesIndex, &bs, 1,
-                                                       sum), "calculateRootLogLikelihoods scale");
+            // a negative root scale index other than BEAGLE_OP_NONE is skipped by the generic root kernels and read
+            // by the 4-state ones
+            const bool fourState = strstr(impl, "4State") != NULL && strstr(impl, "Spectral") == NULL;
+            const int code = beagleCalculateRootLogLikelihoods(instance, &root, &weightsIndex, &frequenciesIndex, &bs,
+                                                               1, sum);
+            if (bs >= 0 || fourState) {
+                rejected(code, "calculateRootLogLikelihoods scale");
+            } else {
+                expect(code == BEAGLE_SUCCESS, "calculateRootLogLikelihoods with a skipped negative scale index", impl,
+                       mode.name);
+            }
             rejected(beagleAccumulateScaleFactors(instance, &bs, 1, kCumulative), "accumulateScaleFactors");
         } else {
             // AUTO and ALWAYS keep a node's scale state at its partials index minus the tip count
             const BeagleOperation op[1] = {{0, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 1, 1, 2, 2}};
             rejected(beagleUpdatePartials(instance, op, 1, BEAGLE_OP_NONE), "updatePartials into a tip");
+        }
+        // the cumulative scale buffer of a post-order call is read even with no operations
+        rejected(beagleUpdatePartials(instance, post, 0, scaleCount), "updatePartials cumulative scale, no operations");
+        if (mode.flag == BEAGLE_FLAG_SCALING_ALWAYS) {
+            // a root at a tip has scale index tip - tipCount < 0: skipped by the generic root kernels, read by the
+            // 4-state ones
+            const bool fourState = strstr(impl, "4State") != NULL && strstr(impl, "Spectral") == NULL;
+            const int tipRoot = 0;
+            const int code = beagleCalculateRootLogLikelihoods(instance, &tipRoot, &weightsIndex, &frequenciesIndex,
+                                                               &none, 1, sum);
+            if (fourState) {
+                rejected(code, "calculateRootLogLikelihoods at a tip (ALWAYS, 4-state)");
+            } else {
+                expect(code == BEAGLE_SUCCESS, "calculateRootLogLikelihoods at a tip (ALWAYS)", impl, mode.name);
+            }
         }
         if (mode.flag == BEAGLE_FLAG_SCALING_AUTO) {
             const int tip = 0;

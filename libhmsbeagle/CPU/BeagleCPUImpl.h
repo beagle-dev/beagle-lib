@@ -1069,7 +1069,14 @@ protected:
     bool badPartition(int index) const { return !kPartitionsInitialised || index < 0 || index >= kPartitionCount; }
     bool badMatrices(const int* indices, int count) const;
     bool badPartialsIndices(const int* indices, int count) const;
-    bool badRootIndices(const int* bufferIndices, const int* cumulativeScaleIndices, int count) const;
+    // whether the root kernels read every scale index other than BEAGLE_OP_NONE (the 4-state ones) or skip every
+    // negative one (the generic ones)
+    virtual bool rootReadsNegativeScale() const { return false; }
+    bool badRootScale(int index, bool readsNegative) const {
+        return index >= 0 ? badScale(index) : (readsNegative && index != BEAGLE_OP_NONE);
+    }
+    bool badRootIndices(const int* bufferIndices, const int* categoryWeightsIndices,
+                        const int* cumulativeScaleIndices, int count) const;
     bool badEdgeIndices(const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
                         const int* firstDerivativeIndices, const int* secondDerivativeIndices,
                         const int* cumulativeScaleIndices, int count);

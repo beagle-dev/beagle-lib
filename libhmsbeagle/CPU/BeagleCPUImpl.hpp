@@ -1725,9 +1725,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      const int *preScaleIndices,
                                                                      const int cumulativeScaleIndex) {
 #ifdef BEAGLE_INDEX_CHECKS
+    if (badPartials(rootPostOrderIndex)) // read whatever the count
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     if (count > 0) {
         if (badPartialsIndices(postBufferIndices, count) || badPartialsIndices(preBufferIndices, count) ||
-            badMatrices(transitionIndices, count) || badPartials(rootPostOrderIndex))
+            badMatrices(transitionIndices, count))
             return BEAGLE_ERROR_OUT_OF_RANGE;
         // a node's scale indices, and then the root's cumulative one, are read only when not NONE
         bool rescaled = false;
@@ -1773,10 +1775,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointDerivative(
         pre[i]   = operations[i].preOrderPartials;
         eigen[i] = operations[i].branchTransitionMatrix;
     }
-    BEAGLE_CHECK_INDICES(operationCount > 0 &&
-                         (badPartialsIndices(post.data(), operationCount) ||
-                          badPartialsIndices(pre.data(), operationCount) ||
-                          badMatrices(eigen.data(), operationCount) || badPartials(rootPostOrderIndex)));
+    BEAGLE_CHECK_INDICES(badPartials(rootPostOrderIndex) ||
+                         (operationCount > 0 &&
+                          (badPartialsIndices(post.data(), operationCount) ||
+                           badPartialsIndices(pre.data(), operationCount) ||
+                           badMatrices(eigen.data(), operationCount))));
     return calcAdjointCrossProducts(
             post.data(), pre.data(), eigen.data(),
             &categoryRatesIndex, &categoryWeightsIndex,
@@ -3688,7 +3691,7 @@ BEAGLE_CPU_TEMPLATE
                                                                        int count,
                                                                        double *outSumLogLikelihood) {
 
-    BEAGLE_CHECK_INDICES(badRootIndices(bufferIndices, cumulativeScaleIndices, count));
+    BEAGLE_CHECK_INDICES(badRootIndices(bufferIndices, categoryWeightsIndices, cumulativeScaleIndices, count));
 
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
@@ -3760,7 +3763,7 @@ BEAGLE_CPU_TEMPLATE
 #ifdef BEAGLE_INDEX_CHECKS
             for (int p = 0; p < partitionCount; p++) {
                 if (badPartition(partitionIndices[p]) || badPartials(bufferIndices[p]) ||
-                    (cumulativeScaleIndices[p] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[p])))
+                    badRootScale(cumulativeScaleIndices[p], rootReadsNegativeScale()))
                     return BEAGLE_ERROR_OUT_OF_RANGE;
             }
 #endif
@@ -6718,18 +6721,25 @@ bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badPartialsIndices(const int* indices, i
     return false;
 }
 
-// calculateRootLogLikelihoods: count == 1 reads the caller's scale index only under MANUAL or DYNAMIC scaling or with
-// auto root partitioning; count != 1 reads every scale index unless the first is NONE. Only BEAGLE_OP_NONE means none:
-// the generic code skips any negative index, but the 4-state code reads every index other than BEAGLE_OP_NONE.
+// calculateRootLogLikelihoods. count == 1 reads the caller's scale index only under MANUAL or DYNAMIC scaling or with
+// auto root partitioning; under ALWAYS it uses the root's own scale buffer at bufferIndex - kTipCount. A negative
+// index is skipped by the generic root kernels, but read by the 4-state ones unless it is BEAGLE_OP_NONE; the
+// per-category path (a negative category weights index) is generic everywhere. count != 1 reads every scale index
+// unless the first is BEAGLE_OP_NONE.
 BEAGLE_CPU_TEMPLATE
-bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badRootIndices(const int* bufferIndices, const int* cumulativeScaleIndices,
-                                                       int count) const {
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badRootIndices(const int* bufferIndices, const int* categoryWeightsIndices,
+                                                       const int* cumulativeScaleIndices, int count) const {
     const bool autoOrAlways = kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS);
     if (count == 1) {
         if (badPartials(bufferIndices[0]))
             return true;
-        return (kAutoRootPartitioningEnabled || !autoOrAlways) &&
-               cumulativeScaleIndices[0] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[0]);
+        const bool readsNegative = rootReadsNegativeScale() &&
+                                   (kAutoRootPartitioningEnabled || categoryWeightsIndices[0] >= 0);
+        if (kAutoRootPartitioningEnabled || !autoOrAlways)
+            return badRootScale(cumulativeScaleIndices[0], readsNegative);
+        if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+            return badRootScale(bufferIndices[0] - kTipCount, readsNegative);
+        return false;
     }
     for (int i = 0; i < count; i++) {
         // under SCALING_ALWAYS each root's scale buffer is at bufferIndex - kTipCount
@@ -6800,6 +6810,9 @@ bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badOperations(const int* operations, int
                                                       int cumulativeScaleIndex, bool preOrder, bool top) {
     const int numOps = byPartition ? BEAGLE_PARTITION_OP_COUNT : BEAGLE_OP_COUNT;
     const bool spectral = denseMatricesOnDemand();
+    // a post-order call reads its cumulative scale buffer once, before any operation
+    if (!preOrder && !byPartition && cumulativeScaleIndex != BEAGLE_OP_NONE && badScale(cumulativeScaleIndex))
+        return true;
     for (int op = 0; op < count; op++) {
         const int* operation = operations + op * numOps;
         const int destination = operation[0];

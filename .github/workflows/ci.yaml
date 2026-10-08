@@ -29,7 +29,9 @@ jobs:
         cmake .. -DBEAGLE_INDEX_CHECKS=ON
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
-        ctest --output-on-failure
+        # libhmsbeagle loads the CPU plugins by file name; with Ubuntu's --as-needed and RUNPATH defaults the examples'
+        # links to them do not make the build-tree plugins findable
+        LD_LIBRARY_PATH=$PWD/libhmsbeagle/CPU ctest --output-on-failure
 
   build-aarch64:
     name: Build on Linux aarch64
@@ -49,5 +51,7 @@ jobs:
         cmake .. -DBEAGLE_INDEX_CHECKS=ON
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
-        ctest --output-on-failure
+        # libhmsbeagle loads the CPU plugins by file name; with Ubuntu's --as-needed and RUNPATH defaults the examples'
+        # links to them do not make the build-tree plugins findable
+        LD_LIBRARY_PATH=$PWD/libhmsbeagle/CPU ctest --output-on-failure
         

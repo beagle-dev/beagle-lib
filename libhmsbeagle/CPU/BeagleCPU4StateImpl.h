@@ -200,6 +200,11 @@ public:
                                              int count,
                                              double* outSumLogLikelihood);
 
+#ifdef BEAGLE_INDEX_CHECKS
+    // integrateOutStatesAndScale(ByPartition) reads every root scale index other than BEAGLE_OP_NONE
+    bool rootReadsNegativeScale() const override { return true; }
+#endif
+
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
                                         const int probabilityIndex,
