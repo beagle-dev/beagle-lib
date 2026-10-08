@@ -41,14 +41,17 @@ public:
           allReal(onlyReal || !containsImagineryValues(eval, stateCount)) {
 
 #ifdef OPT5
-        for (int i = 0; i < stateCount; ) {
-            const REALTYPE imag = eval[stateCount + i];
-            if (isReal(imag)) {
-                realIdx.push_back(i);
-                ++i;
-            } else {
-                complexIdx.push_back(i);
-                i += 2;
+        // real-only eigensystems store only stateCount eigenvalues, and the indices are read only when !allReal
+        if (!allReal) {
+            for (int i = 0; i < stateCount; ) {
+                const REALTYPE imag = eval[stateCount + i];
+                if (isReal(imag)) {
+                    realIdx.push_back(i);
+                    ++i;
+                } else {
+                    complexIdx.push_back(i);
+                    i += 2;
+                }
             }
         }
 #endif
