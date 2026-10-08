@@ -7,11 +7,13 @@ the GPU does:
     interrupt handler decodes them all (and leaves SCRATCH_REG6 1);
   - dirty: the full boot after an unclean fini: an SMU mode1 reset, then the whole boot again.
 Each session also creates the queues, signals and buffers AMDDevice.__init__ creates, and the handoff's pool and staging.
+The card is FAKE_AMD_CHIP's (fake_am_gpu.py; TODO.md plan step N11 runs it for each family).
     coverage() -> {"used": [...], "absent": [...], "sessions": [(label, fake's verdict, counts)]}"""
 import os, sys, json, struct, socket, tempfile, threading, contextlib, io
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 import fake_amd_device as fad
+import fake_am_gpu as amg
 import amd_daemon_session as ds
 
 def inject_faults(am):
@@ -22,7 +24,7 @@ def inject_faults(am):
     wptr = am.R["regIH_RB_WPTR"].decode(am.r.get(a("regIH_RB_WPTR"), 0))["offset"]
     am.vram_write(base + wptr * 4, sq + utcl2)
     am.r[a("regIH_RB_WPTR")] = (wptr + 16) << 2
-    am.r[a("regGCVM_L2_PROTECTION_FAULT_STATUS")] = 0x00340001
+    am.r[a(f"regGCVM_L2_PROTECTION_FAULT_STATUS{'_LO32' if amg.IPV['GC_HWIP'] >= (12, 0, 0) else ''}")] = 0x00340001   # pf_status_reg (ip.py:87)
     am.r[a("regGCVM_L2_PROTECTION_FAULT_ADDR_LO32")] = 0x2000_1234
     am.r[a("regGCVM_L2_PROTECTION_FAULT_ADDR_HI32")] = 0x2
     f = am.R["regBIF_BX0_BIF_DOORBELL_INT_CNTL"].fields

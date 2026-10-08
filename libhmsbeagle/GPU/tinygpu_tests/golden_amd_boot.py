@@ -12,19 +12,27 @@ registers, and print the same results or error. A state before a case comes from
     (destroyed and re-created); the same, and the same refusal, as dirty;
   - power: AM_POWER_LIMIT=200, the power limit and every clock's whole range.
 Then (A2g) the daemon's whole session against the C++ one (TinyGPUAMDDevice.h), cold and warm, at two pool sizes, and
-(A2k) once more with the exit's fini run by an AMDev restored from the boot's fini state, as the crash guard runs it. No GPU,
-no TinyGPU.app and no network.
-    python golden_amd_boot.py"""
+(A2k) once more with the exit's fini run by an AMDev restored from the boot's fini state, as the crash guard runs it. The
+card is FAKE_AMD_CHIP's (fake_am_gpu.py): the RX 7900 XT by default, the RX 9070 XT with gfx1201 (TODO.md plan step N12).
+Then (N12) the boot told the other chip's arch (AMBootOptions.chip, as the plugin passes it): refused before init_sw, its
+requests a prefix of tinygrad's with no write but LNKCTL and the discovery's index registers; AM_GMC.get_pte_flags and
+is_pte_huge_page for every level, table or leaf, fragment, uncached, system, snooped and valid combination against
+tinygrad's, on the card's discovery table; and that table with its GC version changed refused. No GPU, no TinyGPU.app and
+no network.
+    [FAKE_AMD_CHIP=gfx1201] python golden_amd_boot.py"""
 import os, sys, json, struct, socket, hashlib, tempfile, threading, subprocess, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
+import ctypes
 import fake_amd_device as fad
 import amd_boot_coverage as cov
-from tinygrad.runtime.autogen.am import fw
+from tinygrad.runtime.autogen.am import am, fw
 
 HERE, WORK = tgpaths.HERE, tgpaths.WORK / "a2_boot"
-FW_NAMES = ("psp_13_0_0_sos.bin", "smu_13_0_0.bin", "sdma_6_0_0.bin", "gc_11_0_0_mec.bin", "gc_11_0_0_imu.bin", "gc_11_0_0_rlc.bin")
+FW_NAMES = {"gfx1100": ("psp_13_0_0_sos.bin", "smu_13_0_0.bin", "sdma_6_0_0.bin", "gc_11_0_0_mec.bin", "gc_11_0_0_imu.bin", "gc_11_0_0_rlc.bin"),
+            "gfx1201": ("psp_14_0_3_sos.bin", "smu_14_0_3.bin", "sdma_7_0_1.bin", "gc_12_0_1_pfp.bin", "gc_12_0_1_me.bin", "gc_12_0_1_mec.bin",
+                        "gc_12_0_1_imu.bin", "gc_12_0_1_rlc.bin")}[fad.amg.CHIP]   # the fake card's (FAKE_AMD_CHIP; TODO.md plan step N12)
 LINUX_FIRMWARE = "https://gitlab.com/kernel-firmware/linux-firmware/-/raw/0a6871b19abf5d6e024b5d208b101ae53e7fa0de"   # helpers.fetch_fw's pin
 CMD = {1: "MAP_BAR", 2: "MAP_SYSMEM_FD", 3: "CFG_READ", 4: "CFG_WRITE", 6: "MMIO_READ", 7: "MMIO_WRITE", 11: "RESIZE_BAR"}
 
@@ -123,6 +131,51 @@ def blobs_file(work):
     open(p, "w").write("\n".join(lines) + "\n")
     return p
 
+def other_ip_set(table):
+    """The discovery table with its GC IP's minor version one higher: an IP set no am::kChips entry has."""
+    b = bytearray(table)
+    bhdr = am.struct_binary_header.from_buffer(b)
+    ihdr = am.struct_ip_discovery_header.from_buffer(b, bhdr.table_list[am.IP_DISCOVERY].offset)
+    for d in range(ihdr.num_dies):
+        off = ihdr.die_info[d].die_offset
+        ip_off = off + ctypes.sizeof(am.struct_die_header)
+        for _ in range(am.struct_die_header.from_buffer(b, off).num_ips):
+            ip = am.struct_ip_v4.from_buffer(b, ip_off)
+            if ip.hw_id == am.hw_id_map[am.GC_HWIP]: ip.minor += 1
+            ip_off += 8 + (8 if ihdr.base_addr_64_bit else 4) * ip.num_base_address
+    return bytes(b)
+
+def pte_flags(exe, work):
+    """N12: the C++ AM_GMC.get_pte_flags and is_pte_huge_page against tinygrad's (ip.py:175-192) for every combination, on the
+    card's discovery table; and an unlisted IP set refused."""
+    import types
+    from tinygrad.runtime.support.am.ip import AM_GMC
+    from tinygrad.runtime.support.amd import import_soc
+    table, meta = fad.amg.card()
+    ver = fad.amg.IPV["GC_HWIP"]
+    gmc = object.__new__(AM_GMC)
+    gmc.adev = types.SimpleNamespace(ip_ver={am.GC_HWIP: ver}, soc=types.SimpleNamespace(module=import_soc(ver)))
+    want = []
+    for lv in range(4):
+        for tbl in (0, 1):
+            for frag in range(32):
+                for bits in range(16):
+                    u, sy, sn, v = bits >> 3 & 1, bits >> 2 & 1, bits >> 1 & 1, bits & 1
+                    f = gmc.get_pte_flags(lv, bool(tbl), frag, bool(u), bool(sy), bool(sn), bool(v))
+                    want.append(f"{lv} {tbl} {frag} {u} {sy} {sn} {v} -> {f:#x} {int(bool(gmc.is_pte_huge_page(lv, f)))}")
+    p = os.path.join(work, "table.bin")
+    open(p, "wb").write(table)
+    got = subprocess.run([str(exe), "--pte-flags", p], capture_output=True, text=True).stdout.splitlines()
+    d = first_diff(want, got)
+    print(f"get_pte_flags and is_pte_huge_page, {len(want)} combinations (GC {'.'.join(map(str, ver))}): " +
+          ("IDENTICAL" if d is None else f"MISMATCH at #{d}: tinygrad {want[d] if d < len(want) else '(none)'}, c++ {got[d] if d < len(got) else '(none)'}"), flush=True)
+    open(p, "wb").write(other_ip_set(table))
+    got_bad = subprocess.run([str(exe), "--pte-flags", p], capture_output=True, text=True).stdout.splitlines()
+    gc = f"GC {ver[0]}.{ver[1] + 1}.{ver[2]}"
+    refused = len(got_bad) == 1 and got_bad[0].startswith("error RuntimeError: the C++ AM boot is for the IP versions") and gc in got_bad[0]
+    print(f"an unlisted IP set ({gc}): {'REFUSED' if refused else 'MISMATCH'}: {got_bad[:1]}", flush=True)
+    return d is None and refused
+
 def main():
     WORK.mkdir(parents=True, exist_ok=True)
     work = tempfile.mkdtemp(dir=WORK)
@@ -202,7 +255,21 @@ def main():
         if why and err_c.strip(): print("  c++ stderr:", err_c.strip()[-800:])
         ok &= not why
         for card in (a, b): card.srv.close()
-    print("A2c-A2g AMDev boot, AMDDevice and the handoff, C++ against tinygrad:", "PASS" if ok else "FAIL")
+    # N12: told another chip than the card's IP versions say: refused before init_sw (after the discovery, as any IP set)
+    other = {"gfx1100": "gfx1201", "gfx1201": "gfx1100"}[fad.amg.CHIP]
+    a, b = Card(work, "cold"), Card(work, "cold")
+    out_py, rec_py, _ = run(a, py(a.path), env_for(a))
+    out_c, rec_c, _ = run(b, cpp(["--chip", other]), env_for(b))
+    hdr = lambda r: struct.unpack("<BIIQQQ", r) if len(r) == 33 else (None,) * 6
+    writes = [hdr(r) for r in rec_c if hdr(r)[0] in (4, 7)]   # CFG_WRITE, MMIO_WRITE
+    only = all(h[0] == 4 or (h[2] == 5 and h[3] in (0x0, 0x18)) for h in writes)   # LNKCTL; the index registers (BAR5 dwords 0x00, 0x06)
+    refused = len(out_c) == 1 and out_c[0].startswith("error RuntimeError: the C++ AM boot is for the IP versions") and f"says {other}" in out_c[0]
+    print(f"the boot told {other} on the {fad.amg.CHIP} card: {'REFUSED before init_sw' if refused and only and rec_c == rec_py[:len(rec_c)] else 'MISMATCH'}: "
+          f"{out_c[:1]}; {sum(1 for r in rec_c if len(r) == 33)} requests, tinygrad's first, {len(writes)} writes", flush=True)
+    ok &= refused and only and rec_c == rec_py[:len(rec_c)] and a.verdict() == b.verdict() == "NO ERRORS"
+    for card in (a, b): card.srv.close()
+    ok &= pte_flags(exe, work)
+    print(f"A2c-A2g AMDev boot, AMDDevice and the handoff, C++ against tinygrad ({fad.amg.CHIP}):", "PASS" if ok else "FAIL")
     sys.exit(0 if ok else 1)
 
 if __name__ == "__main__":

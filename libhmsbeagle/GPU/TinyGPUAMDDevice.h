@@ -109,18 +109,22 @@ inline AMQueueDesc am_create_queue(AMDev& adev, bool sdma, uint64_t ring_size, u
     return q;
 }
 
-// PCIIface._compute_props (ops_amd.py:910-925) on this card's gc_info (v1), then AMDDevice.__init__'s counts (:1003-1012)
+// PCIIface._compute_props (ops_amd.py:910-925) on the card's gc_info (v1: the RX 7900 XT's v1.2, the RX 9070 XT's v1.3, whose
+// fields of the same names it reads), then AMDDevice.__init__'s counts (:1003-1012)
 inline void am_props(AMDev& adev, AMDDeviceState& d) {
-    const auto* gi = (const am::struct_gc_info_v1_2*)adev.gc_info.data();
-    const uint32_t cu_per_sa = 2 * (gi->gc_num_wgp0_per_sa + gi->gc_num_wgp1_per_sa), max_sh_per_se = gi->gc_num_sa_per_se;
-    const uint32_t xccs = (uint32_t)adev.gfx->xccs, array_count = max_sh_per_se * gi->gc_num_se * xccs;
-    const uint32_t simd_count = 2 * cu_per_sa * array_count, simd_per_cu = 2;
-    d.target_major = (uint32_t)adev.ip_ver.at(GC)[0];
-    d.xccs = xccs;
-    d.se_cnt = array_count / max_sh_per_se / xccs;
-    d.cu_cnt = simd_count / simd_per_cu / xccs;
-    d.max_slots_scratch_cu = gi->gc_max_scratch_slots_per_cu;
-    d.lds_size_in_kb = gi->gc_lds_size;
+    auto props = [&](const auto* gi) {
+        const uint32_t cu_per_sa = 2 * (gi->gc_num_wgp0_per_sa + gi->gc_num_wgp1_per_sa), max_sh_per_se = gi->gc_num_sa_per_se;
+        const uint32_t xccs = (uint32_t)adev.gfx->xccs, array_count = max_sh_per_se * gi->gc_num_se * xccs;
+        const uint32_t simd_count = 2 * cu_per_sa * array_count, simd_per_cu = 2;
+        d.target_major = (uint32_t)adev.ip_ver.at(GC)[0];
+        d.xccs = xccs;
+        d.se_cnt = array_count / max_sh_per_se / xccs;
+        d.cu_cnt = simd_count / simd_per_cu / xccs;
+        d.max_slots_scratch_cu = gi->gc_max_scratch_slots_per_cu;
+        d.lds_size_in_kb = gi->gc_lds_size;
+    };
+    if (((const am::struct_gc_info_v1_0*)adev.gc_info.data())->header.version_minor == 3) props((const am::struct_gc_info_v1_3*)adev.gc_info.data());
+    else props((const am::struct_gc_info_v1_2*)adev.gc_info.data());   // parse_discovery keeps v1.2 or v1.3 only
 }
 
 // AMDDevice.__init__ after PCIIface's boot (ops_amd.py:1000-1084), its allocations in tinygrad's order

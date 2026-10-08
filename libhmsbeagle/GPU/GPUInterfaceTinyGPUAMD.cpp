@@ -441,7 +441,9 @@ static AMDState* amdCppBootSetup(const std::string& variant, const char* chip) {
     TG_STATUS("TinyGPU/AMD: the C++ boot...\n");
     fflush(stderr);
     err.clear();
-    try { g->adev = std::make_unique<amboot::AMDev>(tg, loader); }
+    amboot::AMBootOptions opts;
+    opts.chip = chip;   // the boot's discovered IP versions must be this chip's (TODO.md plan step N12)
+    try { g->adev = std::make_unique<amboot::AMDev>(tg, loader, opts); }
     catch (const TGPyError& e) { err = e.py(); }
     catch (const am::AMRegError& e) { err = e.what(); }
     if (!err.empty()) {   // no queue was set up: the guard may close

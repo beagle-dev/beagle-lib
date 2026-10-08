@@ -1,12 +1,14 @@
 /*
  * TinyGPUAMDBoot.h -- TODO.md plan step A2c-A2f: tinygrad's AM driver (tinygrad/runtime/support/am/amdev.py and ip.py at
  * a9830e2b4) in C++, ported statement by statement, so that the plugin boots the AMD GPU with no Python. Only the branches
- * the RX 7900 XT takes are ported (GC 11.0.0, MP0 and MP1 13.0.0, SDMA 6.0.0, NBIO 4.3.0, MMHUB 3.0.0, OSSSYS 6.0.0, HDP
- * 6.0.0; TinyGPUAMDBootTables.h is generated for them): another IP set, a VF and a hive are refused before the boot proper,
- * after only the PCIe link-control write and the discovery reads tinygrad makes first (the plugin refuses a card whose PCI
- * device ID am::kChips lacks before sending it anything, TODO.md plan step N1). Each part is golden-tested against the
- * code it ports on fake_amd_device.py's card (tinygpu_tests/golden_amd_boot.py): the same requests to TinyGPU.app, byte for
- * byte, the same VRAM, the same results and errors.
+ * the cards of am::kChips take are ported: the RX 7900 XT (GC 11.0.0, MP0 and MP1 13.0.0, SDMA 6.0.0, NBIO 4.3.0, MMHUB
+ * 3.0.0, OSSSYS 6.0.0, HDP 6.0.0) and, since TODO.md plan step N12, the RX 9070 XT (GC 12.0.1, MP0 and MP1 14.0.3, SDMA
+ * 7.0.1, NBIF 6.3.1, MMHUB 4.1.0, OSSSYS 7.0.0, HDP 7.0.0), each gfx12 branch next to its gfx11 line; TinyGPUAMDBootTables.h
+ * is generated for them, one register family each (plan step N11). Another IP set, a VF and a hive are refused before the
+ * boot proper, after only the PCIe link-control write and the discovery reads tinygrad makes first (the plugin refuses a
+ * card whose PCI device ID am::kChips lacks before sending it anything, TODO.md plan step N1). Each part is golden-tested
+ * against the code it ports on fake_amd_device.py's cards (tinygpu_tests/golden_amd_boot.py, FAKE_AMD_CHIP): the same
+ * requests to TinyGPU.app, byte for byte, the same VRAM, the same results and errors.
  *
  * Requests: every read and write tinygrad makes, in its order, reads included (a page-table entry is one 8-byte BAR0 read
  * each time tinygrad indexes it, an IH entry is eight 4-byte reads); registers past BAR5 go through the RSMU window, as
@@ -20,7 +22,7 @@
  *   - for the crash guard (plan step A2k): fini_state() and the AMDev it restores, which can only finalize, and whether
  *     fini saw every queue off (queues_off: each active compute queue's dequeue seen through).
  * Not ported: the VF mailbox and RLC gateway, hives and XGMI, the USB path, recover() (the plugin's runtime stops on a
- * fault instead), PMC/SQTT and the ACA bank dump (smu_13_0_0 has no PPSMC_MSG_QueryValidMcaCount).
+ * fault instead), PMC/SQTT and the ACA bank dump (neither smu_13_0_0 nor smu_14_0_2 has PPSMC_MSG_QueryValidMcaCount).
  */
 
 #ifndef LIBHMSBEAGLE_GPU_TINYGPUAMDBOOT_H
@@ -28,6 +30,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -114,33 +117,44 @@ public:
                 sos_fw[d->fw_type] = std::vector<uint8_t>(blob.begin() + start, blob.begin() + start + d->size_bytes);
             }
         }
-        // SMU firmware: GC >= 11
+        // SMU firmware: GC >= 11, a v2.1 (smu_13_0_0) or v2.0 (smu_14_0_3) header, each opening with v1_0
         {
             const std::vector<uint8_t>& blob = load_fw("smu_" + fmt_ver(MP1) + ".bin", load);
             const auto* chdr = (const am::struct_common_firmware_header*)blob.data();
-            need(chdr->header_version_major == 2 && chdr->header_version_minor == 1, "smc header v2.1");
-            const auto* hdr = (const am::struct_smc_firmware_header_v2_1*)blob.data();
-            smu_psp_desc = desc(blob, hdr->v1_0.header.ucode_array_offset_bytes, hdr->v1_0.header.ucode_size_bytes, {am::GFX_FW_TYPE_SMU});
+            need(chdr->header_version_major == 2 && (chdr->header_version_minor == 0 || chdr->header_version_minor == 1), "smc header v2.0 or v2.1");
+            const am::struct_smc_firmware_header_v1_0& v1_0 = chdr->header_version_minor == 0 ? ((const am::struct_smc_firmware_header_v2_0*)blob.data())->v1_0
+                                                                                            : ((const am::struct_smc_firmware_header_v2_1*)blob.data())->v1_0;
+            smu_psp_desc = desc(blob, v1_0.header.ucode_array_offset_bytes, v1_0.header.ucode_size_bytes, {am::GFX_FW_TYPE_SMU});
             has_smu_psp_desc = true;
         }
-        // SDMA firmware: header v2
+        // SDMA firmware: header v2 (sdma_6_0_0), else v3 (sdma_7_0_1)
         {
             const std::vector<uint8_t>& blob = load_fw("sdma_" + fmt_ver(SDMA0) + ".bin", load);
             const auto* chdr = (const am::struct_common_firmware_header*)blob.data();
-            need(chdr->header_version_major == 2 && chdr->header_version_minor == 0, "sdma header v2.0");
-            const auto* hdr = (const am::struct_sdma_firmware_header_v2_0*)blob.data();
-            descs.push_back(desc(blob, hdr->ctl_ucode_offset, hdr->ctl_ucode_size_bytes, {am::GFX_FW_TYPE_SDMA_UCODE_TH1}));
-            descs.push_back(desc(blob, hdr->header.ucode_array_offset_bytes, hdr->ctx_ucode_size_bytes, {am::GFX_FW_TYPE_SDMA_UCODE_TH0}));
+            need(chdr->header_version_minor == 0 && (chdr->header_version_major == 2 || chdr->header_version_major == 3), "sdma header v2.0 or v3.0");
+            if (chdr->header_version_major == 2) {
+                const auto* hdr = (const am::struct_sdma_firmware_header_v2_0*)blob.data();
+                descs.push_back(desc(blob, hdr->ctl_ucode_offset, hdr->ctl_ucode_size_bytes, {am::GFX_FW_TYPE_SDMA_UCODE_TH1}));
+                descs.push_back(desc(blob, hdr->header.ucode_array_offset_bytes, hdr->ctx_ucode_size_bytes, {am::GFX_FW_TYPE_SDMA_UCODE_TH0}));
+            } else {
+                const auto* hdr = (const am::struct_sdma_firmware_header_v3_0*)blob.data();
+                descs.push_back(desc(blob, hdr->header.ucode_array_offset_bytes, hdr->ucode_size_bytes, {am::GFX_FW_TYPE_SDMA_UCODE_TH0}));
+            }
         }
-        // PFP, ME, MEC firmware: GC < 12, so MEC only, an RS64 (v2) header
-        {
-            const std::vector<uint8_t>& blob = load_fw("gc_" + fmt_ver(GC) + "_mec.bin", load);
+        // PFP, ME, MEC firmware: PFP and ME too from GC 12; an RS64 (v2) header each
+        struct GfxFw { const char* name; const char* file; uint32_t code, stack; };
+        static const GfxFw pfp_me_mec[] = {{"PFP", "pfp", am::GFX_FW_TYPE_RS64_PFP, am::GFX_FW_TYPE_RS64_PFP_P0_STACK},
+                                           {"ME", "me", am::GFX_FW_TYPE_RS64_ME, am::GFX_FW_TYPE_RS64_ME_P0_STACK},
+                                           {"MEC", "mec", am::GFX_FW_TYPE_RS64_MEC, am::GFX_FW_TYPE_RS64_MEC_P0_STACK}};
+        for (const GfxFw& g : pfp_me_mec) {
+            if (ip_ver.at(GC) < Ver{12, 0, 0} && std::string(g.name) != "MEC") continue;
+            const std::vector<uint8_t>& blob = load_fw("gc_" + fmt_ver(GC) + "_" + g.file + ".bin", load);
             const auto* chdr = (const am::struct_common_firmware_header*)blob.data();
             need(chdr->header_version_major == 2 && chdr->header_version_minor == 0, "gfx header v2.0");
             const auto* hdr = (const am::struct_gfx_firmware_header_v2_0*)blob.data();
-            descs.push_back(desc(blob, hdr->header.ucode_array_offset_bytes, hdr->ucode_size_bytes, {am::GFX_FW_TYPE_RS64_MEC}));
-            descs.push_back(desc(blob, hdr->data_offset_bytes, hdr->data_size_bytes, {am::GFX_FW_TYPE_RS64_MEC_P0_STACK}));
-            ucode_start["MEC"] = hdr->ucode_start_addr_lo | ((uint64_t)hdr->ucode_start_addr_hi << 32);
+            descs.push_back(desc(blob, hdr->header.ucode_array_offset_bytes, hdr->ucode_size_bytes, {g.code}));
+            descs.push_back(desc(blob, hdr->data_offset_bytes, hdr->data_size_bytes, {g.stack}));   // fw_cnt 1: P0's stack
+            ucode_start[g.name] = hdr->ucode_start_addr_lo | ((uint64_t)hdr->ucode_start_addr_hi << 32);
         }
         // IMU firmware: GC >= 11
         {
@@ -229,7 +243,7 @@ struct AM_SOC : AM_IP {
     using AM_IP::AM_IP;
     const char* name() const override { return "AM_SOC"; }
     std::vector<uint32_t> gfx_ih_clients;
-    void init_sw() override { gfx_ih_clients = {am::SOC21_IH_CLIENTID_GRBM_CP, am::SOC21_IH_CLIENTID_GFX}; }
+    void init_sw() override { gfx_ih_clients = {am::SOC21_IH_CLIENTID_GRBM_CP, am::SOC21_IH_CLIENTID_GFX}; }   // GC >= 11
     void init_hw() override;
     void set_clockgating_state() override;
     void doorbell_enable(int port, uint64_t awid = 0, uint64_t awaddr_31_28_value = 0, uint64_t offset = 0, uint64_t size = 0);
@@ -247,13 +261,13 @@ struct AM_GMC : AM_IP {
     std::vector<int> mm_insts;
     void init_sw() override;
     void init_hw() override { init_hub("MM", mm_insts); }
-    std::string pf_status_reg(const std::string& ip) const { return "reg" + ip + "VM_L2_PROTECTION_FAULT_STATUS"; }
+    std::string pf_status_reg(const std::string& ip) const;
     void flush_hdp();
     void flush_tlb(const std::string& ip, int vmid, uint64_t flush_type = 0);
     void enable_vm_addressing(const AMPageTableEntry& page_table, const std::string& ip, int vmid, int inst);
     void init_hub(const std::string& ip, const std::vector<int>& insts);
     uint64_t get_pte_flags(int pte_lv, bool is_table, int64_t frag, bool uncached, bool system, bool snooped, bool valid, uint64_t extra = 0) const;
-    bool is_pte_huge_page(int, uint64_t pte) const { return (pte & am::AMDGPU_PDE_PTE) != 0; }
+    bool is_pte_huge_page(int pte_lv, uint64_t pte) const;
 };
 
 struct AM_SMU : AM_IP {
@@ -287,6 +301,7 @@ struct AM_GFX : AM_IP {
     void set_clockgating_state() override;
     void grbm_select(uint64_t me = 0, uint64_t pipe = 0, uint64_t queue = 0, uint64_t vmid = 0, int inst = 0);
     void enable_mec();
+    void config_helper(const char* eng_name, const char* cntl_reg, const char* eng_reg, int pipe_cnt, uint64_t me, int xcc);
     void config_mec();
     void dequeue_hqds();
 };
@@ -309,7 +324,7 @@ struct AM_SDMA : AM_IP {
     const char* name() const override { return "AM_SDMA"; }
     std::vector<std::pair<std::string, int>> sdma_reginst;
     std::string sdma_name;
-    void init_sw() override { sdma_reginst.clear(); sdma_name = "F32"; }   // SDMA < 7.0.0
+    void init_sw() override;
     void init_hw() override;
     void fini_hw() override;
     uint64_t setup_ring(uint64_t ring_addr, uint64_t ring_size, uint64_t rptr_addr, uint64_t wptr_addr, int idx);
@@ -340,6 +355,7 @@ struct AM_PSP : AM_IP {
 // ── AMDev (amdev.py:146-415) ──────────────────────────────────────────────────────────────────────────────────────────
 struct AMBootOptions {
     bool refuse_mode1 = true;   // stop where tinygrad would send the SMU's mode1 reset (plan step A0's rule)
+    const char* chip = nullptr; // the card's arch, from its PCI device ID (am::kChips): the IP versions it discovers must be that chip's
 };
 
 // What fini() reads that the boot found (TODO.md plan step A2k): the crash guard (tinygpu_guard.cpp) rebuilds from it an
@@ -370,6 +386,7 @@ public:
     std::vector<uint8_t> gc_info;   // the versioned gc_info struct's bytes
     uint64_t reserved_vram_size = 0;
     std::vector<int> aids;
+    const am::regs::Family* family = nullptr;   // the register family build_regs chose from the discovered IP versions (plan step N11)
     bool is_booting = false, smi_dev = false, is_err_state = false, partial_boot = false;
     bool queues_off = false;   // BEAGLE's (plan step A2k): fini() saw every queue off (the crash guard's hold rule)
     std::unique_ptr<AMMemoryManager> mm;
@@ -394,7 +411,11 @@ public:
     void fini();
 
     am::AMRegister<AMDev> reg(const std::string& name) { return am::AMRegister<AMDev>(this, name.c_str()); }
-    bool has_reg(const std::string& name) const { return am::has_reg(name.c_str()); }
+    bool has_reg(const std::string& name) const { return am::has_reg(regs(), name.c_str()); }
+    const am::regs::Family& regs() const {   // what _build_regs bound (self.__dict__'s registers)
+        if (!family) throw am::AMRegError("a register before build_regs bound the card's");
+        return *family;
+    }
     uint32_t base(int hwip, int inst, int seg) const {   // AMDReg's bases[inst][segment]
         auto h = regs_offset.find(hwip);
         if (h == regs_offset.end()) throw am::AMRegError("no discovered bases for IP " + std::to_string(hwip));
@@ -608,26 +629,41 @@ inline void AMDev::parse_discovery() {   // the rest of _run_discovery, on bhdr 
             }
     }
     const auto* gc = (const am::struct_gc_info_v1_0*)at(b->table_list[am::GC].offset, sizeof(am::struct_gc_info_v1_0));
-    if (gc->header.version_major != 1 || gc->header.version_minor != 2)
+    const size_t gc_size = gc->header.version_major != 1 ? 0 : gc->header.version_minor == 2 ? sizeof(am::struct_gc_info_v1_2)
+                         : gc->header.version_minor == 3 ? sizeof(am::struct_gc_info_v1_3) : 0;
+    if (!gc_size)
         throw TGPyError("RuntimeError", "gc_info v" + std::to_string(gc->header.version_major) + "." + std::to_string(gc->header.version_minor) +
-                        ": the C++ boot has this card's v1.2 only");
-    gc_info.assign(at(b->table_list[am::GC].offset, sizeof(am::struct_gc_info_v1_2)),
-                   at(b->table_list[am::GC].offset, sizeof(am::struct_gc_info_v1_2)) + sizeof(am::struct_gc_info_v1_2));
+                        ": the C++ boot has the RX 7900 XT's v1.2 and the RX 9070 XT's v1.3 only");
+    gc_info.assign(at(b->table_list[am::GC].offset, gc_size), at(b->table_list[am::GC].offset, gc_size) + gc_size);
     reserved_vram_size = 64 << 20;   // not gc 9.4/9.5
 }
 
 inline void AMDev::build_regs() {
-    // the register tables are generated for this card's IP versions: anything else is refused here, before a write
-    struct { int hwip; const uint8_t* v; const char* name; } want[] = {
-        {GC, am::kIP_GC_HWIP, "GC"}, {MP0, am::kIP_MP0_HWIP, "MP0"}, {MP1, am::kIP_MP1_HWIP, "MP1"}, {SDMA0, am::kIP_SDMA0_HWIP, "SDMA0"},
-        {NBIO, am::kIP_NBIO_HWIP, "NBIO"}, {MMHUB, am::kIP_MMHUB_HWIP, "MMHUB"}, {OSSSYS, am::kIP_OSSSYS_HWIP, "OSSSYS"}, {HDP, am::kIP_HDP_HWIP, "HDP"}};
-    for (auto& w : want) {
-        auto it = ip_ver.find(w.hwip);
-        Ver v = it == ip_ver.end() ? Ver{-1, -1, -1} : it->second;
-        if (v != Ver{w.v[0], w.v[1], w.v[2]})
-            throw TGPyError("RuntimeError", std::string("the C++ AM boot is for the RX 7900 XT's IP versions; this card's ") + w.name + " is " +
-                            std::to_string(v[0]) + "." + std::to_string(v[1]) + "." + std::to_string(v[2]));
+    // the register tables are generated for the IP versions of am::kChips' cards: a card whose discovered versions are no entry's
+    // (or another chip's than the one its PCI device ID named) is refused here, before a write. The choice uses the discovery
+    // alone, as the crash guard rebuilds this from the boot's saved discovery bytes (plan step N12).
+    auto found = [&](const am::Chip& c) {
+        for (size_t i = 0; i < 8; ++i) {
+            auto it = ip_ver.find((int)am::kChipIP[i]);
+            if (it == ip_ver.end() || it->second != Ver{c.ip[i][0], c.ip[i][1], c.ip[i][2]}) return false;
+        }
+        return true;
+    };
+    const am::Chip* chip = nullptr;
+    for (const am::Chip& c : am::kChips)
+        if (found(c) && (!opts.chip || strcmp(opts.chip, c.arch) == 0)) { chip = &c; break; }
+    if (!chip) {
+        std::string ips;
+        static const char* const ip_names[] = {"GC", "MP0", "MP1", "SDMA0", "NBIO", "MMHUB", "OSSSYS", "HDP"};
+        for (size_t i = 0; i < 8; ++i) {
+            auto it = ip_ver.find((int)am::kChipIP[i]);
+            Ver v = it == ip_ver.end() ? Ver{-1, -1, -1} : it->second;
+            ips += std::string(i ? ", " : "") + ip_names[i] + " " + std::to_string(v[0]) + "." + std::to_string(v[1]) + "." + std::to_string(v[2]);
+        }
+        throw TGPyError("RuntimeError", std::string("the C++ AM boot is for the IP versions of the RX 7900 XT and the RX 9070 XT") +
+                        (opts.chip ? std::string(" (this card's PCI device ID says ") + opts.chip + ")" : "") + "; this card's are " + ips);
     }
+    family = &am::regs::kFamilies[chip->family];
     // Live AIDs like the kernel: 4 SDMAs per AID; the AID lives iff its group's alive-mask is 0xf/0x3/0xc.
     std::set<int> live_sdma;
     int max_aid = 0;
@@ -795,7 +831,8 @@ inline const char* AM_SOC::ih_src_name(uint32_t client, uint32_t src) const {
     bool gfx = false;
     for (uint32_t c : gfx_ih_clients) gfx |= c == client;
     if (!gfx) return "";
-    for (const amdt::IHName& s : amdt::IH_GFX11_SRCS) if (s.id == src) return s.name;
+    if (adev.ip_ver.at(GC)[0] == 12) { for (const amdt::IHName& s : amdt::IH_GFX12_SRCS) if (s.id == src) return s.name; }   // _ih_srcs('GFX', GC_HWIP)
+    else for (const amdt::IHName& s : amdt::IH_GFX11_SRCS) if (s.id == src) return s.name;
     return "";
 }
 inline void AM_SOC::init_hw() {
@@ -807,7 +844,7 @@ inline void AM_SOC::set_clockgating_state() {   // HDP >= 5.2.1
 }
 inline void AM_SOC::doorbell_enable(int port, uint64_t awid, uint64_t awaddr_31_28_value, uint64_t offset, uint64_t size) {
     const std::string p = std::to_string(port);
-    auto reg = adev.reg("regS2A_DOORBELL_ENTRY_" + p + "_CTRL");   // GC < 12
+    auto reg = adev.reg(std::string(adev.ip_ver.at(GC) >= Ver{12, 0, 0} ? "regGDC_S2A0_S2A" : "regS2A") + "_DOORBELL_ENTRY_" + p + "_CTRL");
     const std::string f = "s2a_doorbell_port" + p;
     const std::string en = f + "_enable", aw = f + "_awid", rs = f + "_range_size", av = f + "_awaddr_31_28_value", ro = f + "_range_offset";
     uint64_t val = reg.encode({{en.c_str(), 1}, {aw.c_str(), awid}, {rs.c_str(), size}, {av.c_str(), awaddr_31_28_value}, {ro.c_str(), offset}});
@@ -836,6 +873,9 @@ inline void AM_GMC::init_sw() {
     hub_initted = {{"MM", true}, {"GC", false}};
     mm_insts.clear();
     for (int i = 0; i < vmhubs; ++i) mm_insts.push_back(i);   // not NBIO 7.9
+}
+inline std::string AM_GMC::pf_status_reg(const std::string& ip) const {
+    return "reg" + ip + "VM_L2_PROTECTION_FAULT_STATUS" + (adev.ip_ver.at(GC) >= Ver{12, 0, 0} ? "_LO32" : "");
 }
 inline void AM_GMC::flush_hdp() {
     adev.wreg(adev.reg("regBIF_BX0_REMAP_HDP_MEM_FLUSH_CNTL").read() / 4, 0x0);
@@ -894,7 +934,7 @@ inline void AM_GMC::init_hub(const std::string& ip, const std::vector<int>& inst
         adev.reg("reg" + ip + "VM_L2_PROTECTION_FAULT_CNTL2").update({{"active_page_migration_pte_read_retry", 1}}, inst);
         // Init TLB and cache
         adev.reg("reg" + ip + "MC_VM_MX_L1_TLB_CNTL").update({{"enable_l1_tlb", 1}, {"system_access_mode", 3}, {"enable_advanced_driver_model", 1},
-            {"system_aperture_unmapped_access", 0}, {"mtype", am::soc11::MTYPE_UC}}, inst);
+            {"system_aperture_unmapped_access", 0}, {"mtype", am::soc::MTYPE_UC}}, inst);
         adev.reg("reg" + ip + "VM_L2_CNTL").update({{"enable_l2_cache", 1}, {"enable_default_page_out_to_system_memory", 1},
             {"l2_pde0_cache_tag_generation_mode", 0}, {"pde_fault_classification", 0}, {"context1_identity_access_mode", 1},
             {"identity_mode_fragment_size", 0}, {"enable_l2_fragment_processing", 0}}, inst);   // GC >= 10
@@ -916,60 +956,68 @@ inline void AM_GMC::init_hub(const std::string& ip, const std::vector<int>& inst
 inline uint64_t AM_GMC::get_pte_flags(int pte_lv, bool is_table, int64_t frag, bool uncached, bool system, bool snooped, bool valid, uint64_t extra) const {
     extra |= (system ? am::AMDGPU_PTE_SYSTEM : 0) | (snooped ? am::AMDGPU_PTE_SNOOPED : 0) | (valid ? am::AMDGPU_PTE_VALID : 0) | (((uint64_t)frag & 0x1f) << 7);
     if (!is_table) extra |= am::AMDGPU_PTE_WRITEABLE | am::AMDGPU_PTE_READABLE | am::AMDGPU_PTE_EXECUTABLE;
-    extra |= (uint64_t)(uncached ? am::soc11::MTYPE_UC : 0) << 48;   // AMDGPU_PTE_MTYPE_NV10(0, mtype): GC >= 10, < 12
-    extra |= (!is_table && pte_lv != (int)am::AMDGPU_VM_PTB) ? am::AMDGPU_PDE_PTE : 0;
+    if (adev.ip_ver.at(GC) >= Ver{12, 0, 0}) {
+        extra |= (uint64_t)(uncached ? am::soc::MTYPE_UC : 0) << 54;   // AMDGPU_PTE_MTYPE_GFX12(0, mtype)
+        extra |= (!is_table && pte_lv != (int)am::AMDGPU_VM_PTB) ? am::AMDGPU_PDE_PTE_GFX12 : (!is_table ? am::AMDGPU_PTE_IS_PTE : 0);
+    } else {   // GC >= 10
+        extra |= (uint64_t)(uncached ? am::soc::MTYPE_UC : 0) << 48;   // AMDGPU_PTE_MTYPE_NV10(0, mtype)
+        extra |= (!is_table && pte_lv != (int)am::AMDGPU_VM_PTB) ? am::AMDGPU_PDE_PTE : 0;
+    }
     return extra;
+}
+inline bool AM_GMC::is_pte_huge_page(int, uint64_t pte) const {   // GC >= 10
+    return (pte & (adev.ip_ver.at(GC) >= Ver{12, 0, 0} ? am::AMDGPU_PDE_PTE_GFX12 : am::AMDGPU_PDE_PTE)) != 0;
 }
 
 // ── AM_SMU (ip.py:194-265) ────────────────────────────────────────────────────────────────────────────────────────────
 inline void AM_SMU::init_sw() { driver_table_paddr = adev.mm->palloc(0x4000, 0x1000, false, true); }
 inline void AM_SMU::init_hw() {
-    send_msg(am::smu13::PPSMC_MSG_SetDriverDramAddrHigh, hi32(adev.paddr2mc(driver_table_paddr)));
-    send_msg(am::smu13::PPSMC_MSG_SetDriverDramAddrLow, lo32(adev.paddr2mc(driver_table_paddr)));
-    send_msg(am::smu13::PPSMC_MSG_EnableAllSmuFeatures, 0);
+    send_msg(am::smu::PPSMC_MSG_SetDriverDramAddrHigh, hi32(adev.paddr2mc(driver_table_paddr)));
+    send_msg(am::smu::PPSMC_MSG_SetDriverDramAddrLow, lo32(adev.paddr2mc(driver_table_paddr)));
+    send_msg(am::smu::PPSMC_MSG_EnableAllSmuFeatures, 0);
 }
 inline bool AM_SMU::is_smu_alive() {
-    try { send_msg(am::smu13::PPSMC_MSG_GetSmuVersion, 0, false, 100); }
+    try { send_msg(am::smu::PPSMC_MSG_GetSmuVersion, 0, false, 100); }
     catch (const TGPyError& e) { if (e.type != "TimeoutError") throw; }
     return adev.reg("mmMP1_SMN_C2PMSG_90").read() != 0;
 }
 inline void AM_SMU::mode1_reset() {
     adev.log("mode1 reset");
-    send_msg(2, 0, false, 10000, true);   // __DEBUGSMC_MSG_Mode1Reset: MP0 13.0.0
+    send_msg(2, 0, false, 10000, true);   // __DEBUGSMC_MSG_Mode1Reset: MP0 >= 14 or 13.0.0
     sleep_s(0.5);   // not a hive: 500ms
 }
 inline const std::vector<std::pair<uint32_t, std::vector<uint64_t>>>& AM_SMU::read_clocks(const std::vector<uint32_t>& clk_list) {
     if (clocks_read) return clocks;   // functools.cache: one clk_list a process here
     for (uint32_t clck : clk_list) {
-        uint64_t cnt = send_msg(am::smu13::PPSMC_MSG_GetDpmFreqByIndex, ((uint64_t)clck << 16) | 0xff, true) & 0x7fffffff;
+        uint64_t cnt = send_msg(am::smu::PPSMC_MSG_GetDpmFreqByIndex, ((uint64_t)clck << 16) | 0xff, true) & 0x7fffffff;
         if (!cnt) continue;
         std::vector<uint64_t> v;
-        for (uint64_t i = 0; i < cnt; ++i) v.push_back(send_msg(am::smu13::PPSMC_MSG_GetDpmFreqByIndex, ((uint64_t)clck << 16) | i, true) & 0x7fffffff);
+        for (uint64_t i = 0; i < cnt; ++i) v.push_back(send_msg(am::smu::PPSMC_MSG_GetDpmFreqByIndex, ((uint64_t)clck << 16) | i, true) & 0x7fffffff);
         clocks.push_back({clck, v});
     }
     clocks_read = true;
     return clocks;
 }
 inline void AM_SMU::set_clocks(bool none, int level) {
-    std::vector<uint32_t> clks = {am::smu13::PPCLK_UCLK, am::smu13::PPCLK_FCLK, am::smu13::PPCLK_SOCCLK, am::smu13::PPCLK_GFXCLK};   // MP0 13.0.0: GFXCLK too
+    std::vector<uint32_t> clks = {am::smu::PPCLK_UCLK, am::smu::PPCLK_FCLK, am::smu::PPCLK_SOCCLK, am::smu::PPCLK_GFXCLK};   // MP0 13.0.0, 14.0.3: GFXCLK too
     if (none) {
         for (uint32_t clck : clks) {
-            try { send_msg(am::smu13::PPSMC_MSG_SetSoftMinByFreq, (uint64_t)clck << 16, false, 20); }
+            try { send_msg(am::smu::PPSMC_MSG_SetSoftMinByFreq, (uint64_t)clck << 16, false, 20); }
             catch (const TGPyError& e) { if (e.type != "TimeoutError") throw; }
-            send_msg(am::smu13::PPSMC_MSG_SetSoftMaxByFreq, ((uint64_t)clck << 16) | 0xffff);
+            send_msg(am::smu::PPSMC_MSG_SetSoftMaxByFreq, ((uint64_t)clck << 16) | 0xffff);
         }
         return;
     }
     for (const auto& [clck, vals] : read_clocks(clks)) {
         uint64_t v = vals[level < 0 ? vals.size() + level : (size_t)level];
-        try { send_msg(am::smu13::PPSMC_MSG_SetSoftMinByFreq, ((uint64_t)clck << 16) | v, false, 20); }
+        try { send_msg(am::smu::PPSMC_MSG_SetSoftMinByFreq, ((uint64_t)clck << 16) | v, false, 20); }
         catch (const TGPyError& e) { if (e.type != "TimeoutError") throw; }
-        send_msg(am::smu13::PPSMC_MSG_SetSoftMaxByFreq, ((uint64_t)clck << 16) | v);
+        send_msg(am::smu::PPSMC_MSG_SetSoftMaxByFreq, ((uint64_t)clck << 16) | v);
     }
 }
 inline void AM_SMU::set_power_limit(double watts) {
     uint64_t ppt_limit = std::max<int64_t>((int64_t)std::llround(watts), 1);
-    send_msg(am::smu13::PPSMC_MSG_SetPptLimit, ppt_limit);
+    send_msg(am::smu::PPSMC_MSG_SetPptLimit, ppt_limit);
     adev.log("GPU power limit set to " + std::to_string(ppt_limit) + "W");
 }
 inline uint64_t AM_SMU::send_msg(uint32_t msg, uint64_t param, bool read_back_arg, int64_t timeout, bool debug) {
@@ -1012,8 +1060,8 @@ inline void AM_GFX::init_hw() {
         adev.reg("regGRBM_CNTL").update({{"read_timeout", 0xff}}, xcc);
         for (int i = 0; i < 16; ++i) {
             grbm_select(0, 0, 0, (uint64_t)i, xcc);
-            adev.reg("regSH_MEM_CONFIG").write({{"initial_inst_prefetch", 3}, {"address_mode", am::soc11::SH_MEM_ADDRESS_MODE_64},
-                                                {"alignment_mode", am::soc11::SH_MEM_ALIGNMENT_MODE_UNALIGNED}}, xcc);
+            adev.reg("regSH_MEM_CONFIG").write({{"initial_inst_prefetch", 3}, {"address_mode", am::soc::SH_MEM_ADDRESS_MODE_64},
+                                                {"alignment_mode", am::soc::SH_MEM_ALIGNMENT_MODE_UNALIGNED}}, xcc);
             // Configure apertures:
             // LDS:         0x10000000'00000000 - 0x10000001'00000000 (4GB)
             // Scratch:     0x20000000'00000000 - 0x20000001'00000000 (4GB)
@@ -1028,9 +1076,11 @@ inline void AM_GFX::init_hw() {
 }
 inline void AM_GFX::reset_mec() {
     dequeue_hqds();
-    for (int xcc = 0; xcc < xccs; ++xcc) adev.reg("regGRBM_SOFT_RESET").write({{"soft_reset_cp", 1}, {"soft_reset_cpc", 1}}, xcc);   // GC < 12
-    sleep_s(0.05);
-    for (int xcc = 0; xcc < xccs; ++xcc) adev.reg("regGRBM_SOFT_RESET").write(0x0, {}, xcc);
+    if (adev.ip_ver.at(GC) < Ver{12, 0, 0}) {   // gfx12+ uses mec_pipe0_reset
+        for (int xcc = 0; xcc < xccs; ++xcc) adev.reg("regGRBM_SOFT_RESET").write({{"soft_reset_cp", 1}, {"soft_reset_cpc", 1}}, xcc);
+        sleep_s(0.05);
+        for (int xcc = 0; xcc < xccs; ++xcc) adev.reg("regGRBM_SOFT_RESET").write(0x0, {}, xcc);
+    }
     config_mec();
     enable_mec();
 }
@@ -1040,6 +1090,8 @@ inline uint64_t AM_GFX::setup_ring(uint64_t ring_addr, uint64_t ring_size, uint6
     const uint64_t doorbell = am::AMDGPU_NAVI10_DOORBELL_MEC_RING0;
     for (int xcc = 0; xcc < (aql ? xccs : 1); ++xcc) {
         grbm_select(1, (uint64_t)pipe, (uint64_t)queue, 0, xcc);
+        // struct_v{GC major}_compute_mqd: on GC 12 its v12 is written through v11, the same size with every field set here at
+        // the same offset (TinyGPUAMDBootTables.h's static_asserts, plan decision 7)
         am::struct_v11_compute_mqd m;
         memset(&m, 0, sizeof m);
         m.header = 0xC0310800;
@@ -1107,16 +1159,28 @@ inline void AM_GFX::enable_mec() {
         adev.reg("regCP_MEC_RS64_CNTL").update({{"mec_pipe0_reset", 0}, {"mec_pipe0_active", 1}, {"mec_halt", 0}}, xcc);   // GC >= 10
     sleep_s(0.05);   // Wait for MEC to be ready
 }
+inline void AM_GFX::config_helper(const char* eng_name, const char* cntl_reg, const char* eng_reg, int pipe_cnt, uint64_t me, int xcc) {
+    for (int pipe = 0; pipe < pipe_cnt; ++pipe) {
+        grbm_select(me, (uint64_t)pipe, 0, 0, xcc);
+        adev.wreg_pair(std::string("regCP_") + eng_reg + "_PRGRM_CNTR_START", "", "_HI", adev.fw->ucode_start.at(eng_name) >> 2, xcc);
+    }
+    grbm_select(0, 0, 0, 0, xcc);
+    std::string lower(eng_name);
+    for (char& c : lower) c = (char)tolower(c);
+    std::vector<std::string> fields;
+    for (int pipe = 0; pipe < pipe_cnt; ++pipe) fields.push_back(lower + "_pipe" + std::to_string(pipe) + "_reset");
+    std::vector<AMKV> on, off;
+    for (const std::string& f : fields) { on.push_back({f.c_str(), 1}); off.push_back({f.c_str(), 0}); }
+    adev.reg(std::string("regCP_") + cntl_reg + "_CNTL").update(on, xcc);
+    adev.reg(std::string("regCP_") + cntl_reg + "_CNTL").update(off, xcc);
+}
 inline void AM_GFX::config_mec() {
     for (int xcc = 0; xcc < adev.gfx->xccs; ++xcc) {
-        // _config_helper(eng_name="MEC", cntl_reg="MEC_RS64", eng_reg="MEC_RS64", pipe_cnt=1, me=1, xcc=xcc): GC >= 10, < 12
-        for (int pipe = 0; pipe < 1; ++pipe) {
-            grbm_select(1, (uint64_t)pipe, 0, 0, xcc);
-            adev.wreg_pair("regCP_MEC_RS64_PRGRM_CNTR_START", "", "_HI", adev.fw->ucode_start.at("MEC") >> 2, xcc);
+        if (adev.ip_ver.at(GC) >= Ver{12, 0, 0}) {
+            config_helper("PFP", "ME", "PFP", 1, 0, xcc);
+            config_helper("ME", "ME", "ME", 1, 0, xcc);
         }
-        grbm_select(0, 0, 0, 0, xcc);
-        adev.reg("regCP_MEC_RS64_CNTL").update({{"mec_pipe0_reset", 1}}, xcc);
-        adev.reg("regCP_MEC_RS64_CNTL").update({{"mec_pipe0_reset", 0}}, xcc);
+        config_helper("MEC", "MEC_RS64", "MEC_RS64", 1, 1, xcc);   // GC >= 10
     }
 }
 inline void AM_GFX::dequeue_hqds() {
@@ -1227,14 +1291,18 @@ inline void AM_IH::interrupt_handler() {
     uint64_t athub_err = bif["ras_athub_err_event_interrupt_status"], cntlr_err = bif["ras_cntlr_interrupt_status"];
     if (athub_err || cntlr_err) {
         adev.print(std::string("fatal hardware error detected: ") + (athub_err ? "RAS_ATHUB_ERR_EVENT " : "") + (cntlr_err ? "RAS_CNTLR" : ""));
-        // smu_13_0_0 has no PPSMC_MSG_QueryValidMcaCount: no ACA banks to read
-        static_assert(!am::smu13::has_PPSMC_MSG_QueryValidMcaCount, "the ACA bank dump is not ported");
+        // neither smu_13_0_0 nor smu_14_0_2 has PPSMC_MSG_QueryValidMcaCount: no ACA banks to read
+        static_assert(!am::smu::has_PPSMC_MSG_QueryValidMcaCount, "the ACA bank dump is not ported");
         adev.reg("regBIF_BX0_BIF_DOORBELL_INT_CNTL").write({{"ras_cntlr_interrupt_clear", cntlr_err}, {"ras_athub_err_event_interrupt_clear", athub_err}});
         adev.is_err_state = true;
     }
 }
 
 // ── AM_SDMA (ip.py:527-586) ───────────────────────────────────────────────────────────────────────────────────────────
+inline void AM_SDMA::init_sw() {
+    sdma_reginst.clear();
+    sdma_name = adev.ip_ver.at(SDMA0) < Ver{7, 0, 0} ? "F32" : "MCU";
+}
 inline void AM_SDMA::init_hw() {
     for (int pipe_id = 0; pipe_id < 1; ++pipe_id) {   // SDMA >= 5
         const std::string pipe = std::to_string(pipe_id);
@@ -1243,8 +1311,9 @@ inline void AM_SDMA::init_hw() {
         adev.reg("regSDMA" + pipe + "_WATCHDOG_CNTL").update({{"queue_hang_count", 100}}, inst);   // 10s, 100ms per unit
         adev.reg("regSDMA" + pipe + "_UTCL1_CNTL").update({{"resp_mode", 3}, {"redo_delay", 9}}, inst);
         // rd=noa, wr=bypass
-        adev.reg("regSDMA" + pipe + "_UTCL1_PAGE").update({{"rd_l2_policy", 2}, {"wr_l2_policy", 3}, {"llc_noalloc", 1}}, inst);   // F32
-        adev.reg("regSDMA" + pipe + "_" + sdma_name + "_CNTL").update({{"halt", 0}, {"th1_reset", 0}}, inst);
+        if (sdma_name == "F32") adev.reg("regSDMA" + pipe + "_UTCL1_PAGE").update({{"rd_l2_policy", 2}, {"wr_l2_policy", 3}, {"llc_noalloc", 1}}, inst);
+        else adev.reg("regSDMA" + pipe + "_UTCL1_PAGE").update({{"rd_l2_policy", 2}, {"wr_l2_policy", 3}}, inst);
+        adev.reg("regSDMA" + pipe + "_" + sdma_name + "_CNTL").update({{"halt", 0}, {sdma_name == "F32" ? "th1_reset" : "reset", 0}}, inst);
         adev.reg("regSDMA" + pipe + "_CNTL").update({{"trap_enable", 1}}, inst);   // SDMA > 5.2.0: no utc_l1_enable
     }
     adev.soc->doorbell_enable(2, 0xe, 0x3, am::AMDGPU_NAVI10_DOORBELL_sDMA_ENGINE0 * 2, 4);   // NBIO not 7.9
@@ -1286,7 +1355,7 @@ inline uint64_t AM_SDMA::setup_ring(uint64_t ring_addr, uint64_t ring_size, uint
 
 // ── AM_PSP (ip.py:588-733) ────────────────────────────────────────────────────────────────────────────────────────────
 inline void AM_PSP::init_sw() {
-    reg_pref = "regMP0_SMN_C2PMSG";   // MP0 < 14
+    reg_pref = adev.ip_ver.at(MP0) < Ver{14, 0, 0} ? "regMP0_SMN_C2PMSG" : "regMPASP_SMN_C2PMSG";
     msg1_paddr = adev.mm->palloc(am::PSP_1_MEG, am::PSP_1_MEG, false, true);
     msg1_addr = adev.paddr2mc(msg1_paddr);
     msg1_size = am::PSP_1_MEG;
@@ -1296,12 +1365,13 @@ inline void AM_PSP::init_sw() {
     ring_paddr = adev.mm->palloc(ring_size, 0x1000, false, true);
     max_tmr_size = 0x1300000;
     tmr_size = 0;
-    boot_time_tmr = false;   // MP0 13.0.0
-    autoload_tmr = true;
-    tmr_paddr = adev.mm->palloc(max_tmr_size, am::PSP_TMR_ALIGNMENT, false, true);
+    const Ver mp0 = adev.ip_ver.at(MP0);
+    boot_time_tmr = mp0 == Ver{13, 0, 6} || mp0 == Ver{13, 0, 14} || mp0 == Ver{14, 0, 2} || mp0 == Ver{14, 0, 3};
+    autoload_tmr = !(mp0 == Ver{13, 0, 6} || mp0 == Ver{13, 0, 14});
+    tmr_paddr = !boot_time_tmr ? adev.mm->palloc(max_tmr_size, am::PSP_TMR_ALIGNMENT, false, true) : 0;
 }
 inline void AM_PSP::init_hw() {
-    const uint32_t spl_key = am::PSP_FW_TYPE_PSP_KDB;   // MP0 < 14
+    const uint32_t spl_key = adev.ip_ver.at(MP0) >= Ver{14, 0, 0} ? am::PSP_FW_TYPE_PSP_SPL : am::PSP_FW_TYPE_PSP_KDB;
     const std::pair<uint32_t, uint32_t> sos_components[] = {{am::PSP_FW_TYPE_PSP_KDB, am::PSP_BL__LOAD_KEY_DATABASE}, {spl_key, am::PSP_BL__LOAD_TOS_SPL_TABLE},
         {am::PSP_FW_TYPE_PSP_SYS_DRV, am::PSP_BL__LOAD_SYSDRV}, {am::PSP_FW_TYPE_PSP_SOC_DRV, am::PSP_BL__LOAD_SOCDRV},
         {am::PSP_FW_TYPE_PSP_INTF_DRV, am::PSP_BL__LOAD_INTFDRV}, {am::PSP_FW_TYPE_PSP_DBG_DRV, am::PSP_BL__LOAD_DBGDRV},

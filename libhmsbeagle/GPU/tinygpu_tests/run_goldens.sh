@@ -16,4 +16,10 @@ for t in golden_encode golden_runtime golden_program golden_transport test_c1_cu
     grep -vE "launch-dims fill|\[profile\]" "$TINYGPU_TEST_WORK/$t.log" | tail -8
     [ $rc -eq 0 ] || { echo "   FAILED (exit $rc; log: $TINYGPU_TEST_WORK/$t.log)"; fail=1; }
 done
+# TODO.md plan step N12: the AM boot's goldens on the RX 9070 XT's fake too (gfx12)
+echo "== golden_amd_boot (FAKE_AMD_CHIP=gfx1201)"
+FAKE_AMD_CHIP=gfx1201 "$BEAGLE_PYTHON" "$TG_TESTS/golden_amd_boot.py" > "$TINYGPU_TEST_WORK/golden_amd_boot_gfx1201.log" 2>&1
+rc=$?
+tail -8 "$TINYGPU_TEST_WORK/golden_amd_boot_gfx1201.log"
+[ $rc -eq 0 ] || { echo "   FAILED (exit $rc; log: $TINYGPU_TEST_WORK/golden_amd_boot_gfx1201.log)"; fail=1; }
 exit $fail

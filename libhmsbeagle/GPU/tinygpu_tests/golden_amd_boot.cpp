@@ -4,7 +4,11 @@
 // (TinyGPUAMDDevice.h): the boot, AMDDevice.__init__, cmd_handoff's allocations (its reply printed as the daemon's
 // JSON keys), then the exit's finalize; with --restore-fini, that finalize on an AMDev restored from the boot's fini_state()
 // (taken before AMDDevice's setup) over a second transport on the same connection, as the crash guard runs it (plan step A2k).
-//   golden_amd_boot <blobs file: name path sha256 per line> [--pause] [--allow-mode1] [--session <pool size> [--die-before-fini | --restore-fini]]
+// --chip <arch> passes the arch the card's PCI device ID names (AMBootOptions.chip). With --pte-flags <discovery table>, no
+// boot: on an AMDev that only parses the table (as the crash guard's), AM_GMC.get_pte_flags and is_pte_huge_page for every
+// level, table or leaf, fragment, uncached, system, snooped and valid, or the refusal of the table's IP versions (plan step N12).
+//   golden_amd_boot <blobs file: name path sha256 per line> [--pause] [--allow-mode1] [--chip <arch>] [--session <pool size> [--die-before-fini | --restore-fini]]
+//   golden_amd_boot --pte-flags <discovery table>
 #include "libhmsbeagle/GPU/TinyGPUFirmware.h"
 #include "libhmsbeagle/GPU/TinyGPUAMDDevice.h"
 #include <cstdio>
@@ -15,6 +19,26 @@
 using namespace tinygpu_device;
 
 int main(int argc, char** argv) {
+    if (argc > 2 && std::string(argv[1]) == "--pte-flags") {
+        std::ifstream tf(argv[2], std::ios::binary);
+        std::vector<uint8_t> table((std::istreambuf_iterator<char>(tf)), std::istreambuf_iterator<char>());
+        amboot::AMFiniState s{};
+        memcpy(s.discovery, table.data(), std::min(table.size(), sizeof(s.discovery)));
+        TGTransport t;   // never opened: this AMDev sends nothing
+        try {
+            amboot::AMDev a(t, s);
+            for (int lv = 0; lv < 4; ++lv)
+                for (int tbl = 0; tbl < 2; ++tbl)
+                    for (int frag = 0; frag < 32; ++frag)
+                        for (int bits = 0; bits < 16; ++bits) {   // uncached, system, snooped, valid
+                            const bool u = bits & 8, sy = bits & 4, sn = bits & 2, v = bits & 1;
+                            const uint64_t f = a.gmc->get_pte_flags(lv, tbl, frag, u, sy, sn, v);
+                            printf("%d %d %d %d %d %d %d -> 0x%llx %d\n", lv, tbl, frag, (int)u, (int)sy, (int)sn, (int)v, (unsigned long long)f,
+                                   (int)a.gmc->is_pte_huge_page(lv, f));
+                        }
+        } catch (const TGPyError& e) { printf("error %s\n", e.py().c_str()); }
+        return 0;
+    }
     std::map<std::string, std::pair<std::string, std::string>> blobs;
     std::ifstream bf(argv[1]);
     for (std::string line; std::getline(bf, line);) {
@@ -25,12 +49,14 @@ int main(int argc, char** argv) {
     }
     bool pause = false, allow_mode1 = false, session = false, die = false, restore = false;
     uint64_t pool_size = 0;
+    std::string chip;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--pause") pause = true;
         if (std::string(argv[i]) == "--allow-mode1") allow_mode1 = true;
         if (std::string(argv[i]) == "--session" && i + 1 < argc) { session = true; pool_size = std::stoull(argv[++i]); }
         if (std::string(argv[i]) == "--die-before-fini") die = true;   // a crash with the queues live (test_a2i.py's guard check)
         if (std::string(argv[i]) == "--restore-fini") restore = true;
+        if (std::string(argv[i]) == "--chip" && i + 1 < argc) chip = argv[++i];
     }
     amboot::AMBlobLoader loader = [&](const std::string& name, std::vector<uint8_t>& out) -> std::string {
         auto it = blobs.find(name);
@@ -51,6 +77,7 @@ int main(int argc, char** argv) {
     try {
         amboot::AMBootOptions o;
         o.refuse_mode1 = !allow_mode1;
+        if (!chip.empty()) o.chip = chip.c_str();
         amboot::AMDev adev(t, loader, o);
         if (session) {
             amboot::AMFiniState fs;

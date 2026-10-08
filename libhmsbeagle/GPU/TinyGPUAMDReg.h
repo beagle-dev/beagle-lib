@@ -2,15 +2,16 @@
  * TinyGPUAMDReg.h
  *
  * C++ port of tinygrad's AMDReg and AMRegister (tinygrad/runtime/support/amd.py:5-15 and am/amdev.py:13-23 at a9830e2b4),
- * by hand, over the register table make_tinygpu_amd_boot_tables.py generates into TinyGPUAMDBootTables.h (TODO.md plan
- * step A2b). As in tinygrad, a register is (offset, segment, fields), its address on an instance is that instance's
+ * by hand, over the register tables make_tinygpu_amd_boot_tables.py generates into TinyGPUAMDBootTables.h (TODO.md plan
+ * step A2b), one per register family (plan step N11: Dev's regs(), as AMDev._build_regs binds its IP versions' modules). As
+ * in tinygrad, a register is (offset, segment, fields), its address on an instance is that instance's
  * discovered base for the segment plus the offset (AMDReg.__post_init__), and fields maps a name to (start, end), end
  * inclusive. Registers and fields are named at the call site, so a ported statement reads as tinygrad's:
  *
  *     adev.reg("regSDMA0_QUEUE0_RB_CNTL").write(0, {{"rb_vmid", 0}, {"rptr_writeback_enable", 1}, {"rb_enable", 1}});
  *
- * Dev is anything with AMDev's rreg(reg, inst, direct), wreg(reg, val, inst, direct) and base(hwip, inst, segment) (the
- * dword address of a segment's base). A register the table lacks (the boot reached a name the coverage sessions never
+ * Dev is anything with AMDev's rreg(reg, inst, direct), wreg(reg, val, inst, direct), base(hwip, inst, segment) (the dword
+ * address of a segment's base) and regs() (its register family, regs::kFamilies). A register the table lacks (the boot reached a name the coverage sessions never
  * did), a field it lacks, an instance or segment the card has no base for, or a value wider than 32 bits (tinygrad's
  * struct.pack('<I') raises) is a porting error: it throws AMRegError, which the golden tests exercise.
  */
@@ -32,25 +33,25 @@ namespace am {
 
 struct AMRegError : std::runtime_error { using std::runtime_error::runtime_error; };
 
-// the generated table, sorted by name: the register, or nullptr
-inline const regs::AMRegDef* find_reg(const char* name) {
-    size_t lo = 0, hi = sizeof(regs::kRegs) / sizeof(regs::kRegs[0]);
+// a family's generated table, sorted by name: the register, or nullptr
+inline const regs::AMRegDef* find_reg(const regs::Family& f, const char* name) {
+    size_t lo = 0, hi = f.nregs;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
-        int c = strcmp(regs::kRegs[mid].name, name);
-        if (c == 0) return &regs::kRegs[mid];
+        int c = strcmp(f.regs[mid].name, name);
+        if (c == 0) return &f.regs[mid];
         if (c < 0) lo = mid + 1; else hi = mid;
     }
     return nullptr;
 }
 
-// hasattr(adev, name): a register the table has; a name the coverage sessions asked for and the card lacks is absent;
-// any other name is a porting error
-inline bool has_reg(const char* name) {
-    if (find_reg(name)) return true;
-    for (const char* a : regs::kAbsent)
-        if (strcmp(a, name) == 0) return false;
-    throw AMRegError(std::string("has_reg: ") + name + " is in neither the register table nor its absent list");
+// hasattr(adev, name): a register the family's table has; a name the coverage sessions asked for and its card lacks is
+// absent; any other name is a porting error
+inline bool has_reg(const regs::Family& f, const char* name) {
+    if (find_reg(f, name)) return true;
+    for (size_t i = 0; i < f.nabsent; ++i)
+        if (strcmp(f.absent[i], name) == 0) return false;
+    throw AMRegError(std::string("has_reg: ") + name + " is in neither the " + f.name + " register table nor its absent list");
 }
 
 struct AMKV { const char* name; uint64_t value; };   // a keyword argument, name=value
@@ -89,8 +90,8 @@ template <class Dev> struct AMRegister {
     Dev* adev = nullptr;
     const regs::AMRegDef* def = nullptr;
 
-    AMRegister(Dev* adev_, const char* name) : adev(adev_), def(find_reg(name)) {
-        if (!def) throw AMRegError(std::string("no register ") + name + " in the boot tables (AMDev's KeyError)");
+    AMRegister(Dev* adev_, const char* name) : adev(adev_), def(find_reg(adev_->regs(), name)) {
+        if (!def) throw AMRegError(std::string("no register ") + name + " in the " + adev_->regs().name + " boot tables (AMDev's KeyError)");
     }
     const regs::AMField& field(const char* name) const {
         for (uint8_t i = 0; i < def->nfields; ++i)

@@ -1,12 +1,13 @@
-"""Plan step A2b: the generated TinyGPUAMDBootTables.h (from make_tinygpu_amd_boot_tables.py) and TinyGPUAMDReg.h's
-AMRegister port, against tinygrad (hcq1) itself. Offline, no device:
-  1. registers: every table entry equals the register tinygrad's AMDev._build_regs binds for the name on this card (its
-     module's offset, segment and fields, the IP whose bases it takes), and golden_amd_regs.cpp's AMRegister reproduces
-     tinygrad's AMRegister on a logging fake AMDev, at the card's bases, for pseudo-random addr, read, read_bitfields,
-     write, update, encode, decode and fields_mask cases of every register, and a name the table lacks fails;
+"""Plan steps A2b and N11: the generated TinyGPUAMDBootTables.h (from make_tinygpu_amd_boot_tables.py) and TinyGPUAMDReg.h's
+AMRegister port, against tinygrad (hcq1) itself, for each register family (gen.FAMILIES). Offline, no device:
+  1. registers, per family: every table entry equals the register tinygrad's AMDev._build_regs binds for the name on the
+     family's card (its module's offset, segment and fields, the IP whose bases it takes), and golden_amd_regs.cpp's
+     AMRegister reproduces tinygrad's AMRegister on a logging fake AMDev, at the card's bases, for pseudo-random addr, read,
+     read_bitfields, write, update, encode, decode and fields_mask cases of every register, and a name the table lacks fails;
   2. structs: bytes(T(**vals)) for every generated struct, each union alternative in a case, equals the generated struct
      filled with the same values in C++ (sizes and offsets are the header's static_asserts);
-  3. constants: every generated constant, hw_id_map and the name tables equal tinygrad's;
+  3. constants: every generated constant (the SMU and soc ones against each family's module), hw_id_map, the name tables and
+     the chip table (each card's device ids, arch, family and captured IP versions) equal tinygrad's;
   4. the generator reruns byte-identical to the committed header.
     python test_a2b_tables.py"""
 import os, re, sys, json, random, ctypes, hashlib, functools, subprocess, tempfile, filecmp
@@ -65,8 +66,8 @@ def value(t, case, rng, path):
 HERE, GPU, WORK = tgpaths.HERE, tgpaths.GPU_DIR, tgpaths.WORK / "a2b"
 WORK.mkdir(parents=True, exist_ok=True)
 HDR = GPU / "TinyGPUAMDBootTables.h"
-META = json.load(open(sorted((tgpaths.DATA / "discovery").glob("1002_744c_*.json"))[0]))
-BASES = {getattr(am, ip): {int(i): tuple(b) for i, b in v.items()} for ip, v in META["regs_offset"].items()}
+def bases(fam):   # the family's card's discovered bases: hwip -> instance -> bases
+    return {getattr(am, ip): {int(i): tuple(b) for i, b in v.items()} for ip, v in gen.card_table(fam)[1]["regs_offset"].items()}
 
 class FakeAdev:   # what AMRegister uses of AMDev
     def __init__(self): self.vals, self.out = {}, []
@@ -76,9 +77,9 @@ class FakeAdev:   # what AMRegister uses of AMDev
         return v
     def wreg(self, reg, val, inst=0, direct=False): self.out.append(f"w {reg:#x} {val:#x} {inst} {int(direct)}")
 
-def table():
-    """The generated kRegs: name -> (hwip, segment, offset, [(field, start, end)])."""
-    src = HDR.read_text()
+def table(fam):
+    """The family's generated kRegs: name -> (hwip, segment, offset, [(field, start, end)])."""
+    src = HDR.read_text().split(f"namespace {fam['name']} {{")[1].split(f"}} // namespace {fam['name']}")[0]
     fields = {m.group(1): re.findall(r'\{"(\w+)", (\d+), (\d+)\}', m.group(2)) for m in re.finditer(r"inline constexpr AMField kF_(\w+)\[\] = \{(.*?)\};", src, re.S)}
     out = {}
     for m in re.finditer(r'^    \{"(\w+)", (\d+), (\d+), (0x[0-9a-f]+), (kF_\w+|nullptr), (\d+)\},', src, re.M):
@@ -86,25 +87,19 @@ def table():
         out[name] = (int(m.group(2)), int(m.group(3)), int(m.group(4), 16), [(f, int(s), int(e)) for f, s, e in fields.get(name, [])])
     return out
 
-def tinygrad_regs(adev):
-    regs = {}
-    for m in gen.MODS:
-        prefix, hwip = m[0], m[1]
-        ver = m[2] if len(m) > 2 else gen.IP[hwip]
-        regs.update(import_asic_regs(prefix, ver, cls=functools.partial(AMRegister, adev=adev, bases=BASES[getattr(am, hwip)])))
-        for n, r in import_asic_regs(prefix, ver).items() if False else []: pass
-    hw = {}
-    for m in gen.MODS:
-        ver = m[2] if len(m) > 2 else gen.IP[m[1]]
-        for n in import_module(m[0], ver, submod="regs"): hw[n] = getattr(am, m[1])
+def tinygrad_regs(adev, fam):
+    regs, hw, b = {}, {}, bases(fam)
+    for prefix, hwip, ver in gen.mods(fam):
+        regs.update(import_asic_regs(prefix, ver, cls=functools.partial(AMRegister, adev=adev, bases=b[getattr(am, hwip)])))
+        for n in import_module(prefix, ver, submod="regs"): hw[n] = getattr(am, hwip)
     return regs, hw
 
-def check_registers():
-    t = table()
+def check_registers(fam):
+    t = table(fam)
     adev = FakeAdev()
-    regs, hw = tinygrad_regs(adev)
+    regs, hw = tinygrad_regs(adev, fam)
     bad = [n for n, (h, seg, off, fl) in t.items() if (h, seg, off, fl) != (hw[n], regs[n].segment, regs[n].offset, [(f, s, e) for f, (s, e) in regs[n].fields.items()])]
-    rng, cases, want = random.Random("a2b"), [], []
+    rng, cases, want = random.Random("a2b" if fam["name"] == "gfx11" else f"a2b-{fam['name']}"), [], []
     for k, (name, (h, seg, off, fl)) in enumerate(sorted(t.items())):
         r = regs[name]
         for op in ("addr", "read", "read_bitfields", "write", "update", "encode", "decode", "fields_mask"):
@@ -127,16 +122,16 @@ def check_registers():
             elif op == "fields_mask": adev.out.append(f"= {r.fields_mask(*vals):#x}")
             want += adev.out
     cases.append("absent.0 read regNOT_A_REGISTER 0x0")
-    want += ["# absent.0", "! no register regNOT_A_REGISTER in the boot tables (AMDev's KeyError)"]
-    (WORK / "bases.txt").write_text("".join(f"{h} {i} " + " ".join(f"{x:#x}" for x in b) + "\n" for h, insts in BASES.items() for i, b in insts.items()))
+    want += ["# absent.0", f"! no register regNOT_A_REGISTER in the {fam['name']} boot tables (AMDev's KeyError)"]
+    (WORK / "bases.txt").write_text("".join(f"{h} {i} " + " ".join(f"{x:#x}" for x in b) + "\n" for h, insts in bases(fam).items() for i, b in insts.items()))
     (WORK / "cases.txt").write_text("\n".join(cases) + "\n")
     exe = WORK / "golden_amd_regs"
     tgpaths.build_cpp(HERE / "golden_amd_regs.cpp", exe)
-    got = subprocess.run([str(exe), str(WORK / "bases.txt"), str(WORK / "cases.txt")], capture_output=True, text=True, check=True).stdout.splitlines()
+    got = subprocess.run([str(exe), str(WORK / "bases.txt"), str(WORK / "cases.txt"), fam["name"]], capture_output=True, text=True, check=True).stdout.splitlines()
     diff = [(w, g) for w, g in zip(want + [""] * len(got), got + [""] * len(want)) if w != g]
     for w, g in diff[:5]: print(f"  tinygrad {w!r}\n  c++      {g!r}")
     ok = not bad and not diff
-    print(f"registers: {len(t)} table entries {'equal' if not bad else 'DIFFER from'} tinygrad's bindings{f' ({bad[:3]})' if bad else ''}; "
+    print(f"registers ({fam['name']}): {len(t)} table entries {'equal' if not bad else 'DIFFER from'} tinygrad's bindings{f' ({bad[:3]})' if bad else ''}; "
           f"{len(cases)} AMRegister cases (8 per register, at the card's bases, and a missing name): {'IDENTICAL' if not diff else f'{len(diff)} lines differ'}")
     return ok
 
@@ -168,7 +163,8 @@ def check_structs():
     return ok
 
 def check_constants():
-    smu, soc = import_module("smu", gen.IP["MP1_HWIP"]), import_soc(gen.IP["GC_HWIP"])
+    smus = [import_module("smu", f["ip"]["MP1_HWIP"]) for f in gen.FAMILIES]
+    socs = [import_soc(f["ip"]["GC_HWIP"]) for f in gen.FAMILIES]
     stack, bad, n = [], [], 0
     for line in HDR.read_text().splitlines():
         ns = stack[-1] if stack else None
@@ -181,8 +177,8 @@ def check_constants():
                 f = m.group(1).removeprefix("amd_queue_t_").removesuffix("_offset")
                 if getattr(hsa.amd_queue_t, f).offset != int(m.group(2), 16): bad.append(m.group(1))
                 continue
-            mod = {"am": am, "smu13": smu, "soc11": soc, "pci": pci}[ns]
-            if getattr(mod, m.group(1)) != int(m.group(2), 16): bad.append(m.group(1))
+            for mod in {"am": [am], "smu": smus, "soc": socs, "pci": [pci]}[ns]:   # the SMU and soc names: in every family's module
+                if getattr(mod, m.group(1)) != int(m.group(2), 16): bad.append(f"{m.group(1)} ({mod.__name__})")
         elif m := re.match(r"constexpr uint16_t hw_id_map\[\d+\] = \{(.*)\};", line):
             vals = [int(x) for x in m.group(1).split(", ")]
             if vals != [am.hw_id_map.get(i, 0) for i in range(am.MAX_HWIP)]: bad.append("hw_id_map")
@@ -194,7 +190,14 @@ def check_constants():
         body = re.search(rf"constexpr Name {tbl}\[\] = \{{(.*?)\}};", HDR.read_text(), re.S).group(1)
         for v, s in re.findall(r'\{(\d+), "(\w+)"\}', body):
             if getattr(am, tbl)[int(v)] != s: bad.append(f"{tbl}[{v}]")
-    print(f"constants: {n} (am, smu13, soc11, pci, hsa), hw_id_map, inv_hw_id and the name tables equal tinygrad's: {'IDENTICAL' if not bad else f'DIFFER: {bad[:5]}'}")
+    ip_ids = [int(getattr(am, k)) for k in gen.IP_KEYS]
+    if re.search(r"constexpr uint32_t kChipIP\[\] = \{(.*?)\};", HDR.read_text()).group(1).split(", ") != gen.IP_KEYS: bad.append("kChipIP")
+    chips = re.findall(r'^    \{(0x[0-9a-f]+), "(\w+)", (\d+), \{(.*)\}\},$', HDR.read_text().split("constexpr Chip kChips[] = {")[1].split("};")[0], re.M)
+    want = [(d, f["chip"], i, [f["ip"][k] for k in gen.IP_KEYS]) for i, f in enumerate(gen.FAMILIES) for d in f["pci_ids"]]
+    got = [(int(d, 16), a, int(i), [tuple(map(int, v.split(", "))) for v in re.findall(r"\{(\d+, \d+, \d+)\}", ips)]) for d, a, i, ips in chips]
+    if got != want or any(f["ip"] != {k: tuple(gen.card_table(f)[1]["ip_ver"][k]) for k in gen.IP_KEYS} for f in gen.FAMILIES): bad.append("kChips")
+    print(f"constants: {n} (am, smu and soc in {len(set(smus))} and {len(set(socs))} modules, pci, hsa), hw_id_map, inv_hw_id, the name tables and the "
+          f"chip table ({len(chips)} cards, their captured IP versions; kChipIP {ip_ids}) equal tinygrad's: {'IDENTICAL' if not bad else f'DIFFER: {bad[:5]}'}")
     return not bad
 
 def check_firmware():
@@ -209,13 +212,15 @@ def check_firmware():
     tgpaths.build_cpp(WORK / "a2d_fw.cpp", WORK / "a2d_fw")
     r = subprocess.run([str(WORK / "a2d_fw")], capture_output=True, text=True, env={**os.environ, "BEAGLE_TINYGPU_NO_DOWNLOAD": "1"})
     got = {l.split()[0]: l.split()[1:] for l in r.stdout.splitlines()}
-    rows = re.findall(r'\{"gfx1100", "([\w.]+)", "amdgpu", "[\w.]+", "([0-9a-f]+)", "([0-9a-f]+)"\}', HDR.read_text())
+    rows = re.findall(r'\{"gfx\w+", "([\w.]+)", "amdgpu", "[\w.]+", "([0-9a-f]+)", "([0-9a-f]+)"\}', HDR.read_text())
+    nrows = sum(len(gen.firmware_rows(f)) for f in gen.FAMILIES)
     bad = []
     for name, sha, md5 in rows:
         b = helpers.fetch_fw("amdgpu", name, sha)   # tinygrad's cache: the network is off (tgpaths)
         if got.get(name) != [str(len(b)), hashlib.sha256(b).hexdigest()] or hashlib.sha256(b).hexdigest() != fw_hashes()[name]: bad.append(name)
-    print(f"firmware: {len(rows)} AMD entries, located by TinyGPUFirmware.h with the bytes fetch_fw returns: {'IDENTICAL' if not bad and len(rows) == 6 else f'DIFFER: {bad}'}")
-    return not bad and len(rows) == 6
+    print(f"firmware: {len(rows)} AMD entries (each card's AMFirmware fetches), located by TinyGPUFirmware.h with the bytes fetch_fw returns: "
+          f"{'IDENTICAL' if not bad and len(rows) == nrows else f'DIFFER: {bad}, {len(rows)} rows of {nrows}'}")
+    return not bad and len(rows) == nrows
 
 def fw_hashes():
     from tinygrad.runtime.autogen.am import fw
@@ -230,6 +235,6 @@ def check_regeneration():
     return same
 
 if __name__ == "__main__":
-    results = [check_registers(), check_structs(), check_constants(), check_firmware(), check_regeneration()]
+    results = [check_registers(f) for f in gen.FAMILIES] + [check_structs(), check_constants(), check_firmware(), check_regeneration()]
     print("A2b tables:", "PASS" if all(results) else "FAIL")
     sys.exit(0 if all(results) else 1)

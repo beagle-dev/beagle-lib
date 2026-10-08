@@ -1,6 +1,6 @@
-// TinyGPUAMDReg.h's AMRegister on the cases test_a2b_tables.py writes, against a logging fake AMDev (see that file): each
-// case's register accesses and result, in the format tinygrad's side prints.
-//   golden_amd_regs <bases file> <cases file>
+// TinyGPUAMDReg.h's AMRegister on the cases test_a2b_tables.py writes, against a logging fake AMDev (see that file) of a
+// register family (am::regs::kFamilies, by name): each case's register accesses and result, in the format tinygrad's side prints.
+//   golden_amd_regs <bases file> <cases file> <family>
 #include "libhmsbeagle/GPU/TinyGPUAMDReg.h"
 #include <cstdio>
 #include <fstream>
@@ -9,6 +9,8 @@
 using namespace tinygpu_device;
 
 struct FakeDev {
+    const am::regs::Family* family = nullptr;
+    const am::regs::Family& regs() const { return *family; }
     std::map<std::pair<int, int>, std::vector<uint32_t>> bases;   // (hwip, inst) -> bases
     std::map<uint32_t, uint32_t> vals;
     uint32_t base(int hwip, int inst, int seg) {
@@ -26,6 +28,9 @@ struct FakeDev {
 
 int main(int, char** argv) {
     FakeDev dev;
+    for (const am::regs::Family& f : am::regs::kFamilies)
+        if (std::string(f.name) == argv[3]) dev.family = &f;
+    if (!dev.family) { printf("no register family %s\n", argv[3]); return 1; }
     std::ifstream bf(argv[1]);
     for (std::string line; std::getline(bf, line);) {
         std::istringstream ss(line);

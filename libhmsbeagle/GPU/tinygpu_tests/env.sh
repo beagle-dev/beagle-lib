@@ -26,7 +26,7 @@ TG_GB20X="20260927-093033_Marcs-Mac-Studio-490_gb205_l0 20260927-094318_Marcs-Ma
 # partial boot) and cold (a full one, after a power cycle), through tgproxy --guard; each replays exactly to the oracle's
 # daemon and to the C++ boot (amd_l0_replay.py, test_a2.sh)
 TG_AMD_L0="20261001-125155_Marcs-Mac-Studio-490_amd_l0_warm 20261002-083213_Marcs-Mac-Studio-490_amd_l0_cold"
-# the RX 9070 XT's (TODO.md plan step N10): replayed to the oracle's daemon by test_n9.py; into TG_AMD_L0 (the C++ boot too) at N13
+# the RX 9070 XT's (TODO.md plan step N10): replayed to the oracle's daemon by test_n9.py; into TG_AMD_L0 (the C++ boot too) at N14
 TG_AMD_L0_RDNA4="20261008-111434_Marcs-Mac-Studio-490_amd_l0_cold 20261008-111453_Marcs-Mac-Studio-490_amd_l0_warm"
 
 # Offline scripts call this first: the plugin they load must contain the BEAGLE_TINYGPU_NO_LAUNCH guard, or a failed
