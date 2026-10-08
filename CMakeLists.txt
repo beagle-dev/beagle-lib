@@ -40,6 +40,7 @@ OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
 OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
 OPTION(BEAGLE_BASTA_CPU_ACCUM "Use CPU for final accumulation for reduction" OFF)
 OPTION(BEAGLE_INDEX_CHECKS "Range-check partials, matrix and scale indices on the CPU (BEAGLE_ERROR_OUT_OF_RANGE); for CI and testing" OFF)
+OPTION(BEAGLE_DEBUG_MEMORY "Count GPU buffers, sub-buffers and device bytes per instance and report them on stderr; OpenCL also honours BEAGLE_DEBUG_OPENCL_ALIGN" OFF)
 
 IF(BEAGLE_BENCHMARK)
     ADD_DEFINITIONS(-DBEAGLE_BENCHMARK)
@@ -69,6 +70,10 @@ ENDIF(BEAGLE_BASTA_CPU_ACCUM)
 IF(BEAGLE_INDEX_CHECKS)
 	ADD_DEFINITIONS(-DBEAGLE_INDEX_CHECKS)
 ENDIF(BEAGLE_INDEX_CHECKS)
+
+IF(BEAGLE_DEBUG_MEMORY)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_MEMORY)
+ENDIF(BEAGLE_DEBUG_MEMORY)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"

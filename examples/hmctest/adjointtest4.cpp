@@ -15,7 +15,7 @@
  * the full adjoint gradient.
  *
  * Usage:
- *   adjointtest4 [--gpu <device>] [--nstates 4|16|17|56]
+ *   adjointtest4 [--gpu <device>] [--nstates 4|16|17|56] [--all] [--eigenindex <k>]
  *
  * Tree: ((human:0.1, chimp:0.1):0.5, gorilla:0.2)
  */
@@ -236,6 +236,10 @@ static bool comparePartials(const char *label, const std::vector<double> &ref,
 
 /* ── resource listing ────────────────────────────────────────────────── */
 
+/* Eigen decomposition that holds the model (--eigenindex); indices below it are allocated and unused, so a GPU
+ * reaches the eigen-indexed offsets of the spectral adjoint (rec[3], rec[7]) at a non-zero index */
+static int gEigenIndex = 0;
+
 static void printResources() {
     BeagleResourceList *rList = beagleGetResourceList();
     fprintf(stdout, "Available resources:\n");
@@ -264,7 +268,7 @@ static int createInstance(bool useGpu, int whichDevice, bool singlePrec,
         3,          /* nCompact */
         stateCount,
         nPatterns,
-        1,          /* nEigenDecomp */
+        gEigenIndex + 1, /* nEigenDecomp */
         4,          /* nTransitionMatrices */
         nCats,
         0,          /* nScaleBuffers */
@@ -308,10 +312,10 @@ static AdjointResult4 runAdjoint4(int instance) {
     beagleSetPatternWeights(instance, pw.data());
     beagleSetStateFrequencies(instance, 0, freqs4);
     beagleSetCategoryWeights(instance, 0, catWeights2);
-    beagleSetEigenDecomposition(instance, 0, jcEvec, jcIvec, jcEval);
+    beagleSetEigenDecomposition(instance, gEigenIndex, jcEvec, jcIvec, jcEval);
 
     int nodeIdx[4] = { 0, 1, 2, 3 };
-    beagleUpdateTransitionMatrices(instance, 0, nodeIdx, NULL, NULL, edgeLengths, 4);
+    beagleUpdateTransitionMatrices(instance, gEigenIndex, nodeIdx, NULL, NULL, edgeLengths, 4);
 
     BeagleOperation postOps[2] = {
         { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
@@ -652,10 +656,10 @@ static int runTest16(int gpuDevice) {
         beagleSetPatternWeights(inst, pw.data());
         beagleSetStateFrequencies(inst, 0, freqs16.data());
         beagleSetCategoryWeights(inst, 0, catWts16);
-        beagleSetEigenDecomposition(inst, 0, evec16.data(), ivec16.data(), eval16.data());
+        beagleSetEigenDecomposition(inst, gEigenIndex, evec16.data(), ivec16.data(), eval16.data());
 
         int nodeIdx[4] = { 0, 1, 2, 3 };
-        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens16, 4);
+        beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, edgeLens16, 4);
 
         BeagleOperation postOps[2] = {
             { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
@@ -793,10 +797,10 @@ static int runTest17(int gpuDevice) {
         beagleSetPatternWeights(inst, pw.data());
         beagleSetStateFrequencies(inst, 0, freqs17.data());
         beagleSetCategoryWeights(inst, 0, catWts17);
-        beagleSetEigenDecomposition(inst, 0, evec17.data(), ivec17.data(), eval17.data());
+        beagleSetEigenDecomposition(inst, gEigenIndex, evec17.data(), ivec17.data(), eval17.data());
 
         int nodeIdx[4] = { 0, 1, 2, 3 };
-        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens17, 4);
+        beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, edgeLens17, 4);
 
         BeagleOperation postOps[2] = {
             { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
@@ -882,9 +886,9 @@ static int runTest17(int gpuDevice) {
         beagleSetPatternWeights(inst, pw.data());
         beagleSetStateFrequencies(inst, 0, freqs17.data());
         beagleSetCategoryWeights(inst, 0, catWts17);
-        beagleSetEigenDecomposition(inst, 0, evec17.data(), ivec17.data(), evalIn.data());
+        beagleSetEigenDecomposition(inst, gEigenIndex, evec17.data(), ivec17.data(), evalIn.data());
         int nodeIdx[4] = { 0, 1, 2, 3 };
-        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens17, 4);
+        beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, edgeLens17, 4);
         BeagleOperation postOps[2] = {
             { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
             { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
@@ -1054,10 +1058,10 @@ static int runTest56(int gpuDevice) {
         beagleSetPatternWeights(inst, pw.data());
         beagleSetStateFrequencies(inst, 0, freqs56.data());
         beagleSetCategoryWeights(inst, 0, catWts56);
-        beagleSetEigenDecomposition(inst, 0, evec56.data(), ivec56.data(), eval56.data());
+        beagleSetEigenDecomposition(inst, gEigenIndex, evec56.data(), ivec56.data(), eval56.data());
 
         int nodeIdx[4] = { 0, 1, 2, 3 };
-        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens56, 4);
+        beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, edgeLens56, 4);
 
         BeagleOperation postOps[2] = {
             { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
@@ -1118,9 +1122,9 @@ static int runTest56(int gpuDevice) {
         beagleSetPatternWeights(inst, pw.data());
         beagleSetStateFrequencies(inst, 0, freqs56.data());
         beagleSetCategoryWeights(inst, 0, catWts56);
-        beagleSetEigenDecomposition(inst, 0, evec56.data(), ivec56.data(), evalIn.data());
+        beagleSetEigenDecomposition(inst, gEigenIndex, evec56.data(), ivec56.data(), evalIn.data());
         int nodeIdx[4] = { 0, 1, 2, 3 };
-        beagleUpdateTransitionMatrices(inst, 0, nodeIdx, NULL, NULL, edgeLens56, 4);
+        beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, edgeLens56, 4);
         BeagleOperation postOps[2] = {
             { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
             { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
@@ -1212,6 +1216,18 @@ int main(int argc, const char *argv[]) {
             run56 = (ns == 56);
         } else if (strcmp(argv[i], "--all") == 0) {
             run4 = run16 = run17 = run56 = true;
+        } else if (strcmp(argv[i], "--eigenindex") == 0 && i+1 < argc) {
+            gEigenIndex = atoi(argv[++i]);
+            fprintf(stdout, "Model in eigen decomposition %d\n", gEigenIndex);
+        }
+    }
+
+    if (useGpu) { // a missing GPU is a skip (ctest SKIP_RETURN_CODE 77), not a failure
+        BeagleResourceList* rList = beagleGetResourceList();
+        if (whichDevice < 0 || whichDevice >= rList->length ||
+            !(rList->list[whichDevice].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU)) {
+            fprintf(stdout, "SKIP: no GPU resource %d\n", whichDevice);
+            return 77;
         }
     }
 

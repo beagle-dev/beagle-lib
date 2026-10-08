@@ -80,7 +80,18 @@ private:
     cl_event* openClEvents;                  // compute events
     cl_program openClProgram;                // compute program
     std::map<int, cl_device_id> openClDeviceMap;
+    bool openClGenericVendor;                // every sub-buffer is a new cl_mem and offsets are aligned (SetDevice)
+    size_t openClBaseAlign;                  // CL_DEVICE_MEM_BASE_ADDR_ALIGN in bytes, when openClGenericVendor
     const char* GetCLErrorDescription(int errorCode);
+#endif
+#ifdef BEAGLE_DEBUG_MEMORY
+    std::map<GPUPtr, size_t> debugBuffers;   // live allocations and their sizes
+    std::map<GPUPtr, int> debugSubBuffers;   // live sub-buffers that are objects of their own (OpenCL)
+    size_t debugBytes;
+    size_t debugPeakBytes;
+    int debugErrors;                         // releases of handles that are not live
+    void DebugAddBuffer(GPUPtr dPtr, size_t memSize);
+    void DebugRemoveBuffer(GPUPtr dPtr);
 #endif
 
 public:
@@ -149,7 +160,14 @@ public:
 
     GPUPtr CreateSubPointer(GPUPtr dPtr, size_t offset, size_t size);
 
+    // Releases a handle made by CreateSubPointer(dPtr, ...) before dPtr itself is freed. A no-op when the handle is
+    // not an object of its own: always on CUDA, and on OpenCL when CreateSubPointer returned dPtr.
+    void ReleaseSubPointer(GPUPtr subPtr, GPUPtr dPtr);
+
     size_t AlignMemOffset(size_t offset);
+
+    // With BEAGLE_DEBUG_MEMORY, prints the live buffer, sub-buffer and byte counts of this interface to stderr
+    void ReportMemory(const char* event);
 
     void MemsetShort(GPUPtr dest,
                      unsigned short val,

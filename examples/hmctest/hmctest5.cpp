@@ -182,6 +182,13 @@ int main( int argc, const char* argv[] )
         }
     }
 
+    if (useGpu && whichDevice >= 0) { // a missing GPU is a skip (ctest SKIP_RETURN_CODE 77), not a failure
+        if (whichDevice >= rList->length || !(rList->list[whichDevice].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU)) {
+            fprintf(stdout, "SKIP: no GPU resource %d\n", whichDevice);
+            return 77;
+        }
+    }
+
     BeagleInstanceDetails instDetails;
 
     long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;

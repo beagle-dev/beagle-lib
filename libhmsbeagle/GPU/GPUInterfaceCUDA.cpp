@@ -123,6 +123,12 @@ GPUInterface::GPUInterface() {
     kernelResource = NULL;
     supportDoublePrecision = true;
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    debugBytes = 0;
+    debugPeakBytes = 0;
+    debugErrors = 0;
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
 #endif
@@ -131,6 +137,11 @@ GPUInterface::GPUInterface() {
 GPUInterface::~GPUInterface() {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
+#endif
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (debugPeakBytes > 0 || debugErrors > 0)
+        ReportMemory("finalize");
 #endif
 
     if (cudaStreams != NULL) {
@@ -595,6 +606,10 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
 
     SAFE_CUPP(cuMemAlloc(&ptr, memSize));
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(ptr, memSize);
+#endif
+
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + memSize));
 #endif
@@ -615,6 +630,10 @@ GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
 
     SAFE_CUPP(cuMemAlloc(&ptr, SIZE_REAL * length));
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(ptr, SIZE_REAL * length);
+#endif
+
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
 #endif
@@ -634,6 +653,10 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
     GPUPtr ptr;
 
     SAFE_CUPP(cuMemAlloc(&ptr, SIZE_INT * length));
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(ptr, SIZE_INT * length);
+#endif
 
 #ifdef BEAGLE_DEBUG_VALUES
     fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + length));
@@ -660,6 +683,11 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
 #endif
 
     return subPtr;
+}
+
+void GPUInterface::ReleaseSubPointer(GPUPtr subPtr,
+                                     GPUPtr dPtr) {
+    // CUDA sub-pointers are dPtr + offset and own nothing
 }
 
 size_t GPUInterface::AlignMemOffset(size_t offset) {
@@ -781,12 +809,43 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreeMemory\n");
 #endif
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugRemoveBuffer(dPtr);
+#endif
+
     SAFE_CUPP(cuMemFree(dPtr));
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeMemory\n");
 #endif
 }
+
+void GPUInterface::ReportMemory(const char* event) {
+#ifdef BEAGLE_DEBUG_MEMORY
+    fprintf(stderr, "BEAGLE_DEBUG_MEMORY %s: %d buffers, 0 sub-buffers, %lu bytes (peak %lu), %d errors\n",
+            event, (int) debugBuffers.size(), (unsigned long) debugBytes, (unsigned long) debugPeakBytes,
+            debugErrors);
+#endif
+}
+
+#ifdef BEAGLE_DEBUG_MEMORY
+void GPUInterface::DebugAddBuffer(GPUPtr dPtr, size_t memSize) {
+    debugBuffers[dPtr] = memSize;
+    debugBytes += memSize;
+    if (debugBytes > debugPeakBytes)
+        debugPeakBytes = debugBytes;
+}
+
+void GPUInterface::DebugRemoveBuffer(GPUPtr dPtr) {
+    std::map<GPUPtr, size_t>::iterator it = debugBuffers.find(dPtr);
+    if (it == debugBuffers.end()) {
+        debugErrors++; // not a live allocation: a sub-pointer, or a second release
+    } else {
+        debugBytes -= it->second;
+        debugBuffers.erase(it);
+    }
+}
+#endif
 
 GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
 #ifdef BEAGLE_DEBUG_FLOW

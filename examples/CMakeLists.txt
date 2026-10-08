@@ -99,6 +99,18 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+# setTransitionMatrices, getTransitionMatrix, convolve and transpose on a GPU against the CPU; skipped without a GPU
+add_executable(gpumatrixtest
+		gpumatrixtest/gpumatrixtest.cpp)
+target_link_libraries(gpumatrixtest
+		hmsbeagle
+		hmsbeagle-cpu
+		${CMAKE_DL_LIBS})
+if(BUILD_OPENCL)
+	add_test(gpumatrixtest gpumatrixtest)
+	set_tests_properties(gpumatrixtest PROPERTIES SKIP_RETURN_CODE 77)
+endif(BUILD_OPENCL)
+
 if(BUILD_SPECTRAL)
     add_executable(openclspectraltest
             openclspectraltest/openclspectraltest.cpp)
@@ -127,6 +139,17 @@ if(BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(gpuspectraltest gpuspectraltest)
+
+    # spectral adjoint gradients against finite differences on the CPU (17 and 56 states), and on a GPU against the CPU
+    target_link_libraries(adjointtest4 hmsbeagle-cpu-spectral)
+    add_test(adjointtest4 adjointtest4 --all)
+    if(BUILD_OPENCL)
+        add_test(adjointtest4-gpu adjointtest4 --gpu 1 --all)
+        set_tests_properties(adjointtest4-gpu PROPERTIES SKIP_RETURN_CODE 77)
+        # pre-order with PREORDER_TRANSPOSE_AUTO and edge derivatives on a GPU; skipped without one
+        add_test(hmctest5-gpu hmctest5 --gpu 1)
+        set_tests_properties(hmctest5-gpu PROPERTIES SKIP_RETURN_CODE 77)
+    endif(BUILD_OPENCL)
 
     # standard vs spectral timings; see spectraltest/spectral_benchmark.py
     add_executable(spectralbench
@@ -200,3 +223,19 @@ target_link_libraries(hellobeagle hmsbeagle)
 #target_link_libraries(hmcGaptest hmsbeagle ${CMAKE_DL_LIBS})
 #target_link_libraries(genomictest beagle_lib)
 #target_link_libraries(tinytest hmsbeagle)
+
+# The GPU plugins are loaded by name at run time and no example links them, so ctest gives the GPU tests the
+# build-tree plugin directories (otherwise they find no GPU resource and skip)
+if(TARGET hmsbeagle-opencl)
+	get_target_property(GPU_PLUGIN_DIRS hmsbeagle-opencl BINARY_DIR) # where the plugin is built
+	if(TARGET hmsbeagle-opencl-spectral)
+		get_target_property(GPU_SPECTRAL_PLUGIN_DIR hmsbeagle-opencl-spectral BINARY_DIR)
+		string(APPEND GPU_PLUGIN_DIRS ":${GPU_SPECTRAL_PLUGIN_DIR}")
+	endif()
+	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu hmctest5-gpu gpuspectraltest openclspectraltest)
+		if(TEST ${GPU_TEST})
+			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
+				"DYLD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}")
+		endif()
+	endforeach()
+endif()

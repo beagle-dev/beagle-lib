@@ -23,6 +23,7 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <map>
 #include <vector>
 
 #include "libhmsbeagle/BeagleImpl.h"
@@ -119,9 +120,18 @@ private:
     GPUPtr dAccumulatedScalingFactors;
 
     GPUPtr* dScalingFactors;
+    GPUPtr dScalingFactorsOrigin; // the pool behind dScalingFactors; 0 with CUDA dynamic scaling (one buffer each)
+    unsigned int kScaleBufferStride; // elements between consecutive scale buffers in that pool
+    GPUPtr scalingFactorsOrigin() const { // what kernels offset by scale index
+        return dScalingFactorsOrigin != (GPUPtr)NULL ? dScalingFactorsOrigin : dScalingFactors[0];
+    }
 
     GPUPtr* dMatrices;
     GPUPtr dMatricesOrigin;
+
+    // Every sub-buffer made by createSubPointer, by parent; per-index arrays (dPartials, dStates, ...) alias each
+    // other and are swapped by reorderPatternsByPartition, so they cannot tell what to release
+    std::map<GPUPtr, std::vector<GPUPtr> > hSubPointers;
     
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
@@ -212,7 +222,20 @@ protected:
     GPUPtr* dEvec;
     GPUPtr* dIevc;
 
+    // The pools behind dEigenValues, dEvec, dIevc, dWeights and dFrequencies; kernels that add an offset to the
+    // start of a pool get these, not the first per-index handle (on OpenCL that may be a one-stride sub-buffer)
+    GPUPtr dEigenValuesOrigin;
+    GPUPtr dEvecOrigin;
+    GPUPtr dIevcOrigin;
+    GPUPtr dWeightsOrigin;
+    GPUPtr dFrequenciesOrigin;
+
     double** hCategoryRates;
+
+    // A sub-buffer of parent that is released by freeWithSubPointers(parent)
+    GPUPtr createSubPointer(GPUPtr parent, size_t offset, size_t size);
+    // Releases the sub-buffers made from parent by createSubPointer, then frees parent
+    void freeWithSubPointers(GPUPtr parent);
 
     /* Accessors for the pooled partials/states origins and their per-index
      * element offsets, and the per-eigen-decomposition matrix/eigenvalue

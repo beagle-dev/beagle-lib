@@ -45,10 +45,11 @@ BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
     GPUInterface* gpuIf = this->gpu;
     if (gpuIf) {
-        if (dSpectralDistancesOrigin) gpuIf->FreeMemory(dSpectralDistancesOrigin);
-        if (dEvecTOrigin)             gpuIf->FreeMemory(dEvecTOrigin);
-        if (dIevcTOrigin)             gpuIf->FreeMemory(dIevcTOrigin);
-        if (dGradientOrigin)          gpuIf->FreeMemory(dGradientOrigin);
+        // each pool after its sub-buffers
+        if (dSpectralDistancesOrigin) this->freeWithSubPointers(dSpectralDistancesOrigin);
+        if (dEvecTOrigin)             this->freeWithSubPointers(dEvecTOrigin);
+        if (dIevcTOrigin)             this->freeWithSubPointers(dIevcTOrigin);
+        if (dGradientOrigin)          this->freeWithSubPointers(dGradientOrigin);
         if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
         if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
         if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
@@ -94,7 +95,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     kSpectralDistanceStrideElements = (unsigned int)(distStride / sizeof(Real));
     dSpectralDistancesOrigin = gpuIf->AllocateMemory(this->kMatrixCount * distStride);
     for (int i = 0; i < this->kMatrixCount; i++) {
-        dSpectralDistances[i] = gpuIf->CreateSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
+        dSpectralDistances[i] = this->createSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
     }
     // Zero-initialized host mirror of dSpectralDistancesOrigin; see updateTransitionMatrices.
     hSpectralDistances = (Real*) gpuIf->CallocHost(sizeof(Real), this->kMatrixCount * kSpectralDistanceStrideElements);
@@ -107,18 +108,20 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     dEvecTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
     dIevcTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
     for (int i = 0; i < eigenDecompositionCount; i++) {
-        dEvecT[i]  = gpuIf->CreateSubPointer(dEvecTOrigin,  matStride * i, matStride);
-        dIevcT[i]  = gpuIf->CreateSubPointer(dIevcTOrigin,  matStride * i, matStride);
+        dEvecT[i]  = this->createSubPointer(dEvecTOrigin,  matStride * i, matStride);
+        dIevcT[i]  = this->createSubPointer(dIevcTOrigin,  matStride * i, matStride);
     }
 
     /* Adjoint gradient: one S×S buffer per eigen decomposition. */
     dGradient = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
     dGradientOrigin = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
     for (int i = 0; i < eigenDecompositionCount; i++) {
-        dGradient[i] = gpuIf->CreateSubPointer(dGradientOrigin, matStride * i, matStride);
+        dGradient[i] = this->createSubPointer(dGradientOrigin, matStride * i, matStride);
     }
 
     hEigenDecompIsAllReal = (bool*) calloc(eigenDecompositionCount, sizeof(bool));
+
+    gpuIf->ReportMemory("create spectral"); // BEAGLE_DEBUG_MEMORY only
 
     return BEAGLE_SUCCESS;
 }
@@ -597,7 +600,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
      * through the parent view (intermittent large garbage gradients,
      * OpenCL, Apple M1 Max) even on the in-order command queue — filling
      * through the same view the kernel uses avoids that hazard. */
-    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * SS * sizeof(Real));
+    const unsigned int matStrideElements = this->getEvecStrideElements(); // AlignMemOffset(S * S * sizeof(Real)) in Reals
+    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * matStrideElements * sizeof(Real));
 
     GPUPtr catW = this->dWeights[cwIdx];
 
@@ -635,11 +639,11 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
                                : this->getPartialsOffsetElements(postIdx);
             rec[2] = isStates ? 1u : 0u;
-            rec[3] = (unsigned int)ei * SS;
+            rec[3] = (unsigned int)ei * matStrideElements;
             rec[4] = (unsigned int)ei * this->getEvecStrideElements();
             rec[5] = (unsigned int)ei * this->getEvalStrideElements();
             rec[6] = (unsigned int)matIdx * kSpectralDistanceStrideElements;
-            rec[7] = (unsigned int)ei * SS;
+            rec[7] = (unsigned int)ei * matStrideElements;
             rec[8] = isAllReal ? 1u : 0u;
         }
 
@@ -649,14 +653,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         if (S == 4) {
             this->kernels->AdjointCrossProductMergedSpectral4(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
-                this->dIevc[0], this->dEigenValues[0],
+                this->dIevcOrigin, this->dEigenValuesOrigin,
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
                 this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
         } else {
             this->kernels->AdjointCrossProductMergedSpectralN(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
-                this->dIevc[0], this->dEigenValues[0],
+                this->dIevcOrigin, this->dEigenValuesOrigin,
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
                 this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
@@ -677,11 +681,13 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
     if (count > 0 && outSumDerivatives != NULL) {
         const int ei0 = hEigenIndexForMatrix[eigenIndices[0]];
         const int SC = this->kStateCount;
-        Real* hGrad = (Real*) gpuIf->CallocHost(sizeof(Real), SS);
-        gpuIf->MemcpyDeviceToHost(hGrad, dGradient[ei0], SS * sizeof(Real));
+        // read through dGradientOrigin, the view the kernel wrote (see the MemsetZero comment above)
+        const size_t gradOffset = (size_t)ei0 * matStrideElements;
+        Real* hGrad = (Real*) gpuIf->CallocHost(sizeof(Real), gradOffset + SS);
+        gpuIf->MemcpyDeviceToHost(hGrad, dGradientOrigin, (gradOffset + SS) * sizeof(Real));
         for (int i = 0; i < SC; i++)
             for (int j = 0; j < SC; j++)
-                outSumDerivatives[i * SC + j] = (double)hGrad[i * S + j];
+                outSumDerivatives[i * SC + j] = (double)hGrad[gradOffset + i * S + j];
         gpuIf->FreeHostMemory(hGrad);
     }
 
