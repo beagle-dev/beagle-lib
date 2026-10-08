@@ -70,6 +70,9 @@
 #include <cassert>
 #include <vector>
 #include <cfloat>
+#include <algorithm>
+#include <climits>
+#include <cstdint>
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/Precision.h"
@@ -296,6 +299,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     }
 
     kBufferCount = partialsBufferCount + compactBufferCount;
+    kCompactBufferCount = compactBufferCount;
     kTipCount = tipCount;
     assert(kBufferCount > kTipCount);
     kStateCount = stateCount;
@@ -623,6 +627,222 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
 
     gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
     gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
+                                                          int matrixBufferCount,
+                                                          int scaleBufferCount) {
+    if (partialsBufferCount < 0 || matrixBufferCount < 0 || scaleBufferCount < 0)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    // new counts; a request at or below a current count leaves that kind unchanged
+    const long long requestedBuffers = (long long) partialsBufferCount + kCompactBufferCount;
+    const int newBuffer = (requestedBuffers > kBufferCount) ? (int) std::min<long long>(requestedBuffers, INT_MAX)
+                                                            : kBufferCount;
+    const int newInternal = newBuffer - kTipCount;
+    const int newMatrix = (matrixBufferCount > kMatrixCount) ? matrixBufferCount : kMatrixCount;
+    long long requestedScale = scaleBufferCount; // as in createInstance
+    if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
+        requestedScale = newInternal;
+    else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS)
+        requestedScale = (long long) newInternal + 1; // + 1 for the temporary buffer of the edge likelihoods
+    const int newScale = (requestedScale > kScaleBufferCount) ? (int) std::min<long long>(requestedScale, INT_MAX)
+                                                              : kScaleBufferCount;
+
+    if (requestedBuffers > INT_MAX || requestedScale > INT_MAX)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    const bool growPartials = newBuffer > kBufferCount;
+    const bool growMatrices = newMatrix > kMatrixCount;
+    const bool growScale = newScale > kScaleBufferCount;
+    if (!growPartials && !growMatrices && !growScale)
+        return BEAGLE_SUCCESS;
+
+    // counts whose sizes overflow, here or in later int arithmetic (the operation arrays of the threads)
+    const long long operationsLength = (long long) BEAGLE_PARTITION_OP_COUNT * newBuffer * kPartitionCount;
+    if ((growPartials && (operationsLength > INT_MAX || (size_t) operationsLength > SIZE_MAX / sizeof(int) ||
+                          (size_t) newBuffer > SIZE_MAX / sizeof(REALTYPE*))) ||
+        (growMatrices && ((size_t) newMatrix > SIZE_MAX / sizeof(REALTYPE*) ||
+                          (size_t) newMatrix > gBranchEigenInfo.max_size())) ||
+        (growScale && (size_t) newScale > SIZE_MAX / sizeof(REALTYPE*)))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    // Phase 1: allocate everything into locals, leaving the instance untouched until all of it succeeded
+
+    const size_t chunkMatrices = size_t(1) << kEigenInfoChunkShift;
+    const int scaleBufferSize = kPaddedPatternCount;
+    const bool autoScaling = (kFlags & BEAGLE_FLAG_SCALING_AUTO) != 0;
+
+    REALTYPE** newPartials = NULL;
+    int** newTipStates = NULL;
+    REALTYPE** newScaleBuffers = NULL;
+    signed short** newAutoScaleBuffers = NULL;
+    int* newActiveScalingFactors = NULL;
+    REALTYPE** newTransitionMatrices = NULL;
+    int** newThreadOperations = NULL;  // one replacement array per thread
+    int* newAutoPartitionOperations = NULL;
+    bool ok = true;
+
+    if (growPartials) {
+        newPartials = (REALTYPE**) calloc(newBuffer, sizeof(REALTYPE*)); // new entries NULL until allocated
+        newTipStates = (int**) calloc(newBuffer, sizeof(int*));
+        ok = (newPartials != NULL && newTipStates != NULL);
+        if (ok) {
+            memcpy(newPartials, gPartials, sizeof(REALTYPE*) * kBufferCount);
+            memcpy(newTipStates, gTipStates, sizeof(int*) * kBufferCount);
+            for (int i = kBufferCount; ok && i < newBuffer; i++) { // all internal, since kBufferCount > kTipCount
+                newPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+                ok = (newPartials[i] != NULL);
+            }
+        }
+    }
+
+    if (ok && growScale) {
+        if (autoScaling) {
+            newAutoScaleBuffers = (signed short**) calloc(newScale, sizeof(signed short*));
+            newActiveScalingFactors = (int*) malloc(sizeof(int) * newInternal);
+            ok = (newAutoScaleBuffers != NULL && newActiveScalingFactors != NULL);
+            if (ok) {
+                memcpy(newAutoScaleBuffers, gAutoScaleBuffers, sizeof(signed short*) * kScaleBufferCount);
+                for (int i = kScaleBufferCount; ok && i < newScale; i++) {
+                    newAutoScaleBuffers[i] = (signed short*) malloc(sizeof(signed short) * scaleBufferSize);
+                    ok = (newAutoScaleBuffers[i] != NULL);
+                }
+                memcpy(newActiveScalingFactors, gActiveScalingFactors, sizeof(int) * kInternalPartialsBufferCount);
+                for (int i = kInternalPartialsBufferCount; i < newInternal; i++)
+                    newActiveScalingFactors[i] = 0;
+            }
+        } else {
+            newScaleBuffers = (REALTYPE**) calloc(newScale, sizeof(REALTYPE*));
+            ok = (newScaleBuffers != NULL);
+            if (ok) {
+                memcpy(newScaleBuffers, gScaleBuffers, sizeof(REALTYPE*) * kScaleBufferCount);
+                for (int i = kScaleBufferCount; ok && i < newScale; i++) {
+                    newScaleBuffers[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * scaleBufferSize);
+                    ok = (newScaleBuffers[i] != NULL);
+                    if (ok && (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC)) {
+                        for (int j = 0; j < scaleBufferSize; j++)
+                            newScaleBuffers[i][j] = 1.0;
+                    }
+                }
+            }
+        }
+    }
+
+    if (ok && growMatrices) {
+        newTransitionMatrices = (REALTYPE**) calloc(newMatrix, sizeof(REALTYPE*)); // NULL: dense on demand
+        ok = (newTransitionMatrices != NULL);
+        if (ok) {
+            memcpy(newTransitionMatrices, gTransitionMatrices, sizeof(REALTYPE*) * kMatrixCount);
+            if (!denseMatricesOnDemand()) {
+                for (int i = kMatrixCount; ok && i < newMatrix; i++) {
+                    newTransitionMatrices[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
+                    ok = (newTransitionMatrices[i] != NULL);
+                }
+            }
+        }
+        if (ok) {
+            try { // capacity only; the contents and sizes are unchanged until phase 2
+                gBranchEigenInfo.reserve(newMatrix);
+                gEigenInfoChunks.reserve((newMatrix + chunkMatrices - 1) >> kEigenInfoChunkShift);
+            } catch (std::bad_alloc&) {
+                ok = false;
+            }
+        }
+    }
+
+    // operation lists sized by the buffer count; their contents are rebuilt on every call
+    const size_t operationsSize = sizeof(int) * (size_t) operationsLength;
+    if (ok && growPartials && kThreadingEnabled) {
+        newThreadOperations = (int**) calloc(kNumThreads, sizeof(int*));
+        ok = (newThreadOperations != NULL);
+        for (int i = 0; ok && i < kNumThreads; i++) {
+            newThreadOperations[i] = (int*) malloc(operationsSize);
+            ok = (newThreadOperations[i] != NULL);
+        }
+    }
+    if (ok && growPartials && kAutoPartitioningEnabled) {
+        newAutoPartitionOperations = (int*) malloc(operationsSize);
+        ok = (newAutoPartitionOperations != NULL);
+    }
+
+    if (!ok) {
+        if (newPartials != NULL) {
+            for (int i = kBufferCount; i < newBuffer; i++)
+                free(newPartials[i]);
+        }
+        free(newPartials);
+        free(newTipStates);
+        if (newAutoScaleBuffers != NULL) {
+            for (int i = kScaleBufferCount; i < newScale; i++)
+                free(newAutoScaleBuffers[i]);
+        }
+        free(newAutoScaleBuffers);
+        free(newActiveScalingFactors);
+        if (newScaleBuffers != NULL) {
+            for (int i = kScaleBufferCount; i < newScale; i++)
+                free(newScaleBuffers[i]);
+        }
+        free(newScaleBuffers);
+        if (newTransitionMatrices != NULL) {
+            for (int i = kMatrixCount; i < newMatrix; i++)
+                free(newTransitionMatrices[i]);
+        }
+        free(newTransitionMatrices);
+        if (newThreadOperations != NULL) {
+            for (int i = 0; i < kNumThreads; i++)
+                free(newThreadOperations[i]);
+        }
+        free(newThreadOperations);
+        free(newAutoPartitionOperations);
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+
+    // Phase 2: commit; nothing here can fail. Buffers keep their addresses, so every index valid before keeps its
+    // contents, and BranchEigenInfo pointers into eigen-info chunks stay valid when the structs move.
+
+    if (growPartials) {
+        free(gPartials);
+        free(gTipStates);
+        gPartials = newPartials;
+        gTipStates = newTipStates;
+    }
+    if (growScale) {
+        if (autoScaling) {
+            free(gAutoScaleBuffers);
+            free(gActiveScalingFactors);
+            gAutoScaleBuffers = newAutoScaleBuffers;
+            gActiveScalingFactors = newActiveScalingFactors;
+        } else {
+            free(gScaleBuffers);
+            gScaleBuffers = newScaleBuffers;
+        }
+    }
+    if (growMatrices) {
+        free(gTransitionMatrices);
+        gTransitionMatrices = newTransitionMatrices;
+        gBranchEigenInfo.resize(newMatrix); // within the reserved capacity; new entries are "never updated"
+        gEigenInfoChunks.resize((newMatrix + chunkMatrices - 1) >> kEigenInfoChunkShift, NULL);
+    }
+    if (newThreadOperations != NULL) {
+        for (int i = 0; i < kNumThreads; i++) {
+            free(gThreadOperations[i]);
+            gThreadOperations[i] = newThreadOperations[i];
+        }
+        free(newThreadOperations);
+    }
+    if (newAutoPartitionOperations != NULL) {
+        free(gAutoPartitionOperations);
+        gAutoPartitionOperations = newAutoPartitionOperations;
+    }
+
+    kBufferCount = newBuffer;
+    kInternalPartialsBufferCount = newInternal;
+    kMatrixCount = newMatrix;
+    kScaleBufferCount = newScale;
 
     return BEAGLE_SUCCESS;
 }

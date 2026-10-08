@@ -244,7 +244,24 @@ BEAGLE_DLLEXPORT int beagleFinalizeInstance(int instance);
  * @return error code
  */
 BEAGLE_DLLEXPORT int beagleFinalize(void);
-        
+
+/**
+ * @brief Ensure that an instance has at least the given numbers of partials, transition-matrix and scale buffers
+ *
+ * Grow-only resize; see libhmsbeagle/beagle.h for the full contract.
+ *
+ * @param instance             Instance number (input)
+ * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
+ * @param matrixBufferCount    Number of transition matrix buffers (input)
+ * @param scaleBufferCount     Number of scale buffers (input)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleEnsureBufferCounts(int instance,
+                                              int partialsBufferCount,
+                                              int matrixBufferCount,
+                                              int scaleBufferCount);
+
 /**
  * @brief Set the compact state representation for tip node
  *

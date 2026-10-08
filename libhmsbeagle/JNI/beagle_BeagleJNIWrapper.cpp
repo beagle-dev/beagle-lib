@@ -323,6 +323,19 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCPUThreadCount
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    ensureBufferCounts
+ * Signature: (IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_ensureBufferCounts
+  (JNIEnv *env, jobject obj, jint instance, jint partialsBufferCount, jint matrixBufferCount, jint scaleBufferCount)
+{
+    jint errCode = (jint)beagleEnsureBufferCounts(instance, partialsBufferCount, matrixBufferCount,
+                                                  scaleBufferCount);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPatternWeights
  * Signature: (I[D)I
  */

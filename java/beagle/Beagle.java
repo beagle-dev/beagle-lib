@@ -142,6 +142,24 @@ public interface Beagle extends Serializable {
     void setCPUThreadCount(int threadCount);
 
     /**
+     * Ensure that the instance has at least the given numbers of partials, transition-matrix and scale buffers
+     *
+     * Grow-only resize, never shrinking. Counts are absolute and mean what they mean when the instance is created:
+     * afterwards partials indices [0, partialsBufferCount + compactBufferCount), matrix indices
+     * [0, matrixBufferCount) and scale indices [0, scaleBufferCount) are valid. A count not larger than the current
+     * count leaves that kind unchanged, so ensureBufferCounts(0, 0, 0) changes nothing and succeeds exactly when the
+     * implementation supports this method. Every index valid before keeps its contents; new buffers are
+     * uninitialized. Under SCALING_AUTO or SCALING_ALWAYS the scale count follows the partials count.
+     *
+     * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
+     * @param matrixBufferCount    Number of transition matrix buffers (input)
+     * @param scaleBufferCount     Number of scale buffers (input)
+     * @throws BeagleException with NO_IMPLEMENTATION_ERROR when the implementation (or an older native library)
+     *         cannot grow buffers; OUT_OF_RANGE_ERROR or OUT_OF_MEMORY_ERROR leave the instance unchanged
+     */
+    void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
+
+    /**
      * Set the weights for each pattern
      * @param patternWeights    Array containing patternCount weights
      */

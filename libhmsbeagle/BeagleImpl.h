@@ -294,6 +294,11 @@ public:
 
     virtual int getSiteDerivatives(double* outFirstDerivatives,
                                    double* outSecondDerivatives) = 0;
+
+    // see beagleEnsureBufferCounts; implementations that cannot grow keep this default
+    virtual int ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
 //protected:
     int resourceNumber;
 };

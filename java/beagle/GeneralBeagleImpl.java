@@ -601,6 +601,11 @@ public class GeneralBeagleImpl implements Beagle {
        throw new UnsupportedOperationException("setCPUThreadCount not implemented in GeneralBeagleImpl");
     }
 
+    public void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        // a BeagleException, as from the native implementations, so that a probe treats every implementation alike
+        throw new BeagleException("ensureBufferCounts", BeagleErrorCode.NO_IMPLEMENTATION_ERROR.getErrCode());
+    }
+
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }

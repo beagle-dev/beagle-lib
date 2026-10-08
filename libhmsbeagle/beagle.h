@@ -460,6 +460,41 @@ BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
                                              int threadCount);
 
 /**
+ * @brief Ensure that an instance has at least the given numbers of partials, transition-matrix and scale buffers
+ *
+ * Grow-only resize (like std::vector::resize, never shrinking). Counts are absolute and mean what they mean in
+ * beagleCreateInstance: after BEAGLE_SUCCESS, partials indices [0, partialsBufferCount + compactBufferCount),
+ * matrix indices [0, matrixBufferCount) and scale indices [0, scaleBufferCount) are valid, where
+ * compactBufferCount is the value given to beagleCreateInstance. A count not larger than the current count leaves
+ * that kind unchanged, so beagleEnsureBufferCounts(instance, 0, 0, 0) changes nothing and returns BEAGLE_SUCCESS
+ * exactly when the implementation supports this function.
+ *
+ * Every index valid before the call keeps its buffer and contents (partials, tip data, transition matrices or
+ * spectral branch state, scale factors). New buffers are uninitialized, as after beagleCreateInstance (under
+ * BEAGLE_FLAG_SCALING_DYNAMIC new scale buffers are set as at creation). Under BEAGLE_FLAG_SCALING_AUTO or
+ * BEAGLE_FLAG_SCALING_ALWAYS the scale count follows the partials count and scaleBufferCount is ignored.
+ * Tip, compact, eigen, state, pattern and category counts, pattern partitions, pattern weights and the thread
+ * count do not change. An implementation may reserve more memory than requested; only the requested indices are
+ * valid. Must not run concurrently with any other call on the same instance.
+ *
+ * @param instance             Instance number (input)
+ * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
+ * @param matrixBufferCount    Number of transition matrix buffers (input)
+ * @param scaleBufferCount     Number of scale buffers (input)
+ *
+ * @return BEAGLE_SUCCESS;
+ *         BEAGLE_ERROR_OUT_OF_RANGE for a negative count or a count whose sizes overflow (instance unchanged);
+ *         BEAGLE_ERROR_OUT_OF_MEMORY if an allocation fails (instance unchanged and usable);
+ *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, currently the GPU
+ *         implementations (instance unchanged);
+ *         BEAGLE_ERROR_UNINITIALIZED_INSTANCE for an invalid instance.
+ */
+BEAGLE_DLLEXPORT int beagleEnsureBufferCounts(int instance,
+                                              int partialsBufferCount,
+                                              int matrixBufferCount,
+                                              int scaleBufferCount);
+
+/**
  * @brief Set the compact state representation for tip node
  *
  * This function copies a compact state representation into an instance buffer.

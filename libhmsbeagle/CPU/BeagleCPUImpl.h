@@ -85,6 +85,7 @@ protected:
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
 
     int kInternalPartialsBufferCount;
+    int kCompactBufferCount; /// as given to createInstance; kBufferCount = partials + compact
 
     int kPartitionCount;
     int kMaxPartitionCount;
@@ -235,6 +236,9 @@ public:
     int getInstanceDetails(BeagleInstanceDetails* returnInfo);
 
     int setCPUThreadCount(int threadCount);
+
+    // see beagleEnsureBufferCounts; every CPU implementation grows its buffers here
+    int ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
 
     // set the states for a given tip
     //

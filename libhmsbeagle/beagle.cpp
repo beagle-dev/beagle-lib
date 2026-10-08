@@ -810,6 +810,27 @@ int beagleSetCPUThreadCount(int instance,
     return returnValue;
 }
 
+int beagleEnsureBufferCounts(int instance,
+                             int partialsBufferCount,
+                             int matrixBufferCount,
+                             int scaleBufferCount) {
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        return beagleInstance->ensureBufferCounts(partialsBufferCount, matrixBufferCount, scaleBufferCount);
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}
+
 int beagleSetTipStates(int instance,
                  int tipIndex,
                  const int* inStates) {

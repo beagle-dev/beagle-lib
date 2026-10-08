@@ -179,6 +179,17 @@ if(BUILD_SSE AND BUILD_SPECTRAL)
             ${CMAKE_DL_LIBS})
     add_test(indexchecktest indexchecktest)
     set_tests_properties(indexchecktest PROPERTIES SKIP_RETURN_CODE 77)
+
+    # beagleEnsureBufferCounts: instances grown in steps against instances created at the final counts
+    add_executable(buffergrowthtest
+            buffergrowthtest/buffergrowthtest.cpp)
+    target_link_libraries(buffergrowthtest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-sse
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(buffergrowthtest buffergrowthtest)
 endif(BUILD_SSE AND BUILD_SPECTRAL)
 
 add_executable(hellobeagle

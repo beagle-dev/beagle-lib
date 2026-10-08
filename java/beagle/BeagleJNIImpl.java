@@ -68,6 +68,19 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        int errCode;
+        try {
+            errCode = BeagleJNIWrapper.INSTANCE.ensureBufferCounts(instance, partialsBufferCount, matrixBufferCount,
+                    scaleBufferCount);
+        } catch (UnsatisfiedLinkError e) { // a native library older than this jar
+            errCode = BeagleErrorCode.NO_IMPLEMENTATION_ERROR.getErrCode();
+        }
+        if (errCode != 0) {
+            throw new BeagleException("ensureBufferCounts", errCode);
+        }
+    }
+
     public void setPatternWeights(final double[] patternWeights) {
         int errCode = BeagleJNIWrapper.INSTANCE.setPatternWeights(instance, patternWeights);
         if (errCode != 0) {
