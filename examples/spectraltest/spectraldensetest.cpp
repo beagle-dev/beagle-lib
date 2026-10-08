@@ -128,7 +128,7 @@ struct Result {
     const char* implName;
     std::vector<double> derivatives;    // per node and pattern
     std::vector<double> sumDerivatives; // per node
-    double edgeLogL;
+    double edgeLogL = NAN;       // written only by a successful edge-likelihood call
     std::vector<double> dense;          // getTransitionMatrix of kDenseA, kDenseB, kConvolved, kTransposed, kQComplex
     std::vector<double> eigenMatrix;    // getTransitionMatrix of branch 0
 };
