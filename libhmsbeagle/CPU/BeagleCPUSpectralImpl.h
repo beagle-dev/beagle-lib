@@ -88,12 +88,6 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gBranchEigenInfo;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartialTmp1;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartialTmp2;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTime;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAt;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCosBt;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gSinBt;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAtCosBt;
-            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gExpAtSinBt;
 
         public:
             // BeagleCPUSpectralImpl();

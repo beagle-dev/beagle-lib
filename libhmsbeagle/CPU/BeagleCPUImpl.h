@@ -172,12 +172,14 @@ protected:
     };
     std::vector<BranchEigenInfo> gBranchEigenInfo;
 
-    std::vector<REALTYPE> gTime;
-    std::vector<REALTYPE> gExpAt;
-    std::vector<REALTYPE> gCosBt;
-    std::vector<REALTYPE> gSinBt;
-    std::vector<REALTYPE> gExpAtCosBt;
-    std::vector<REALTYPE> gExpAtSinBt;
+    // The per-matrix eigen info that BranchEigenInfo points into (time, expat, cosbt, sinbt, expatcosbt,
+    // expatsinbt), in chunks of 64 matrices. A chunk is one block holding the six sub-arrays, at the offsets
+    // kEigenInfoChunkOffset; it is allocated zero-filled when one of its matrices is first updated and never
+    // moves, so the stored pointers stay valid.
+    static const int kEigenInfoChunkShift = 6;
+    std::vector<REALTYPE*> gEigenInfoChunks;
+    size_t kEigenInfoChunkOffset[6];
+    size_t kEigenInfoChunkSize;
 
     std::vector<REALTYPE> gPartialTmp1;
     std::vector<REALTYPE> gPartialTmp2;
@@ -1045,6 +1047,8 @@ protected:
     virtual int getPaddedPatternsModulus();
 
     void* mallocAligned(size_t size);
+
+    REALTYPE* allocateEigenInfoChunk(int chunkIndex);
 
     void threadWaiting(threadData* tData);
 

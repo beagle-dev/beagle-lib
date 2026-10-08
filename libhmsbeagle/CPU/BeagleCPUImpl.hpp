@@ -142,6 +142,11 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
     }
     free(gTransitionMatrices);
 
+    for (size_t i = 0; i < gEigenInfoChunks.size(); i++) {
+        if (gEigenInfoChunks[i] != NULL)
+            free(gEigenInfoChunks[i]);
+    }
+
     for(unsigned int i=0; i<kBufferCount; i++) {
         if (gPartials[i] != NULL)
             free(gPartials[i]);
@@ -510,14 +515,25 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     gPartialTmp1.resize(kPartialsPaddedStateCount * kPartitionCount);
     gPartialTmp2.resize(kPartialsPaddedStateCount * kPartitionCount);
-    gTime.resize(kMatrixCount * kCategoryCount);
 
-    const int eigenComputationLength = kMatrixCount * kCategoryCount * kPartialsPaddedStateCount;
-    gExpAt.resize(eigenComputationLength);
-    gCosBt.resize(eigenComputationLength);
-    gSinBt.resize(eigenComputationLength);
-    gExpAtCosBt.resize(eigenComputationLength);
-    gExpAtSinBt.resize(eigenComputationLength);
+    // chunk layout: time[64 * C], then expat, cosbt, sinbt, expatcosbt and expatsinbt, each [64 * C * (S + P_PAD)],
+    // every sub-array starting at a multiple of 64 bytes from the chunk base
+    const size_t chunkMatrices = size_t(1) << kEigenInfoChunkShift;
+    const size_t alignedLength = 64 / sizeof(REALTYPE);
+    const size_t subArrayLength[6] = {
+            chunkMatrices * kCategoryCount,
+            chunkMatrices * kCategoryCount * kPartialsPaddedStateCount,
+            chunkMatrices * kCategoryCount * kPartialsPaddedStateCount,
+            chunkMatrices * kCategoryCount * kPartialsPaddedStateCount,
+            chunkMatrices * kCategoryCount * kPartialsPaddedStateCount,
+            chunkMatrices * kCategoryCount * kPartialsPaddedStateCount};
+    size_t chunkLength = 0;
+    for (int i = 0; i < 6; i++) {
+        kEigenInfoChunkOffset[i] = chunkLength;
+        chunkLength += (subArrayLength[i] + alignedLength - 1) / alignedLength * alignedLength;
+    }
+    kEigenInfoChunkSize = chunkLength * sizeof(REALTYPE);
+    gEigenInfoChunks.assign((kMatrixCount + chunkMatrices - 1) >> kEigenInfoChunkShift, NULL);
 
     return BEAGLE_SUCCESS;
 }
@@ -1265,7 +1281,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
     //     printf("uTM %d %d %f %d\n", eigenIndex, probabilityIndices[i], edgeLengths[i], 0);
     // }
 
-    updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
+    int returnCode = updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
+    if (returnCode != BEAGLE_SUCCESS)
+        return returnCode;
 
     gEigenDecomposition->updateTransitionMatrices(eigenIndex,probabilityIndices,firstDerivativeIndices,secondDerivativeIndices,
                                                   edgeLengths,gCategoryRates[0],gTransitionMatrices,count);
@@ -1284,12 +1302,18 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
         info.eigenIndex = eigenIndex;
         info.categoryRatesIndex = 0; // TODO: Implement category rates index
 
-        REALTYPE* __restrict__ times = &gTime[index * kCategoryCount];
-        REALTYPE* __restrict__ expat = &gExpAt[index * (kCategoryCount * kPartialsPaddedStateCount)];
-        REALTYPE* __restrict__ cosbt = &gCosBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
-        REALTYPE* __restrict__ sinbt = &gSinBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
-        REALTYPE* __restrict__ expatcosbt = &gExpAtCosBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
-        REALTYPE* __restrict__ expatsinbt = &gExpAtSinBt[index * (kCategoryCount * kPartialsPaddedStateCount)];
+        REALTYPE* chunk = gEigenInfoChunks[index >> kEigenInfoChunkShift];
+        if (chunk == NULL && (chunk = allocateEigenInfoChunk(index >> kEigenInfoChunkShift)) == NULL)
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        const int slot = index & ((1 << kEigenInfoChunkShift) - 1);
+        const size_t slotOffset = size_t(slot) * (kCategoryCount * kPartialsPaddedStateCount);
+
+        REALTYPE* __restrict__ times = chunk + kEigenInfoChunkOffset[0] + size_t(slot) * kCategoryCount;
+        REALTYPE* __restrict__ expat = chunk + kEigenInfoChunkOffset[1] + slotOffset;
+        REALTYPE* __restrict__ cosbt = chunk + kEigenInfoChunkOffset[2] + slotOffset;
+        REALTYPE* __restrict__ sinbt = chunk + kEigenInfoChunkOffset[3] + slotOffset;
+        REALTYPE* __restrict__ expatcosbt = chunk + kEigenInfoChunkOffset[4] + slotOffset;
+        REALTYPE* __restrict__ expatsinbt = chunk + kEigenInfoChunkOffset[5] + slotOffset;
         const REALTYPE* __restrict__ eval = gEigenDecomposition->getEigenValuesPtr(eigenIndex);
 
         const bool isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
@@ -6465,6 +6489,17 @@ void* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::mallocAligned(size_t size) {
 #endif
 
     return ptr;
+}
+
+// allocates the zero-filled eigen-info chunk for matrices [64 * chunkIndex, 64 * chunkIndex + 64); NULL if out of memory
+BEAGLE_CPU_TEMPLATE
+REALTYPE* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateEigenInfoChunk(int chunkIndex) {
+    REALTYPE* chunk = (REALTYPE*) mallocAligned(kEigenInfoChunkSize);
+    if (chunk == NULL)
+        return NULL;
+    memset(chunk, 0, kEigenInfoChunkSize);
+    gEigenInfoChunks[chunkIndex] = chunk;
+    return chunk;
 }
 
 BEAGLE_CPU_TEMPLATE
