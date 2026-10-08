@@ -77,6 +77,13 @@
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
 #include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 
+// BEAGLE_INDEX_CHECKS (CMake option, default OFF): range-check buffer indices at the entry points
+#ifdef BEAGLE_INDEX_CHECKS
+#define BEAGLE_CHECK_INDICES(outOfRange) if (outOfRange) return BEAGLE_ERROR_OUT_OF_RANGE
+#else
+#define BEAGLE_CHECK_INDICES(outOfRange)
+#endif
+
 // When defined, calcAdjointCrossProducts (below) recomputes each branch's own
 // per-site likelihood locally, via AdjointIntegralPlan::branchLikelihoodInEigenBasis,
 // instead of reusing the shared root-based perSiteLikelihoods. This used to be
@@ -748,6 +755,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
     // TODO: Test with and without padding
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
+    BEAGLE_CHECK_INDICES(cumulativeScaleIndex != BEAGLE_OP_NONE && badScale(cumulativeScaleIndex));
 
     if ((kPatternCount == kPaddedPatternCount) && (kStateCount == kPartialsPaddedStateCount)) {
         beagleMemCpy(outPartials, gPartials[bufferIndex], kPartialsSize);
@@ -1005,6 +1013,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCategoryWeights(int categoryWeightsInd
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(int matrixIndex,
                                                  double* outMatrix) {
+    BEAGLE_CHECK_INDICES(badMatrix(matrixIndex));
     // TODO Test with multiple rate categories
 if (T_PAD != 0) {
     double* offsetOutMatrix = outMatrix;
@@ -1171,6 +1180,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* fir
 
     int returnCode = BEAGLE_SUCCESS;
 
+    BEAGLE_CHECK_INDICES(badMatrices(firstIndices, matrixCount) || badMatrices(secondIndices, matrixCount) ||
+                         badMatrices(resultIndices, matrixCount));
+
     for (int u = 0; u < matrixCount; u++) {
 
         if(firstIndices[u] == resultIndices[u] || secondIndices[u] == resultIndices[u]) {
@@ -1259,6 +1271,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
 
     int returnCode = BEAGLE_SUCCESS;
 
+    BEAGLE_CHECK_INDICES(badMatrices(inputIndices, matrixCount) || badMatrices(resultIndices, matrixCount));
+
     for (int u = 0; u < matrixCount; u++) {
 
         if (inputIndices[u] == resultIndices[u]) {
@@ -1317,6 +1331,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eigenIndex,
     //     printf("uTM %d %d %f %d\n", eigenIndex, probabilityIndices[i], edgeLengths[i], 0);
     // }
 
+    BEAGLE_CHECK_INDICES(badDerivativeMatrices(firstDerivativeIndices, secondDerivativeIndices, count));
+
     int returnCode = updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
@@ -1331,6 +1347,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
                                                              const int* probabilityIndices,
                                                              const double* edgeLengths,
                                                              int count) {
+    BEAGLE_CHECK_INDICES(badMatrices(probabilityIndices, count));
+
     for (int i = 0; i < count; i++) {
         const int index = probabilityIndices[i];
         REALTYPE* chunk = gEigenInfoChunks[index >> kEigenInfoChunkShift];
@@ -1408,6 +1426,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesWithModelCategori
                                             const int* secondDerivativeIndices,
                                             const double* edgeLengths,
                                             int count) {
+    BEAGLE_CHECK_INDICES(badMatrices(probabilityIndices, count) ||
+                         badDerivativeMatrices(firstDerivativeIndices, secondDerivativeIndices, count));
 
     gEigenDecomposition->updateTransitionMatricesWithModelCategories(eigenIndices,probabilityIndices,firstDerivativeIndices,secondDerivativeIndices,
                                                   edgeLengths,gTransitionMatrices,count);
@@ -1423,6 +1443,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesWithMultipleModel
                                                                                   const int* secondDerivativeIndices,
                                                                                   const double* edgeLengths,
                                                                                   int count) {
+    BEAGLE_CHECK_INDICES(badMatrices(probabilityIndices, count) ||
+                         badDerivativeMatrices(firstDerivativeIndices, secondDerivativeIndices, count));
 
     // TODO: move loop to within gEigenDecomposition
 
@@ -1465,6 +1487,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* operations,
         return returnCode;
     }
 
+    BEAGLE_CHECK_INDICES(badOperations(operations, count, false, cumulativeScaleIndex, false, false));
+
     if (kAutoPartitioningEnabled) {
         autoPartitionPartialsOperations(operations,
                                         gAutoPartitionOperations,
@@ -1492,6 +1516,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartials(const int *operations,
                                                          int cumulativeScaleIndex,
                                                          BeaglePartialsType partialsType) {
     int returnCode = BEAGLE_ERROR_GENERAL;
+
+    BEAGLE_CHECK_INDICES(badOperations(operations, count, false, cumulativeScaleIndex, true,
+                                       partialsType & BEAGLE_PARTIALS_TOP));
 
     if (kAutoPartitioningEnabled) {
         autoPartitionPartialsOperations(operations,
@@ -1550,6 +1577,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
                                                                    double *outSumDerivatives,
                                                                    double *outSumSquaredDerivatives) {
     int returnCode = BEAGLE_ERROR_GENERAL;
+
+    BEAGLE_CHECK_INDICES(badPartialsIndices(postBufferIndices, count) || badPartialsIndices(preBufferIndices, count) ||
+                         badMatrices(derivativeMatrixIndices, count));
 
     if (missingDenseMatrix(derivativeMatrixIndices, count))
         return BEAGLE_ERROR_OUT_OF_RANGE;
@@ -1668,6 +1698,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateCrossProducts(const int *postBuf
                                                               int count,
                                                               double *outSumDerivatives,
                                                               double *outSumSquaredDerivatives) {
+    BEAGLE_CHECK_INDICES(badPartialsIndices(postBufferIndices, count) || badPartialsIndices(preBufferIndices, count));
+
     return calcCrossProducts(
             postBufferIndices, preBufferIndices,
             categoryRatesIndices,
@@ -1692,6 +1724,24 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointCrossProducts(const int *
                                                                      const int *postScaleIndices,
                                                                      const int *preScaleIndices,
                                                                      const int cumulativeScaleIndex) {
+#ifdef BEAGLE_INDEX_CHECKS
+    if (count > 0) {
+        if (badPartialsIndices(postBufferIndices, count) || badPartialsIndices(preBufferIndices, count) ||
+            badMatrices(transitionIndices, count) || badPartials(rootPostOrderIndex))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+        // a node's scale indices, and then the root's cumulative one, are read only when not NONE
+        bool rescaled = false;
+        for (int i = 0; i < count; i++) {
+            const int post = postScaleIndices ? postScaleIndices[i] : BEAGLE_OP_NONE;
+            const int pre = preScaleIndices ? preScaleIndices[i] : BEAGLE_OP_NONE;
+            if ((post != BEAGLE_OP_NONE && badScale(post)) || (pre != BEAGLE_OP_NONE && badScale(pre)))
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+            rescaled |= (post != BEAGLE_OP_NONE || pre != BEAGLE_OP_NONE);
+        }
+        if (rescaled && cumulativeScaleIndex != BEAGLE_OP_NONE && badScale(cumulativeScaleIndex))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+#endif
     return calcAdjointCrossProducts(
             postBufferIndices, preBufferIndices,
             transitionIndices,
@@ -1723,6 +1773,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateAdjointDerivative(
         pre[i]   = operations[i].preOrderPartials;
         eigen[i] = operations[i].branchTransitionMatrix;
     }
+    BEAGLE_CHECK_INDICES(operationCount > 0 &&
+                         (badPartialsIndices(post.data(), operationCount) ||
+                          badPartialsIndices(pre.data(), operationCount) ||
+                          badMatrices(eigen.data(), operationCount) || badPartials(rootPostOrderIndex)));
     return calcAdjointCrossProducts(
             post.data(), pre.data(), eigen.data(),
             &categoryRatesIndex, &categoryWeightsIndex,
@@ -2448,6 +2502,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(const int* oper
 
     int returnCode = BEAGLE_ERROR_GENERAL;
 
+    BEAGLE_CHECK_INDICES(badOperations(operations, count, true, BEAGLE_OP_NONE, false, false));
+
     if (kThreadingEnabled) {
         returnCode = upPartialsByPartitionAsync(operations,
                                                 count);
@@ -2469,6 +2525,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePrePartialsByPartition(const int* o
                                                                     BeaglePartialsType partialsType) {
 
     int returnCode = BEAGLE_ERROR_GENERAL;
+
+    BEAGLE_CHECK_INDICES(badOperations(operations, count, true, BEAGLE_OP_NONE, true,
+                                       partialsType & BEAGLE_PARTIALS_TOP));
 
     if (kThreadingEnabled) {
         returnCode = upPrePartialsByPartitionAsync(operations,
@@ -3629,6 +3688,8 @@ BEAGLE_CPU_TEMPLATE
                                                                        int count,
                                                                        double *outSumLogLikelihood) {
 
+    BEAGLE_CHECK_INDICES(badRootIndices(bufferIndices, cumulativeScaleIndices, count));
+
     if (count == 1) {
         // We treat this as a special case so that we don't have convoluted logic
         //      at the end of the loop over patterns
@@ -3696,6 +3757,13 @@ BEAGLE_CPU_TEMPLATE
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
         } else {
+#ifdef BEAGLE_INDEX_CHECKS
+            for (int p = 0; p < partitionCount; p++) {
+                if (badPartition(partitionIndices[p]) || badPartials(bufferIndices[p]) ||
+                    (cumulativeScaleIndices[p] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[p])))
+                    return BEAGLE_ERROR_OUT_OF_RANGE;
+            }
+#endif
             if (kThreadingEnabled) {
                 calcRootLogLikelihoodsByPartitionAsync(bufferIndices, categoryWeightsIndices, stateFrequenciesIndices, cumulativeScaleIndices, partitionIndices, partitionCount, outSumLogLikelihoodByPartition);
             } else {
@@ -4094,6 +4162,16 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateScaleFactors(const int* scalingIndices,
                                                 int  count,
                                                 int  cumulativeScalingIndex) {
+#ifdef BEAGLE_INDEX_CHECKS
+    // under SCALING_AUTO the indices are internal partials buffers and the cumulative index is not used
+    for (int i = 0; i < count; i++) {
+        if ((kFlags & BEAGLE_FLAG_SCALING_AUTO) ? (scalingIndices[i] < kTipCount || badPartials(scalingIndices[i]))
+                                                : badScale(scalingIndices[i]))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    if (!(kFlags & BEAGLE_FLAG_SCALING_AUTO) && badScale(cumulativeScalingIndex))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+#endif
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         REALTYPE* cumulativeScaleBuffer = gScaleBuffers[0];
         for(int j=0; j<kPatternCount; j++)
@@ -4139,6 +4217,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateScaleFactorsByPartition(const i
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     } else {
+        BEAGLE_CHECK_INDICES(badPartition(partitionIndex) || badScale(cumulativeScalingIndex));
+#ifdef BEAGLE_INDEX_CHECKS
+        for (int i = 0; i < count; i++) {
+            if (badScale(scalingIndices[i]))
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+        }
+#endif
 
         int startPattern = gPatternPartitionsStartPatterns[partitionIndex];
         int endPattern = gPatternPartitionsStartPatterns[partitionIndex + 1];
@@ -4163,6 +4248,13 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactors(const int* scalingIndices,
                                                           int  count,
                                                           int  cumulativeScalingIndex) {
+    BEAGLE_CHECK_INDICES(badScale(cumulativeScalingIndex));
+#ifdef BEAGLE_INDEX_CHECKS
+    for (int i = 0; i < count; i++) {
+        if (badScale(scalingIndices[i]))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+#endif
     REALTYPE* cumulativeScaleBuffer = gScaleBuffers[cumulativeScalingIndex];
     for(int i=0; i<count; i++) {
         const REALTYPE* scaleBuffer = gScaleBuffers[scalingIndices[i]];
@@ -4182,6 +4274,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactorsByPartition(const int* 
                                                                      int count,
                                                                      int cumulativeScalingIndex,
                                                                      int partitionIndex) {
+    BEAGLE_CHECK_INDICES(badPartition(partitionIndex) || badScale(cumulativeScalingIndex));
+#ifdef BEAGLE_INDEX_CHECKS
+    for (int i = 0; i < count; i++) {
+        if (badScale(scalingIndices[i]))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+#endif
 
     int startPattern = gPatternPartitionsStartPatterns[partitionIndex];
     int endPattern = gPatternPartitionsStartPatterns[partitionIndex + 1];
@@ -4203,6 +4302,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactorsByPartition(const int* 
 
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetScaleFactors(int cumulativeScalingIndex) {
+    BEAGLE_CHECK_INDICES(badScale(cumulativeScalingIndex));
     //memcpy(gScaleBuffers[cumulativeScalingIndex],zeros,sizeof(double) * kPatternCount);
 
      if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
@@ -4220,6 +4320,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetScaleFactorsByPartition(int cumulati
      if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
      } else {
+        BEAGLE_CHECK_INDICES(badPartition(partitionIndex) || badScale(cumulativeScalingIndex));
         int startPattern = gPatternPartitionsStartPatterns[partitionIndex];
         int endPattern = gPatternPartitionsStartPatterns[partitionIndex + 1];
 
@@ -4233,6 +4334,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::resetScaleFactorsByPartition(int cumulati
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::copyScaleFactors(int destScalingIndex,
                                                         int srcScalingIndex) {
+    BEAGLE_CHECK_INDICES(badScale(destScalingIndex) || badScale(srcScalingIndex));
     memcpy(gScaleBuffers[destScalingIndex],gScaleBuffers[srcScalingIndex],sizeof(REALTYPE) * kPatternCount);
 
     return BEAGLE_SUCCESS;
@@ -4258,6 +4360,9 @@ BEAGLE_CPU_TEMPLATE
                                                              double* outSumLogLikelihood,
                                                              double* outSumFirstDerivative,
                                                              double* outSumSecondDerivative) {
+    BEAGLE_CHECK_INDICES(badEdgeIndices(parentBufferIndices, childBufferIndices, probabilityIndices,
+                                        firstDerivativeIndices, secondDerivativeIndices, cumulativeScaleIndices, count));
+
     if (missingDenseMatrix(probabilityIndices, count) ||
         (firstDerivativeIndices != NULL && missingDenseMatrix(firstDerivativeIndices, count)) ||
         (secondDerivativeIndices != NULL && missingDenseMatrix(secondDerivativeIndices, count)))
@@ -4362,6 +4467,11 @@ BEAGLE_CPU_TEMPLATE
 
     int returnCode = BEAGLE_SUCCESS;
 
+    BEAGLE_CHECK_INDICES(denseMatricesOnDemand() &&
+                         (badMatrices(probabilityIndices, partitionCount) ||
+                          (firstDerivativeIndices != NULL && badMatrices(firstDerivativeIndices, partitionCount)) ||
+                          (secondDerivativeIndices != NULL && badMatrices(secondDerivativeIndices, partitionCount))));
+
     if (missingDenseMatrix(probabilityIndices, partitionCount) ||
         (firstDerivativeIndices != NULL && missingDenseMatrix(firstDerivativeIndices, partitionCount)) ||
         (secondDerivativeIndices != NULL && missingDenseMatrix(secondDerivativeIndices, partitionCount)))
@@ -4373,6 +4483,19 @@ BEAGLE_CPU_TEMPLATE
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             returnCode = BEAGLE_ERROR_NO_IMPLEMENTATION;
         } else {
+#ifdef BEAGLE_INDEX_CHECKS
+            // implemented without derivatives or with both; first derivatives alone are NO_IMPLEMENTATION
+            if (!(firstDerivativeIndices != NULL && secondDerivativeIndices == NULL)) {
+                for (int p = 0; p < partitionCount; p++) {
+                    if (badPartition(partitionIndices[p]) || badPartials(parentBufferIndices[p]) ||
+                        badPartials(childBufferIndices[p]) || badMatrix(probabilityIndices[p]) ||
+                        (firstDerivativeIndices != NULL && badMatrix(firstDerivativeIndices[p])) ||
+                        (secondDerivativeIndices != NULL && badMatrix(secondDerivativeIndices[p])) ||
+                        (cumulativeScaleIndices[p] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[p])))
+                        return BEAGLE_ERROR_OUT_OF_RANGE;
+                }
+            }
+#endif
 
             if (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL) {
 
@@ -6569,6 +6692,157 @@ bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::missingDenseMatrix(const int* matrixIndi
     }
     return false;
 }
+
+#ifdef BEAGLE_INDEX_CHECKS
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badScale(int index) const {
+    const int scaleBufferEntries = (kFlags & BEAGLE_FLAG_SCALING_AUTO) ? 1 : kScaleBufferCount;
+    return index < 0 || index >= scaleBufferEntries;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badMatrices(const int* indices, int count) const {
+    for (int i = 0; i < count; i++) {
+        if (badMatrix(indices[i]))
+            return true;
+    }
+    return false;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badPartialsIndices(const int* indices, int count) const {
+    for (int i = 0; i < count; i++) {
+        if (badPartials(indices[i]))
+            return true;
+    }
+    return false;
+}
+
+// calculateRootLogLikelihoods: count == 1 reads the caller's scale index only under MANUAL or DYNAMIC scaling or with
+// auto root partitioning; count != 1 reads every scale index unless the first is NONE. Only BEAGLE_OP_NONE means none:
+// the generic code skips any negative index, but the 4-state code reads every index other than BEAGLE_OP_NONE.
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badRootIndices(const int* bufferIndices, const int* cumulativeScaleIndices,
+                                                       int count) const {
+    const bool autoOrAlways = kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS);
+    if (count == 1) {
+        if (badPartials(bufferIndices[0]))
+            return true;
+        return (kAutoRootPartitioningEnabled || !autoOrAlways) &&
+               cumulativeScaleIndices[0] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[0]);
+    }
+    for (int i = 0; i < count; i++) {
+        // under SCALING_ALWAYS each root's scale buffer is at bufferIndex - kTipCount
+        if (badPartials(bufferIndices[i]) || ((kFlags & BEAGLE_FLAG_SCALING_ALWAYS) && bufferIndices[i] < kTipCount))
+            return true;
+    }
+    if (count > 0 && !(kFlags & BEAGLE_FLAG_SCALING_ALWAYS) && cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+        for (int i = 0; i < count; i++) {
+            if (badScale(cumulativeScaleIndices[i]))
+                return true;
+        }
+    }
+    return false;
+}
+
+// calculateEdgeLogLikelihoods; spectral instances also look up every matrix index for dense contents
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badEdgeIndices(const int* parentBufferIndices, const int* childBufferIndices,
+                                                       const int* probabilityIndices,
+                                                       const int* firstDerivativeIndices,
+                                                       const int* secondDerivativeIndices,
+                                                       const int* cumulativeScaleIndices, int count) {
+    if (denseMatricesOnDemand() &&
+        (badMatrices(probabilityIndices, count) ||
+         (firstDerivativeIndices != NULL && badMatrices(firstDerivativeIndices, count)) ||
+         (secondDerivativeIndices != NULL && badMatrices(secondDerivativeIndices, count))))
+        return true;
+    const bool noDerivatives = (firstDerivativeIndices == NULL && secondDerivativeIndices == NULL);
+    if (count == 1) {
+        if (badPartials(parentBufferIndices[0]) || badPartials(childBufferIndices[0]) ||
+            badMatrix(probabilityIndices[0]) ||
+            (firstDerivativeIndices != NULL && badMatrix(firstDerivativeIndices[0])) ||
+            (secondDerivativeIndices != NULL && badMatrix(secondDerivativeIndices[0])))
+            return true;
+        const bool readsScale = (kAutoRootPartitioningEnabled && noDerivatives) ||
+                                !(kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS));
+        return readsScale && cumulativeScaleIndices[0] != BEAGLE_OP_NONE && badScale(cumulativeScaleIndices[0]);
+    }
+    if (!noDerivatives || count <= 0)
+        return false; // not implemented for count > 1 with derivatives
+    if (badPartialsIndices(parentBufferIndices, count) || badPartialsIndices(childBufferIndices, count) ||
+        badMatrices(probabilityIndices, count))
+        return true;
+    if (cumulativeScaleIndices[0] != BEAGLE_OP_NONE) {
+        for (int i = 0; i < count; i++) {
+            if (badScale(cumulativeScaleIndices[i]))
+                return true;
+        }
+    }
+    return false;
+}
+
+// derivative matrices are written only by the real eigen decomposition (EigenDecompositionCube), and the second
+// derivatives only together with the first
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badDerivativeMatrices(const int* firstDerivativeIndices,
+                                                              const int* secondDerivativeIndices,
+                                                              int count) const {
+    if ((kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) || firstDerivativeIndices == NULL)
+        return false;
+    return badMatrices(firstDerivativeIndices, count) ||
+           (secondDerivativeIndices != NULL && badMatrices(secondDerivativeIndices, count));
+}
+
+// post-order (updatePartials*) or pre-order (updatePrePartials*) operations, in the 7- or 9-int layout
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::badOperations(const int* operations, int count, bool byPartition,
+                                                      int cumulativeScaleIndex, bool preOrder, bool top) {
+    const int numOps = byPartition ? BEAGLE_PARTITION_OP_COUNT : BEAGLE_OP_COUNT;
+    const bool spectral = denseMatricesOnDemand();
+    for (int op = 0; op < count; op++) {
+        const int* operation = operations + op * numOps;
+        const int destination = operation[0];
+        const int writeScale = operation[1];
+        const int readScale = operation[2];
+        const int child1 = operation[3];
+        const int matrix1 = operation[4];
+        const int child2 = operation[5];
+        const int matrix2 = operation[6];
+        const bool singleChild = (child2 == BEAGLE_OP_NONE);
+        const int cumulative = byPartition ? operation[8] : cumulativeScaleIndex;
+
+        if (byPartition && badPartition(operation[7]))
+            return true;
+        if (badPartials(destination) || badPartials(child1) ||
+            (!singleChild && (badPartials(child2) || badMatrix(matrix2))))
+            return true;
+        // a negative matrix on the parent side means none for a pre-order TOP op, and for a spectral single-child
+        // pre-order op
+        const bool matrix1Optional = preOrder && (top || (spectral && singleChild));
+        if (!(matrix1Optional && matrix1 < 0) && badMatrix(matrix1))
+            return true;
+
+        if (preOrder && (top || spectral))
+            continue; // these pre-order paths read no scale buffer
+        if (!preOrder && cumulative != BEAGLE_OP_NONE && badScale(cumulative))
+            return true;
+        if (kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS)) {
+            if (destination < kTipCount) // the destination's scale state is at destination - kTipCount
+                return true;
+        } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
+            // post-order rescales when no child is a tip with states; pre-order always
+            const bool rescales = preOrder ||
+                    (gTipStates[child1] == NULL && (singleChild || gTipStates[child2] == NULL));
+            if (rescales && (badScale(writeScale) || badScale(readScale) || badScale(cumulative)))
+                return true;
+        } else if (writeScale >= 0 ? badScale(writeScale) : (readScale >= 0 && badScale(readScale))) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::threadWaiting(threadData* tData)

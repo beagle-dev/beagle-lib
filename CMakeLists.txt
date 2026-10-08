@@ -8,7 +8,7 @@ project(BEAGLE)
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
 set(BEAGLE_VERSION_MINOR "1")
-set(BEAGLE_VERSION_PATCH "1")
+set(BEAGLE_VERSION_PATCH "2")
 
 set(GENERIC_API_VERSION "1")
 
@@ -39,6 +39,7 @@ OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
 OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
 OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
 OPTION(BEAGLE_BASTA_CPU_ACCUM "Use CPU for final accumulation for reduction" OFF)
+OPTION(BEAGLE_INDEX_CHECKS "Range-check partials, matrix and scale indices on the CPU (BEAGLE_ERROR_OUT_OF_RANGE); for CI and testing" OFF)
 
 IF(BEAGLE_BENCHMARK)
     ADD_DEFINITIONS(-DBEAGLE_BENCHMARK)
@@ -63,6 +64,11 @@ ENDIF(BEAGLE_DEBUG_SYNCH)
 IF(BEAGLE_BASTA_CPU_ACCUM)
 	ADD_DEFINITIONS(-DBEAGLE_BASTA_CPU_ACCUM)
 ENDIF(BEAGLE_BASTA_CPU_ACCUM)
+
+# a compile definition, so it applies whatever CMAKE_BUILD_TYPE is (the build type below is fixed to RelWithDebInfo)
+IF(BEAGLE_INDEX_CHECKS)
+	ADD_DEFINITIONS(-DBEAGLE_INDEX_CHECKS)
+ENDIF(BEAGLE_INDEX_CHECKS)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"

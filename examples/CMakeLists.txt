@@ -167,6 +167,18 @@ if(BUILD_SSE AND BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(spectraldensetest spectraldensetest)
+
+    # BEAGLE_INDEX_CHECKS rejects out-of-range buffer indices; without the option the test exits 77 (skipped)
+    add_executable(indexchecktest
+            indexchecktest/indexchecktest.cpp)
+    target_link_libraries(indexchecktest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-sse
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(indexchecktest indexchecktest)
+    set_tests_properties(indexchecktest PROPERTIES SKIP_RETURN_CODE 77)
 endif(BUILD_SSE AND BUILD_SPECTRAL)
 
 add_executable(hellobeagle

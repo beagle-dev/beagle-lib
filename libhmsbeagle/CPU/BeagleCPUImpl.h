@@ -1060,6 +1060,24 @@ protected:
     // with dense matrices on demand, whether any of the given indices has no dense contents yet
     bool missingDenseMatrix(const int* matrixIndices, int count);
 
+#ifdef BEAGLE_INDEX_CHECKS
+    // BEAGLE_INDEX_CHECKS: whether a call would read or write a partials, matrix, scale or partition index out of
+    // range; the entry points then return BEAGLE_ERROR_OUT_OF_RANGE. Only indices the call dereferences are checked.
+    bool badPartials(int index) const { return index < 0 || index >= kBufferCount; }
+    bool badMatrix(int index) const { return index < 0 || index >= kMatrixCount; }
+    bool badScale(int index) const; // gScaleBuffers has one entry under SCALING_AUTO
+    bool badPartition(int index) const { return !kPartitionsInitialised || index < 0 || index >= kPartitionCount; }
+    bool badMatrices(const int* indices, int count) const;
+    bool badPartialsIndices(const int* indices, int count) const;
+    bool badRootIndices(const int* bufferIndices, const int* cumulativeScaleIndices, int count) const;
+    bool badEdgeIndices(const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+                        const int* firstDerivativeIndices, const int* secondDerivativeIndices,
+                        const int* cumulativeScaleIndices, int count);
+    bool badOperations(const int* operations, int count, bool byPartition, int cumulativeScaleIndex,
+                       bool preOrder, bool top);
+    bool badDerivativeMatrices(const int* firstDerivativeIndices, const int* secondDerivativeIndices, int count) const;
+#endif
+
     void threadWaiting(threadData* tData);
 
 private:

@@ -26,9 +26,10 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake ..
+        cmake .. -DBEAGLE_INDEX_CHECKS=ON
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
+        ctest --output-on-failure
 
   build-aarch64:
     name: Build on Linux aarch64
@@ -45,7 +46,8 @@ jobs:
         export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64
         mkdir build
         cd build
-        cmake ..
+        cmake .. -DBEAGLE_INDEX_CHECKS=ON
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
+        ctest --output-on-failure
         
