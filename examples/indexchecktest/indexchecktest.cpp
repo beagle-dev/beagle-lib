@@ -123,6 +123,10 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
         if (mode.flag == BEAGLE_FLAG_SCALING_MANUAL) {
             const int scaled[3] = {0, 1, 2};
             ok &= beagleAccumulateScaleFactors(instance, scaled, 3, kCumulative) == BEAGLE_SUCCESS;
+        } else if (mode.flag == BEAGLE_FLAG_SCALING_AUTO) {
+            // AUTO: the root reads the one cumulative buffer, filled from the internal nodes' partials indices
+            const int internalNodes[3] = {4, 5, 6};
+            ok &= beagleAccumulateScaleFactors(instance, internalNodes, 3, BEAGLE_OP_NONE) == BEAGLE_SUCCESS;
         }
         ok &= beagleCalculateRootLogLikelihoods(instance, &root, &weightsIndex, &frequenciesIndex, &cumulative, 1,
                                                 &logL) == BEAGLE_SUCCESS;
