@@ -481,6 +481,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     kThreadingEnabled = false;
     kAutoPartitioningEnabled = false;
+    gThreadOperations = NULL;
+    gThreadOpCounts = NULL;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
         if (kStateCount <= 4) {
@@ -1599,7 +1601,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
 
 
         if (gThreadOpCounts == NULL) {
-            memset(gThreadOpCounts, 0, sizeof(int) * kNumThreads);
+            gThreadOpCounts = (int*) calloc(kNumThreads, sizeof(int));
         }
 
 
@@ -1615,7 +1617,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
 #ifdef BEAGLE_DEBUG_FLOW
             std::cerr<<"Mark 1.5"<<std::endl;
 #endif
-            gThreadOperations = (int**) malloc(sizeof(int*) * kNumThreads);
+            gThreadOperations = (int**) calloc(kNumThreads, sizeof(int*));
         }
 
         for (int i=0; i<kPartitionCount; i++) {

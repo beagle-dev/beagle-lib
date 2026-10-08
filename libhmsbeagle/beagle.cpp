@@ -75,7 +75,7 @@ BeagleImpl* getBeagleInstance(int instanceIndex);
 
 
 BeagleImpl* getBeagleInstance(int instanceIndex) {
-    if (instanceIndex > instances->size())
+    if (instances == NULL || instanceIndex < 0 || instanceIndex >= (int) instances->size())
         return NULL;
     return (*instances)[instanceIndex];
 }
