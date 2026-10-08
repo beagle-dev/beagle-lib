@@ -9,7 +9,8 @@
 # synthetictest's buffered 10000-value lines) and both, the log stream and the TinyGPULog lines under $BEAGLE_TINYGPU_DATA/runs/.
 # A line that already ran on this card may find its own results in VRAM (the same data at the same addresses; VRAM
 # survives the partial boot), so a kernel that silently did not run would pass: it reruns only after a power cycle
-# (D1_REPLUGGED=1 says so). Exits 0 only if the program exited 0, the crash guard exited at the plugin's clean, log stream saw
+# (D1_REPLUGGED=1 says so). "This card": an earlier run of the line on this host whose boot was the card's arch (TODO.md plan
+# step N16: the RX 9070 XT's lines are not the RX 7900 XT's). Exits 0 only if the program exited 0, the crash guard exited at the plugin's clean, log stream saw
 # nothing from the eGPU and the boot reset nothing, the run launched exactly the line's kernels on the TinyGPU resource with
 # no step failed and nothing lost (amd_d1_verdict) and its numbers match the references (d1_compare.py); 1 is a STOP (stop
 # all hardware work), 2 means nothing was started, 3 a clean run whose kernels or numbers are wrong (recorded; the next run
@@ -25,9 +26,10 @@ REFS="$BEAGLE_TINYGPU_DATA/d1/refs"; REF3="$REFS/$LABEL.dp.out"; [ $PROG = hmcte
 [ -s "$REFS/$LABEL.sp.out" ] && [ -s "$REF3" ] || { echo "no CPU references for $LABEL; run d1_refs.sh first"; exit 2; }
 [ "$(cat "$REFS/$LABEL.cmd" 2>/dev/null)" = "$CMD" ] || { echo "the references for $LABEL are from another d1_runs.txt line; rerun d1_refs.sh"; exit 2; }
 RUNS="$BEAGLE_TINYGPU_DATA/runs"
-prev=$(ls -t "$RUNS"/*_${HW_HOST}_amd_d1${DP}_$LABEL.out 2>/dev/null | head -1)
-[ -z "$prev" ] || [ "$D1_REPLUGGED" = 1 ] || { echo "$LABEL already ran on this card ($prev): its results may still be in VRAM; power-cycle the eGPU, then rerun with D1_REPLUGGED=1; not running"; exit 2; }
 amd_hw_begin
+arch=$(sed -nE "s/^    \{0x${AMD_PCI#1002:}, \"(gfx[0-9a-f]+)\".*/\1/p" "$GPU_DIR/TinyGPUAMDBootTables.h")   # am::kChips: the card's arch
+prev=$(grep -l "C++ boot done .* arch=$arch\$" $(ls -t "$RUNS"/*_${HW_HOST}_amd_d1${DP}_$LABEL.err 2>/dev/null) /dev/null 2>/dev/null | head -1)
+[ -z "$prev" ] || [ "$D1_REPLUGGED" = 1 ] || { echo "$LABEL already ran on this card ($arch: $prev): its results may still be in VRAM; power-cycle the eGPU, then rerun with D1_REPLUGGED=1; not running"; exit 2; }
 amd_boot_check
 STAMP=$(date +%Y%m%d-%H%M%S)_$HW_HOST; OUT="$RUNS/${STAMP}_amd_d1${DP}_$LABEL.out"; ERR="${OUT%.out}.err"; LS="${OUT%.out}_logstream.txt"
 TLOG="${OUT%.out}_tinygpulog.txt"   # the plugin's and the crash guard's TinyGPULog lines

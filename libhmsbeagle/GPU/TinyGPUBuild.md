@@ -10,7 +10,8 @@ when BEAGLE runs:
 
 - **NVIDIA:** `nvcc` and `ptxas` from CUDA 12.8 build the PTX and 54 cubins (single and double precision, 9 state counts,
   for sm_86, sm_89 and sm_120). NVIDIA ships no CUDA for macOS, so both run in a Linux container under Docker.
-- **AMD:** tinygrad's build of AMD's Code Object Manager (comgr) compiles 18 HSACOs for gfx1100 (the RX 7900 series).
+- **AMD:** tinygrad's build of AMD's Code Object Manager (comgr) compiles 36 HSACOs: 18 for gfx1100 (the RX 7900 series) and
+  18 for gfx1201 (the RX 9070 series).
   The build fails if any of their kernels spills registers to scratch. Without comgr the build still succeeds, but the
   plugin has no AMD kernels and refuses AMD cards.
 
@@ -18,7 +19,7 @@ Running needs TinyGPU.app and the GPUs' firmware, but not Docker or comgr.
 
 BEAGLE was built this way on a Mac Studio (Apple silicon) with macOS 26.5.1, Apple clang 21.0.0, CMake 4.2.3, Docker
 Desktop with `nvidia/cuda:12.8.1-devel-ubuntu22.04`, comgr v7.2.0 and TinyGPU.app release `c0d024f9`. The backend has run
-on an RTX 4060 (AD107), an RTX 5070 (GB205) and an RX 7900 XT (gfx1100).
+on an RTX 4060 (AD107), an RTX 5070 (GB205), an RX 7900 XT (gfx1100) and an RX 9070 XT (gfx1201).
 
 ## 1. Base tools
 
@@ -126,7 +127,7 @@ installs the app itself.
 
 ## 5. Firmware (to run)
 
-NVIDIA's firmware is GSP-RM 570.144, the booters and, on GB20x, the FMC. AMD's is six gfx1100 blobs. Both come from
+NVIDIA's firmware is GSP-RM 570.144, the booters and, on GB20x, the FMC. AMD's is six gfx1100 blobs or eight gfx1201 ones. Both come from
 linux-firmware at tinygrad's pin, and you need not fetch either by hand: both vendors behave the same way. On first use,
 before anything is written to the GPU, BEAGLE downloads any missing file with `/usr/bin/curl` into
 `~/Library/Caches/beagle/firmware` and checks every file's sha256. A file that cannot be had stops the boot before it starts.
@@ -148,7 +149,8 @@ it from BEAGLE's source tree (step 6) on a Mac with the network, and copy the di
 ~/src/beagle-lib/libhmsbeagle/GPU/tinygpu_fetch_firmware.sh --chip ad102 ~/beagle-firmware
 ```
 
-`--chip` picks the GPU: `ad102` for Ada, `gb202` for Blackwell, `gfx1100` for the RX 7900 series; without it the script
+`--chip` picks the GPU: `ad102` for Ada, `gb202` for Blackwell, `gfx1100` for the RX 7900 series, `gfx1201` for the RX 9070
+series; without it the script
 fetches all of them. Then `export BEAGLE_TINYGPU_FW=~/beagle-firmware` points BEAGLE at the directory.
 
 ## 6. Get the source, configure and build
@@ -183,7 +185,7 @@ cmake --build ~/src/beagle-build -j 8
 ```
 
 The first build writes the generated kernels into the source tree, under `libhmsbeagle/GPU/kernels/`: the PTX header,
-the 54 cubins and the 18 HSACOs. It then embeds them in the plugin. On Apple silicon the libraries are universal (arm64 and
+the 54 cubins and the 36 HSACOs. It then embeds them in the plugin. On Apple silicon the libraries are universal (arm64 and
 x86_64). To build only the backend and its test program:
 
 ```bash

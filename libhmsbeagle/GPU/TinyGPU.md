@@ -7,14 +7,16 @@ tinygrad's user-space PCIe server, and follows tinygrad's own NV driver (`tinygr
 ahead-of-time cubins and submits BEAGLE's kernels, with no Python at run time. On exit it unloads the GPU and runs
 NVIDIA's driver-unload teardown, so the next process boots it again without a power cycle.
 
-The AMD side of the backend (a Radeon through the same app; tested on an RX 7900 XT, gfx1100) follows tinygrad's AM driver
-and AMD runtime the same way (`support/am/` and `ops_amd.py`), in C++ with no Python (TODO.md plan steps A1 and A2). BEAGLE
-boots the card itself (the PSP, SMU, GMC, IH, GFX and SDMA), sets up tinygrad's `AMDDevice` queues and buffers, loads the
-build's ahead-of-time HSACOs and submits PM4 and SDMA: launches, copies, allocations from a VRAM pool and synchronization.
-Offline, on a register-level fake of the card, the boot sends TinyGPU.app the requests tinygrad's sends, byte for byte. It
-is written for the RX 7900 XT's IP versions only. A card another session left unfinalized needs an SMU mode1 reset, which
-BEAGLE never sends over TinyGPU: the boot refuses it, and the card must be power-cycled. Until plan step A2l tinygrad's
-Python daemon booted the card; it is now the tests' oracle.
+The AMD side of the backend (a Radeon through the same app; tested on an RX 7900 XT, gfx1100, and an RX 9070 XT, gfx1201)
+follows tinygrad's AM driver and AMD runtime the same way (`support/am/` and `ops_amd.py`), in C++ with no Python (TODO.md
+plan steps A1 and A2, and the RDNA 4 plan's N1-N17). BEAGLE boots the card itself (the PSP, SMU, GMC, IH, GFX and SDMA), sets
+up tinygrad's `AMDDevice` queues and buffers, loads the build's ahead-of-time HSACOs and submits PM4 and SDMA: launches,
+copies, allocations from a VRAM pool and synchronization. Offline, on register-level fakes of both cards, the boot sends
+TinyGPU.app the requests tinygrad's sends, byte for byte; on the cards, its writes equal tinygrad's own boots'. It is written
+for the two cards' IP versions only (two register families, gfx11 and gfx12, chosen from the IP versions the boot discovers).
+A card another session left unfinalized needs an SMU mode1 reset, which BEAGLE never sends over TinyGPU: the boot refuses
+it, and the card must be power-cycled. Until plan step A2l tinygrad's Python daemon booted the card; it is now the tests'
+oracle.
 
 ## Supported GPUs
 
@@ -23,7 +25,8 @@ Python daemon booted the card; it is now the tests' oracle.
 | Ada (AD10x) | `0x26xx`-`0x28xx` | tested on an RTX 4060 (AD107); the other AD10x boot the same way, untested |
 | Blackwell (GB20x) | `0x2bxx`-`0x2dxx`, `0x2fxx` | tested on an RTX 5070 (GB205); the other GB20x boot the same way, untested |
 | Ampere (GA10x) | `0x22xx`, `0x24xx`, `0x25xx` | boots as Ada does (TODO.md plan step G1), untested: no Ampere card has run it |
-| AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT; another AMD card's IP versions are refused at its boot |
+| AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT |
+| AMD Navi 48 (gfx1201) | `1002:7550` | tested on an RX 9070 XT (XFX); any other AMD device ID is refused before anything is sent to the card, and IP versions other than these two cards' at its boot |
 
 These are tinygrad's NVIDIA families. Any other NVIDIA GPU (Turing, GA100, Hopper, GB100) is refused at
 `beagleCreateInstance`, with nothing written to it. The NVIDIA boot also needs a 256 MiB BAR1, as GeForce cards come: a
@@ -31,7 +34,7 @@ card with another size (data-center and some professional cards have a larger on
 (`BarLayoutError`), before any firmware is set up.
 
 Both precisions are built, for padded state counts 4, 16, 32, 48, 64, 80, 128, 192 and 256: on NVIDIA 18 cubins per
-architecture (sm_86, sm_89, sm_120), on AMD 18 HSACOs for gfx1100. The resource offers `BEAGLE_FLAG_PRECISION_DOUBLE` as
+architecture (sm_86, sm_89, sm_120), on AMD 18 HSACOs per architecture (gfx1100, gfx1201). The resource offers `BEAGLE_FLAG_PRECISION_DOUBLE` as
 well as single (TODO.md plan steps C16, A7); consumer GPUs run double precision natively, at a fraction of the single rate. A
 GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 
@@ -45,12 +48,12 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
   in that order, and not in tinygrad's download cache. A file in none of them is downloaded from the
   pinned URL with `/usr/bin/curl` into BEAGLE's cache before anything is written to the GPU. Every file's sha256 is checked
   against `TinyGPUFirmwareManifest.h`.
-- For an AMD card, AMD's firmware (the six gfx1100 blobs, from the same linux-firmware pin, listed in
-  `TinyGPUAMDBootTables.h`), the same way: located, or downloaded into BEAGLE's cache before anything is written to the GPU,
-  every file checked. A blob that cannot be had stops the boot before it starts: `not booting: nothing was written to the
+- For an AMD card, AMD's firmware for its chip (six gfx1100 blobs, or eight gfx1201 ones, from the same linux-firmware pin,
+  listed in `TinyGPUAMDBootTables.h`), the same way: located, or downloaded into BEAGLE's cache before anything is written to
+  the GPU, every file checked. A blob that cannot be had stops the boot before it starts: `not booting: nothing was written to the
   GPU`.
 - To fetch either vendor's by hand (for debugging, or a Mac without the network):
-  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ga102|ad102|gb202|gfx1100] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
+  `libhmsbeagle/GPU/tinygpu_fetch_firmware.sh [--chip ga102|ad102|gb202|gfx1100|gfx1201] DIR`, then `BEAGLE_TINYGPU_FW=DIR`.
 - To build: `nvcc` and `ptxas` from CUDA 12.8, for the generated kernels header and the embedded cubins (on a Mac, through
   Docker; `-DTINYGPU_NVCC=` and `-DTINYGPU_PTXAS=` name them); for AMD, comgr (`libamd_comgr`, tinygrad's:
   `/opt/homebrew/lib/libamd_comgr.dylib`, or `-DTINYGPU_COMGR=`), for the embedded HSACOs. Without comgr the plugin refuses
@@ -63,7 +66,7 @@ GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
 `BEAGLE_NV_GUARD`, and `BEAGLE_AMD_GUARD` for an AMD card), and refuses to boot without it. The resource appears in
 `beagleGetResourceList` with `BEAGLE_FLAG_FRAMEWORK_TINYGPU`, named and described as the CUDA plugin (NVIDIA) and the OpenCL
 plugin (AMD) describe their devices, from the card's published specifications: `NVIDIA GeForce RTX 5070 (TinyGPU)`, with
-`Global memory (MB): 12288 | Clock speed (Ghz): 2.51 | Number of cores: 6144`. The list is made before any boot, so the plugin
+`Global memory (MB): 12288 | Clock speed (Ghz): 2.51 | Number of cores: 6144`, or `AMD Radeon RX 9070 XT (TinyGPU)`. The list is made before any boot, so the plugin
 finds the card in a table by its PCI ids (`kTGCards` in `GPUInterfaceTinyGPU.cpp`; the revision, which tells an RX
 7900 XT from an XTX, from the IORegistry); a card not in it is listed by its PCI ids, as `NVIDIA GPU 10de:2b85 (TinyGPU)`.
 
@@ -168,7 +171,7 @@ act on the AMD boot as on tinygrad's (an `AM_RESET=1` on a warm card is a mode1 
 | `tinygpu_amd_compile.cpp`, `kernels/make_tinygpu_hsaco.sh` | tinygrad's compile_hip in C++ (comgr), and the embedded HSACOs, at build time |
 | `TinyGPUAMDBoot.h`, `TinyGPUAMDReg.h` | tinygrad's AM driver in C++ (AMDev, AMFirmware, its page tables and memory manager, the PSP, SMU, GMC, IH, GFX and SDMA blocks), and its registers |
 | `TinyGPUAMDDevice.h` | AMDDevice.__init__'s queues and buffers and the old daemon's handoff, in C++, for the runtime |
-| `TinyGPUAMDBootTables.h` | the boot's registers, structs, constants and firmware manifest, generated by `make_tinygpu_amd_boot_tables.py` |
+| `TinyGPUAMDBootTables.h` | the boot's registers (one table per register family: gfx11, gfx12), the cards (`kChips`), structs, constants and firmware manifest, generated by `make_tinygpu_amd_boot_tables.py` |
 
 The Python this port was checked against, tinygrad plus BEAGLE's patches, lives in `tinygpu_tests/oracle/`, off the run
 path.
