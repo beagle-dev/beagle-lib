@@ -21,7 +21,8 @@ from the recording's session of the same number:
     from a SEC2 start to the next NV_PGC6_BSI_SECURE_SCRATCH_14 read (nv_init_helper's sleep, ip.py:651-658) and at least
     0.1 s between an engine reset's two writes (NV_FLCN.reset, ip.py:273-275); markers, as an ordered sequence, listed.
 A session passes if every request matched, the client closed after the last one, and no client-written page differs.
-AMD sessions (the recorded first config read names vendor 0x1002, TODO.md plan step A2i): none of the NV semantics above
+AMD sessions (the recorded first config read names vendor 0x1002, TODO.md plan step A2i, or the recording's tgproxy.py --card
+does, armed before the first request): none of the NV semantics above
 (the GSP, the timed sleeps, BAR0 as registers, the GPFIFO front end); the requests, replies, sysmem and pages are checked
 the same, and --guard runs tgguard_amd.py's guard on AMD's triggers. The GPU is not run, so only sessions without GPU work
 replay (an AMD boot to its handoff and fini: no doorbell).
@@ -103,6 +104,7 @@ class Replay:
         self.engines = {x for x, n in names.items() if n in ("NV_PGSP_FALCON_ENGINE", "NV_PSEC_FALCON_ENGINE")}
         self.sec2_start = {x for x, n in self.triggers.items() if n in ("SEC2.NV_PFALCON_FALCON_CPUCTL", "SEC2.NV_PFALCON_FALCON_CPUCTL_ALIAS")}
         self.R = tggpu.regs("ada")
+        self.card = w.meta(a.rec).get("card")   # tgproxy.py --card: the card of sessions that never read config dword 0
         self.out = w.Writer(a.out, time.monotonic_ns()) if a.out else None
         self.results = []
 
@@ -146,7 +148,18 @@ class Session:
             import tgguard
             self.guard = tgguard.Guard(log=rp.log)
         self.defect = rp.a.guard_defect   # not yet put in (GUARD_DEFECTS)
-        self.amd, self.amd_triggers = False, None   # the recorded session's card is AMD's (its first config read)
+        self.amd, self.amd_triggers = False, None   # the recorded session's card is AMD's (its first config read, or --card)
+
+    def arm_amd(self, device):
+        """The AMD card's triggers and guard, from its captured table, chosen by its device ID (TODO.md plan step N6): None, or
+        why not."""
+        import tgguard_amd, fake_am_gpu
+        tbl = fake_am_gpu.table_for(device)
+        if tbl is None: return f"no single captured discovery table for the AMD card {device:04x}"
+        self.amd, self.amd_triggers = True, tgguard_amd.trigger_addrs(tbl[1])
+        if self.guard: self.guard = tgguard_amd.AMDGuard(tbl[1], log=self.rp.log)
+        self.rp.log(f"session {self.sess.n}: the AMD card ({tbl[1]['pci_id']}, {tbl[1].get('arch')}): AMD triggers{' and guard' if self.guard else ''}")
+        return None
 
     def set_chip(self, boot42):   # the boot's NV_PMC_BOOT_42 read: the chip's MMU and QMD versions (tggpu.chip)
         name, mmu_ver, compute = tggpu.chip(boot42)
@@ -259,8 +272,10 @@ class Session:
             i += 1
             apply_gsp_through(i)
         apply_gsp_through(0)
+        if rp.card and rp.card.startswith("1002:") and (why := self.arm_amd(int(rp.card[5:], 16))):
+            self.diverge(sess.reqs[0].seq if sess.reqs else 0, why)
         try:
-            while True:
+            while not self.why:
                 waited = not select.select([conn], [], [], 0)[0]   # nothing queued: this request's arrival is its send time
                 hdr = w.recv_exact(conn, 33)
                 if not hdr: break
@@ -325,9 +340,7 @@ class Session:
                     rep = sess.reply.get(e.seq)
                     if rep is None: self.diverge(e.seq, f"no recorded reply for {describe(req)}"); break
                     if cmd == w.CFG_READ and a0 == 0 and rep.f["reply"][0] == 0 and not self.amd and (rep.f["reply"][1] & 0xffff) == 0x1002:
-                        import tgguard_amd
-                        self.amd, self.amd_triggers = True, tgguard_amd.trigger_addrs()
-                        if self.guard: self.guard = tgguard_amd.AMDGuard(log=rp.log)
+                        if (why := self.arm_amd((rep.f["reply"][1] >> 16) & 0xffff)): self.diverge(e.seq, why); break
                     if self.amd: pass   # none of NV's timed sleeps, BAR1 VRAM or chip detection
                     elif cmd == w.MMIO_READ and bar == 0 and a0 == rp.bsi14 and sec2_start is not None:
                         dt, waited = t - sec2_start[0], waited and sec2_start[1]

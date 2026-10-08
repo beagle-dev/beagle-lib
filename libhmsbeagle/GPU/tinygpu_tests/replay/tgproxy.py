@@ -28,7 +28,11 @@ Rules (inv:verification#0):
     recording between sessions, or after the current one; in a fail-stop only SIGKILL ends it.
 
     python tgproxy.py --listen <socket> --upstream <TinyGPU.app socket> --out <new recording dir> [--guard]
-                      [--start-app] [--label L]
+                      [--start-app] [--label L] [--card VVVV:DDDD]
+--card names the card for sessions whose client never reads config dword 0 (stock tinygrad: its first config read is the
+capability pointer): its AMD triggers and guard are armed before the first request, and a dword 0 read naming another card
+fail-stops. Without it, a session's card is what its first dword 0 read says (BEAGLE's plugin and the oracle daemon's
+sessions start with one). The recording's meta keeps it, for tgreplay.py.
 --start-app starts TinyGPU.app on the upstream socket when nothing listens there, as tinygrad does (system.py:430-436);
 only hardware recordings pass it. It prints "tgproxy listening" once a client may connect, and each session's end."""
 import os, sys, time, json, mmap, socket, signal, struct, argparse, subprocess, pathlib, platform, traceback, contextlib
@@ -91,13 +95,14 @@ class Proxy:
         self.a, self.t0 = a, time.monotonic_ns()
         self.triggers = w.trigger_addrs()
         self.vendor, self.amd_triggers = None, None   # per session: from its first config read (PCI vendor 0x1002: the AMD card)
+        self.card = tuple(int(x, 16) for x in a.card.split(":")) if a.card else None   # (vendor, device): --card
         self.rec = w.Writer(a.out, self.t0)
         self.seq, self.maps, self.client, self.up, self.guard = 0, [], None, None, None
         self.pages_due = False   # a trigger since the last page snapshot
         self.in_session = self.exit_after = False
         self.n_allocs = 0
         self.stats = dict(requests=0, forwarded=0, markers=0, refused=0, bytes_up=0, bytes_down=0, triggers=0, diffs=0, pages=0)
-        self.meta = dict(tool="tgproxy", label=a.label, argv=sys.argv, listen=a.listen, upstream=a.upstream, guard=bool(a.guard),
+        self.meta = dict(tool="tgproxy", label=a.label, argv=sys.argv, listen=a.listen, upstream=a.upstream, guard=bool(a.guard), card=a.card,
                          host=platform.node(), pid=os.getpid(), started=time.strftime("%Y-%m-%d %H:%M:%S"),
                          beagle_rev=git_rev(pathlib.Path(__file__).resolve().parents[4]),
                          tinygrad_rev=git_rev(os.environ.get("TINYGRAD_PATH", pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1")))
@@ -177,6 +182,7 @@ class Proxy:
                 self.rec.note(self.now(), dict(event="session end", n=n, how="no-upstream", why=str(e)))
                 self.log(f"session {n} ended: no-upstream: {e}")
                 return dict(n=n, how="no-upstream", why=str(e))
+            if self.card: self.set_vendor(*self.card)   # before anything is forwarded
             while self.one_request(): pass
             if self.guard and not self.guard.clean_exit():
                 raise FailStop(f"the client closed, but the guard did not see the GPU torn down ({self.guard.state()})")
@@ -188,7 +194,7 @@ class Proxy:
         info = dict(event="session end", n=n, how=how, why=why, final_pages_seq=self.seq)
         self.rec.note(self.now(), info)
         self.rec.flush()
-        self.log(f"session {n} ended: {how}{': ' + why if why else ''}; {json.dumps(self.stats)}")
+        self.log(f"session {n} ended: {how}{': ' + why if why else ''}; {json.dumps(self.stats)}{'; guard ' + json.dumps(self.guard.stats) if self.guard else ''}")
         if how == "failstop":
             self.rec.end(self.now(), dict(how="failstop", why=why, stats=self.stats))
             self.rec.close(dict(self.meta, ended=time.strftime("%Y-%m-%d %H:%M:%S"), end=dict(how="failstop", why=why, session=n)))
@@ -279,19 +285,26 @@ class Proxy:
             if self.guard: self.guard.on_sysmem(m.alloc, m.segs, m.size, m.mm)
         else: self.to_client(resp + data)
         self.stats["bytes_down"] += 17 + len(data)
-        if cmd == w.CFG_READ and a0 == 0 and status == 0 and self.vendor is None: self.set_vendor(r0 & 0xffff)
+        if cmd == w.CFG_READ and a0 == 0 and status == 0:
+            if self.vendor is None: self.set_vendor(r0 & 0xffff, (r0 >> 16) & 0xffff)
+            elif self.card and a1 == 4 and (r0 & 0xffff, (r0 >> 16) & 0xffff) != self.card:
+                raise FailStop(f"the card reads {r0 & 0xffff:04x}:{(r0 >> 16) & 0xffff:04x}, not --card {self.a.card}")
         if self.guard and cmd == w.MMIO_READ and status == 0: self.guard.on_read(bar, a0, data)
         self.rec.flush()
         return True
 
-    def set_vendor(self, vendor):
-        """The session's card, from its first config read: AMD's triggers and guard (tgguard_amd.py) for vendor 0x1002."""
+    def set_vendor(self, vendor, device):
+        """The session's card, from its first config read: AMD's triggers and guard (tgguard_amd.py) for vendor 0x1002, at the
+        bases of the card's captured discovery table, chosen by its device ID (TODO.md plan step N6). An AMD card without one
+        (or with more than one) is refused: its registers, and so its triggers, are unknown."""
         self.vendor = vendor
         if vendor != AMD_VENDOR: return
-        import tgguard_amd
-        if self.amd_triggers is None: self.amd_triggers = tgguard_amd.trigger_addrs()
-        if self.guard: self.guard = tgguard_amd.AMDGuard(log=self.log)
-        self.log(f"session: the AMD card (vendor {vendor:#06x}): AMD triggers{' and guard' if self.guard else ''}")
+        import tgguard_amd, fake_am_gpu
+        tbl = fake_am_gpu.table_for(device)
+        if tbl is None: raise FailStop(f"no single captured discovery table for the AMD card {vendor:04x}:{device:04x}: its triggers are unknown")
+        self.amd_triggers = tgguard_amd.trigger_addrs(tbl[1])
+        if self.guard: self.guard = tgguard_amd.AMDGuard(tbl[1], log=self.log)
+        self.log(f"session: the AMD card ({vendor:04x}:{device:04x}, {tbl[1].get('arch')}): AMD triggers{' and guard' if self.guard else ''}")
 
     def is_trigger(self, bar, off):
         if self.vendor == AMD_VENDOR: return bar == 2 or (bar, off) in self.amd_triggers
@@ -340,6 +353,7 @@ def main():
     ap.add_argument("--guard", action="store_true")
     ap.add_argument("--start-app", action="store_true")
     ap.add_argument("--label", default="")
+    ap.add_argument("--card")
     a = ap.parse_args()
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)

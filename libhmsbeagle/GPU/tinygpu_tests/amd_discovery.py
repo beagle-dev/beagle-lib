@@ -6,6 +6,8 @@ the indirect VRAM read on a small BAR); nothing more is read from the GPU. Only 
 rest of that read is other VRAM, which a power cycle changes. Writes <out dir>/<vendor>_<device>_<sha16>.bin and a .json
 beside it: the IP versions and bases, harvest, the VRAM size and gc_info."""
 import ctypes, hashlib, json, os, pathlib, sys, time
+import tgpaths
+tgpaths.block_network()   # TODO.md plan step N6: the boot's firmware comes from tinygrad's cache, never a download
 from tinygrad import Device
 from tinygrad.runtime.autogen.am import am
 out, pci_id = pathlib.Path(sys.argv[1]), sys.argv[2]

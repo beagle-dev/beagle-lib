@@ -26,6 +26,8 @@ TG_GB20X="20260927-093033_Marcs-Mac-Studio-490_gb205_l0 20260927-094318_Marcs-Ma
 # partial boot) and cold (a full one, after a power cycle), through tgproxy --guard; each replays exactly to the oracle's
 # daemon and to the C++ boot (amd_l0_replay.py, test_a2.sh)
 TG_AMD_L0="20261001-125155_Marcs-Mac-Studio-490_amd_l0_warm 20261002-083213_Marcs-Mac-Studio-490_amd_l0_cold"
+# the RX 9070 XT's (TODO.md plan step N10): replayed to the oracle's daemon by test_n9.py; into TG_AMD_L0 (the C++ boot too) at N13
+TG_AMD_L0_RDNA4="20261008-111434_Marcs-Mac-Studio-490_amd_l0_cold 20261008-111453_Marcs-Mac-Studio-490_amd_l0_warm"
 
 # Offline scripts call this first: the plugin they load must contain the BEAGLE_TINYGPU_NO_LAUNCH guard, or a failed
 # connection to a fake would start the real TinyGPU.app. (A static check: it runs nothing.)
@@ -169,14 +171,19 @@ amd_hw_begin() {
     [ -n "$AMD_PCI" ] || { echo "TinyGPU.app does not serve an AMD card; not running"; exit 2; }
 }
 # amd_boot_check: the boot tinygrad's AM driver would give the card, read without writing (amd_state.py, at the bases of the
-# table run_amd_discovery.sh captured). Refuses when it would start with an SMU mode1 reset, which plan step A0 aborts on;
-# without a captured table it cannot tell, and says so.
+# table run_amd_discovery.sh or run_amd_discovery_ro.sh captured). Refuses when it would start with an SMU mode1 reset, which
+# plan step A0 aborts on, and, since plan step N6, when there is no captured table for the card.
 amd_boot_check() {
-    local tbl rc
-    tbl=$(ls "$BEAGLE_TINYGPU_DATA/discovery/${AMD_PCI/:/_}"_*.json 2>/dev/null | head -1)
-    [ -n "$tbl" ] || { echo "note: no discovery table for $AMD_PCI in $BEAGLE_TINYGPU_DATA/discovery: the boot is not predicted"; return 0; }
-    "$BEAGLE_PYTHON" "$TG_TESTS/amd_state.py" "$tbl"; rc=$?
-    [ $rc -eq 0 ] && return 0
+    local tbls rc out
+    tbls=$(ls "$BEAGLE_TINYGPU_DATA/discovery/${AMD_PCI/:/_}"_*.json 2>/dev/null)
+    # TODO.md plan step N6: a card with no captured table is not booted (run_amd_discovery_ro.sh captures one with no boot);
+    # amd_state.py picks the table of this board among the device ID's (revision, subsystem, VRAM)
+    [ -n "$tbls" ] || { echo "no discovery table for $AMD_PCI in $BEAGLE_TINYGPU_DATA/discovery: the boot cannot be predicted (run_amd_discovery_ro.sh first); not running"; exit 2; }
+    out=$("$BEAGLE_PYTHON" "$TG_TESTS/amd_state.py" $tbls); rc=$?; echo "$out"
+    if [ $rc -eq 0 ]; then   # the prediction, for amd_hw_end's stop rule S8
+        AMD_PREDICTED=$(grep -q '^prediction: a partial boot' <<< "$out" && echo partial || echo full)
+        return 0
+    fi
     [ $rc -eq 3 ] && { echo "a mode1 reset would follow: power-cycle the card (unplug it, then plug it in again) first; not running"; exit 2; }
     echo "the boot check failed (exit $rc); not running"; exit 2
 }
@@ -188,15 +195,24 @@ amd_require_app_zip() {
     [ -f "$zip" ] && [ -x /Applications/TinyGPU.app/Contents/MacOS/TinyGPU ] \
         || { echo "no $zip or no TinyGPU.app: stock tinygrad's ensure_app would reinstall the app; not running"; exit 2; }
 }
+# amd_boot_taken <output>: the run's first boot from its DEBUG=2 lines (the pin's and the C++ port's "AM_<IP> initialized"):
+# partial when it starts at AM_GFX (amdev.py:211), full otherwise (AM_SOC first); nothing when no block was initialized.
+amd_boot_taken() {
+    local first; first=$(grep -m1 -oE "AM_[A-Z0-9]+ initialized" "$1")
+    [ -z "$first" ] || { [ "$first" = "AM_GFX initialized" ] && echo partial || echo full; }
+}
 # amd_hw_end <output>: after a run, log stream must still be attached and have seen nothing from the eGPU ($LS), and
-# tinygrad's DEBUG=2 lines must show no mode1 reset or malformed state (plan step A0's abort conditions). Prints a STOP line
-# and returns nonzero otherwise.
+# tinygrad's DEBUG=2 lines must show no mode1 reset or malformed state (plan step A0's abort conditions), and the boot taken
+# must be the one amd_boot_check predicted (stop rule S8, TODO.md plan step N6). Prints a STOP line and returns nonzero otherwise.
 amd_hw_end() {
-    local events reset
+    local events reset taken
     hw_logstream_stop || { echo "STOP: log stream ended during the run ($LS): the eGPU check was blind: stop all hardware work"; return 1; }
     events=$(grep -cvE "$HW_LOG_BENIGN" "$LS")
     [ "$events" -eq 0 ] || { echo "STOP: log stream saw $events eGPU event line(s) ($LS): stop all hardware work"
                              grep -vE "$HW_LOG_BENIGN" "$LS" | head -5 | cut -c1-200; return 1; }
     reset=$(grep -m1 -E "^am [^:]*: (mode1 reset|Malformed state)" "$1")
     [ -z "$reset" ] || { echo "STOP: tinygrad reset the card ($reset): stop all hardware work"; return 1; }
+    taken=$(amd_boot_taken "$1")
+    [ -z "$AMD_PREDICTED" ] || [ -z "$taken" ] || [ "$taken" = "$AMD_PREDICTED" ] \
+        || { echo "STOP: a $taken boot where amd_state.py predicted a $AMD_PREDICTED one (stop rule S8): stop all hardware work"; return 1; }
 }

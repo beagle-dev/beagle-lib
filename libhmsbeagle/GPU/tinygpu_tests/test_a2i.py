@@ -1,7 +1,10 @@
 """Plan step A2i: the V1 tools on the AMD card, offline, on fake_amd_device.py's card:
-  1. the guard (replay/tgguard_amd.py) on synthetic events: page tables pointing at a live allocation and a queue on them
-     pass; a system PTE outside every allocation, a doorbell before its queue, a queue whose ring is unmapped and the SMU's
-     mode1 reset are each refused; a live queue at the client's exit holds, and its dequeue read back inactive lets go;
+  1. the guard (replay/tgguard_amd.py) on synthetic events, at the RX 7900 XT's registers and the RDNA 4 card's (its
+     captured table, TODO.md plan step N6): page tables pointing at a live allocation and a queue on them pass; a system
+     PTE outside every allocation, a doorbell before its queue, a queue whose ring is unmapped and the SMU's mode1 reset are
+     each refused; a live queue at the client's exit holds, and its dequeue read back inactive lets go; a huge page is the
+     GC's PDE_PTE bit (bit 54 on gfx11, 63 on gfx12): into a live allocation it passes, a stray one and the other GC's bit
+     (a table in system memory) are refused;
   2. the daemon's boot-only session (amd_daemon_session.py: boot, handoff, fini; no kernels), recorded through
      tgproxy.py --guard, cold and warm: every request goes through, and the session ends clean;
   3. each recording replays (tgreplay.py --guard) to the daemon again, and to the C++ boot's own session
@@ -19,6 +22,7 @@ import golden_amd_boot as gab
 import amd_daemon_session as ds
 import tgguard_amd
 import fake_am_gpu as amg
+from tinygrad.runtime.autogen.am import am
 
 HERE, WORK = tgpaths.HERE, tgpaths.WORK / "a2i"
 PY = os.environ.get("BEAGLE_PYTHON", sys.executable)
@@ -27,14 +31,14 @@ results = []
 def check(name, ok, detail=""): results.append(f"{name}: {'PASS' if ok else 'FAIL'}{(' (' + detail + ')') if detail else ''}")
 
 # ── 1. the guard on synthetic events ─────────────────────────────────────────────────────────────────────────────────
-def guard_unit():
-    g = tgguard_amd.AMDGuard(log=lambda m: None)
+def guard_unit(meta):
+    g = tgguard_amd.AMDGuard(meta, log=lambda m: None)
     R, A = g.R, g.A
     w32 = lambda name, v: g.on_write(5, A(name) * 4, struct.pack("<I", v))
     trig = lambda name, v: g.check_trigger(5, A(name) * 4, struct.pack("<I", v))
     SYS, VM = 0x80_0000_0000, 0x2000_0000_0000
     g.on_sysmem(0, [(SYS, 0x4000)], 0x4000, None)
-    g.on_read(5, amg.MEMSIZE * 4, struct.pack("<I", 20464))
+    g.on_read(5, amg.MEMSIZE * 4, struct.pack("<I", meta["vram_size"] >> 20))
     w32("regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_LO32", (VM >> 12) & 0xffffffff); w32("regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_HI32", VM >> 44)
     w32("regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_LO32", 0x0 | 1); w32("regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_HI32", 0)
     for lv, (table, child) in enumerate(((0x0, 0x1000), (0x1000, 0x2000), (0x2000, 0x3000))):   # PDB2 -> PDB1 -> PDB0 -> PTB
@@ -59,7 +63,23 @@ def guard_unit():
     ok.append(trig("regMMVM_INVALIDATE_ENG17_REQ", 1) is not None)
     w32("regCP_HQD_PQ_BASE", ((VM + 0x40_0000_0000) >> 8) & 0xffffffff); w32("regCP_HQD_PQ_BASE_HI", (VM + 0x40_0000_0000) >> 40)
     ok.append(trig("regCP_HQD_ACTIVE", 1) is not None)                               # its ring unmapped
-    check("guard on synthetic events", all(ok), f"{sum(ok)} of {len(ok)} as expected")
+    check(f"guard on synthetic events ({meta['arch']})", all(ok), f"{sum(ok)} of {len(ok)} as expected")
+
+def guard_huge(meta):
+    def audit(entry):   # a PDB0 entry under a root at VRAM 0, beside a live 2 MiB allocation
+        g = tgguard_amd.AMDGuard(meta, log=lambda m: None)
+        w32 = lambda name, v: g.on_write(5, g.A(name) * 4, struct.pack("<I", v))
+        g.on_sysmem(0, [(SYS, 2 << 20)], 2 << 20, None)
+        g.on_read(5, amg.MEMSIZE * 4, struct.pack("<I", meta["vram_size"] >> 20))
+        w32("regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_LO32", 0x0 | 1); w32("regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_HI32", 0)
+        g.on_write(0, 0x0, struct.pack("<Q", 0x1000 | 1)); g.on_write(0, 0x1000, struct.pack("<Q", 0x2000 | 1))   # PDB2 -> PDB1 -> PDB0
+        g.on_write(0, 0x2000, struct.pack("<Q", entry))
+        return g.check_trigger(5, g.A("regGCVM_INVALIDATE_ENG17_REQ") * 4, struct.pack("<I", 1))
+    SYS, leaf = 0x80_0000_0000, amg.pde_pte(meta)
+    other = am.AMDGPU_PDE_PTE_GFX12 if leaf == am.AMDGPU_PDE_PTE else am.AMDGPU_PDE_PTE
+    ok = [audit(SYS | 0x3 | 0x70 | leaf) is None, audit(0x90_0000_0000 | 0x3 | 0x70 | leaf) is not None,
+          audit(SYS | 0x3 | 0x70 | other) is not None]
+    check(f"guard: a huge page is PDE_PTE {leaf:#x} ({meta['arch']})", all(ok), f"{sum(ok)} of {len(ok)} as expected")
 
 # ── 2-4. recordings, replays and the hold ────────────────────────────────────────────────────────────────────────────
 def start(argv, ready, log):
@@ -74,7 +94,9 @@ def start(argv, ready, log):
 def main():
     WORK.mkdir(parents=True, exist_ok=True)
     work = tempfile.mkdtemp(dir=WORK)
-    guard_unit()
+    for dev in (0x744c, 0x7550):
+        meta = amg.table_for(dev)[1]
+        guard_unit(meta); guard_huge(meta)
     exe = gab.WORK / "golden_amd_boot"
     tgpaths.build_cpp(HERE / "golden_amd_boot.cpp", exe)
     blobs = gab.blobs_file(work)

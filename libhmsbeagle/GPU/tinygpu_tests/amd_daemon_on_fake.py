@@ -1,7 +1,7 @@
 """The oracle's amd_dispatch_daemon.py as it is, booting fake_amd_device.py's card (TODO.md plan step A2a), spawned by
 amd_daemon_session.py with the daemon's arguments (the plugin spawned it until plan step A2l). On macOS tinygrad finds the GPU through IOKit
 (System.pci_scan_bus, system.py:61-72), and offline that must not see this Mac's own PCI devices, so the scan returns the
-fake card's id instead. Every other line is the daemon's. tgpaths.setup() is not called: its atexit hook would drop
+fake card's id instead (FAKE_AMD_CHIP's, or FAKE_AMD_DEVICE_ID: TODO.md plan step N6). Every other line is the daemon's. tgpaths.setup() is not called: its atexit hook would drop
 tinygrad's opened devices, and with them the AMDev.fini that the daemon's exit runs. The daemon's log goes to
 $TINYGPU_TEST_WORK/amd_dispatch_daemon.log, not ~/Library/Logs, where the hardware runs read it.
 AMD_REG_NAMES_OUT=<file>: at exit, write the AMDev register names tinygrad's code used (each AMRegister reached as an
@@ -23,7 +23,8 @@ _expanduser, _logs = os.path.expanduser, os.environ.get("TINYGPU_TEST_WORK", str
 os.path.expanduser = lambda p: _logs if p == "~/Library/Logs" else (os.path.join(_logs, "amd_dispatch_daemon.log")
                                                                      if p == "~/Library/Logs/amd_dispatch_daemon.log" else _expanduser(p))
 from tinygrad.runtime.support import system
-system.System.pci_scan_bus = lambda vendor, devices, base_class=None: ["1002:744c"] if vendor == 0x1002 else []
+_device = os.environ.get("FAKE_AMD_DEVICE_ID") or {"gfx1100": "744c", "gfx1201": "7550"}[os.environ.get("FAKE_AMD_CHIP", "gfx1100")]   # the fake's
+system.System.pci_scan_bus = lambda vendor, devices, base_class=None: [f"1002:{_device}"] if vendor == 0x1002 else []   # (fake_am_gpu.CHIP_IDS)
 if os.environ.get("AMD_REG_NAMES_OUT"):
     from tinygrad.runtime.support.am.amdev import AMDev, AMRegister
     _get, _reg = AMDev.__getattribute__, AMDev.reg

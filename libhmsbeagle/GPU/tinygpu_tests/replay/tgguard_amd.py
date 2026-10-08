@@ -5,8 +5,10 @@ the GPU is about to use, and a reason (not None) means: do not forward it, hold 
 stay open, and the user unplugs the eGPU before killing anything). It is a second layer beside the port's own checks (the
 IOVA fence, refuse_mode1) and sees only the wire. Its shadow of the card: VRAM from the client's BAR0 writes and the replies
 to its BAR0 reads; the BAR5 registers it needs from the client's writes and read replies, the HQD block banked by
-GRBM_GFX_CNTL as on the GPU; the sysmem allocations from MAP_SYSMEM_FD. Registers are at this card's discovered bases
-(fake_am_gpu.card_regs: tinygrad's tables and the captured discovery table). What it checks:
+GRBM_GFX_CNTL as on the GPU; the sysmem allocations from MAP_SYSMEM_FD. Registers are at the card's discovered bases
+(fake_am_gpu.regs_for: tinygrad's tables for its IP versions and its captured discovery table, which the proxy and the replay
+server pick by the session's device ID since TODO.md plan step N6; the fake's own card by default), the PSP's named as
+AMDev names them (MPASP from MP0 14), and a page-table leaf is gfx12's PDE_PTE bit on GC 12. What it checks:
   - a TLB invalidation (GCVM or MMVM INVALIDATE_ENG17_REQ): the page tables written since the last, from GCVM_CONTEXT0's
     root (4 levels, PDE_PTE huge pages), and any table they newly point to: a system PTE must point into a live
     MAP_SYSMEM_FD allocation (a stray device address faults the Mac's DART), a VRAM page or table below the VRAM size, and
@@ -25,18 +27,22 @@ from tinygrad.runtime.autogen.am import am
 PAGE = 0x1000
 VENDOR = 0x1002
 
-def trigger_addrs():
-    """{(bar, dword or byte offset): name}: the writes after which the GPU acts on what the client prepared."""
-    R = amg.card_regs()
+def trigger_addrs(meta=None):
+    """{(bar, dword or byte offset): name}: the writes after which the GPU acts on what the client prepared, on the card of
+    a captured table (meta: fake_am_gpu.table_for's; the fake's own card by default)."""
+    meta = meta or amg.card()[1]
+    R, psp = amg.regs_for(meta), amg.psp_pref(meta)
     a = lambda n: R[n].addr[0] * 4
     t = {(5, a(n)): n for n in ("regGCVM_INVALIDATE_ENG17_REQ", "regMMVM_INVALIDATE_ENG17_REQ", "regCP_HQD_ACTIVE", "regSDMA0_QUEUE0_RB_CNTL",
-                                "mmMP1_SMN_C2PMSG_75", "mmMP1_SMN_C2PMSG_66", "regMP0_SMN_C2PMSG_35", "regMP0_SMN_C2PMSG_64", "regMP0_SMN_C2PMSG_67")}
+                                "mmMP1_SMN_C2PMSG_75", "mmMP1_SMN_C2PMSG_66", f"{psp}_35", f"{psp}_64", f"{psp}_67")}
     return t
 
 class AMDGuard:
-    def __init__(self, log=print):
+    def __init__(self, meta=None, log=print):
         self.log = log
-        self.R = amg.card_regs()
+        meta = meta or amg.card()[1]
+        self.R = amg.regs_for(meta)
+        self.pde_pte = amg.pde_pte(meta)
         self.A = lambda n: self.R[n].addr[0]
         self.hqd_lo, self.hqd_hi = self.A("regCP_MQD_BASE_ADDR") - 9, self.A("regCP_HQD_PQ_WPTR_HI") + 0x20   # fake_am_gpu's banked block
         self.vram, self.regs, self.hqd, self.sel = {}, {}, {}, (0, 0, 0)
@@ -44,7 +50,7 @@ class AMDGuard:
         self.vram_size, self.pt_pages, self.pt_dirty = None, {}, set()
         self.queues = {}               # doorbell byte offset -> (kind, ring va, ring size, rptr va, wptr va, HQD selection)
         self.ever_live = False
-        self.stats = dict(audits=0, ptes=0, doorbells=0, queues=0)
+        self.stats = dict(flushes=0, audits=0, ptes=0, doorbells=0, queues=0)
 
     # ── what the proxy or the replay server sees ─────────────────────────────────────────────────────────────────────
     def on_sysmem(self, alloc, segs, size, mm):
@@ -106,7 +112,7 @@ class AMDGuard:
             pte = self.u64(paddr + ((off >> shift) & 0x1ff) * 8)
             if not pte & am.AMDGPU_PTE_VALID: return None
             addr = pte & 0x0000FFFFFFFFF000
-            if lv == 3 or pte & am.AMDGPU_PDE_PTE: return bool(pte & am.AMDGPU_PTE_SYSTEM), addr + (off & ((1 << shift) - 1))
+            if lv == 3 or pte & self.pde_pte: return bool(pte & am.AMDGPU_PTE_SYSTEM), addr + (off & ((1 << shift) - 1))
             paddr = addr
         return None
     def mapped_known(self, va, what):
@@ -129,7 +135,7 @@ class AMDGuard:
             for i in range(512):
                 pte = self.u64(page * PAGE + i * 8)
                 if not pte & am.AMDGPU_PTE_VALID: continue
-                addr, leaf = pte & 0x0000FFFFFFFFF000, lv == 3 or bool(pte & am.AMDGPU_PDE_PTE)
+                addr, leaf = pte & 0x0000FFFFFFFFF000, lv == 3 or bool(pte & self.pde_pte)
                 self.stats["ptes"] += 1
                 if pte & am.AMDGPU_PTE_SYSTEM:
                     if not leaf: return f"a page table entry {pte:#x} at VRAM {page * PAGE + i * 8:#x} points at a table in system memory"
@@ -174,7 +180,9 @@ class AMDGuard:
             return None
         if bar != 5 or len(data) != 4: return None
         dw, v = off // 4, struct.unpack("<I", data)[0]
-        if dw in (self.A("regGCVM_INVALIDATE_ENG17_REQ"), self.A("regMMVM_INVALIDATE_ENG17_REQ")): return self.audit_page_tables()
+        if dw in (self.A("regGCVM_INVALIDATE_ENG17_REQ"), self.A("regMMVM_INVALIDATE_ENG17_REQ")):
+            self.stats["flushes"] += 1
+            return self.audit_page_tables()
         if dw == self.A("mmMP1_SMN_C2PMSG_75") and v == 2: return "the SMU's mode1 reset (debug message 2), which BEAGLE never sends over TinyGPU"
         if dw == self.A("regCP_HQD_ACTIVE") and v & 1:
             self.reg_set(dw, v)

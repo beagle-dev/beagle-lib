@@ -51,6 +51,9 @@ import sys, os, json, struct, pathlib, ctypes, weakref, time
 _TINYGRAD_PATH = os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1"))
 sys.path.insert(0, _TINYGRAD_PATH)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))   # tinygpu_tests, for tgpaths
+import tgpaths
+tgpaths.block_network()   # TODO.md plan step N6: the boot's firmware comes from tinygrad's cache; a missing blob stops it, never downloads
 
 from tinygrad.helpers import DEV, round_up
 from tinygrad.device import TinyELF, BufferSpec, Target

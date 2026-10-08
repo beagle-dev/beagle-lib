@@ -78,6 +78,14 @@ results+=("warm-GPU recovery at boot (P4): $([ $? -eq 0 ] && echo PASS || echo "
 # plan step N3: the AMD discovery capture that sends only the pin's pre-boot requests (the fake RX 7900 XT; its stops)
 "$TG_TESTS/test_n3.sh" > "$TINYGPU_TEST_WORK/test_n3.log" 2>&1
 results+=("AMD discovery capture, no boot (N3): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_n3.log)")")
+# plan step N6: amd_state.py's prediction on the RX 7900 XT and the captured RDNA 4 card (FAKE_AMD_CHIP), and its refusals;
+# the proxy's and the replay's AMD triggers and guard by the card's table; stop rule S8
+"$TG_TESTS/test_n6.sh" > "$TINYGPU_TEST_WORK/test_n6.log" 2>&1
+results+=("AMD boot prediction and safety tools on gfx11 and gfx12 (N6): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_n6.log)")")
+# plan step N9: the oracle's boot on the RDNA 4 card's fake with its real firmware (cold, warm, dirty; through the guard; replayed),
+# and N10's recordings on the card replayed to the oracle's daemon
+"$BEAGLE_PYTHON" "$TG_TESTS/test_n9.py" $TG_AMD_L0_RDNA4 > "$TINYGPU_TEST_WORK/test_n9.log" 2>&1
+results+=("the oracle's rehearsal on the RDNA 4 fake (N9): $([ $? -eq 0 ] && echo PASS || echo "FAIL (see $TINYGPU_TEST_WORK/test_n9.log)")")
 
 # no-launch guard: point the plugin at a socket nobody listens on
 SOCKDIR=$(mktemp -d "${TMPDIR:-/tmp}/tg.XXXXXX")

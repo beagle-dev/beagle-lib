@@ -20,6 +20,10 @@ finalized: SCRATCH_REG7 = AMDev.Version, SCRATCH_REG6 0; a partial boot) or dirt
 mode1 reset first). The state lasts across client sessions, as the GPU's does. TODO.md plan step N1's checks:
 FAKE_AMD_DEVICE_ID=<hex> puts another device ID in the config space (the card staying an RX 7900 XT), and FAKE_AMD_BAR0_MB=<n>
 serves a BAR0 of n MiB; plan step N3's: FAKE_AMD_MEMSIZE=<hex> is what RCC_CONFIG_MEMSIZE reads.
+Plan step N6: FAKE_AMD_CHIP=gfx1201 plays the RDNA 4 card whose table run_amd_discovery_ro.sh captured (1002:7550, Navi 48):
+its table, config-space identity, register modules for its IP versions (nbif from GC 12, the PSP's MPASP registers from MP0
+14) and gfx12's page-table leaf bit, with the gfx11 card's PSP, SMU and GPU behaviour otherwise (a boot on it waits for
+its firmware, plan step N9). The default, gfx1100, is the RX 7900 XT.
 
 The GPU: a queue goes live when its registers say so (CP_HQD_ACTIVE for the compute queue, SDMA0_QUEUE0_RB_CNTL's rb_enable
 for SDMA), and a doorbell then runs it (fake_amd_device.py's PM4 and SDMA 6 executor), every address translated through
@@ -39,6 +43,8 @@ VERSION = 0xA0000008                       # AMDev.Version (amdev.py:147)
 BARS = {0: (0x2e_4000_0000, int(os.environ.get("FAKE_AMD_BAR0_MB", "256")) << 20), 2: (0x2e_5000_0000, 2 << 20),
         5: (0x2e_0030_0000, 1 << 20)}   # the card's (STATUS.md R64)
 BAR5_DWORDS = BARS[5][1] // 4
+CHIP = os.environ.get("FAKE_AMD_CHIP", "gfx1100")   # plan step N6: whose captured table the fake plays
+CHIP_IDS = {"gfx1100": "744c", "gfx1201": "7550"}
 MM_INDEX, MM_DATA, MM_INDEX_HI = 0x0, 0x1, 0x6   # AMDev._read_vram's window (amdev.py:341-348)
 MEMSIZE = 0xde3                            # mmRCC_CONFIG_MEMSIZE (amdev.py:353)
 HDP_FLUSH_DW = 0x7f000 // 4                # where the remap register points (nbio 4.3's MMIO_REG_HOLE_OFFSET page)
@@ -46,27 +52,45 @@ FB_BASE = 0x80_0000_0000                   # MMMC_VM_FB_LOCATION_BASE << 24
 SOS_VERSION, SMU_VERSION, TMR_SIZE = 0x00290043, 0x004e3b00, 0x00b00000
 DPM = {0: [500, 2394], 1: [500, 960, 1200], 2: [96, 456, 772, 1250], 3: [400, 1100, 1600, 1900]}   # PPCLK GFX, SOC, U, F (MHz)
 DPM_FINE = {0}                             # fine-grained DPM: the count's bit 31 set (tinygrad masks it)
-CFG = {0x00: 0x744c1002, 0x04: 0x00100006, 0x08: 0x030000cc, 0x2c: 0x0e3b1002, 0x34: 0x48,
+CFG = {0x00: int(CHIP_IDS[CHIP], 16) << 16 | 0x1002, 0x04: 0x00100006, 0x08: 0x030000cc, 0x2c: 0x0e3b1002, 0x34: 0x48,
        0x48: 0x5009, 0x50: 0x6401, 0x64: 0xa010, 0x74: 0x0042, 0xa0: 0x0005}   # caps: vendor 0x48 -> PM 0x50 -> PCIe 0x64 -> MSI 0xa0
-if os.environ.get("FAKE_AMD_DEVICE_ID"): CFG[0x00] = int(os.environ["FAKE_AMD_DEVICE_ID"], 16) << 16 | 0x1002
 
 def card():
     """The captured discovery table (its binary_size bytes) and what was recorded with it."""
-    meta_path = sorted(glob.glob(str(tgpaths.DATA / "discovery/1002_744c_*.json")))[0]
+    meta_path = sorted(glob.glob(str(tgpaths.DATA / f"discovery/1002_{CHIP_IDS[CHIP]}_*.json")))[0]
     meta = json.load(open(meta_path))
     return open(meta_path[:-5] + ".bin", "rb").read(), meta
+_meta = card()[1]   # the identity the capture recorded (amd_discovery_ro.py's tables; the RX 7900 XT's predates it)
+if "revision" in _meta: CFG[0x08] = _meta["class"] << 8 | _meta["revision"]
+if "subsystem" in _meta: CFG[0x2c] = int(_meta["subsystem"][5:], 16) << 16 | int(_meta["subsystem"][:4], 16)
+if os.environ.get("FAKE_AMD_DEVICE_ID"): CFG[0x00] = int(os.environ["FAKE_AMD_DEVICE_ID"], 16) << 16 | 0x1002
+def ipv(meta): return {k: tuple(v) for k, v in meta["ip_ver"].items()}
+def psp_pref(meta): return "regMP0_SMN_C2PMSG" if ipv(meta)["MP0_HWIP"] < (14, 0, 0) else "regMPASP_SMN_C2PMSG"   # AM_PSP.reg_pref (ip.py:590)
+def pde_pte(meta): return am.AMDGPU_PDE_PTE_GFX12 if ipv(meta)["GC_HWIP"] >= (12, 0, 0) else am.AMDGPU_PDE_PTE   # AM_GMC's leaf test (ip.py:192)
+IPV, PSP_PREF, PDE_PTE = ipv(_meta), psp_pref(_meta), pde_pte(_meta)
+
+def table_for(device):
+    """TODO.md plan step N6: the captured table of the AMD card with this PCI device ID, (bin, meta), for the guard of a
+    real session (tgproxy, tgreplay); None when there is none, or more than one to choose from."""
+    paths = sorted(glob.glob(str(tgpaths.DATA / f"discovery/1002_{device:04x}_*.json")))
+    if len(paths) != 1: return None
+    return open(paths[0][:-5] + ".bin", "rb").read(), json.load(open(paths[0]))
+
+def regs_for(meta):
+    """name -> AMDReg at a captured table's bases, as AMDev._build_regs builds them for its IP versions (amdev.py:398-409)."""
+    bases = {ip: {int(i): tuple(b) for i, b in v.items()} for ip, v in meta["regs_offset"].items()}
+    v, R = ipv(meta), {}
+    nbio = "nbio" if v["GC_HWIP"] < (12, 0, 0) else "nbif"   # amdev.py:400
+    for prefix, ver, ip in (("mp", v["MP0_HWIP"], "MP0_HWIP"), ("hdp", v["HDP_HWIP"], "HDP_HWIP"), ("gc", v["GC_HWIP"], "GC_HWIP"),
+                            ("mmhub", v["MMHUB_HWIP"], "MMHUB_HWIP"), ("osssys", v["OSSSYS_HWIP"], "OSSSYS_HWIP"),
+                            (nbio, v["NBIO_HWIP"], "NBIO_HWIP"), ("mp", (11, 0, 0), "MP1_HWIP")):
+        R.update(import_asic_regs(prefix, ver, cls=functools.partial(AMDReg, bases=bases[ip])))
+    return R
 
 @functools.cache
 def card_regs():
     """name -> AMDReg at this card's bases, as AMDev._build_regs builds them (amdev.py:398-409)."""
-    _, meta = card()
-    bases = {ip: {int(i): tuple(b) for i, b in v.items()} for ip, v in meta["regs_offset"].items()}
-    R = {}
-    for prefix, ver, ip in (("mp", (13, 0, 0), "MP0_HWIP"), ("hdp", (6, 0, 0), "HDP_HWIP"), ("gc", (11, 0, 0), "GC_HWIP"),
-                            ("mmhub", (3, 0, 0), "MMHUB_HWIP"), ("osssys", (6, 0, 0), "OSSSYS_HWIP"), ("nbio", (4, 3, 0), "NBIO_HWIP"),
-                            ("mp", (11, 0, 0), "MP1_HWIP")):
-        R.update(import_asic_regs(prefix, ver, cls=functools.partial(AMDReg, bases=bases[ip])))
-    return R
+    return regs_for(card()[1])
 
 class AMGpu:
     def __init__(self, state=None, log=print):
@@ -78,9 +102,9 @@ class AMGpu:
         for n, r in self.R.items(): self.name.setdefault(r.addr[0], n)
         a = lambda n: self.R[n].addr[0]
         self.A = a
-        self.psp = {k: a(f"regMP0_SMN_C2PMSG_{k}") for k in (35, 36, 64, 67, 69, 70, 71, 81)}
+        self.psp = {k: a(f"{PSP_PREF}_{k}") for k in (35, 36, 64, 67, 69, 70, 71, 81)}
         self.smu = {k: a(f"mmMP1_SMN_C2PMSG_{k}") for k in (53, 54, 66, 75, 82, 90)}
-        self.smu_mod = import_module("smu", (13, 0, 0))
+        self.smu_mod = import_module("smu", IPV["MP1_HWIP"])
         self.hqd_lo, self.hqd_hi = a("regCP_MQD_BASE_ADDR") - 9, a("regCP_HQD_PQ_WPTR_HI") + 0x20   # the CP_MQD_*/CP_HQD_* block
         self.errors, self.counts, self.touched = [], collections.Counter(), collections.Counter()
         self.reset(state or os.environ.get("FAKE_AMD_STATE", "warm"))
@@ -263,7 +287,7 @@ class AMGpu:
             pte = self.u64(paddr + ((off >> shift) & 0x1ff) * 8)
             if not pte & am.AMDGPU_PTE_VALID: return None
             addr = pte & 0x0000FFFFFFFFF000
-            if lv == 3 or pte & am.AMDGPU_PDE_PTE:
+            if lv == 3 or pte & PDE_PTE:
                 inpage = off & ((1 << shift) - 1)
                 if inpage + n > (1 << shift): return None
                 return bool(pte & am.AMDGPU_PTE_SYSTEM), addr + inpage
@@ -286,7 +310,7 @@ class AMGpu:
                 pte = self.u64(page * PAGE + i * 8)
                 if not pte & am.AMDGPU_PTE_VALID: continue
                 addr = pte & 0x0000FFFFFFFFF000
-                leaf = lv == 3 or pte & am.AMDGPU_PDE_PTE
+                leaf = lv == 3 or pte & PDE_PTE
                 if pte & am.AMDGPU_PTE_SYSTEM:
                     if not leaf: self.err(f"a page directory entry {pte:#x} at VRAM {page * PAGE + i * 8:#x} marked system")
                     elif not self.in_sysmem(addr, 1 << (12 + 9 * (3 - lv))):

@@ -324,6 +324,8 @@ def serve(conn, gpu, work):
     if am.queues:   # plan step A2k: TinyGPU.app unwires the session's sysmem now, while these queues may still read it
         gpu.err(f"the session ended with {len(am.queues)} queue(s) live ({', '.join(sorted(q['kind'] for q in am.queues.values()))}): "
                 "TinyGPU.app unwires the sysmem they poll (on the Mac, a DART fault)")
+    if getattr(gpu, "record_path", None):   # before "client done", which the tests wait for and then end the fake on
+        with open(gpu.record_path, "wb") as f: f.write(b"".join(gpu.record))
     gpu.say("fake TinyGPU.app (AMD device): client done: " + json.dumps(dict(sorted((k, v) for k, v in gpu.counts.items() if not k.startswith("kernel ")))))
     kernels = {k[7:]: v for k, v in gpu.counts.items() if k.startswith("kernel ")}
     gpu.say(f"fake TinyGPU.app (AMD device): kernels launched: {json.dumps(dict(sorted(kernels.items())))}")
@@ -351,9 +353,8 @@ def main():
     print("fake TinyGPU.app (AMD device) listening", flush=True)
     while True:
         conn = srv.accept()[0]
-        gpu.record = [] if record else None
+        gpu.record, gpu.record_path = ([], f"{record}.{n}") if record else (None, None)
         serve(conn, gpu, work)
-        if record: open(f"{record}.{n}", "wb").write(b"".join(gpu.record))
         n += 1
 
 if __name__ == "__main__":
