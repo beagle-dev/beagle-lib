@@ -156,6 +156,19 @@ if(BUILD_SSE)
     add_test(simdtest simdtest)
 endif(BUILD_SSE)
 
+if(BUILD_SSE AND BUILD_SPECTRAL)
+    # spectral dense matrix storage (written on demand) against the standard SSE implementation
+    add_executable(spectraldensetest
+            spectraltest/spectraldensetest.cpp)
+    target_link_libraries(spectraldensetest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-sse
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(spectraldensetest spectraldensetest)
+endif(BUILD_SSE AND BUILD_SPECTRAL)
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)

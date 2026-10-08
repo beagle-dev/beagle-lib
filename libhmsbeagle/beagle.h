@@ -175,7 +175,20 @@ enum BeagleFlags {
     BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1L << 31, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
     BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1L << 32, /**< Automatically transpose pre-order transition matrices */
 
-    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40  /**< Use spectral representation for transition probability calculation */
+    /**
+     * Use spectral representation for transition probability calculation.
+     *
+     * A matrix buffer then holds a branch's eigen-system and time, set by beagleUpdateTransitionMatrices. Dense
+     * stateCount x stateCount storage for an index exists only once the index is written densely: by
+     * beagleSetTransitionMatrix, beagleSetTransitionMatrices or beagleSetDifferentialMatrix, or, on CPU, as the
+     * destination of beagleConvolveTransitionMatrices or beagleTransposeTransitionMatrices. A dense read of an index
+     * without dense contents returns BEAGLE_ERROR_OUT_OF_RANGE; the dense reads are beagleCalculateEdgeDerivatives,
+     * the beagleCalculateEdgeLogLikelihoods family, and the inputs of convolve and transpose.
+     * beagleGetTransitionMatrix returns the dense contents if present; otherwise the matrix of the eigen-system on
+     * CPU (BEAGLE_ERROR_OUT_OF_RANGE on GPU), and BEAGLE_ERROR_OUT_OF_RANGE for an index with neither. Writing one
+     * index both ways is unsupported.
+     */
+    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40
 };
 
 
@@ -832,6 +845,7 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesWithMultipleModels(int instan
  * is used when the application wishes to explicitly set the transition probability matrix rather than
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the index dense storage (see that flag).
  *
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
@@ -850,6 +864,7 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
  *
  * This function copies a differential transition probability matrix into a matrix buffer. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the index dense storage (see that flag).
  *
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
@@ -866,7 +881,8 @@ BEAGLE_DLLEXPORT int beagleSetDifferentialMatrix(int instance,
  *
  * This function copies a finite-time transition matrix buffer into the array outMatrix. The
  * outMatrix array should be of size stateCount * stateCount * categoryCount and will be filled
- * with one matrix for each rate category.
+ * with one matrix for each rate category. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION, see that flag for which
+ * contents are returned.
  *
  * @param instance     Instance number (input)
  * @param matrixIndex  Index of matrix buffer (input)
@@ -884,7 +900,8 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * This function copies multiple transition matrices into matrix buffers. This function
  * is used when the application wishes to explicitly set the transition matrices rather than
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrices array should be
- * of size stateCount * stateCount * categoryCount * count.
+ * of size stateCount * stateCount * categoryCount * count. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the
+ * indices dense storage (see that flag).
  *
  * @param instance      Instance number (input)
  * @param matrixIndices Indices of matrix buffers (input)

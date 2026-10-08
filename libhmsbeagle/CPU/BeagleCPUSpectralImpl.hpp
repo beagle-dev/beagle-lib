@@ -106,7 +106,17 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eige
 BEAGLE_CPU_TEMPLATE
 int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(int matrixIndex,
                                                                     double* outMatrix) {
+    if (matrixIndex < 0 || matrixIndex >= kMatrixCount)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    // dense contents first, written by the setters, convolve or transpose
+    if (gTransitionMatrices[matrixIndex] != NULL)
+        return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(matrixIndex, outMatrix);
+
+    // otherwise the matrix of the branch's eigen info, if beagleUpdateTransitionMatrices has set it
     const BranchEigenInfo& info = gBranchEigenInfo[matrixIndex];
+    if (info.expat == NULL)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
     const int eigenIndex = info.eigenIndex;
 
     const REALTYPE* Evec = gEigenDecomposition->getEigenVectorsPtr(eigenIndex);

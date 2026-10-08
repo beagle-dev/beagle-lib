@@ -1051,6 +1051,15 @@ protected:
 
     REALTYPE* allocateEigenInfoChunk(int chunkIndex);
 
+    // true when gTransitionMatrices[i] is allocated only once index i is first written densely (spectral)
+    virtual bool denseMatricesOnDemand() const { return false; }
+
+    // the dense matrix of index i, allocated if needed; NULL if out of memory
+    REALTYPE* writableMatrix(int matrixIndex);
+
+    // with dense matrices on demand, whether any of the given indices has no dense contents yet
+    bool missingDenseMatrix(const int* matrixIndices, int count);
+
     void threadWaiting(threadData* tData);
 
 private:

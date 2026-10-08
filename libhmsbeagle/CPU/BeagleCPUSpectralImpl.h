@@ -131,6 +131,9 @@ namespace beagle {
             int getTransitionMatrix(int matrixIndex,
                                     double* outMatrix) override;
 
+            // a matrix buffer holds a branch's eigen info; dense storage exists only once the index is written densely
+            bool denseMatricesOnDemand() const override { return true; }
+
             int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,

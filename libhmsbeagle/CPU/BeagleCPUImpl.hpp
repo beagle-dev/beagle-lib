@@ -440,10 +440,14 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gTransitionMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kMatrixCount);
     if (gTransitionMatrices == NULL)
         throw std::bad_alloc();
+    const bool matricesOnDemand = denseMatricesOnDemand();
     for (int i = 0; i < kMatrixCount; i++) {
-        gTransitionMatrices[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
-        if (gTransitionMatrices[i] == 0L)
-            throw std::bad_alloc();
+        gTransitionMatrices[i] = NULL;
+        if (!matricesOnDemand) {
+            gTransitionMatrices[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
+            if (gTransitionMatrices[i] == 0L)
+                throw std::bad_alloc();
+        }
     }
 
     integrationTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPatternCount * kStateCount);
@@ -1085,9 +1089,15 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrix(int matrixIndex,
                                        const double* inMatrix,
                                        double paddedValue) {
 
+    if (matrixIndex < 0 || matrixIndex >= kMatrixCount)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    REALTYPE* matrix = writableMatrix(matrixIndex);
+    if (matrix == NULL)
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+
 if (T_PAD != 0) {
     const double* offsetInMatrix = inMatrix;
-    REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
+    REALTYPE* offsetBeagleMatrix = matrix;
     for(int i = 0; i < kCategoryCount; i++) {
         for(int j = 0; j < kStateCount; j++) {
             beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
@@ -1097,7 +1107,7 @@ if (T_PAD != 0) {
         }
     }
 } else {
-    beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
+    beagleMemCpy(matrix, inMatrix,
                  kMatrixSize * kCategoryCount);
 }
     return BEAGLE_SUCCESS;
@@ -1116,12 +1126,20 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrices(const int* matrixIn
                                                              const double* paddedValues,
                                                              int count) {
     for (int k = 0; k < count; k++) {
+        if (matrixIndices[k] < 0 || matrixIndices[k] >= kMatrixCount)
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    for (int k = 0; k < count; k++) {
         const double* inMatrix = inMatrices + k*kStateCount*kStateCount*kCategoryCount;
         int matrixIndex = matrixIndices[k];
+        REALTYPE* matrix = writableMatrix(matrixIndex);
+        if (matrix == NULL)
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
 
 if (T_PAD != 0) {
         const double* offsetInMatrix = inMatrix;
-        REALTYPE* offsetBeagleMatrix = gTransitionMatrices[matrixIndex];
+        REALTYPE* offsetBeagleMatrix = matrix;
         for(int i = 0; i < kCategoryCount; i++) {
             for(int j = 0; j < kStateCount; j++) {
                 beagleMemCpy(offsetBeagleMatrix, offsetInMatrix, kStateCount);
@@ -1131,7 +1149,7 @@ if (T_PAD != 0) {
             }
         }
 } else {
-        beagleMemCpy(gTransitionMatrices[matrixIndex], inMatrix,
+        beagleMemCpy(matrix, inMatrix,
                      kMatrixSize * kCategoryCount);
 }
     }
@@ -1166,7 +1184,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::convolveTransitionMatrices(const int* fir
 
         }//END: overwrite check
 
-        REALTYPE* C = gTransitionMatrices[resultIndices[u]];
+        if (missingDenseMatrix(&firstIndices[u], 1) || missingDenseMatrix(&secondIndices[u], 1)) {
+            returnCode = BEAGLE_ERROR_OUT_OF_RANGE;
+            break;
+        }
+
+        REALTYPE* C = writableMatrix(resultIndices[u]);
+        if (C == NULL) {
+            returnCode = BEAGLE_ERROR_OUT_OF_MEMORY;
+            break;
+        }
         REALTYPE* A = gTransitionMatrices[firstIndices[u]];
         REALTYPE* B = gTransitionMatrices[secondIndices[u]];
 
@@ -1245,8 +1272,17 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::transposeTransitionMatrices(
 
         }
 
+        if (missingDenseMatrix(&inputIndices[u], 1)) {
+            returnCode = BEAGLE_ERROR_OUT_OF_RANGE;
+            break;
+        }
+
         REALTYPE* A = gTransitionMatrices[inputIndices[u]];
-        REALTYPE* C = gTransitionMatrices[resultIndices[u]];
+        REALTYPE* C = writableMatrix(resultIndices[u]);
+        if (C == NULL) {
+            returnCode = BEAGLE_ERROR_OUT_OF_MEMORY;
+            break;
+        }
 
         for (int l = 0; l < kCategoryCount; l++) {
 
@@ -1514,6 +1550,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calculateEdgeDerivatives(const int *postB
                                                                    double *outSumDerivatives,
                                                                    double *outSumSquaredDerivatives) {
     int returnCode = BEAGLE_ERROR_GENERAL;
+
+    if (missingDenseMatrix(derivativeMatrixIndices, count))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
 
     if (kAutoPartitioningEnabled && kPartitionCount > 1) {
 
@@ -4219,6 +4258,11 @@ BEAGLE_CPU_TEMPLATE
                                                              double* outSumLogLikelihood,
                                                              double* outSumFirstDerivative,
                                                              double* outSumSecondDerivative) {
+    if (missingDenseMatrix(probabilityIndices, count) ||
+        (firstDerivativeIndices != NULL && missingDenseMatrix(firstDerivativeIndices, count)) ||
+        (secondDerivativeIndices != NULL && missingDenseMatrix(secondDerivativeIndices, count)))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
     // TODO: implement for count > 1
 
     if (count == 1) {
@@ -4317,6 +4361,11 @@ BEAGLE_CPU_TEMPLATE
                                                     double* outSumSecondDerivative) {
 
     int returnCode = BEAGLE_SUCCESS;
+
+    if (missingDenseMatrix(probabilityIndices, partitionCount) ||
+        (firstDerivativeIndices != NULL && missingDenseMatrix(firstDerivativeIndices, partitionCount)) ||
+        (secondDerivativeIndices != NULL && missingDenseMatrix(secondDerivativeIndices, partitionCount)))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
 
     if (count == 1) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
@@ -6501,6 +6550,24 @@ REALTYPE* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateEigenInfoChunk(int chunkInd
     memset(chunk, 0, kEigenInfoChunkSize);
     gEigenInfoChunks[chunkIndex] = chunk;
     return chunk;
+}
+
+BEAGLE_CPU_TEMPLATE
+REALTYPE* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::writableMatrix(int matrixIndex) {
+    if (gTransitionMatrices[matrixIndex] == NULL)
+        gTransitionMatrices[matrixIndex] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kMatrixSize * kCategoryCount);
+    return gTransitionMatrices[matrixIndex];
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::missingDenseMatrix(const int* matrixIndices, int count) {
+    if (!denseMatricesOnDemand())
+        return false;
+    for (int i = 0; i < count; i++) {
+        if (gTransitionMatrices[matrixIndices[i]] == NULL)
+            return true;
+    }
+    return false;
 }
 
 BEAGLE_CPU_TEMPLATE
