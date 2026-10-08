@@ -34,7 +34,9 @@ def replay(rec, client, work, exe, blobs):
         time.sleep(0.05)
     out = ""
     try:
-        if client == "daemon": ds.session(sock, 0)
+        if client == "daemon":
+            import amd_daemon_session as ds   # here, not at the top: FAKE_AMD_CHIP must be the recorded card's first (test_n9.py calls this too)
+            ds.session(sock, 0)
         else:
             env = {**os.environ, "APL_REMOTE_SOCK": sock, "BEAGLE_TINYGPU_NO_LAUNCH": "1", "TMPDIR": work, "BEAGLE_TINYGPU_LOG": os.path.join(work, "c++.log")}
             out = subprocess.run([str(exe), blobs, "--session", "0"], env=env, capture_output=True, text=True, timeout=900).stdout
@@ -49,10 +51,8 @@ def replay(rec, client, work, exe, blobs):
 
 def main():
     rec = sys.argv[1]
-    global gab, ds
     tgpaths.setup()
     import golden_amd_boot as gab   # after FAKE_AMD_CHIP is the recorded card's: its firmware (FW_NAMES), the daemon's id
-    import amd_daemon_session as ds
     WORK.mkdir(parents=True, exist_ok=True)
     work = tempfile.mkdtemp(dir=WORK)
     exe = gab.WORK / "golden_amd_boot"
