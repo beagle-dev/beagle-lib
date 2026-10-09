@@ -52,6 +52,7 @@ struct Mode {
 struct LogLikelihoods {
     double first; // before any out-of-range call
     double last;  // after them
+    bool created; // false when the implementation does not exist here (SSE on Linux ARM)
 };
 
 // one instance: valid calls, then (if reject) out-of-range calls, then the valid likelihood again
@@ -63,9 +64,13 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
                                               BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
                                               implementation | mode.flag, &details);
     if (instance < 0) {
+        if (implementation & BEAGLE_FLAG_VECTOR_SSE) { // the SSE plugins are platform-dependent
+            if (reject) printf("skip %s: no SSE implementation of this kind\n", mode.name);
+            return {0, 0, false};
+        }
         printf("FAIL could not create an instance for %s\n", mode.name);
         ++failures;
-        return {0, 0};
+        return {0, 0, true};
     }
     const char* impl = details.implName;
     // the scale buffers: MANUAL and DYNAMIC as requested, AUTO one, ALWAYS one per internal node plus one
@@ -271,7 +276,7 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
         printf("%-30s %-8s log likelihood %.10f, edge %.10f\n", impl, mode.name, logL, edgeLogL);
     }
     beagleFinalizeInstance(instance);
-    return {logL, again};
+    return {logL, again, true};
 }
 
 int main() {
@@ -286,6 +291,7 @@ int main() {
     double first = 0;
     for (const Case& c : cases) {
         const LogLikelihoods checked = run(c.implementation, c.mode, true);
+        if (!checked.created) continue;
         const LogLikelihoods twin = run(c.implementation, c.mode, false);
         expect(checked.last == twin.last, "root log likelihood differs from a twin instance without the rejected calls",
                "", c.mode.name);

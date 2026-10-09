@@ -7,7 +7,8 @@
  *
  * Dense matrix storage on the CPU spectral implementations. A spectral instance allocates a dense matrix for an index
  * only when the index is written densely (the setters, or the destination of convolve or transpose). For both
- * spectral implementations (VECTOR_NONE and VECTOR_SSE) at 4 and 17 states, against the standard SSE implementation:
+ * spectral implementations (VECTOR_NONE and VECTOR_SSE) at 4 and 17 states, against the standard SSE implementation
+ * (the standard VECTOR_NONE one where there is no SSE implementation, as on Linux ARM):
  *   - setDifferentialMatrix followed by calculateEdgeDerivatives agrees to 1e-12 (relative);
  *   - setTransitionMatrices, convolve, transpose and the edge log likelihood of a densely written index agree;
  *   - getTransitionMatrix returns the dense copy of a densely written index exactly, and the matrix of the eigen
@@ -326,7 +327,9 @@ int main() {
     for (long vector : {BEAGLE_FLAG_VECTOR_NONE, BEAGLE_FLAG_VECTOR_SSE}) {
         for (int n : {4, 17}) {
             Result standard, spectral;
-            if (!evaluate(false, BEAGLE_FLAG_VECTOR_SSE, n, standard) || !evaluate(true, vector, n, spectral)) {
+            const bool reference = evaluate(false, BEAGLE_FLAG_VECTOR_SSE, n, standard) ||
+                                   evaluate(false, BEAGLE_FLAG_VECTOR_NONE, n, standard); // no SSE on Linux ARM
+            if (!reference || !evaluate(true, vector, n, spectral)) {
                 return 1;
             }
             const double derivatives = std::max(relativeDifference(standard.derivatives, spectral.derivatives),

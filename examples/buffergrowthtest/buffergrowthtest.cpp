@@ -288,13 +288,12 @@ public:
         return true;
     }
 
-    // the contract checks on one instance
-    void contract() {
+    // the contract checks on one instance; false, as run(), when there is no such implementation here
+    bool contract() {
         current = "contract, " + expectedName(c);
         Run g;
         g.instance = create(M - kCompact, M, N + 1);
-        check(g.instance >= 0, "could not create an instance");
-        if (g.instance < 0) return;
+        if (g.instance < 0) return false;
         setUp(g);
         postOrder(g);
         snapshot(g);
@@ -317,6 +316,7 @@ public:
         beagleFinalizeInstance(g.instance);
         check(beagleEnsureBufferCounts(g.instance, 0, 0, 0) == BEAGLE_ERROR_UNINITIALIZED_INSTANCE,
               "finalized instance");
+        return true;
     }
 
 private:
@@ -698,13 +698,18 @@ int main(int argc, char** argv) {
                    scalingName[scaling], threads);
         }
     }
+    int contracts = 0;
     for (const Resource& res : resources) {
         const Config config{res.spectral, res.sse, res.single, 17, 1, 1, MANUAL, 1};
-        Case(config).contract();
+        if (Case(config).contract()) {
+            ++contracts;
+        } else {
+            printf("skip contract, %s: no implementation\n", expectedName(config).c_str());
+        }
     }
     gpuCheck(false);
     gpuCheck(true);
     timing();
     printf("buffergrowthtest: %d cases, %d skipped, %d failures\n", compared, skipped, failures);
-    return (failures == 0 && compared > 0) ? 0 : 1;
+    return (failures == 0 && compared > 0 && contracts > 0) ? 0 : 1;
 }
