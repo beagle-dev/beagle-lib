@@ -117,7 +117,7 @@ bool check_sse2()
 	return true;
   return false;
 #elif defined(__aarch64__)
-  return false;
+  return true; // NEON is part of every AArch64 CPU, and sse2neon maps the SSE2 intrinsics to it
 #else // HAVE_CPUID.H
 	// Determine if cpuid supported:
     unsigned int res;
