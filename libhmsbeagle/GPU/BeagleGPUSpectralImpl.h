@@ -127,6 +127,69 @@ public:
     char* getInstanceName() override;
     int getInstanceDetails(BeagleInstanceDetails* returnInfo) override;
 
+    /* Paths that read transition matrices which spectral never computes (only setters write dense matrices here),
+     * and pattern partitions, which the spectral dispatch does not honour: BEAGLE_ERROR_NO_IMPLEMENTATION. */
+    int setPatternPartitions(int partitionCount,
+                             const int* inPatternPartitions) override;
+
+    int convolveTransitionMatrices(const int* firstIndices,
+                                   const int* secondIndices,
+                                   const int* resultIndices,
+                                   int matrixCount) override;
+
+    int transposeTransitionMatrices(const int* inputIndices,
+                                    const int* resultIndices,
+                                    int matrixCount) override;
+
+    int updateTransitionMatricesWithModelCategories(int* eigenIndices,
+                                                    const int* probabilityIndices,
+                                                    const int* firstDerivativeIndices,
+                                                    const int* secondDerivativeIndices,
+                                                    const double* edgeLengths,
+                                                    int count) override;
+
+    int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
+                                                   const int* categoryRateIndices,
+                                                   const int* probabilityIndices,
+                                                   const int* firstDerivativeIndices,
+                                                   const int* secondDerivativeIndices,
+                                                   const double* edgeLengths,
+                                                   int count) override;
+
+    int updatePartialsByPartition(const int* operations,
+                                  int operationCount) override;
+
+    int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
+                                    const int* childBufferIndices,
+                                    const int* probabilityIndices,
+                                    const int* firstDerivativeIndices,
+                                    const int* secondDerivativeIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
+                                    int count,
+                                    double* outSumLogLikelihood,
+                                    double* outSumFirstDerivative,
+                                    double* outSumSecondDerivative) override;
+
+    int calculateEdgeLogLikelihoodsByPartition(const int* parentBufferIndices,
+                                               const int* childBufferIndices,
+                                               const int* probabilityIndices,
+                                               const int* firstDerivativeIndices,
+                                               const int* secondDerivativeIndices,
+                                               const int* categoryWeightsIndices,
+                                               const int* stateFrequenciesIndices,
+                                               const int* cumulativeScaleIndices,
+                                               const int* partitionIndices,
+                                               int partitionCount,
+                                               int count,
+                                               double* outSumLogLikelihoodByPartition,
+                                               double* outSumLogLikelihood,
+                                               double* outSumFirstDerivativeByPartition,
+                                               double* outSumFirstDerivative,
+                                               double* outSumSecondDerivativeByPartition,
+                                               double* outSumSecondDerivative) override;
+
     int calculateAdjointCrossProducts(const int* postBufferIndices,
                                       const int* preBufferIndices,
                                       const int* eigenIndices,
@@ -142,6 +205,9 @@ public:
                                       const int  cumulativeScaleIndex = BEAGLE_OP_NONE) override;
 
 protected:
+    // matrices hold eigen-systems; the dense pool exists only once a setter writes a matrix
+    bool denseMatricesOnDemand() const override { return true; }
+
     void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                           int c1MatIdx, int c2MatIdx,
                           GPUPtr scalingFactors, GPUPtr cumulativeScaling,

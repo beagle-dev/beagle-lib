@@ -77,6 +77,10 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
         int pluginResourceNumber,
         long preferenceFlags,
         long requirementFlags) {
+    // BEAGLE's dynamic scaling passes transition matrices, which spectral never computes
+    if (requirementFlags & BEAGLE_FLAG_SCALING_DYNAMIC) return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    preferenceFlags &= ~BEAGLE_FLAG_SCALING_DYNAMIC;
+
     int rc = BeagleGPUImpl<Real>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
                                                   stateCount, patternCount, eigenDecompositionCount,
                                                   matrixCount, categoryCount, scaleBufferCount,
@@ -423,7 +427,69 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartialsByPartition(
         const int* operations, int operationCount,
         BeaglePartialsType partialsType) {
-    return updatePrePartials(operations, operationCount, BEAGLE_OP_NONE, partialsType);
+    return BEAGLE_ERROR_NO_IMPLEMENTATION; // partitioned operations are 9 ints; spectral has no partitions
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
+                                                                    const int* inPatternPartitions) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION; // the spectral dispatch ignores the start and end patterns
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* operations,
+                                                                         int operationCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
+                                                                          const int* secondIndices,
+                                                                          const int* resultIndices,
+                                                                          int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(const int* inputIndices,
+                                                                           const int* resultIndices,
+                                                                           int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithModelCategories(
+        int* eigenIndices, const int* probabilityIndices, const int* firstDerivativeIndices,
+        const int* secondDerivativeIndices, const double* edgeLengths, int count) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithMultipleModels(
+        const int* eigenIndices, const int* categoryRateIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const double* edgeLengths,
+        int count) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(
+        const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const int* categoryWeightsIndices,
+        const int* stateFrequenciesIndices, const int* cumulativeScaleIndices, int count,
+        double* outSumLogLikelihood, double* outSumFirstDerivative, double* outSumSecondDerivative) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
+        const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const int* categoryWeightsIndices,
+        const int* stateFrequenciesIndices, const int* cumulativeScaleIndices, const int* partitionIndices,
+        int partitionCount, int count, double* outSumLogLikelihoodByPartition, double* outSumLogLikelihood,
+        double* outSumFirstDerivativeByPartition, double* outSumFirstDerivative,
+        double* outSumSecondDerivativeByPartition, double* outSumSecondDerivative) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -494,7 +560,7 @@ BEAGLE_GPU_TEMPLATE
 const long BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
     long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS |
-                 BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_DYNAMIC |
+                 BEAGLE_FLAG_SCALING_AUTO |
                  BEAGLE_FLAG_THREADING_NONE |
                  BEAGLE_FLAG_VECTOR_NONE |
                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |

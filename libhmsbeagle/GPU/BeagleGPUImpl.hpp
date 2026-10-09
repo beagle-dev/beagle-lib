@@ -151,6 +151,25 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::freeWithSubPointers(GPUPtr parent) {
 }
 
 BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureDenseMatrixPool() {
+    if (dMatricesOrigin != (GPUPtr)NULL)
+        return;
+    const size_t ptrIncrement = kIndexOffsetMat * sizeof(Real); // AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real))
+    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+    for (int i = 0; i < kMatrixCount; i++) {
+        dMatrices[i] = createSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
+    }
+    if (denseMatricesOnDemand())
+        gpu->ReportMemory("dense matrices"); // BEAGLE_DEBUG_MEMORY only
+}
+
+BEAGLE_GPU_TEMPLATE
+bool BeagleGPUImpl<BEAGLE_GPU_GENERIC>::isDenseMatrix(int matrixIndex) const {
+    return matrixIndex >= 0 && matrixIndex < kMatrixCount &&
+           (!denseMatricesOnDemand() || hDenseWritten[matrixIndex]);
+}
+
+BEAGLE_GPU_TEMPLATE
 BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
 
     if (kInitialized) {
@@ -161,7 +180,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         }
 
         // the pools, each after its sub-buffers (dX[0] may be the pool itself or a sub-buffer of it)
-        freeWithSubPointers(dMatricesOrigin);
+        if (dMatricesOrigin != (GPUPtr)NULL) // deferred until a dense write when denseMatricesOnDemand()
+            freeWithSubPointers(dMatricesOrigin);
         freeWithSubPointers(dEigenValuesOrigin);
         freeWithSubPointers(dEvecOrigin);
         freeWithSubPointers(dIevcOrigin);
@@ -628,13 +648,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dWeights = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
 
-    dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
+    dMatrices = (GPUPtr*) calloc(sizeof(GPUPtr), kMatrixCount);
 
     size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
     kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
-    for (int i = 0; i < kMatrixCount; i++) {
-        dMatrices[i] = createSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
+    if (denseMatricesOnDemand()) {
+        hDenseWritten.assign(kMatrixCount, false); // no pool until the first dense write
+    } else {
+        ensureDenseMatrixPool();
     }
 
     if (kScaleBufferCount > 0) {
@@ -1686,6 +1707,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
     fprintf(stderr, "\tEntering BeagleGPUImpl::getTransitionMatrix\n");
 #endif
 
+    if (!isDenseMatrix(matrixIndex)) // out of range, or (spectral) never written densely
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
     gpu->MemcpyDeviceToHost(hMatrixCache, dMatrices[matrixIndex], sizeof(Real) * kMatrixSize * kCategoryCount);
 
     double* outMatrixOffset = outMatrix;
@@ -1724,13 +1748,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrix(int matrixIndex,
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrix\n");
 #endif
 
-    setMatrixBufferImpl(matrixIndex, inMatrix, paddedValue, true);
+    int returnCode = setMatrixBufferImpl(matrixIndex, inMatrix, paddedValue, true);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setTransitionMatrix\n");
 #endif
 
-    return BEAGLE_SUCCESS;
+    return returnCode;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -1741,13 +1765,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setDifferentialMatrix(int matrixIndex,
     fprintf(stderr, "\tEntering BeagleGPUImpl::setDifferentialMatrix\n");
 #endif
 
-    setMatrixBufferImpl(matrixIndex, inMatrix, 0.0, !kUsingAutoTranspose);
+    int returnCode = setMatrixBufferImpl(matrixIndex, inMatrix, 0.0, !kUsingAutoTranspose);
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::setDifferentialMatrix\n");
 #endif
 
-    return BEAGLE_SUCCESS;
+    return returnCode;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -1755,6 +1779,13 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setMatrixBufferImpl(int matrixIndex,
                                        const double* inMatrix,
                                        double paddedValue,
                                        bool transpose) {
+
+    if (matrixIndex < 0 || matrixIndex >= kMatrixCount)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    if (denseMatricesOnDemand()) {
+        ensureDenseMatrixPool();
+        hDenseWritten[matrixIndex] = true;
+    }
 
     const double* inMatrixOffset = inMatrix;
     Real* tmpRealMatrixOffset = hMatrixCache;
@@ -1790,6 +1821,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::setTransitionMatrices\n");
 #endif
+
+    for (int k = 0; k < count; k++) { // all or nothing
+        if (matrixIndices[k] < 0 || matrixIndices[k] >= kMatrixCount)
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    if (denseMatricesOnDemand() && count > 0) { // an empty batch writes nothing, so allocates nothing
+        ensureDenseMatrixPool();
+        for (int k = 0; k < count; k++)
+            hDenseWritten[matrixIndices[k]] = true;
+    }
 
 #ifdef FW_OPENCL
     // one write per matrix: dMatrices[i] spans one matrix, and the stride between matrices may be padded
@@ -2307,9 +2348,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivative(const int *postBu
                                           firstDerivativeIndices, &categoryWeightsIndex,
                                           cumulativeScaleIndices, count,
                                           outFirstDerivative, NULL, NULL);
-    if (outDiagonalSecondDerivative != NULL) {
-        int diagonalSecondDerivativeReturnCode =
-                calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
+    if (outDiagonalSecondDerivative != NULL && returnCode == BEAGLE_SUCCESS) {
+        returnCode = calcEdgeFirstDerivatives(postBufferIndices, preBufferIndices,
                         secondDerivativeIndices, &categoryWeightsIndex,
                         cumulativeScaleIndices, count,
                         outDiagonalSecondDerivative, NULL, NULL);
@@ -4491,6 +4531,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
                                                                 double *outFirstDerivatives,
                                                                 double *outSumFirstDerivatives,
                                                                 double *outSumSquaredFirstDerivatives) {
+
+    for (int i = 0; i < totalCount; ++i) { // the derivative matrices are read densely
+        if (!isDenseMatrix(firstDerivativeIndices[i]))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
 
     int instructionOffset = 0;
     int statesTipsCount = 0;

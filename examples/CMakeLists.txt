@@ -151,6 +151,20 @@ if(BUILD_SPECTRAL)
         set_tests_properties(hmctest5-gpu PROPERTIES SKIP_RETURN_CODE 77)
     endif(BUILD_OPENCL)
 
+    # dense matrices on GPU spectral (pool allocated by the first dense write) against CPU spectral; skipped without
+    # a GPU
+    add_executable(gpuspectraldensetest
+            spectraltest/gpuspectraldensetest.cpp)
+    target_link_libraries(gpuspectraldensetest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    if(BUILD_OPENCL)
+        add_test(gpuspectraldensetest gpuspectraldensetest)
+        set_tests_properties(gpuspectraldensetest PROPERTIES SKIP_RETURN_CODE 77)
+    endif(BUILD_OPENCL)
+
     # standard vs spectral timings; see spectraltest/spectral_benchmark.py
     add_executable(spectralbench
             spectraltest/spectralbench.cpp)
@@ -232,7 +246,7 @@ if(TARGET hmsbeagle-opencl)
 		get_target_property(GPU_SPECTRAL_PLUGIN_DIR hmsbeagle-opencl-spectral BINARY_DIR)
 		string(APPEND GPU_PLUGIN_DIRS ":${GPU_SPECTRAL_PLUGIN_DIR}")
 	endif()
-	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu hmctest5-gpu gpuspectraltest openclspectraltest)
+	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu hmctest5-gpu gpuspectraltest openclspectraltest gpuspectraldensetest)
 		if(TEST ${GPU_TEST})
 			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
 				"DYLD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}")

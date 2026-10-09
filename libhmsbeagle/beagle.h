@@ -187,6 +187,11 @@ enum BeagleFlags {
      * beagleGetTransitionMatrix returns the dense contents if present; otherwise the matrix of the eigen-system on
      * CPU (BEAGLE_ERROR_OUT_OF_RANGE on GPU), and BEAGLE_ERROR_OUT_OF_RANGE for an index with neither. Writing one
      * index both ways is unsupported.
+     *
+     * On GPU, beagleCalculateEdgeDerivatives is the only dense read: the beagleCalculateEdgeLogLikelihoods family,
+     * convolve, transpose, beagleUpdateTransitionMatricesWithModelCategories and ...WithMultipleModels, and pattern
+     * partitions (beagleSetPatternPartitions and the ...ByPartition updates) return BEAGLE_ERROR_NO_IMPLEMENTATION,
+     * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
      */
     BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40
 };

@@ -127,7 +127,8 @@ private:
     }
 
     GPUPtr* dMatrices;
-    GPUPtr dMatricesOrigin;
+    GPUPtr dMatricesOrigin;           // 0 until the first dense write when denseMatricesOnDemand()
+    std::vector<bool> hDenseWritten;  // per matrix index, when denseMatricesOnDemand()
 
     // Every sub-buffer made by createSubPointer, by parent; per-index arrays (dPartials, dStates, ...) alias each
     // other and are swapped by reorderPatternsByPartition, so they cannot tell what to release
@@ -231,6 +232,10 @@ protected:
     GPUPtr dFrequenciesOrigin;
 
     double** hCategoryRates;
+
+    // True when the matrix pool exists only once a matrix is written densely (spectral: matrices hold eigen-systems).
+    // Then a dense read of an index that was never written densely returns BEAGLE_ERROR_OUT_OF_RANGE.
+    virtual bool denseMatricesOnDemand() const { return false; }
 
     // A sub-buffer of parent that is released by freeWithSubPointers(parent)
     GPUPtr createSubPointer(GPUPtr parent, size_t offset, size_t size);
@@ -568,6 +573,8 @@ private:
                             const double* inMatrix,
                             double paddedValue,
                             bool transpose);
+    void ensureDenseMatrixPool();
+    bool isDenseMatrix(int matrixIndex) const; // a valid index with dense contents
 
     int upPartials(bool byPartition,
                    const int* operations,
