@@ -58,8 +58,18 @@
         dest##01 = _mm_load_pd(&src[v + 0]); \
         dest##23 = _mm_load_pd(&src[v + 2]);
 
+#if defined(__SSE4_1__) || defined(__aarch64__) // _mm_dp_pd is SSE4.1 (sse2neon provides it on aarch64)
 #define SSE_VECTORIZED_INNER_PRODUCT(lhs, rhs) \
         VEC_ADD(_mm_dp_pd(lhs##01, rhs##01, 0xff), _mm_dp_pd(lhs##23, rhs##23, 0xff))
+#else
+// SSE2 only (e.g. GCC's default x86-64 target): a0 * b0 + a1 * b1 in both lanes, as _mm_dp_pd(a, b, 0xff) gives
+static inline __m128d sseDotProductPd(__m128d a, __m128d b) {
+    const __m128d products = _mm_mul_pd(a, b);
+    return _mm_add_pd(products, _mm_shuffle_pd(products, products, 1));
+}
+#define SSE_VECTORIZED_INNER_PRODUCT(lhs, rhs) \
+        VEC_ADD(sseDotProductPd(lhs##01, rhs##01), sseDotProductPd(lhs##23, rhs##23))
+#endif
 
 #define SSE_SCHUR_PRODUCT_PARTIALS(dest, src, v, srcq) \
 		V_Real tmp_##dest##01, tmp_##dest##23; \
