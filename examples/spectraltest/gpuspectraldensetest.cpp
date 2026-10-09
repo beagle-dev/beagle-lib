@@ -8,9 +8,11 @@
  * Dense matrix storage on the GPU spectral implementation, which allocates its matrix pool only at the first dense
  * write. Against the CPU spectral implementation (double precision), at 4 and 17 states, with pre-order transposes
  * MANUAL and AUTO:
- *   - setDifferentialMatrix followed by calculateEdgeDerivatives agrees to single precision (relative 1e-4 of the
- *     largest derivative) at 4 states; at 17 states the difference is only reported, because GPU edge derivatives
- *     with more than 4 states already disagreed with the CPU before the deferred pool (a separate issue);
+ *   - setDifferentialMatrix followed by calculateEdgeDerivatives, and calculateCrossProducts, agree to single
+ *     precision (relative 1e-4 of the largest value), and so does the standard GPU implementation against the
+ *     standard CPU one. Both sum over the padded states, which must stay zero in every partial. With MANUAL
+ *     and more than 4 states the GPU follows the caller's transposes (as in hmctest5): it takes Q^T, and the
+ *     standard implementation takes transposed matrices in pre-order operations (spectral transposes them itself);
  *   - getTransitionMatrix returns matrices set by setTransitionMatrices (and, with MANUAL, setDifferentialMatrix);
  *   - a dense read of an index without dense contents returns BEAGLE_ERROR_OUT_OF_RANGE: calculateEdgeDerivatives,
  *     and getTransitionMatrix of an index written only by updateTransitionMatrices or never written;
@@ -28,6 +30,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "libhmsbeagle/beagle.h"
@@ -126,15 +129,29 @@ static double scaledDifference(const std::vector<double>& x, const std::vector<d
 
 enum { kQComplex = 6, kQReal = 7, kDenseA = 8, kDenseB = 9, kSpare = 10, kUnwritten = 11, kMatrixCount = 12 };
 
-// tree ((0,1)4,(2,3)5)6 as in spectraldensetest; returns the instance, or a negative code
-static int setUp(bool gpu, int resource, long transposeFlag, int n, const char** implName) {
+// With BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL and more than 4 states, the GPU takes the caller's transposes (as in
+// hmctest5): Q^T for setDifferentialMatrix and, in the standard implementation, transposed matrices in pre-order
+// operations. The CPU and the 4-state GPU kernels take Q and the matrices as they are.
+static bool callerTransposes(bool gpu, int n, long transposeFlag) {
+    return gpu && n > 4 && transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL;
+}
+
+// the differential matrix of eigen-system 0, or its transpose (which swaps the circulant's two rates)
+static std::vector<double> qComplexMatrix(int n, bool transposed) {
+    return transposed ? circulantQ(n, 0.4, 1.0, 2) : circulantQ(n, 1.0, 0.4, 2);
+}
+
+// tree ((0,1)4,(2,3)5)6 as in spectraldensetest; returns the instance, or a negative code. A standard instance has
+// 6 more matrices, kMatrixCount + i holding the transpose of branch i's matrix when callerTransposes.
+static int setUp(bool gpu, bool spectral, int resource, long transposeFlag, int n, const char** implName) {
     const int tips = 4, patterns = 7, categories = 2, nodes = 7, root = 6, preBase = nodes;
     const long requirements = (gpu ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE
                                    : BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE) |
                               BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_SCALING_MANUAL |
-                              BEAGLE_FLAG_SPECTRAL_REPRESENTATION | transposeFlag;
+                              (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0) | transposeFlag;
+    const int matrixCount = spectral ? kMatrixCount : kMatrixCount + 6;
     BeagleInstanceDetails details;
-    const int instance = beagleCreateInstance(tips, 2 * nodes, 1, n, patterns, 2, kMatrixCount, categories, 0,
+    const int instance = beagleCreateInstance(tips, 2 * nodes, 1, n, patterns, 2, matrixCount, categories, 0,
                                               gpu ? &resource : NULL, gpu ? 1 : 0, 0, requirements, &details);
     if (instance < 0) return instance;
     *implName = details.implName;
@@ -178,15 +195,24 @@ static int setUp(bool gpu, int resource, long transposeFlag, int n, const char**
             {6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 4, 4, 5, 5}};
     beagleUpdatePartials(instance, post, 3, BEAGLE_OP_NONE);
 
+    // the matrix of a node's own branch in its pre-order operation (spectral transposes it itself)
+    int own = 0;
+    if (!spectral && callerTransposes(gpu, n, transposeFlag)) {
+        const int branches[] = {0, 1, 2, 3, 4, 5};
+        const int transposed[] = {kMatrixCount, kMatrixCount + 1, kMatrixCount + 2, kMatrixCount + 3,
+                                  kMatrixCount + 4, kMatrixCount + 5};
+        beagleTransposeTransitionMatrices(instance, branches, transposed, 6);
+        own = kMatrixCount;
+    }
     std::vector<double> prior(n * patterns * categories, 1.0 / n);
     beagleSetPartials(instance, preBase + root, prior.data());
     const BeagleOperation pre[] = {
-            {preBase + 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + root, 4, 5, 5},
-            {preBase + 5, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + root, 5, 4, 4},
-            {preBase + 0, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 4, 0, 1, 1},
-            {preBase + 1, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 4, 1, 0, 0},
-            {preBase + 2, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 5, 2, 3, 3},
-            {preBase + 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 5, 3, 2, 2}};
+            {preBase + 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + root, own + 4, 5, 5},
+            {preBase + 5, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + root, own + 5, 4, 4},
+            {preBase + 0, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 4, own + 0, 1, 1},
+            {preBase + 1, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 4, own + 1, 0, 0},
+            {preBase + 2, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 5, own + 2, 3, 3},
+            {preBase + 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + 5, own + 3, 2, 2}};
     beagleUpdatePrePartials(instance, pre, 6, BEAGLE_OP_NONE);
     return instance;
 }
@@ -195,11 +221,12 @@ static const int postIndices[] = {0, 1, 2, 3, 4, 5};
 static const int preIndices[] = {7, 8, 9, 10, 11, 12};
 static const int derivativeIndices[] = {kQComplex, kQReal, kQComplex, kQReal, kQComplex, kQReal};
 
-// setDifferentialMatrix and calculateEdgeDerivatives; derivatives per node and pattern, then the per-node sums
-static int derivatives(int instance, int n, std::vector<double>& out) {
+// setDifferentialMatrix (Q, or Q^T when transposed) and calculateEdgeDerivatives; derivatives per node and pattern,
+// then the per-node sums
+static int derivatives(int instance, int n, bool transposed, std::vector<double>& out) {
     const int categories = 2, patterns = 7;
-    const std::vector<double> qComplex = circulantQ(n, 1.0, 0.4, categories);
-    const std::vector<double> qReal = circulantQ(n, 0.7, 0.7, categories);
+    const std::vector<double> qComplex = qComplexMatrix(n, transposed);
+    const std::vector<double> qReal = circulantQ(n, 0.7, 0.7, categories); // symmetric
     int code = beagleSetDifferentialMatrix(instance, kQComplex, qComplex.data());
     if (code == BEAGLE_SUCCESS) code = beagleSetDifferentialMatrix(instance, kQReal, qReal.data());
     if (code != BEAGLE_SUCCESS) return code;
@@ -212,13 +239,39 @@ static int derivatives(int instance, int n, std::vector<double>& out) {
     return code;
 }
 
+// calculateCrossProducts over the same six edges: the stateCount x stateCount sum
+static int crossProducts(int instance, int n, std::vector<double>& out) {
+    const double edgeLengths[] = {0.3, 0.5, 0.7, 0.4, 0.2, 0.6}; // by node, as in setUp
+    const int ratesIndex = 0, weightsIndex = 0;
+    out.assign(n * n, 0.0);
+    return beagleCalculateCrossProductDerivative(instance, postIndices, preIndices, &ratesIndex, &weightsIndex,
+                                                 edgeLengths, 6, out.data(), NULL);
+}
+
+// edge derivatives (as BEAST's branch-rate gradient uses them) and cross products, GPU against CPU; returns the
+// relative differences {derivatives, cross products}
+static std::pair<double, double> compareDerivatives(int cpu, int gpu, const char* cpuName, const char* gpuName, int n,
+                                                    long transposeFlag, const char* transpose) {
+    std::vector<double> cpuDerivatives, gpuDerivatives, cpuCross, gpuCross;
+    expect(derivatives(cpu, n, false, cpuDerivatives) == BEAGLE_SUCCESS, "CPU derivatives", cpuName, n, transpose);
+    expect(derivatives(gpu, n, callerTransposes(true, n, transposeFlag), gpuDerivatives) == BEAGLE_SUCCESS,
+           "setDifferentialMatrix, calculateEdgeDerivatives", gpuName, n, transpose);
+    const double derivativeError = scaledDifference(gpuDerivatives, cpuDerivatives);
+    expect(derivativeError < 1e-4, "edge derivatives differ from the CPU", gpuName, n, transpose);
+    expect(crossProducts(cpu, n, cpuCross) == BEAGLE_SUCCESS, "CPU cross products", cpuName, n, transpose);
+    expect(crossProducts(gpu, n, gpuCross) == BEAGLE_SUCCESS, "calculateCrossProducts", gpuName, n, transpose);
+    const double crossError = scaledDifference(gpuCross, cpuCross);
+    expect(crossError < 1e-4, "cross products differ from the CPU", gpuName, n, transpose);
+    return {derivativeError, crossError};
+}
+
 static void runCase(int resource, int n, long transposeFlag) {
     const char* transpose = transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO ? "AUTO" : "MANUAL";
     const int categories = 2, size = n * n * categories;
     const char* cpuName = "";
     const char* gpuName = "";
-    const int cpu = setUp(false, 0, transposeFlag, n, &cpuName);
-    const int gpu = setUp(true, resource, transposeFlag, n, &gpuName);
+    const int cpu = setUp(false, true, 0, transposeFlag, n, &cpuName);
+    const int gpu = setUp(true, true, resource, transposeFlag, n, &gpuName);
     if (cpu < 0 || gpu < 0) {
         printf("FAIL %d states, %s: instance creation returned %d (CPU) and %d (GPU)\n", n, transpose, cpu, gpu);
         ++failures;
@@ -226,7 +279,7 @@ static void runCase(int resource, int n, long transposeFlag) {
     }
 
     // dense reads before any dense write: the matrices hold eigen-systems only
-    std::vector<double> matrix(size), cpuDerivatives, gpuDerivatives;
+    std::vector<double> matrix(size);
     const int weightsIndex = 0;
     {
         std::vector<double> perPattern(6 * 7), sums(6);
@@ -238,15 +291,9 @@ static void runCase(int resource, int n, long transposeFlag) {
     expect(beagleGetTransitionMatrix(gpu, 0, matrix.data()) == BEAGLE_ERROR_OUT_OF_RANGE,
            "getTransitionMatrix of an eigen-only index", gpuName, n, transpose);
 
-    // the dense derivatives, as BEAST's branch-rate gradient uses them
-    expect(derivatives(cpu, n, cpuDerivatives) == BEAGLE_SUCCESS, "CPU derivatives", cpuName, n, transpose);
-    expect(derivatives(gpu, n, gpuDerivatives) == BEAGLE_SUCCESS, "setDifferentialMatrix, calculateEdgeDerivatives",
-           gpuName, n, transpose);
-    const double derivativeError = scaledDifference(gpuDerivatives, cpuDerivatives);
-    const bool derivativesChecked = (n == 4); // see the header: N-state GPU edge derivatives are a separate issue
-    if (derivativesChecked) {
-        expect(derivativeError < 1e-4, "edge derivatives differ from the CPU", gpuName, n, transpose);
-    }
+    // the dense derivatives
+    const std::pair<double, double> errors = compareDerivatives(cpu, gpu, cpuName, gpuName, n, transposeFlag,
+                                                                transpose);
 
     // dense round trips
     std::vector<double> denseAB = stochastic(n, categories, 1);
@@ -266,7 +313,8 @@ static void runCase(int resource, int n, long transposeFlag) {
         roundTrip = std::max(roundTrip, scaledDifference(matrix, expected));
     }
     if (transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL) { // with AUTO the differential matrix is stored as given
-        const std::vector<double> qComplex = circulantQ(n, 1.0, 0.4, categories);
+        // as derivatives() set it
+        const std::vector<double> qComplex = qComplexMatrix(n, callerTransposes(true, n, transposeFlag));
         if (beagleGetTransitionMatrix(gpu, kQComplex, matrix.data()) == BEAGLE_SUCCESS) {
             roundTrip = std::max(roundTrip, scaledDifference(matrix, qComplex));
         } else {
@@ -321,8 +369,29 @@ static void runCase(int resource, int n, long transposeFlag) {
                "updatePrePartialsByPartition", gpuName, n, transpose);
     }
 
-    printf("%-24s vs %-28s %2d states, %-6s: derivatives %.1e%s, dense round trips %.1e\n", gpuName, cpuName, n,
-           transpose, derivativeError, derivativesChecked ? "" : " (not checked)", roundTrip);
+    printf("%-24s vs %-28s %2d states, %-6s: derivatives %.1e, cross products %.1e, dense round trips %.1e\n",
+           gpuName, cpuName, n, transpose, errors.first, errors.second, roundTrip);
+    beagleFinalizeInstance(cpu);
+    beagleFinalizeInstance(gpu);
+}
+
+// the standard implementations on the same tree: edge derivatives and cross products only
+static void runStandardCase(int resource, int n, long transposeFlag) {
+    const char* transpose = transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO ? "AUTO" : "MANUAL";
+    const char* cpuName = "";
+    const char* gpuName = "";
+    const int cpu = setUp(false, false, 0, transposeFlag, n, &cpuName);
+    const int gpu = setUp(true, false, resource, transposeFlag, n, &gpuName);
+    if (cpu < 0 || gpu < 0) {
+        printf("FAIL %d states, %s: standard instance creation returned %d (CPU) and %d (GPU)\n", n, transpose, cpu,
+               gpu);
+        ++failures;
+        return;
+    }
+    const std::pair<double, double> errors = compareDerivatives(cpu, gpu, cpuName, gpuName, n, transposeFlag,
+                                                                transpose);
+    printf("%-24s vs %-28s %2d states, %-6s: derivatives %.1e, cross products %.1e\n", gpuName, cpuName, n,
+           transpose, errors.first, errors.second);
     beagleFinalizeInstance(cpu);
     beagleFinalizeInstance(gpu);
 }
@@ -347,6 +416,7 @@ int main(int argc, const char* argv[]) {
     for (int n : {4, 17}) {
         for (long transposeFlag : {BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL, BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}) {
             runCase(resource, n, transposeFlag);
+            runStandardCase(resource, n, transposeFlag);
         }
     }
 

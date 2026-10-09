@@ -226,9 +226,11 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
         const double* inInverseEigenVectors,
         const double* inEigenValues) {
     // Built locally (not delegated to BeagleGPUImpl::setEigenDecomposition) so that every
-    // entry in [SC, S) is guaranteed zero rather than stale hMatrixCache scratch, and so
-    // column SC of every row can hold that row's row-sum (mirrors EigenDecompositionSpectral
-    // on the CPU side).
+    // entry in [SC, S) is guaranteed zero rather than stale hMatrixCache scratch. The padded
+    // columns stay zero (unlike EigenDecompositionSpectral, which puts each row's sum in column
+    // SC for a missing tip state; the GPU reads a missing state as kPaddedStateCount and sums
+    // the rows instead), so the padded states of every partial are zero, as the edge-derivative
+    // and cross-product kernels, which sum over all PADDED_STATE_COUNT states, require.
     const int S  = this->kPaddedStateCount;
     const int SC = this->kStateCount;
     const int SS = S * S;
@@ -246,11 +248,6 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
     Real* Eval  = (Real*) calloc(eigenValuesSize, sizeof(Real));
 
     for (int i = 0; i < SC; i++) {
-        Real rowSumEvec  = (Real) 0;
-        Real rowSumIevc  = (Real) 0;
-        Real rowSumEvecT = (Real) 0;
-        Real rowSumIevcT = (Real) 0;
-
         for (int j = 0; j < SC; j++) {
             Real evecVal  = (Real) inEigenVectors[j * SC + i];
             Real evecTVal = (Real) inEigenVectors[i * SC + j];
@@ -268,22 +265,6 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
             Ievc[i * S + j]  = ievcVal;
             EvecT[i * S + j] = evecTVal;
             IevcT[i * S + j] = ievcTVal;
-
-            rowSumEvec  += evecVal;
-            rowSumIevc  += ievcVal;
-            rowSumEvecT += evecTVal;
-            rowSumIevcT += ievcTVal;
-        }
-
-        // Column SC is only in the padding region when S > SC; when S == SC
-        // (e.g. 4- or 16-state, no padding gap) there is no spare column, and
-        // writing here would run one element past the end of these SS-sized
-        // buffers on the last row.
-        if (SC < S) {
-            Evec[i * S + SC]  = rowSumEvec;
-            Ievc[i * S + SC]  = rowSumIevc;
-            EvecT[i * S + SC] = rowSumEvecT;
-            IevcT[i * S + SC] = rowSumIevcT;
         }
     }
 
