@@ -27,11 +27,16 @@ Plugin* PluginManager::findPlugin(const char* name) noexcept(false)
     return m_plugin_map[name]->m_plugin;
 
     PluginInfo* pi = new PluginInfo;
+    try {
     pi->m_library = SharedLibrary::openSharedLibrary(name);
     plugin_init_func pif =
         findSymbol<plugin_init_func>(*pi->m_library,"plugin_init");
 
     pi->m_plugin = (*pif)();
+    } catch (...) {
+    delete pi; // a plugin that is not installed throws here
+    throw;
+    }
     if (!pi->m_plugin)
     {
     delete pi;

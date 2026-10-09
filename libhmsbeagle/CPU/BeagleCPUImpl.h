@@ -1091,6 +1091,9 @@ protected:
 
     void threadWaiting(threadData* tData);
 
+    // stops and joins the threads of the pool, if there is one, and frees their operation buffers
+    void stopThreads();
+
 private:
 
     template <bool DoDerivatives>

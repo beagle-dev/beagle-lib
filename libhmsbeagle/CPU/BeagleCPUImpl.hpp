@@ -144,7 +144,11 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
             free(gCategoryWeights[i]);
         if (gStateFrequencies[i] != NULL)
             free(gStateFrequencies[i]);
+        if (gCategoryRates[i] != NULL)
+            free(gCategoryRates[i]);
     }
+    free(gCategoryWeights);
+    free(gStateFrequencies);
 
     for(unsigned int i=0; i<kMatrixCount; i++) {
         if (gTransitionMatrices[i] != NULL)
@@ -220,38 +224,45 @@ BeagleCPUImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUImpl() {
 
     delete gEigenDecomposition;
 
-    if (kThreadingEnabled) {
-        // Send stop signal to all threads and join them...
-        for (int i = 0; i < kNumThreads; i++) {
-            threadData* td = &gThreads[i];
-            std::unique_lock<std::mutex> l(td->m);
-            td->stop = true;
-            td->cv.notify_one();
-        }
+    stopThreads();
 
-        // Join all the threads
-        for (int i = 0; i < kNumThreads; i++) {
-            threadData* td = &gThreads[i];
-            td->t.join();
-        }
+    // allocated also when auto-partitioning ends up disabled
+    free(gAutoPartitionOperations);
+    free(gAutoPartitionIndices);
+    free(gAutoPartitionOutSumLogLikelihoods);
+}
 
-        delete[] gThreads;
-        delete[] gFutures;
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::stopThreads() {
+    if (!kThreadingEnabled)
+        return;
 
-        for (int i=0; i<kNumThreads; i++) {
-            free(gThreadOperations[i]);
-        }
-        free(gThreadOperations);
-        free(gThreadOpCounts);
+    // Send stop signal to all threads and join them...
+    for (int i = 0; i < kNumThreads; i++) {
+        threadData* td = &gThreads[i];
+        std::unique_lock<std::mutex> l(td->m);
+        td->stop = true;
+        td->cv.notify_one();
     }
 
-    if (kAutoPartitioningEnabled) {
-        free(gAutoPartitionOperations);
-        if (kAutoRootPartitioningEnabled) {
-            free(gAutoPartitionIndices);
-            free(gAutoPartitionOutSumLogLikelihoods);
-        }
+    // Join all the threads
+    for (int i = 0; i < kNumThreads; i++) {
+        threadData* td = &gThreads[i];
+        td->t.join();
     }
+
+    delete[] gThreads;
+    delete[] gFutures;
+
+    for (int i=0; i<kNumThreads; i++) {
+        free(gThreadOperations[i]);
+    }
+    free(gThreadOperations);
+    free(gThreadOpCounts);
+    gThreadOperations = NULL;
+    gThreadOpCounts = NULL;
+
+    kThreadingEnabled = false;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -487,6 +498,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kAutoPartitioningEnabled = false;
     gThreadOperations = NULL;
     gThreadOpCounts = NULL;
+    gAutoPartitionOperations = NULL;
+    gAutoPartitionIndices = NULL;
+    gAutoPartitionOutSumLogLikelihoods = NULL;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
         if (kStateCount <= 4) {
@@ -584,8 +598,16 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCPUThreadCount(int threadCount) {
     if (threadCount < 1)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
-    kThreadingEnabled = false;
+    // the previous pool and auto-partition buffers; setPatternPartitions starts a new pool
+    stopThreads();
+    free(gAutoPartitionOperations);
+    free(gAutoPartitionIndices);
+    free(gAutoPartitionOutSumLogLikelihoods);
+    gAutoPartitionOperations = NULL;
+    gAutoPartitionIndices = NULL;
+    gAutoPartitionOutSumLogLikelihoods = NULL;
     kAutoPartitioningEnabled = false;
+    kAutoRootPartitioningEnabled = false;
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         int hardwareThreads = std::thread::hardware_concurrency();
         if (kStateCount <= 4) {
@@ -1087,6 +1109,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
 
     kPartitionCount = partitionCount;
     gAdjointPartitionBuffers.resize(kStateCount * kStateCount * kPartitionCount, REALTYPE(0));
+    free(grandDenominatorDerivTmp);
+    free(grandNumeratorDerivTmp);
+    free(firstDerivTmp);
+    free(secondDerivTmp);
     grandDenominatorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1) * kPartitionCount);
     grandNumeratorDerivTmp = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * (kPaddedPatternCount + 1)* kPartitionCount);
     firstDerivTmp =  (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPaddedPatternCount * kStateCount * kPartitionCount);
@@ -1119,32 +1145,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
         kMaxPartitionCount = partitionCount;
     }
 
-    if (kThreadingEnabled) {
-        // Send stop signal to all threads and join them...
-        for (int i = 0; i < kNumThreads; i++) {
-            threadData* td = &gThreads[i];
-            std::unique_lock<std::mutex> l(td->m);
-            td->stop = true;
-            td->cv.notify_one();
-        }
-
-        // Join all the threads
-        for (int i = 0; i < kNumThreads; i++) {
-            threadData* td = &gThreads[i];
-            td->t.join();
-        }
-
-        delete[] gThreads;
-        delete[] gFutures;
-
-        for (int i=0; i<kNumThreads; i++) {
-            free(gThreadOperations[i]);
-        }
-        free(gThreadOperations);
-        free(gThreadOpCounts);
-
-        kThreadingEnabled = false;
-    }
+    stopThreads();
 
     if (kFlags & BEAGLE_FLAG_THREADING_CPP) {
         kNumThreads = partitionCount;
