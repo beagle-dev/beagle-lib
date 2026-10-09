@@ -317,14 +317,21 @@ static void onStopSignal(int sig) { gStopSignal = sig; }
 // --exit-after MS (TODO.md plan step C12's exit matrix): MS milliseconds after the --reps evaluations start, another thread
 // calls exit(0) while they go on, as a host's shutdown (a JVM's System.exit) would
 static std::atomic<bool> gEvaluating(false);
+static std::atomic<bool> gExiting(false);   // that exit() has begun: the process ends there
 static void exitAfter(int ms) {
     std::thread([ms] {
         while (!gEvaluating) std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        gExiting = true;
         printf("exit() from another thread, %d ms into the evaluations\n", ms);
         fflush(stdout);
         exit(0);
     }).detach();
+}
+// An evaluation that fails once that exit() has begun (its atexit tore the GPU down) waits for it to end the process, as a
+// host's other threads would: returning from main would race it with this test's own exit status
+static void waitIfExiting() {
+    while (gExiting) std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 // ── Several instances in one process (--instances, --threads, --cycles; TODO.md plan step P5) ──
@@ -441,7 +448,7 @@ static void evaluateRun(InstanceRun& r, bool poison, int reps) {
     for (int i = 0; i < reps && rc >= 0 && !gStopSignal; ++i) {
         double repLogL = 0.0;
         auto s0 = std::chrono::steady_clock::now();
-        if (evaluate(r.gpu, &repLogL) < 0) { fprintf(out, "--reps: evaluation %d failed\n", i); break; }
+        if (evaluate(r.gpu, &repLogL) < 0) { fprintf(out, "--reps: evaluation %d failed\n", i); waitIfExiting(); break; }
         ms.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count());
         nDiffer += (repLogL != logL);
     }
@@ -1103,6 +1110,7 @@ int main(int argc, char** argv) {
             auto s1 = std::chrono::steady_clock::now();
             if (rr < 0) {
                 fprintf(stderr, "--reps: evaluation %d failed: %d\n", r, rr);
+                waitIfExiting();
                 repsOk = false;
                 break;
             }
