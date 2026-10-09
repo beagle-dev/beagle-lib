@@ -26,7 +26,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DBEAGLE_INDEX_CHECKS=ON
+        cmake .. -DBEAGLE_INDEX_CHECKS=ON -DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
         # libhmsbeagle loads the CPU plugins by file name; with Ubuntu's --as-needed and RUNPATH defaults the examples'
@@ -48,7 +48,7 @@ jobs:
         export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-arm64
         mkdir build
         cd build
-        cmake .. -DBEAGLE_INDEX_CHECKS=ON
+        cmake .. -DBEAGLE_INDEX_CHECKS=ON -DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF
         make -j
         file libhmsbeagle/libhmsbeagle.so.* | grep aarch64
         # libhmsbeagle loads the CPU plugins by file name; with Ubuntu's --as-needed and RUNPATH defaults the examples'
