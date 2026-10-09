@@ -32,6 +32,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 
     REAL sum2 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -55,6 +56,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     KW_LOCAL_FENCE; // TODO Remove?
 
     REAL sum1 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -121,6 +123,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
     KW_LOCAL_FENCE; // TODO Remove?
 
     REAL sum1 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -211,6 +214,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
+        KW_NO_UNROLL
         for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
             if (patIdx < NEW_BLOCK_PEELING_SIZE) {
@@ -348,6 +352,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
+        KW_NO_UNROLL
         for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
             if (patIdx < NEW_BLOCK_PEELING_SIZE) {

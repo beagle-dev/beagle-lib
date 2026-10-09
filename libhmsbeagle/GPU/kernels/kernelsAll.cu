@@ -233,7 +233,15 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     // Thread index
     int tx = KW_LOCAL_ID_0;
     int ty = KW_LOCAL_ID_1;
+#if defined(FW_TINYGPU_NV_STATIC_BLOCKS)
+    // Opt-in A/B (TODO.md Phase 140): gridDim.y comes from a cbuf0 word that
+    // reads 0 on TinyGPU NV unless the launch-dims fill is on (-> EDGE=20);
+    // use the value KernelLauncher always launches with instead:
+    // grid.y = ceil(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE).
+    int BLOCKS = (PADDED_STATE_COUNT + MULTIPLY_BLOCK_SIZE - 1) / MULTIPLY_BLOCK_SIZE;
+#else
     int BLOCKS = KW_NUM_GROUPS_1;
+#endif
 
 #ifdef CUDA
     KW_LOCAL_MEM REAL* C;
@@ -309,6 +317,42 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     }
 
     KW_LOCAL_FENCE;
+
+#if defined(FW_TINYGPU) && defined(TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH)
+    // Opt-in probe hook (nv_real_kernel_probe.py; tinygputest
+    // --diag-matmul-ground-truth with a header rebuilt with this macro).
+    // Thread (0,0) of every block writes csub0 (dbg[0]), row/column 0 of
+    // As/Bs (dbg[1..8]), Ds[0..3] (dbg[9..12]) and %smid (dbg[13]) to a
+    // scratch slot past the real matrices -- dMatrices + totalMatrix*
+    // (PADDED_STATE_COUNT^2) + KW_GROUP_ID_0*(PADDED_STATE_COUNT^2) --
+    // addressed by KW_GROUP_ID_0, not through listC/wMatrix. A block that
+    // never gets here leaves its slot at the host's pre-seeded sentinel, so
+    // "never ran" and "ran but wrong" are distinguishable. Doesn't return:
+    // the real computation below still runs unmodified. Sized for the
+    // probe's setup (BLOCKS==1, totalMatrix==16); not a general-N tool.
+    {
+        KW_GLOBAL_VAR REAL* dbg = dMatrices
+            + totalMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT
+            + KW_GROUP_ID_0 * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        if (tx == 0 && ty == 0) {
+            REAL csub0 = 0;
+            for (int k = 0; k < EDGE; k++)
+                csub0 += As[0][k] * Ds[k] * Bs[k][0];
+            dbg[0]  = csub0;
+            dbg[1]  = As[0][0]; dbg[2]  = As[0][1]; dbg[3]  = As[0][2]; dbg[4]  = As[0][3];
+            dbg[5]  = Bs[0][0]; dbg[6]  = Bs[1][0]; dbg[7]  = Bs[2][0]; dbg[8]  = Bs[3][0];
+            dbg[9]  = Ds[0];    dbg[10] = Ds[1];    dbg[11] = Ds[2];    dbg[12] = Ds[3];
+#if defined(CUDA)
+            // %smid of the SM this block ran on; nv_real_kernel_probe.py
+            // --sweep tabulates results per SM from it. Legal PTX on any CUDA
+            // target, so gated on CUDA inside this FW_TINYGPU-only block.
+            unsigned int smid;
+            asm("mov.u32 %0, %smid;" : "=r"(smid));
+            dbg[13] = (REAL) smid;
+#endif
+        }
+    }
+#endif
 
     for (int k = 0; k < EDGE; k++)
         Csub += As[ty][k] * Ds[k] * Bs[k][tx];
@@ -783,7 +827,12 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 	    }
 }
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* offsets,
                                    KW_GLOBAL_VAR REAL* Alist,
                                    KW_GLOBAL_VAR REAL* Dlist,
@@ -833,7 +882,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#ifdef CUDA
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
     REAL* B0  = &Bs[1][0];
     REAL* Bm1 = &Bs[0][0];
     REAL* Bp1 = &Bs[2][0];
@@ -1003,7 +1052,12 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
 }
 
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,
                                    KW_GLOBAL_VAR REAL* D,
@@ -1062,7 +1116,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#ifdef CUDA
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
    	REAL* Bp1 = &Bs[2][0];

@@ -35,11 +35,22 @@
 #include "libhmsbeagle/GPU/Precision.h"
 #include "BeagleGPUImpl.h"
 
+// TinyGPU (TODO.md plan step C12): an instance whose GPU is lost, or whose setup failed, copies back NaN instead of results, so
+// createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost):
+// BEAGLE_ERROR_OUT_OF_MEMORY when the GPU's memory did not suffice (plan step M1: GetOutOfMemory), else BEAGLE_ERROR_GENERAL
+#ifdef FW_TINYGPU
+#define BEAGLE_GPU_RETURN_IF_LOST() do { if (gpu->GetDeviceLost()) return gpu->GetOutOfMemory() ? BEAGLE_ERROR_OUT_OF_MEMORY : BEAGLE_ERROR_GENERAL; } while (0)
+#else
+#define BEAGLE_GPU_RETURN_IF_LOST() do {} while (0)
+#endif
+
 namespace beagle {
 namespace gpu {
 
 #ifdef CUDA
     namespace cuda {
+#elif defined(FW_TINYGPU)
+    namespace tinygpu {
 #else
     namespace opencl {
 #endif
@@ -886,6 +897,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     gpu->ReportMemory("create"); // BEAGLE_DEBUG_MEMORY only
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -932,6 +944,16 @@ template<>
 char* BeagleGPUImpl<float>::getInstanceName() {
     return (char*) "OpenCL-Single";
 }
+#elif defined(FW_TINYGPU)
+template<>
+char* BeagleGPUImpl<double>::getInstanceName() {
+    return (char*) "TinyGPU-Double";
+}
+
+template<>
+char* BeagleGPUImpl<float>::getInstanceName() {
+    return (char*) "TinyGPU-Single";
+}
 #endif
 
 BEAGLE_GPU_TEMPLATE
@@ -948,6 +970,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails*
         kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
 #elif defined(FW_OPENCL)
         kFlags |= BEAGLE_FLAG_FRAMEWORK_OPENCL;
+#elif defined(FW_TINYGPU)
+        kFlags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU;
+        kFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
         returnInfo->flags |= kFlags;
@@ -1129,6 +1154,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getPartials\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -1736,6 +1762,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getTransitionMatrix(int matrixIndex,
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getTransitionMatrix\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -3667,6 +3694,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const int* bu
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -3825,6 +3853,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoodsByPartition(
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateRootLogLikelihoodsByPartition\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4177,6 +4206,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(const int* pa
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4408,6 +4438,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::calculateEdgeLogLikelihoodsByPartition\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4434,6 +4465,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getLogLikelihood(double* outSumLogLikelih
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getLogLikelihood\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return returnCode;
 }
 
@@ -4465,6 +4497,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getDerivatives(double* outSumFirstDerivat
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getDerivatives\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4494,6 +4527,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteLogLikelihoods(double* outLogLikel
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteLogLikelihoods\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4518,6 +4552,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getSiteDerivatives(double* outFirstDeriva
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getSiteDerivatives\n");
 #endif
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4632,6 +4667,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcEdgeFirstDerivatives(const int *postB
         }
     }
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4750,6 +4786,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::calcCrossProducts(const int *postBufferIn
                      kStateCount);
     }
 
+    BEAGLE_GPU_RETURN_IF_LOST();
     return BEAGLE_SUCCESS;
 }
 
@@ -4814,6 +4851,15 @@ template<>
 const char* BeagleGPUImplFactory<float>::getName() {
     return "SP-OpenCL";
 }
+#elif defined(FW_TINYGPU)
+template<>
+const char* BeagleGPUImplFactory<double>::getName() {
+    return "GPU-DP-TinyGPU";
+}
+template<>
+const char* BeagleGPUImplFactory<float>::getName() {
+    return "GPU-SP-TinyGPU";
+}
 #endif
 
 template<>
@@ -4844,6 +4890,9 @@ const long BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 #elif defined(FW_OPENCL)
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
+#elif defined(FW_TINYGPU)
+    flags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU |
+             BEAGLE_FLAG_PROCESSOR_GPU;
 #endif
 
     Real r = 0;

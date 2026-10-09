@@ -49,6 +49,14 @@ void printfVector(Real* ptr,
     fprintf(stderr, " ]\n");
 }
 
+template<>
+inline void printfVector(int* ptr, int length) {
+    fprintf(stderr, "[ %d", ptr[0]);
+    for (int i = 1; i < length; i++)
+        fprintf(stderr, " %d", ptr[i]);
+    fprintf(stderr, " ]\n");
+}
+
 void printfInt(int* ptr,
                int length);
 

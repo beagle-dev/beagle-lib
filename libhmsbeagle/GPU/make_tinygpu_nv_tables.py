@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""
+Generate TinyGPUNVTables.h: the QMD field positions and method/flag words the
+C++ NV code writes, taken from tinygrad itself (the pinned hcq1 tree) rather
+than transcribed by hand. The QMD tables are tinygrad's own QMD.fields (built
+by ops_nv.QMD from runtime/autogen/nv_570.py, i.e. NVIDIA's clc6c0qmd.h and
+clcec0qmd.h); the flag words are tinygrad's nv_flags(...) calls as ops_nv.py
+makes them. Rerun after changing the tinygrad pin:
+
+    python3 make_tinygpu_nv_tables.py > TinyGPUNVTables.h
+"""
+import os, sys, pathlib, types
+
+sys.path.insert(0, os.environ.get("TINYGRAD_PATH", str(pathlib.Path.home() / "Dropbox/Projects/tinygrad-hcq1")))
+import tinygrad.runtime.ops_nv as ops_nv  # noqa: E402
+
+nv_gpu, nv_flags = ops_nv.nv_gpu, ops_nv.nv_flags
+
+# QMD fields written by NVProgram.__init__ (BeagleNVProgram) and NVComputeQueue.exec/.signal, per QMD version;
+# a name a version doesn't have is emitted as kAbsent.
+FIELDS = [
+    "qmd_major_version", "qmd_type", "qmd_group_id", "sm_global_caching_enable",
+    "invalidate_texture_header_cache", "invalidate_texture_sampler_cache", "invalidate_texture_data_cache",
+    "invalidate_shader_data_cache", "api_visible_call_limit", "sampler_index", "barrier_count", "cwd_membar_type",
+    "constant_buffer_invalidate_0", "min_sm_config_shared_mem_size", "target_sm_config_shared_mem_size",
+    "max_sm_config_shared_mem_size", "program_prefetch_size", "sass_version",
+    "program_prefetch_addr_upper_shifted", "program_prefetch_addr_lower_shifted",
+    "program_address_upper", "program_address_lower", "program_address_upper_shifted4", "program_address_lower_shifted4",
+    "register_count_v", "register_count", "shared_memory_size", "shared_memory_size_shifted7",
+    "shader_local_memory_high_size", "shader_local_memory_high_size_shifted4",
+    "cta_raster_width", "cta_raster_height", "cta_raster_depth", "grid_width", "grid_height", "grid_depth",
+    "cta_thread_dimension0", "cta_thread_dimension1", "cta_thread_dimension2",
+    "release0_enable", "release0_address_lower", "release0_address_upper", "release0_payload_lower", "release0_payload_upper",
+    "release_semaphore0_addr_lower", "release_semaphore0_addr_upper", "release_semaphore0_payload_lower",
+    "release_semaphore0_payload_upper",
+    "dependent_qmd0_pointer", "dependent_qmd0_action", "dependent_qmd0_prefetch", "dependent_qmd0_enable",
+]
+INDEXED = ["constant_buffer_addr_upper", "constant_buffer_addr_lower", "constant_buffer_addr_upper_shifted6",
+           "constant_buffer_addr_lower_shifted6", "constant_buffer_size_shifted4", "constant_buffer_valid"]
+
+def qmd_fields(compute_class):
+    q = ops_nv.QMD(types.SimpleNamespace(iface=types.SimpleNamespace(compute_class=compute_class)))  # fills QMD.fields[pref]
+    return q, ops_nv.QMD.fields[q.pref]
+
+versions = [qmd_fields(nv_gpu.ADA_COMPUTE_A), qmd_fields(nv_gpu.BLACKWELL_COMPUTE_B)]
+
+def bits(fields, name):
+    hi, lo = fields.get(name.upper(), (0xffff, 0xffff))
+    return f"{{{hi}, {lo}}}"
+
+methods = {
+    "SEM_ADDR_LO": nv_gpu.NVC56F_SEM_ADDR_LO,
+    "NON_STALL_INTERRUPT": nv_gpu.NVC56F_NON_STALL_INTERRUPT,
+    "SET_OBJECT": nv_gpu.NVC6C0_SET_OBJECT,
+    "SET_SHADER_LOCAL_MEMORY_WINDOW_A": nv_gpu.NVC6C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A,
+    "SET_SHADER_SHARED_MEMORY_WINDOW_A": nv_gpu.NVC6C0_SET_SHADER_SHARED_MEMORY_WINDOW_A,
+    "SET_SHADER_LOCAL_MEMORY_A": nv_gpu.NVC6C0_SET_SHADER_LOCAL_MEMORY_A,
+    "SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A": nv_gpu.NVC6C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A,
+    "INVALIDATE_SHADER_CACHES_NO_WFI": nv_gpu.NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI,
+    "SEND_PCAS_A": nv_gpu.NVC6C0_SEND_PCAS_A,
+    "SEND_SIGNALING_PCAS2_B": nv_gpu.NVC6C0_SEND_SIGNALING_PCAS2_B,
+    "DMA_OFFSET_IN_UPPER": nv_gpu.NVC6B5_OFFSET_IN_UPPER,
+    "DMA_LINE_LENGTH_IN": nv_gpu.NVC6B5_LINE_LENGTH_IN,
+    "DMA_LAUNCH_DMA": nv_gpu.NVC6B5_LAUNCH_DMA,
+    "DMA_SET_SEMAPHORE_A": nv_gpu.NVC6B5_SET_SEMAPHORE_A,
+}
+flags = {  # the nv_flags(...) calls of ops_nv.py, by the method that uses them
+    "SEM_ACQUIRE_GEQ_64": nv_flags("NVC56F_SEM_EXECUTE", operation="acq_circ_geq", payload_size="64bit"),
+    "SEM_RELEASE_64_TIMESTAMP": nv_flags("NVC56F_SEM_EXECUTE", operation="release", release_wfi="en", payload_size="64bit",
+                                         release_timestamp="en"),
+    "INVALIDATE_ALL": nv_flags("NVC6C0_INVALIDATE_SHADER_CACHES_NO_WFI", instruction="true", global_data="true", constant="true"),
+    "DMA_COPY": nv_flags("NVC6B5_LAUNCH_DMA", data_transfer_type="non_pipelined", src_memory_layout="pitch", dst_memory_layout="pitch"),
+    "DMA_SEMAPHORE_RELEASE": nv_flags("NVC6B5_LAUNCH_DMA", flush_enable="true", semaphore_type="release_four_word_semaphore"),
+}
+constants = {
+    "BLACKWELL_COMPUTE_A": nv_gpu.BLACKWELL_COMPUTE_A,
+    "QMD_TYPE_GRID_CTA": nv_gpu.NVCEC0_QMDV05_00_QMD_TYPE_GRID_CTA,
+    "CWD_MEMBAR_TYPE_L1_SYSMEMBAR": nv_gpu.NVC6C0_QMDV03_00_CWD_MEMBAR_TYPE_L1_SYSMEMBAR,
+}
+
+out = [f"""/*
+ * TinyGPUNVTables.h -- GENERATED by make_tinygpu_nv_tables.py from tinygrad
+ * ({os.path.relpath(ops_nv.__file__, pathlib.Path(ops_nv.__file__).parents[2])}, nv_gpu = {nv_gpu.__name__.split('.')[-1]}). Do not edit.
+ *
+ * QMD field positions ({{hi, lo}} bit ranges, as tinygrad's QMD.fields) for
+ * QMD v3 (NVC6C0_QMDV03_00, Ampere/Ada) and v5 (NVCEC0_QMDV05_00, Blackwell),
+ * and the method and flag words ops_nv.py writes.
+ */
+
+#ifndef LIBHMSBEAGLE_GPU_TINYGPUNVTABLES_H
+#define LIBHMSBEAGLE_GPU_TINYGPUNVTABLES_H
+
+#include <cstdint>
+
+namespace tinygpu_device {{
+namespace nvt {{
+
+struct Bits {{ uint16_t hi, lo; }};
+constexpr Bits kAbsent = {{0xffff, 0xffff}};
+constexpr bool present(Bits b) {{ return b.hi != 0xffff; }}
+
+enum QmdField {{"""]
+out += [f"    {n.upper()}," for n in FIELDS] + ["    NUM_QMD_FIELDS", "};", "", "enum QmdIndexedField {"]
+out += [f"    {n.upper()}," for n in INDEXED] + ["    NUM_QMD_INDEXED", "};", ""]
+for (q, fields), tag in zip(versions, ("V3", "V5")):
+    out += [f"constexpr uint32_t kQmd{tag}Bytes = {q.sz * 4};",
+            f"constexpr Bits kQmd{tag}[NUM_QMD_FIELDS] = {{"] + [f"    {bits(fields, n)},  // {n}" for n in FIELDS] + ["};",
+            f"constexpr Bits kQmd{tag}Indexed[NUM_QMD_INDEXED][8] = {{"]
+    out += ["    {" + ", ".join(bits(fields, f"{n}_{i}") for i in range(8)) + f"}},  // {n}_i" for n in INDEXED] + ["};", ""]
+out += [f"constexpr uint32_t M_{k} = {v:#x};" for k, v in methods.items()] + [""]
+out += [f"constexpr uint32_t F_{k} = {v:#x};" for k, v in flags.items()] + [""]
+out += [f"constexpr uint32_t {k} = {v:#x};" for k, v in constants.items()]
+out += ["", "} // namespace nvt", "} // namespace tinygpu_device", "", "#endif // LIBHMSBEAGLE_GPU_TINYGPUNVTABLES_H"]
+print("\n".join(out))

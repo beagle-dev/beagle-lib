@@ -229,6 +229,18 @@ if(BUILD_SSE AND BUILD_SPECTRAL)
     add_test(buffergrowthtest buffergrowthtest)
 endif(BUILD_SSE AND BUILD_SPECTRAL)
 
+if(BUILD_TINYGPU)
+    add_executable(tinygputest
+            tinygputest/tinygputest.cpp)
+    target_link_libraries(tinygputest
+            hmsbeagle
+            hmsbeagle-cpu
+            ${CMAKE_DL_LIBS})
+    if(BUILD_SSE)
+        target_link_libraries(tinygputest hmsbeagle-cpu-sse)
+    endif()
+endif()
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)

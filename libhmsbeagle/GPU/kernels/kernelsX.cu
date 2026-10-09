@@ -160,6 +160,7 @@
         sPartials2[patIdx][state] = 0;\
     }\
     REAL sum1 = 0, sum2 = 0;\
+    KW_NO_UNROLL\
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {\
         /* load one row of matrices */\
         if (patIdx < BLOCK_PEELING_SIZE) {\
@@ -197,6 +198,7 @@
         else\
             sum1 = 1.0;\
     }\
+    KW_NO_UNROLL\
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {\
         if (patIdx < BLOCK_PEELING_SIZE) {\
             sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];\
@@ -923,6 +925,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoods(KW_GLOBAL_VAR REAL* 
     }
     REAL sum1 = 0;
     int i;
+    KW_NO_UNROLL
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         if (patIdx < BLOCK_PEELING_SIZE) {
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
@@ -995,6 +998,7 @@ kernelPartialsPartialsEdgeLikelihoodsSecondDeriv(KW_GLOBAL_VAR REAL* KW_RESTRICT
     REAL sumFirstDeriv = 0;
     REAL sumSecondDeriv = 0;
     int i;
+    KW_NO_UNROLL
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE/2) {
         if (patIdx < BLOCK_PEELING_SIZE/2) {
             sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
@@ -1234,6 +1238,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
         sPartials2[patIdx][state] = 0;
     }
 
+    KW_NO_UNROLL
     for (i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         // load one row of matrices
         if (patIdx < BLOCK_PEELING_SIZE) {

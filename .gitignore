@@ -127,6 +127,17 @@ libhmsbeagle/benchmark/libbenchmark_la-linalg.lo
 /libhmsbeagle/GPU/kernels/Makefile
 /libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h
 /libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.ptx
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_cubins.S
+/libhmsbeagle/GPU/kernels/TinyGPUNVCubins.h
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_kernels_stamp.h
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_cubins.S.tmp
+/libhmsbeagle/GPU/kernels/TinyGPUNVCubins.h.tmp
+/libhmsbeagle/GPU/kernels/tinygpu_cubins/
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_hsaco.S
+/libhmsbeagle/GPU/kernels/TinyGPUAMDHsaco.h
+/libhmsbeagle/GPU/kernels/BeagleTinyGPU_hsaco.S.tmp
+/libhmsbeagle/GPU/kernels/TinyGPUAMDHsaco.h.tmp
+/libhmsbeagle/GPU/kernels/tinygpu_hsaco/
 
 # /libhmsbeagle/JNI/
 /libhmsbeagle/JNI/Makefile.in

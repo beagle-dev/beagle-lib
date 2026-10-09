@@ -53,6 +53,8 @@ enum BeagleDeviceImplementationCodes {
     BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU = 9,
     BEAGLE_OPENCL_DEVICE_NVIDA_GPU       = 10,
     BEAGLE_CUDA_DEVICE_NVIDIA_GPU        = 11,
+    BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU     = 12,
+    BEAGLE_TINYGPU_DEVICE_AMD_GPU        = 13,
 };
 
 #define BEAGLE_CACHED_MATRICES_COUNT 3 // max number of matrices that can be cached for a single memcpy to device operation
@@ -105,6 +107,156 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  gridDim.y
     #define KW_NUM_GROUPS_2  gridDim.z
     #define KW_RESTRICT      __restrict__
+    #define KW_NO_UNROLL
+#elif defined(FW_TINYGPU)
+    // TinyGPU backend: single-stream, NVIDIA PTX execution model.
+    // BEAGLE_STREAM_COUNT and BEAGLE_MULTI_GRID_MAX match CUDA defaults.
+    #define BEAGLE_STREAM_COUNT    1
+    #define BEAGLE_MULTI_GRID_MAX  3126
+    #define KW_GLOBAL_KERNEL __global__
+    #define KW_DEVICE_FUNC   __device__
+    #define KW_GLOBAL_VAR
+    #define KW_LOCAL_VAR
+    #define KW_LOCAL_MEM     __shared__
+    #define KW_LOCAL_FENCE   __syncthreads()
+    #define KW_LOCAL_ID_0    threadIdx.x
+    #define KW_LOCAL_ID_1    threadIdx.y
+    #define KW_LOCAL_ID_2    threadIdx.z
+    #define KW_LOCAL_SIZE_0  blockDim.x
+    #define KW_LOCAL_SIZE_1  blockDim.y
+    #define KW_LOCAL_SIZE_2  blockDim.z
+    #define KW_GROUP_ID_0    blockIdx.x
+    #define KW_GROUP_ID_1    blockIdx.y
+    #define KW_GROUP_ID_2    blockIdx.z
+    #define KW_NUM_GROUPS_0  gridDim.x
+    #define KW_NUM_GROUPS_1  gridDim.y
+    #define KW_NUM_GROUPS_2  gridDim.z
+    #define KW_RESTRICT      __restrict__
+    #define KW_NO_UNROLL
+#elif defined(FW_TINYGPU_AMD)
+    // TinyGPU backend, AMD path: kernels compiled via comgr's HIP
+    // language, not OpenCL. OpenCL's get_global_id() has a global_work_offset
+    // concept HIP has no equivalent of, so its compiled implementation reads
+    // the full HSA dispatch packet (dispatch_ptr/queue_ptr/dispatch_id sgprs,
+    // heavy scratch usage) -- which this remote-socket transport doesn't
+    // support cleanly (STATUS.md AMD §15-17). HIP's group/local-id builtins
+    // read hardware-architected sgprs directly and need none of that --
+    // the same, simpler path tinygrad's own (proven-working) dispatch always
+    // uses. __ockl_get_* are real functions from comgr's bundled OCKL
+    // device-library bitcode, forward-declared here since compilation uses
+    // -nogpuinc (no HIP runtime headers, matching tinygrad's own compile_hip).
+    #define BEAGLE_STREAM_COUNT    1
+    #define BEAGLE_MULTI_GRID_MAX  3126
+    extern "C" __attribute__((device)) unsigned long __ockl_get_local_id(unsigned int);
+    extern "C" __attribute__((device)) unsigned long __ockl_get_group_id(unsigned int);
+    extern "C" __attribute__((device)) unsigned long __ockl_get_local_size(unsigned int);
+    extern "C" __attribute__((device)) unsigned long __ockl_get_num_groups(unsigned int);
+    #define KW_GLOBAL_KERNEL extern "C" __attribute__((global))
+    #define KW_DEVICE_FUNC   __attribute__((device))
+    #define KW_GLOBAL_VAR
+    #define KW_LOCAL_VAR
+    #define KW_LOCAL_MEM     __attribute__((shared))
+    #define KW_LOCAL_FENCE   __builtin_amdgcn_fence(__ATOMIC_RELEASE, "workgroup"); __builtin_amdgcn_s_barrier(); \
+                             __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "workgroup")
+    #define KW_LOCAL_ID_0    ((int)__ockl_get_local_id(0))
+    #define KW_LOCAL_ID_1    ((int)__ockl_get_local_id(1))
+    #define KW_LOCAL_ID_2    ((int)__ockl_get_local_id(2))
+    #define KW_LOCAL_SIZE_0  ((int)__ockl_get_local_size(0))
+    #define KW_LOCAL_SIZE_1  ((int)__ockl_get_local_size(1))
+    #define KW_LOCAL_SIZE_2  ((int)__ockl_get_local_size(2))
+    #define KW_GROUP_ID_0    ((int)__ockl_get_group_id(0))
+    #define KW_GROUP_ID_1    ((int)__ockl_get_group_id(1))
+    #define KW_GROUP_ID_2    ((int)__ockl_get_group_id(2))
+    #define KW_NUM_GROUPS_0  ((int)__ockl_get_num_groups(0))
+    #define KW_NUM_GROUPS_1  ((int)__ockl_get_num_groups(1))
+    #define KW_NUM_GROUPS_2  ((int)__ockl_get_num_groups(2))
+    #define KW_RESTRICT      __restrict__
+    // Before a loop over the states peeled through shared memory, BLOCK_PEELING_SIZE states at a time: comgr unrolls
+    // such a loop fully and moves its FMAs past the last barrier, so every operand read from shared memory stays live
+    // and spills to scratch. Unroll 1 keeps the loop, with its FMAs between the barriers, as nvcc's PTX does.
+    #define KW_NO_UNROLL     _Pragma("unroll 1")
+    // Defensive OpenCL-builtin compatibility: the only raw (non-KW_*)
+    // OpenCL builtin call anywhere in kernels/*.cu is get_global_id(1)
+    // inside kernelsX.cu's DETERMINE_INDICES_X_CPU macro, an OpenCL-CPU-
+    // driver-only code path never invoked for a GPU resource -- provided
+    // anyway since it costs nothing.
+    static inline __attribute__((device)) unsigned long get_global_id(unsigned int d) {
+        return __ockl_get_group_id(d) * __ockl_get_local_size(d) + __ockl_get_local_id(d);
+    }
+    static inline __attribute__((device)) unsigned long get_local_id(unsigned int d) { return __ockl_get_local_id(d); }
+    static inline __attribute__((device)) unsigned long get_group_id(unsigned int d) { return __ockl_get_group_id(d); }
+    static inline __attribute__((device)) unsigned long get_local_size(unsigned int d) { return __ockl_get_local_size(d); }
+    static inline __attribute__((device)) unsigned long get_num_groups(unsigned int d) { return __ockl_get_num_groups(d); }
+    // Math functions kernels/*.cu calls as plain exp/cos/sin/log/pow/round
+    // (the complete set used anywhere in the kernel sources -- checked).
+    // OpenCL-C and CUDA both provide these as language builtins; HIP under
+    // -nogpuinc has neither, so route to comgr's bundled OCML device-library
+    // functions directly (the same functions HIPRenderer's own _ocml()
+    // helper targets for tinygrad's generated kernels).
+    extern "C" __attribute__((device)) float  __ocml_exp_f32(float);
+    extern "C" __attribute__((device)) double __ocml_exp_f64(double);
+    extern "C" __attribute__((device)) float  __ocml_cos_f32(float);
+    extern "C" __attribute__((device)) double __ocml_cos_f64(double);
+    extern "C" __attribute__((device)) float  __ocml_sin_f32(float);
+    extern "C" __attribute__((device)) double __ocml_sin_f64(double);
+    extern "C" __attribute__((device)) float  __ocml_log_f32(float);
+    extern "C" __attribute__((device)) double __ocml_log_f64(double);
+    extern "C" __attribute__((device)) float  __ocml_pow_f32(float, float);
+    extern "C" __attribute__((device)) double __ocml_pow_f64(double, double);
+    extern "C" __attribute__((device)) float  __ocml_round_f32(float);
+    extern "C" __attribute__((device)) double __ocml_round_f64(double);
+    static inline __attribute__((device)) float  exp(float x) { return __ocml_exp_f32(x); }
+    static inline __attribute__((device)) double exp(double x) { return __ocml_exp_f64(x); }
+    static inline __attribute__((device)) float  cos(float x) { return __ocml_cos_f32(x); }
+    static inline __attribute__((device)) double cos(double x) { return __ocml_cos_f64(x); }
+    static inline __attribute__((device)) float  sin(float x) { return __ocml_sin_f32(x); }
+    static inline __attribute__((device)) double sin(double x) { return __ocml_sin_f64(x); }
+    static inline __attribute__((device)) float  log(float x) { return __ocml_log_f32(x); }
+    static inline __attribute__((device)) double log(double x) { return __ocml_log_f64(x); }
+    static inline __attribute__((device)) float  pow(float x, float y) { return __ocml_pow_f32(x, y); }
+    static inline __attribute__((device)) double pow(double x, double y) { return __ocml_pow_f64(x, y); }
+    static inline __attribute__((device)) float  round(float x) { return __ocml_round_f32(x); }
+    static inline __attribute__((device)) double round(double x) { return __ocml_round_f64(x); }
+    static inline __attribute__((device)) float  fma(float x, float y, float z) { return __builtin_fmaf(x, y, z); }
+    static inline __attribute__((device)) double fma(double x, double y, double z) { return __builtin_fma(x, y, z); }
+    static inline __attribute__((device)) int    abs(int x) { return x < 0 ? -x : x; }
+    static inline __attribute__((device)) float  frexp(float x, int* e) { return __builtin_frexpf(x, e); }
+    static inline __attribute__((device)) double frexp(double x, int* e) { return __builtin_frexp(x, e); }
+    static inline __attribute__((device)) float  ldexp(float x, int e) { return __builtin_ldexpf(x, e); }
+    static inline __attribute__((device)) double ldexp(double x, int e) { return __builtin_ldexp(x, e); }
+    // Bit-reinterpretation and atomicAdd: real CUDA/HIP builtins normally
+    // declared in device_functions.h/hip_runtime.h, unavailable under
+    // -nogpuinc. atomicAdd(REAL*, REAL) (kernels4.cu/kernelsX.cu) is called
+    // unconditionally, not just inside kernelsAll.cu's own CUDA-gated
+    // double-precision CAS-loop fallback (that block never fires here,
+    // guarded on `defined CUDA`), so both float and double overloads are
+    // provided directly via the same CAS-loop technique that fallback
+    // itself demonstrates, using __sync_val_compare_and_swap (a portable
+    // GCC/clang legacy atomic builtin) instead of atomicCAS.
+    static inline __attribute__((device)) long long __double_as_longlong(double x) { long long r; __builtin_memcpy(&r, &x, sizeof(r)); return r; }
+    static inline __attribute__((device)) double __longlong_as_double(long long x) { double r; __builtin_memcpy(&r, &x, sizeof(r)); return r; }
+    static inline __attribute__((device)) unsigned int __beagle_float_as_uint(float x) { unsigned int r; __builtin_memcpy(&r, &x, sizeof(r)); return r; }
+    static inline __attribute__((device)) float __beagle_uint_as_float(unsigned int x) { float r; __builtin_memcpy(&r, &x, sizeof(r)); return r; }
+    static inline __attribute__((device)) float atomicAdd(float* address, float val) {
+        unsigned int* address_as_uint = (unsigned int*)address;
+        unsigned int old = *address_as_uint, assumed;
+        do {
+            assumed = old;
+            old = __sync_val_compare_and_swap(address_as_uint, assumed,
+                      __beagle_float_as_uint(val + __beagle_uint_as_float(assumed)));
+        } while (assumed != old);
+        return __beagle_uint_as_float(old);
+    }
+    static inline __attribute__((device)) double atomicAdd(double* address, double val) {
+        unsigned long long* address_as_ull = (unsigned long long*)address;
+        unsigned long long old = *address_as_ull, assumed;
+        do {
+            assumed = old;
+            old = __sync_val_compare_and_swap(address_as_ull, assumed,
+                      (unsigned long long)__double_as_longlong(val + __longlong_as_double((long long)assumed)));
+        } while (assumed != old);
+        return __longlong_as_double((long long)old);
+    }
 #elif defined(FW_OPENCL)
     #define BEAGLE_STREAM_COUNT 1 // disabled for now, also has to be smaller for OpenCL to not run out of host memory
     #define BEAGLE_MULTI_GRID_MAX  16384 // use multi-grid for fewer than this many sites
@@ -127,6 +279,7 @@ enum BeagleDeviceImplementationCodes {
     #define KW_NUM_GROUPS_1  get_num_groups(1)
     #define KW_NUM_GROUPS_2  get_num_groups(2)
     #define KW_RESTRICT      restrict
+    #define KW_NO_UNROLL
 #endif
 
 /* Compiler definitions

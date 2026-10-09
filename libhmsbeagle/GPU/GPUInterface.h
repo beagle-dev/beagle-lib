@@ -39,8 +39,7 @@
     typedef CUfunction GPUFunction;
 
     namespace cuda_device {
-#else
-#ifdef FW_OPENCL
+#elif defined(FW_OPENCL)
     #define CL_USE_DEPRECATED_OPENCL_1_1_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_1_2_APIS // to disable deprecation warnings
     #define CL_USE_DEPRECATED_OPENCL_2_0_APIS // to disable deprecation warnings
@@ -60,7 +59,21 @@
     typedef cl_kernel GPUFunction;
 
     namespace opencl_device {
-#endif
+#elif defined(FW_TINYGPU)
+    // Only the stamp of the TinyGPU-specific PTX (kernels/BeagleTinyGPU_kernels.h, compiled with -DCUDA -DFW_TINYGPU by
+    // kernels/make_tinygpu_kernels.sh): the NV path runs the cubins compiled from it at build time, the AMD path its
+    // OpenCL source (TODO.md plan step C13, decision 15).
+#   ifdef BEAGLE_XCODE
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
+#   else
+        #include "libhmsbeagle/GPU/kernels/BeagleTinyGPU_kernels_stamp.h"
+#   endif
+    // GPUPtr: byte offset into VRAM (BAR2 offset used in MMIO_READ/WRITE).
+    typedef uint64_t GPUPtr;
+    // GPUFunction: opaque pointer to an NVKernelEntry (resolved at launch).
+    typedef void*    GPUFunction;
+
+    namespace tinygpu_device {
 #endif
 
 class GPUInterface {
@@ -83,6 +96,53 @@ private:
     bool openClGenericVendor;                // every sub-buffer is a new cl_mem and offsets are aligned (SetDevice)
     size_t openClBaseAlign;                  // CL_DEVICE_MEM_BASE_ADDR_ALIGN in bytes, when openClGenericVendor
     const char* GetCLErrorDescription(int errorCode);
+#elif defined(FW_TINYGPU)
+    // AMD dispatch (GPUInterfaceTinyGPUAMD.cpp) lives in free functions,
+    // not GPUInterface methods -- GPUInterface::SetDevice/LaunchKernelImpl/etc.
+    // (defined once, in GPUInterfaceTinyGPU.cpp) branch on isNVIDIA and
+    // call out to them. They need private/protected member access the same
+    // way GPUInterfaceTinyGPU.cpp's own method bodies already do.
+    friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
+    // Their per-instance state is amdInstance (TODO.md plan step A5)
+    friend int AmdAttachShared(GPUInterface*);
+    friend GPUFunction AmdGetFunction(GPUInterface*, const char*);
+    friend void AmdLaunchKernelImpl(GPUInterface*, GPUFunction, Dim3Int, Dim3Int, int, int, GPUPtr*, unsigned int*);
+    friend void AmdSynchronizeHost(GPUInterface*);
+    friend void AmdMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
+    friend void AmdMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void AmdFini(GPUInterface*);
+    friend GPUPtr AmdAllocateMemory(GPUInterface*, size_t);
+    friend void AmdFreeMemory(GPUInterface*, GPUPtr);
+    friend bool AmdDeviceLost(GPUInterface*);
+    friend bool AmdOutOfMemory(GPUInterface*);
+    // Same for the NV path (GPUInterfaceTinyGPUNV.cpp: the daemon by
+    // default, C++ dispatch or the C++ runtime by environment variable), whose
+    // per-instance state is nvGspState (TODO.md plan step P5).
+    friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
+    friend int NvAttachShared(GPUInterface*);
+    friend GPUFunction NvGetFunction(GPUInterface*, const char*);
+    friend void NvLaunchKernelImpl(GPUInterface*, GPUFunction, Dim3Int, Dim3Int, int, int, GPUPtr*, unsigned int*);
+    friend void NvSynchronizeHost(GPUInterface*);
+    friend void NvMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
+    friend void NvMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void NvFini(GPUInterface*);
+    friend GPUPtr NvAllocateMemory(GPUInterface*, size_t);
+    friend void NvFreeMemory(GPUInterface*, GPUPtr);
+    friend bool NvDeviceLost(GPUInterface*);
+    friend bool NvOutOfMemory(GPUInterface*);
+
+    // ── TinyGPU socket ──────────────────────────────────────────────────────
+    int      tgpuSock;
+    uint32_t tgpuDevId;
+    bool     isNVIDIA;    // true = NV (CUDA driver path), false = AMD (PM4 path)
+
+    // The NV path's per-instance state: its NVInstance (GPUInterfaceTinyGPUNV.cpp; TODO.md plan step P5)
+    void*    nvGspState = nullptr;
+    // The AMD path's: its AMDInstance (GPUInterfaceTinyGPUAMD.cpp; TODO.md plan step A5)
+    void*    amdInstance = nullptr;
+
+    void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
+                          int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
 #endif
 #ifdef BEAGLE_DEBUG_MEMORY
     std::map<GPUPtr, size_t> debugBuffers;   // live allocations and their sizes
@@ -143,6 +203,16 @@ public:
     void* AllocatePinnedHostMemory(size_t memSize,
                                    bool writeCombined,
                                    bool mapped);
+
+#ifdef FW_TINYGPU
+    // TODO.md plan step C12: true once this instance's GPU work cannot be trusted (its setup or an allocation failed, or the
+    // GPU hung or its connection broke): its calls then do nothing, instead of exiting the host, and BeagleGPUImpl returns
+    // errors from createInstance and from the calls that copy results back
+    bool GetDeviceLost();
+    // TODO.md plan step M1: ... and the reason was memory (an allocation, a program load or the VRAM pool did not fit), so
+    // BeagleGPUImpl returns BEAGLE_ERROR_OUT_OF_MEMORY rather than BEAGLE_ERROR_GENERAL
+    bool GetOutOfMemory();
+#endif
 
 #ifdef FW_OPENCL
     void* MapMemory(GPUPtr dPtr,
