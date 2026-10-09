@@ -1000,7 +1000,8 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
  * child1TransitionMatrix (BOTTOM: this node's own branch; TOP: the parent's
  * own branch, or copied unchanged when child1TransitionMatrix is
  * BEAGLE_OP_NONE because the parent is the root). Currently supported by the
- * CPU implementations (including the spectral representation) only.
+ * CPU implementations (including the spectral representation) only; on GPU
+ * the update returns BEAGLE_ERROR_NO_IMPLEMENTATION without computing anything.
  */
 typedef struct {
     int destinationPartials;    /**< index of destination, or parent, partials buffer  */

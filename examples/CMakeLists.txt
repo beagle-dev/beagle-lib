@@ -239,6 +239,12 @@ if(BUILD_TINYGPU)
     if(BUILD_SSE)
         target_link_libraries(tinygputest hmsbeagle-cpu-sse)
     endif()
+    # boots the attached eGPU through TinyGPU.app; with none it finds no TinyGPU resource and skips. The plugin is loaded by
+    # name at run time, so ctest gives the test the build-tree plugin directory, where the crash guard is built too
+    add_test(tinygputest tinygputest)
+    get_target_property(TINYGPU_PLUGIN_DIR hmsbeagle-tinygpu BINARY_DIR)
+    set_tests_properties(tinygputest PROPERTIES SKIP_RETURN_CODE 77
+        ENVIRONMENT "DYLD_LIBRARY_PATH=${TINYGPU_PLUGIN_DIR}")
 endif()
 
 add_executable(hellobeagle

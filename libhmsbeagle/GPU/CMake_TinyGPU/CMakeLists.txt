@@ -95,3 +95,5 @@ SET_TARGET_PROPERTIES(hmsbeagle-tinygpu
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
     SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+
+target_compile_options(hmsbeagle-tinygpu PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)

@@ -692,7 +692,7 @@ int main(int argc, char** argv) {
             "No TinyGPU resource detected.\n"
             "Ensure hmsbeagle-tinygpu.so is on the plugin path.\n"
             "Use --resource N to force a specific resource index.\n");
-        return 1;
+        return 77;   // no eGPU: a skip under ctest (SKIP_RETURN_CODE 77), as gpumatrixtest's missing GPU
     }
     printf("Using resource index %d\n\n", resourceIdx);
     if (several)
