@@ -18,7 +18,7 @@ set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 message(STATUS "BEAGLE_VERSION = ${BEAGLE_VERSION}")
 message(STATUS "BEAGLE_PLUGIN_VERSION = ${BEAGLE_PLUGIN_VERSION}")
 
-set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
+option(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH "Compile for the build machine's CPU (-march=native); turn off for binaries that run on other machines, such as a CI cache" ON)
 
 set(BEAGLE_CPACK_PACKAGE_NAME "BEAGLE")
 set(BASTA_EXTENSION "BIT")
