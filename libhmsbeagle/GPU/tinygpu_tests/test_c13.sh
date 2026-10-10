@@ -22,6 +22,8 @@
 #   - the plugin killed mid-frame and inside its own teardown (the guard holds, sending nothing), right after a launch batch's or
 #     a copy's submission with the GPU behind (the guard waits for the timeline, then tears the GPU down), and idle with a GSP
 #     that never answers the unload (the guard's unload times out, and it holds): on the fake AD107 and the fake GB205.
+# Every run is a job of its own (env.sh's pjob), started longest first, with check_upload.py after its run; the checks then read
+# the runs' files in this order.
 # One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
@@ -31,165 +33,205 @@ fails=0
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
-TL="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log"   # the plugin's and the guard's TinyGPULog lines in these runs
 out() { echo "$TINYGPU_TEST_WORK/run_device_$1.txt"; }   # the plugin's output ($W/<label>.txt: run_fake_device.sh's)
 dev() { echo "$TINYGPU_TEST_WORK/fake_device_$1.log"; }
 device() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): " "$(dev $1)" | tail -1; }
 counts() { grep -E "fake TinyGPU.app \((AD107|GB205) device\): client done: " "$(dev $1)" | tail -1; }
-glog() { sed -n "/c13 run $1 starts/,\$p" "$TL"; }   # this run's TinyGPULog lines
+glog() { cat "$TINYGPU_TEST_WORK/tglog_$1.log"; }   # this run's TinyGPULog lines, the plugin's and its guard's (run_fake_device.sh's)
 status() { sed -n "s/^\[$1\] tinygputest exit=\([0-9]*\) .*/\1/p" "$W/$1.txt"; }   # the test's own exit status
+rc() { local r; { read -r r < "$W/$1.rc"; } 2>/dev/null && echo "$r" || echo 255; }   # <label> or upload_<label>: its exit status (255: it never finished)
 behind() {   # the guard's state-page line says the C++ timeline was behind the last submission
     glog $1 | sed -nE 's/.*last_submitted ([0-9]+), seq [0-9]+, C\+\+ timeline ([0-9]+).*/\1 \2/p' | awk '$2 < $1 {ok = 1} END {exit !ok}'
 }
-run() {   # <label> [VAR=value ...] [-- test args]: one fake run, its TinyGPULog lines marked
+run() {   # <label> [VAR=value ...] [-- test args]: one fake run, its exit status in $W/<label>.rc; the fake's settings come with the call (FAKE_X=1 run ...)
     local l=$1 envs=() args=(--state-count 4 --reps 3); shift
     while [ $# -gt 0 ] && [ "$1" != "--" ]; do envs+=("$1"); shift; done
     [ "$1" = "--" ] && { shift; args=("$@"); }
-    echo "c13 run $l starts" >> "$TL"
     "$TG_TESTS/run_fake_device.sh" $l "${envs[@]}" -- "${args[@]}" > "$W/$l.txt" 2>&1
+    echo $? > "$W/$l.rc"
 }
-upload() {   # <label> <state counts> <arch>: check_upload.py on the run's copy log ($W/copies_<label>.bin)
+upload() {   # <label> <state counts> <arch>: check_upload.py on the run's copy log ($W/copies_<label>.bin), its exit status in $W/upload_<label>.rc
     "$BEAGLE_PYTHON" "$TG_TESTS/check_upload.py" "$(out $1)" "$W/copies_$1.bin" "$2" "$3" > "$W/upload_$1.log" 2>&1
+    echo $? > "$W/upload_$1.rc"
+}
+up_run() {   # <label> <state counts, in load order> <arch> -- <test args>: a run on that arch's fake with a copy log, then its upload
+    local l=$1 states=$2 arch=$3; shift 3
+    rm -f "$W/copies_$l.bin"   # the fake appends to it
+    FAKE_NV_CHIP=$([ $arch = sm_120 ] && echo gb205) FAKE_COPY_LOG="$W/copies_$l.bin" run $l "$@"
+    upload $l $states $arch
+}
+d1_run() {   # <d1_runs.txt label> <its command line>: that line's run; the fake's memory is not kept
+    local l=c13_d1_$1; set -- $2; local bin=$1; shift
+    FAKE_TEST_BIN="$BEAGLE_BUILD/examples/$bin" run $l -- "$@" < /dev/null
+    rm -rf "$TINYGPU_TEST_WORK/fake_device_$l"
+}
+chip_run() {   # <chip> <case>: a case run on the fake AD107 and the fake GB205 (the AD107 is the fake's default chip: FAKE_NV_CHIP empty)
+    local nv=${1#ad107} l=c13_$1_$2
+    case $2 in
+        rmfail) FAKE_NV_CHIP=$nv FAKE_RM_FAIL=0xa06c run $l ;;
+        frame|teardown) FAKE_NV_CHIP=$nv run $l BEAGLE_NV_TEST_KILL=$2 ;;
+        batch|copy) FAKE_NV_CHIP=$nv FAKE_GPU_LAG_MS=500 run $l BEAGLE_NV_TEST_KILL=$2 ;;
+        silent) FAKE_NV_CHIP=$nv FAKE_GSP_SILENT_UNLOAD=1 run $l BEAGLE_NV_TEST_KILL=idle ;;
+    esac
+}
+one_run() {   # <label>: a run on one chip
+    case $1 in
+        c13_tu102) FAKE_PCI_DEVICE_ID=1e04 run $1 ;;
+        c13_sm75) FAKE_SM_VERSION=0x705 run $1 ;;
+        # --reps 120000: the first process evaluates for at least the 11.5 s that 3000 reps gave at the fake's earlier 3.85 ms
+        # each (now 0.11-0.17 ms), well past the 5 s the check allows the second process to fail on the lock
+        c13_p5_lock) FAKE_SECOND_AFTER="C\+\+ runtime: [0-9]+ kernels loaded" run $1 -- --state-count 4 --reps 120000 ;;
+        c13_wrap) run $1 -- --state-count 4 --reps 10000 ;;
+        c13_td0) run $1 BEAGLE_NV_TEARDOWN=0 ;;
+        c13_nohalt) FAKE_NV_CHIP=gb205 FAKE_NO_HALT=1 run $1 ;;
+        c13_booter) FAKE_FALCON_FAIL=booter run $1 ;;
+        c13_core) FAKE_FALCON_FAIL=core run $1 ;;
+        c13_pool7900) run $1 BEAGLE_NV_DATA_MB=7900 ;;
+        c13_setup_hang) FAKE_GPU_HANG_AT=1 run $1 ;;
+    esac
 }
 UNLOAD='"rpc NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER": 1'
 CLEAN="the plugin tore the GPU down itself; exiting"
+CHIPS="ad107 gb205"
+D1() { grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt"; }   # the d1_runs.txt lines: <label>|<command line>|<kernels>
+
+# the runs, longest first: the setup hang (a 30 s timeline wait), the lock's first process (120000 evaluations), the silent GSPs
+# (the guard's 10 s unload RPC), the RISC-V halt wait (4 s), the long runs (the ring wrap, the GPU 500 ms behind, P5, the D1
+# lines), then the short ones
+pjob_init "$W"; export TG_PIDS="$W/pids"   # every fake and guard the runs start (tracked_alive)
+pjob c13_setup_hang one_run c13_setup_hang
+pjob c13_p5_lock one_run c13_p5_lock
+for chip in $CHIPS; do pjob c13_${chip}_silent chip_run $chip silent; done
+for l in c13_nohalt c13_wrap; do pjob $l one_run $l; done
+for k in batch copy; do for chip in $CHIPS; do pjob c13_${chip}_$k chip_run $chip $k; done; done
+pjob c13_p5_threads up_run c13_p5_threads 4,64,16,128 sm_89 -- --instances 4 --threads --state-count 4,64,16,128 --reps 300
+pjob c13_p5_cycles up_run c13_p5_cycles 4,64,4,64 sm_89 -- --cycles 2 --state-count 4,64 --reps 20
+pjob c13_p5_two up_run c13_p5_two 4,64 sm_89 -- --state-count 4,64 --reps 5
+pjob c13_p5_fork up_run c13_p5_fork 4,64 sm_89 -- --state-count 4,64 --fork-exit --reps 5
+pjob c13_p5_same up_run c13_p5_same 4,4 sm_89 -- --state-count 4,4 --threads --reps 20
+while IFS='|' read -r label cmd kernels; do pjob c13_d1_$label d1_run $label "$cmd"; done < <(D1)
+for chip in $CHIPS; do
+    arch=$([ $chip = gb205 ] && echo sm_120 || echo sm_89)
+    for states in 4 64; do pjob c13_${chip}_$states up_run c13_${chip}_$states $states $arch -- --state-count $states --reps 5; done
+done
+for k in rmfail frame teardown; do for chip in $CHIPS; do pjob c13_${chip}_$k chip_run $chip $k; done; done
+for l in c13_tu102 c13_sm75 c13_td0 c13_booter c13_core c13_pool7900; do pjob $l one_run $l; done
+pwait
 
 # 1. runs at 4 and 64 states on the fake AD107 and the fake GB205, and the images they uploaded
-for chip in ad107 gb205; do
+for chip in $CHIPS; do
     for states in 4 64; do
-        l=c13_${chip}_$states
+        l=c13_${chip}_$states; r=$(rc $l); u=$(rc upload_$l)
         if [ $chip = gb205 ]; then
-            FAKE_NV_CHIP=gb205 FAKE_COPY_LOG="$W/copies_$l.bin" run $l -- --state-count $states --reps 5; r=$?
-            upload $l $states sm_120; u=$?
             check "GB205 at $states states: PASS (the probe's 10de:2f04, sm_120 on QMD v5, the RISC-V core halted after the unload), and the image uploaded is compile_all's" \
                 "[ $r -eq 0 ] && [ $u -eq 0 ] && grep -q 'TinyGPU: device 0 PCI id = 10de:2f04' '$(out $l)' \
                  && grep -q '(level boot: sm_120, QMD v5' '$(out $l)' && grep -q 'TinyGPU/NV: teardown: done: GSP RISC-V halted' '$(out $l)'"
         else
-            FAKE_COPY_LOG="$W/copies_$l.bin" run $l -- --state-count $states --reps 5; r=$?
-            upload $l $states sm_89; u=$?
             check "AD107 at $states states: PASS, and the image uploaded is compile_all's" "[ $r -eq 0 ] && [ $u -eq 0 ]"
         fi
     done
 done
 
-# 2. the routing: a GPU outside tinygrad's families is refused before the boot (an Ampere boots since plan step G1)
-FAKE_PCI_DEVICE_ID=1e04 run c13_tu102
+# 2. the routing (FAKE_PCI_DEVICE_ID=1e04): a GPU outside tinygrad's families is refused before the boot (an Ampere boots since
+#    plan step G1)
 check "a Turing's device ID (0x1e04): refused before the boot (beagleCreateInstance fails), no guard, nothing but the probe's two reads" \
     "grep -q 'this GPU (PCI device ID 1e04) is not one BEAGLE boots' '$(out c13_tu102)' && grep -q 'beagleCreateInstance failed (error -1)' '$(out c13_tu102)' \
      && ! grep -q 'crash guard' '$(out c13_tu102)' && counts c13_tu102 | grep -q 'client done: {\"cmd 3\": 2}$' && device c13_tu102 | grep -q 'NO ERRORS'"
 
-# 3. a GPU no embedded cubin serves
-FAKE_SM_VERSION=0x705 run c13_sm75
+# 3. a GPU no embedded cubin serves (FAKE_SM_VERSION=0x705)
 check "a GPU no embedded cubin serves (sm_75): refused after the boot (beagleCreateInstance fails), and the GPU still torn down at exit" \
     "grep -q 'C++ runtime: no embedded cubin for this GPU.s architecture (sm_75); this build has sm_86, sm_89, sm_120' '$(out c13_sm75)' \
      && grep -q 'beagleCreateInstance failed (error -1)' '$(out c13_sm75)' && fini_verdict '$(out c13_sm75)' && device c13_sm75 | grep -q 'NO ERRORS'"
 
 # 4. every d1_runs.txt line, launching exactly the kernels it lists (run_d1.sh's hardware run must launch the same: which kernels
-#    run depends only on the arguments); the fake's memory is not kept
+#    run depends only on the arguments)
 while IFS='|' read -r label cmd kernels; do
-    set -- $cmd; bin=$1; shift
-    FAKE_TEST_BIN="$BEAGLE_BUILD/examples/$bin" run c13_d1_$label -- "$@" < /dev/null; r=$?
-    rm -rf "$TINYGPU_TEST_WORK/fake_device_c13_d1_$label"
+    r=$(rc c13_d1_$label)
     if why=$(d1_verdict "$(out c13_d1_$label)" "$(out c13_d1_$label)" "$kernels") && [ $r -eq 0 ] && [ "$(status c13_d1_$label)" = 0 ]; then
         pass "D1 $label: PASS, exactly the line's kernels"
     else fail "D1 $label: ${why:-the run failed (see $W/c13_d1_$label.txt)}"; fi
-done < <(grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt")
+done < <(D1)
 
 # 5. several instances in one process
-p5() {   # <label> <state counts, in load order> -- <tinygputest args>
-    local l=$1 states=$2 why=""; shift 3
-    FAKE_COPY_LOG="$W/copies_$l.bin" run $l -- "$@" || why=" run"
-    upload $l $states sm_89 || why="$why upload"
+p5() {   # <label>: its run and its upload (check_upload.py, on the instances' state counts in load order)
+    local l=$1 why=""
+    [ "$(rc $l)" -eq 0 ] || why=" run"
+    [ "$(rc upload_$l)" -eq 0 ] || why="$why upload"
     [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$(out $l)")" -eq 1 ] || why="$why boots"
     [ "$(grep -c "client done" "$(dev $l)")" -eq 2 ] || why="$why connections"
     grep -q "^tips: every instance read back its own tip partials exactly" "$(out $l)" && ! grep -q "^tips: an instance" "$(out $l)" || why="$why tips"
     if [ -z "$why" ]; then pass "P5 $l: one boot, one connection besides the probe's, each instance's image and tips, one teardown"
     else fail "P5 $l: ${why# } (see $W/$l.txt)"; fi
 }
-p5 c13_p5_two 4,64 -- --state-count 4,64 --reps 5
-p5 c13_p5_threads 4,64,16,128 -- --instances 4 --threads --state-count 4,64,16,128 --reps 300
-p5 c13_p5_cycles 4,64,4,64 -- --cycles 2 --state-count 4,64 --reps 20
-p5 c13_p5_same 4,4 -- --state-count 4,4 --threads --reps 20
-p5 c13_p5_fork 4,64 -- --state-count 4,64 --fork-exit --reps 5
+for l in c13_p5_two c13_p5_threads c13_p5_cycles c13_p5_same c13_p5_fork; do p5 $l; done
 check "P5: the child forked after the boot exited normally, and the parent's GPU stayed up (the run above)" \
     "grep -q '^forked child [0-9]* exited with status 0' '$(out c13_p5_fork)'"
-FAKE_SECOND_AFTER="C\+\+ runtime: [0-9]+ kernels loaded" run c13_p5_lock -- --state-count 4 --reps 3000; r=$?
+r=$(rc c13_p5_lock)
 check "P5: a second process fails at once on nv_usb4.lock, touching no GPU, while the first runs on (PASS)" \
     "[ $r -eq 0 ] && grep -qE 'second process exit=[1-9][0-9]* after [0-5] s' '$W/c13_p5_lock.txt' \
      && grep -q 'TinyGPU: Failed to acquire lock file nv_usb4.lock' '$(out c13_p5_lock_second)' && ! grep -q 'TinyGPU/NV:' '$(out c13_p5_lock_second)'"
 
 # 6. the command ring wraps after 2 MiB of pushbuffers (about 4,400 evaluations): the wrap must wait for the frames before the one
 #    being submitted, not for that one (which never completes: a false hung GPU)
-run c13_wrap -- --state-count 4 --reps 10000; r=$?
+r=$(rc c13_wrap)
 check "10,000 evaluations: the command ring wraps, PASS" "[ $r -eq 0 ]"
 
-# 7. no teardown
-run c13_td0 BEAGLE_NV_TEARDOWN=0
+# 7. no teardown (BEAGLE_NV_TEARDOWN=0)
 check "BEAGLE_NV_TEARDOWN=0: the unload only (no FWSEC-SB, no Booter Unload), the report says to power-cycle, and the stop rule fails it" \
     "grep -q 'no teardown result (WPR2 is still up); power-cycle the eGPU before the next boot' '$(out c13_td0)' && ! fini_verdict '$(out c13_td0)' \
      && counts c13_td0 | grep -q '$UNLOAD' && ! counts c13_td0 | grep -q 'FWSEC-SB' && device c13_td0 | grep -q 'NO ERRORS' && glog c13_td0 | grep -q '$CLEAN'"
 
-# 8. a GB205 whose RISC-V core never halts after the unload
-FAKE_NV_CHIP=gb205 FAKE_NO_HALT=1 run c13_nohalt
+# 8. a GB205 whose RISC-V core never halts after the unload (FAKE_NO_HALT=1)
 check "GB205, a RISC-V core that never halts after the unload: the teardown fails, the plugin says the guard keeps the connection, the guard holds, and the stop rule fails it" \
     "grep -q 'TinyGPU/NV: teardown: failed: GSP RISC-V did not halt within 4 s' '$(out c13_nohalt)' && grep -q 'keeps the TinyGPU.app connection open' '$(out c13_nohalt)' \
      && glog c13_nohalt | grep -q 'HOLDING the TinyGPU.app connection (the plugin.s own GPU teardown was not confirmed)' && ! fini_verdict '$(out c13_nohalt)'"
 
-# 9. the boot failing
-FAKE_FALCON_FAIL=booter run c13_booter
+# 9. the boot failing (FAKE_FALCON_FAIL=booter, =core; FAKE_RM_FAIL=0xa06c; BEAGLE_NV_DATA_MB=7900; FAKE_GPU_HANG_AT=1)
 check "booter_load returns MAILBOX0 0x29: GSP-RM never started, and the guard closes (device NO ERRORS)" \
     "grep -Eq 'level boot: building the NVDevice: AssertionError: Booter failed to execute, mailbox is 00000029, [0-9a-f]{8}$' '$(out c13_booter)' \
      && glog c13_booter | grep -q 'the plugin.s boot stopped before GSP-RM started: nothing to unload, closing is safe' \
      && device c13_booter | grep -q 'NO ERRORS' && counts c13_booter | grep -q '\"booter_load\": 1'"
-FAKE_FALCON_FAIL=core run c13_core
 check "booter_load ran but the GSP core is not active: GSP-RM may run, and the guard holds" \
     "grep -q 'level boot: building the NVDevice: AssertionError: GSP Core is not active' '$(out c13_core)' \
      && glog c13_core | grep -q 'HOLDING the TinyGPU.app connection (the plugin did not finish booting GSP-RM)' \
      && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_core.txt'"
-for chip in ad107 gb205; do
+for chip in $CHIPS; do
     C=$(echo $chip | tr a-z A-Z)
-    FAKE_NV_CHIP=$([ $chip = gb205 ] && echo gb205) FAKE_RM_FAIL=0xa06c run c13_${chip}_rmfail
     check "$C: the GSP refuses the channel group while the NVDevice is built: the boot fails with its status, nothing is submitted, the plugin unloads GSP-RM and tears the GPU down itself, and the guard exits at its clean (device NO ERRORS)" \
         "grep -q 'level boot: building the NVDevice: RuntimeError: RPC call 103 failed with result 34' '$(out c13_${chip}_rmfail)' \
          && counts c13_${chip}_rmfail | grep -q '\"rm_alloc refused (FAKE_RM_FAIL)\": 1' && ! counts c13_${chip}_rmfail | grep -q 'doorbells' \
          && fini_verdict '$(out c13_${chip}_rmfail)' && device c13_${chip}_rmfail | grep -q 'NO ERRORS' && glog c13_${chip}_rmfail | grep -q '$CLEAN'"
 done
-run c13_pool7900 BEAGLE_NV_DATA_MB=7900
 check "a VRAM pool that reaches GSP-RM's reserved region, refused after the NVDevice is built: the plugin unloads GSP-RM and tears the GPU down itself, and the guard exits at its clean (device NO ERRORS)" \
     "grep -q 'level boot: VRAM allocations end at 0x[0-9a-f]*, above the WPR bound' '$(out c13_pool7900)' && fini_verdict '$(out c13_pool7900)' \
      && grep -q 'out of GPU memory: a 7900 MiB VRAM pool (BEAGLE_NV_DATA_MB: lower it) reaches GSP-RM.s reserved region; at most [0-9]* MiB fit' '$(out c13_pool7900)' \
      && grep -q 'beagleCreateInstance failed (error -2)' '$(out c13_pool7900)' \
      && device c13_pool7900 | grep -q 'NO ERRORS' && glog c13_pool7900 | grep -q '$CLEAN'"
-FAKE_GPU_HANG_AT=1 run c13_setup_hang
 check "a GPU that hangs in the NVDevice's setup work: the boot fails on its timeline, the plugin sends no unload, and the guard holds" \
     "grep -q 'level boot: building the NVDevice: RuntimeError: Wait timeout' '$(out c13_setup_hang)' && ! grep -q 'GPU teardown' '$(out c13_setup_hang)' \
      && glog c13_setup_hang | grep -q 'HOLDING the TinyGPU.app connection' && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_setup_hang.txt'"
 
-# 10. the plugin killed: mid-frame, in its own teardown, mid-batch and mid-copy with the GPU behind, and idle with a silent GSP
-for chip in ad107 gb205; do
-    if [ $chip = gb205 ]; then export FAKE_NV_CHIP=gb205; else unset FAKE_NV_CHIP; fi
+# 10. the plugin killed (BEAGLE_NV_TEST_KILL): mid-frame, in its own teardown, mid-batch and mid-copy with the GPU behind
+#     (FAKE_GPU_LAG_MS=500), and idle with a silent GSP (FAKE_GSP_SILENT_UNLOAD=1)
+for chip in $CHIPS; do
     C=$(echo $chip | tr a-z A-Z)
     for k in frame teardown; do
-        run c13_${chip}_$k BEAGLE_NV_TEST_KILL=$k
         why=$([ $k = frame ] && echo 'a frame may be cut mid-send' || echo 'the plugin.s own GPU teardown did not finish')
         check "$C: killed $([ $k = frame ] && echo mid-frame || echo 'in its own teardown'): the guard holds and sends nothing" \
             "glog c13_${chip}_$k | grep -q 'HOLDING the TinyGPU.app connection ($why)' && grep -q 'the guard (pid [0-9]*) held the fake connection' '$W/c13_${chip}_$k.txt' \
              && ! grep -q '$UNLOAD' '$(dev c13_${chip}_$k)'"
     done
     for k in batch copy; do
-        FAKE_GPU_LAG_MS=500 run c13_${chip}_$k BEAGLE_NV_TEST_KILL=$k
         check "$C: killed mid-$k with the GPU behind: the guard waits for the C++ timeline, then tears the GPU down (device NO ERRORS)" \
             "behind c13_${chip}_$k && device c13_${chip}_$k | grep -q 'NO ERRORS' && glog c13_${chip}_$k | grep -q 'the GPU is torn down; closing'"
     done
-    FAKE_GSP_SILENT_UNLOAD=1 run c13_${chip}_silent BEAGLE_NV_TEST_KILL=idle
     check "$C: a silent GSP, the plugin killed idle: the guard's unload RPC times out, and it holds" \
         "glog c13_${chip}_silent | grep -q 'Timeout waiting for RPC response for command 47' \
          && glog c13_${chip}_silent | grep -q 'HOLDING the TinyGPU.app connection (the GPU did not confirm its teardown)' \
          && grep -q 'unload RPC left unanswered' '$(dev c13_${chip}_silent)'"
 done
-unset FAKE_NV_CHIP
 
-left=$(ps -axo command | grep -cE "Python .*(tgproxy|tgreplay|fake_nv_device)\.py|[b]eagle-tinygpu-guard")
-check "no harness process or guard is left running" "[ $left -eq 0 ]"
+left=$(tracked_alive)   # this stage's own fakes and guards only: other stages run at the same time
+check "no harness process or guard is left running" "[ -z \"\$left\" ]"
 echo; [ $fails -eq 0 ] && echo "test_c13: PASS" || echo "test_c13: $fails FAILED"
 [ $fails -eq 0 ]

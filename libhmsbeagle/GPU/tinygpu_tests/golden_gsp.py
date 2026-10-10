@@ -12,7 +12,7 @@ suspended, and an unanswered RPC. And the COT boot's (Blackwell, plan step B2): 
 the GSP's RISC-V core to halt (a halt, PRI-error and unreachable reads before it, never halting, never suspended, an unanswered
 RPC), and its CPU sequencer, which refuses ops 5-8 before any op runs. No GPU and no TinyGPU.app: a private socket and TMPDIR.
     python golden_gsp.py"""
-import os, re, sys, io, json, mmap, socket, struct, tempfile, threading, subprocess, functools, contextlib
+import os, re, sys, io, json, mmap, shutil, socket, struct, tempfile, threading, subprocess, functools, contextlib, concurrent.futures
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -308,6 +308,29 @@ def normalized(d):
         if td["result"].startswith("failed:"): td["polls"] = "n"
     return d
 
+def perturbed_builds(src, perturbed, headers=None):
+    """The goldens' perturbed copies of the port, perturbed[i] = (header, text, replacement), built concurrently (at most 4
+    compiles at a time; TINYGPU_TEST_JOBS=1: one): futures of the executables, in perturbed's order. Each is compiled with an
+    include directory of its own, found before the repository's (-iquote), holding only its own change: the header perturbed,
+    and headers' others unchanged. Its path is stable, <work>/<src's name>_perturbed/<i>, so build_cpp's cache hits on the
+    next run."""
+    gpu, name = tgpaths.REPO / "libhmsbeagle" / "GPU", os.path.splitext(os.path.basename(src))[0]
+    def build(exe, inc):
+        tgpaths.build_cpp(src, exe, "-iquote", inc)
+        return exe
+    pool = concurrent.futures.ThreadPoolExecutor(max(1, min(4, int(os.environ.get("TINYGPU_TEST_JOBS", 4)))))
+    builds = []
+    for i, (hdr, old, new) in enumerate(perturbed):
+        d = f"{WORK}/{name}_perturbed/{i}"
+        shutil.rmtree(f"{d}/include", ignore_errors=True); os.makedirs(f"{d}/include/libhmsbeagle/GPU")
+        for f in headers or (hdr,):
+            text = (gpu / f).read_text()
+            if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
+            open(f"{d}/include/libhmsbeagle/GPU/{f}", "w").write(text)
+        builds.append(pool.submit(build, f"{d}/{name}_perturbed", f"{d}/include"))
+    pool.shutdown(wait=False)   # its threads end once every build is done
+    return builds
+
 # a perturbed copy of the port must be caught: (header, text, replacement, the scenario that shows it)
 PERTURBED = [("TinyGPUNVGsp.h", "c ^= w;", "c += w;", "RPC, one record"),
              ("TinyGPUNVFalcon.h", "xfered += 256;", "xfered += 512;", "teardown: happy path"),
@@ -318,6 +341,7 @@ PERTURBED = [("TinyGPUNVGsp.h", "c ^= w;", "c += w;", "RPC, one record"),
 def main():
     exe = f"{WORK}/golden_gsp"
     tgpaths.build_cpp(f"{HERE}/golden_gsp.cpp", exe)
+    builds = perturbed_builds(f"{HERE}/golden_gsp.cpp", [p[:3] for p in PERTURBED], ("TinyGPUNVGsp.h", "TinyGPUNVFalcon.h"))
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tggs.")
     sock_path, qpath = f"{priv}/s.sock", f"{priv}/queues"
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -328,18 +352,12 @@ def main():
     NVRpcQueue.wait_resp = functools.partialmethod(saved_resp, timeout=RPC_MS)
     h._TEARDOWN = True
     try:
-        n, fails = compare(exe, srv, sock_path, qpath, priv, saved_sleep)
+        py = {}   # each scenario's tinygrad side, which the perturbed copies' reruns reuse
+        n, fails = compare(exe, srv, sock_path, qpath, priv, saved_sleep, py=py)
         print(f"C5 GSP client and falcon primitives vs tinygrad and nv_init_helper: {n - fails} of {n} scenarios identical")
         caught = 0
-        gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
-        for hdr, old, new, scenario in PERTURBED:
-            inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            for f in ("TinyGPUNVGsp.h", "TinyGPUNVFalcon.h"):
-                text = (gpu / f).read_text()
-                if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
-                open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)
-            tgpaths.build_cpp(f"{HERE}/golden_gsp.cpp", f"{priv}/golden_gsp_perturbed", "-iquote", inc)   # found before the repository's
-            _, f = compare(f"{priv}/golden_gsp_perturbed", srv, sock_path, qpath, priv, saved_sleep, only=scenario, quiet=True)
+        for (hdr, old, new, scenario), build in zip(PERTURBED, builds):
+            _, f = compare(build.result(), srv, sock_path, qpath, priv, saved_sleep, only=scenario, quiet=True, py=py)
             caught += f == 1
             print(f"perturbed {hdr} ({old} -> {new}): {'REJECTED' if f == 1 else 'NOT CAUGHT'} by '{scenario}'")
         fails += len(PERTURBED) - caught
@@ -347,7 +365,8 @@ def main():
         ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep, h._TEARDOWN, h._COT_HALT_TIMEOUT_S = saved_wait, saved_resp, saved_sleep, False, saved_halt
     sys.exit(1 if fails else 0)
 
-def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=False):
+def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=False, py=None):
+    """py: the scenarios' tinygrad sides by name, reused where present, kept otherwise"""
     fails, n = 0, 0
     if True:
         for name, kind, skw, posts, gspkw, kw, mode in scenarios():
@@ -355,6 +374,9 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
             n += 1
             results = {}
             for side in ("tinygrad", "c++"):
+                if side == "tinygrad" and py is not None and name in py:
+                    results[side] = py[name]
+                    continue
                 script = cot_script(**{k: v for k, v in skw.items() if k != "cot"}) if skw.get("cot") else falcon_script(**skw)
                 mm = init_queues(qpath, cmd_wp=kw.get("cmd_wp", 10))
                 for p in posts: post(mm, *p)
@@ -382,6 +404,7 @@ def compare(exe, srv, sock_path, qpath, priv, saved_sleep, only=None, quiet=Fals
                 t.join(timeout=30)
                 results[side] = (out, bytes(rec), script.trace, bytes(mm), gsp.rpcs if gsp else None)
                 mm.close()
+            if py is not None: py[name] = results["tinygrad"]
             (po, prec, ptr, pq, prpc), (co, crec, ctr, cq, crpc) = results["tinygrad"], results["c++"]
             parse = lambda lines: [normalized(json.loads(l[5:])) if l.startswith("diag=") else l for l in lines]
             same_out = parse(po) == parse(co)

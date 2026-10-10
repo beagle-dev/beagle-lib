@@ -110,30 +110,33 @@ CASES = [("Ada (MMU v2): every sequencer op, core resume last, then GSP_INIT_DON
          ("no GSP_INIT_DONE", 2, 8188, ADA, NO_FALCON, False, None),
          ("the context-buffer sizes refused", 2, 8188, ADA, NO_FALCON, True, nv_gpu.NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_CONTEXT_BUFFERS_INFO)]
 
-def run_case(case, exe, priv, saved_sleep, quiet=False):
+def run_case(case, exe, priv, saved_sleep, quiet=False, py=None):
+    """Returns (identical, summary, tinygrad's side): its results, which a rerun of the case (py) reuses."""
     name, mmu, vram_mb, cls, words, init_done, fail = case
     srv, path = gm.listen(priv)
-    fake = with_falcons(gm.FakeTG(priv))
-    t = gm.serve_once(srv, fake)
-    dev, ifa = gm.py_dev(path, mmu, vram_mb)
-    gm.boot_phase(dev, ifa)
-    export = json.dumps(d._mm_export(types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev, pci_dev=dev.pci_dev))))
-    gm.sync(dev.pci_dev)
-    snap, mark = fake.snapshot(), len(fake.rec)
     qpath = f"{priv}/queues"
-    qm = gg.init_queues(qpath, cmd_wp=SEQ0, stat_wp=0)
-    gfake = FakeInitGsp(qm, fake, words, init_done, fail)
-    gsp = py_gsp(dev, qpath, cls)
-    out = []
-    h.time.sleep = lambda s: out.append(f"sleep {s:g}") if s >= 1 else saved_sleep(s)
-    try:
-        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()): gsp.init_hw()   # nv_init_helper's _patched_gsp_init_hw
-    except Exception as e: out.append(f"error {type(e).__name__}: {e}")
-    finally: h.time.sleep = saved_sleep
-    py_out = out + state_lines(gsp, dev.mm)
-    dev.pci_dev.sock.close(); t.join(timeout=60)
-    py_rec, py_bar1, py_q, py_rpcs = bytes(fake.rec[mark:]), hashlib.sha256(fake.bar1).hexdigest(), bytes(qm), list(gfake.rpcs)
-    qm.close()
+    if py is None:
+        fake = with_falcons(gm.FakeTG(priv))
+        t = gm.serve_once(srv, fake)
+        dev, ifa = gm.py_dev(path, mmu, vram_mb)
+        gm.boot_phase(dev, ifa)
+        export = json.dumps(d._mm_export(types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev, pci_dev=dev.pci_dev))))
+        gm.sync(dev.pci_dev)
+        snap, mark = fake.snapshot(), len(fake.rec)
+        qm = gg.init_queues(qpath, cmd_wp=SEQ0, stat_wp=0)
+        gfake = FakeInitGsp(qm, fake, words, init_done, fail)
+        gsp = py_gsp(dev, qpath, cls)
+        out = []
+        h.time.sleep = lambda s: out.append(f"sleep {s:g}") if s >= 1 else saved_sleep(s)
+        try:
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()): gsp.init_hw()   # nv_init_helper's _patched_gsp_init_hw
+        except Exception as e: out.append(f"error {type(e).__name__}: {e}")
+        finally: h.time.sleep = saved_sleep
+        py_out = out + state_lines(gsp, dev.mm)
+        dev.pci_dev.sock.close(); t.join(timeout=60)
+        py = export, snap, py_out, bytes(fake.rec[mark:]), hashlib.sha256(fake.bar1).hexdigest(), bytes(qm), list(gfake.rpcs)
+        qm.close()
+    export, snap, py_out, py_rec, py_bar1, py_q, py_rpcs = py
 
     fake2 = with_falcons(gm.FakeTG(priv, snap=snap))
     qm2 = gg.init_queues(qpath, cmd_wp=SEQ0, stat_wp=0)
@@ -159,7 +162,7 @@ def run_case(case, exe, priv, saved_sleep, quiet=False):
                     f"\n   streams {'same' if py_rec == crec else 'differ at byte %d' % next((k for k in range(min(len(py_rec), len(crec))) if py_rec[k] != crec[k]), min(len(py_rec), len(crec)))}"
                     f" ({len(py_rec)}/{len(crec)} bytes), VRAM {'same' if py_bar1 == cbar1 else 'differs'}, "
                     f"queues {'same' if py_q == cq else 'differ'}, RPCs {'same' if py_rpcs == crpcs else f'{py_rpcs} | {crpcs}'}")
-    return same, summary
+    return same, summary, py
 
 # a perturbed copy of the port must be caught
 PERTURBED = [("TinyGPUNVRM.h", 'rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).write({{"mode", 0}, {"target", 0}, {"ptr", 0}});',
@@ -175,6 +178,7 @@ PERTURBED = [("TinyGPUNVRM.h", 'rm.mm.dev->reg(nv_regs::NV_PBUS_BAR1_BLOCK).writ
 def main():
     exe = f"{WORK}/golden_gsp_hw"
     tgpaths.build_cpp(f"{HERE}/golden_gsp_hw.cpp", exe)
+    builds = gg.perturbed_builds(f"{HERE}/golden_gsp_hw.cpp", PERTURBED, ("TinyGPUNVRM.h", "TinyGPUMemory.h"))
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tggh.")
     tempfile.tempdir = priv
     saved_wait, saved_resp, saved_sleep = ip.wait_cond, NVRpcQueue.wait_resp, h.time.sleep
@@ -182,19 +186,15 @@ def main():
     NVRpcQueue.wait_resp = functools.partialmethod(saved_resp, timeout=RPC_MS)
     fails = 0
     try:
+        py = {}   # the first case's tinygrad side, which the perturbed copies' reruns reuse (the second, rerun only when the first
+                  # misses, is not kept: VRAM is 256 MiB)
         for case in CASES:
-            same, summary = run_case(case, exe, priv, saved_sleep)
+            same, summary, p = run_case(case, exe, priv, saved_sleep)
+            if case is CASES[0]: py[case[0]] = p
             fails += not same
             print(f"{'IDENTICAL' if same else 'MISMATCH '} {case[0]}: {summary}")
-        gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
-        for hdr, old, new in PERTURBED:
-            inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            for f in ("TinyGPUNVRM.h", "TinyGPUMemory.h"):
-                text = (gpu / f).read_text()
-                if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
-                open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)
-            tgpaths.build_cpp(f"{HERE}/golden_gsp_hw.cpp", f"{priv}/golden_gsp_hw_perturbed", "-iquote", inc)   # found before the repository's
-            caught = not all(run_case(c, f"{priv}/golden_gsp_hw_perturbed", priv, saved_sleep, quiet=True)[0] for c in CASES[:2])
+        for (hdr, old, new), build in zip(PERTURBED, builds):
+            caught = not all(run_case(c, build.result(), priv, saved_sleep, quiet=True, py=py.get(c[0]))[0] for c in CASES[:2])
             fails += not caught
             print(f"perturbed {hdr} ({old[:70]} -> {new[:70]}): {'REJECTED' if caught else 'NOT CAUGHT'}")
     finally:

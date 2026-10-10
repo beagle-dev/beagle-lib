@@ -3,7 +3,7 @@ No GPU: the boot scenarios run the real daemon's cmd_boot, i.e. tinygrad's real 
 BOOT_42 0x1b5a1000) against a scripted fake TinyGPU.app on a socketpair, each in its own subprocess; the rest drive each
 wrapper on register fakes.
     python test_b1_cot.py"""
-import os, sys, io, json, time, struct, socket, threading, subprocess, types, contextlib, tempfile
+import os, sys, io, json, time, atexit, struct, socket, threading, subprocess, types, contextlib, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -366,19 +366,29 @@ def boot_scenario(kind):
     # posted writes have no reply: a marked request behind them, once recorded, means every earlier byte was
     flush = ("CFG_READ", 0, 0x7f0, 4, 0)
     plugin.sendall(struct.pack("<BIIQQQ", 3, 0, 0, 0x7f0, 4, 0))
-    for _ in range(500):
+    for _ in range(3000):   # 30 s: a scenario runs beside the tests and other stages
         if flush in reqs: break
         time.sleep(0.01)
     reqs.remove(flush)
     print("RESULT " + json.dumps({"reqs": reqs, "reply": reply}))
 
+# fsp_not_ready's subprocess starts with the tests: it sits out tinygrad's 10 s wait (busy, about one core) while they run.
+# The other scenarios take about 0.4 s each and start when run_scenario asks for them, so a run keeps about two busy threads
+# (env.sh's slot accounting); run_scenario collects each
+_started = {}
+def start_scenario(kind):
+    _started[kind] = subprocess.Popen([sys.executable, __file__, "--boot-scenario", kind], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      text=True, env={**os.environ, "BEAGLE_TINYGPU_NO_LAUNCH": "1"})
+
 def run_scenario(kind):
-    r = subprocess.run([sys.executable, __file__, "--boot-scenario", kind], capture_output=True, text=True, timeout=180,
-                       env={**os.environ, "BEAGLE_TINYGPU_NO_LAUNCH": "1"})
-    line = next((l for l in r.stdout.splitlines() if l.startswith("RESULT ")), None)
-    assert line, f"scenario {kind} produced no result:\n{r.stdout[-3000:]}\n{r.stderr[-3000:]}"
+    if kind not in _started: start_scenario(kind)
+    p = _started.pop(kind)
+    try: out, err = p.communicate(timeout=180)
+    except subprocess.TimeoutExpired: p.kill(); raise
+    line = next((l for l in out.splitlines() if l.startswith("RESULT ")), None)
+    assert line, f"scenario {kind} produced no result:\n{out[-3000:]}\n{err[-3000:]}"
     res = json.loads(line[7:])
-    return [tuple(x) for x in res["reqs"]], res["reply"], r.stderr
+    return [tuple(x) for x in res["reqs"]], res["reply"], err
 
 def test_gb205_boot():
     reqs, reply, log = run_scenario("gb205")
@@ -419,6 +429,8 @@ def test_ada_unchanged():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--boot-scenario":
         boot_scenario(sys.argv[2]); sys.exit(0)
+    start_scenario("fsp_not_ready")
+    atexit.register(lambda: [p.kill() for p in _started.values()])   # a test failed before collecting it
     for t in (test_pin, test_registers, test_riscv_include, test_halt_wait, test_unload_then_halt, test_not_halted_by_default,
               test_cot_message_flag, test_failed_boot_unload, test_sequencer_guard, test_compile_ptx_raises, test_level0_logged,
               test_script_refusal, test_bar_check, test_layout_gate, test_gb205_boot, test_gb205_refusals,

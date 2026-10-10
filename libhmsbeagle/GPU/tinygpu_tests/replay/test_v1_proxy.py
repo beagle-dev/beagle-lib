@@ -17,7 +17,7 @@ less what the proxy answers itself" is checked byte for byte. Checks:
     nothing forwarded after, and the server's connection stays open until the proxy is killed; a client that closes at
     a request boundary makes the proxy close upstream at once.
     <tinygrad venv>/python test_v1_proxy.py"""
-import os, sys, time, mmap, json, shutil, socket, signal, struct, select, pathlib, tempfile, subprocess, threading
+import os, sys, time, mmap, json, fcntl, shutil, socket, signal, struct, select, pathlib, tempfile, subprocess, threading
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
 import tgpaths
@@ -44,6 +44,10 @@ def wait_for(pred, timeout=10.0, step=0.02):
         if pred(): return True
         time.sleep(step)
     return pred()
+
+def flock_nb(fd):   # an exclusive flock on fd if no other process holds one
+    try: fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB); return True
+    except BlockingIOError: return False
 
 class Procs:
     def __init__(self): self.procs = []
@@ -175,6 +179,8 @@ def start_proxy(procs, name, upstream, extra=()):
     sock, out, log = str(PRIV / f"{name}.sock"), WORK / f"rec_{name}", WORK / f"proxy_{name}.log"
     shutil.rmtree(out, ignore_errors=True)
     p = procs.start([PY, str(HERE / "tgproxy.py"), "--listen", sock, "--upstream", upstream, "--out", str(out), *extra], log)
+    if os.environ.get("TG_PIDS"):   # env.sh track_pid: the calling stage's check that nothing is left running sees it
+        with open(os.environ["TG_PIDS"], "a") as f: f.write(f"{p.pid} tgproxy\n")
     ok = wait_for(lambda: "tgproxy listening" in log.read_text())
     if not ok: raise SystemExit(f"proxy {name} did not start: {log.read_text()}")
     return p, sock, out, log
@@ -188,10 +194,16 @@ def start_stub(procs, name):
 def main():
     global PRIV, STUB
     WORK.mkdir(parents=True, exist_ok=True)
-    # the stub names its shared memory as TinyGPU.app does (/tinygpu_N): never beside a hardware run (env.sh hw_begin's lock)
-    hw_lock = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / "beagle_tinygpu_hw.lock"
+    # the stub names its shared memory as TinyGPU.app does (/tinygpu_N): never beside a hardware run (env.sh hw_begin's lock, in
+    # the user's TMPDIR: BEAGLE_HW_TMPDIR names it when this runs with a TMPDIR of its own)
+    hw_lock = pathlib.Path(os.environ.get("BEAGLE_HW_TMPDIR") or os.environ.get("TMPDIR", "/tmp")) / "beagle_tinygpu_hw.lock"
     if hw_lock.is_dir(): sys.exit(f"a hardware run holds {hw_lock}; not running")
     STUB = build_stub()
+    # those shared memory names are the computer's: one stub user at a time (this and test_c3_transport.sh, which may run beside
+    # it), each holding /tmp/beagle_tinygpu_shm.lock (flock: released when it exits; the stubs do not inherit it)
+    shm_lock = os.open("/tmp/beagle_tinygpu_shm.lock", os.O_WRONLY | os.O_CREAT, 0o644)
+    if not wait_for(lambda: flock_nb(shm_lock), 600, 0.1):
+        sys.exit("another stub user held /tmp/beagle_tinygpu_shm.lock for 10 minutes; not running")
     PRIV = pathlib.Path(tempfile.mkdtemp(dir="/tmp", prefix="tgv1."))
     procs = Procs()
     try:
@@ -280,15 +292,19 @@ def main():
         for name, act in (("killed inside a payload", "kill"), ("an unknown command", "cmd13"), ("an MMIO_WRITE over 64 MB", "big")):
             stub, ssock, slog = start_stub(procs, f"fs_{act}")
             proxy, psock, rec, plog = start_proxy(procs, f"fs_{act}", ssock)
+            # the client stays connected until the proxy has fail-stopped (10 s at most), then closes
             code = f"""
 import socket, struct, time, sys
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.connect({psock!r})
 s.sendall(struct.pack('<BIIQQQ', 3, 0, 0, 0, 4, 0)); s.recv(17)
 act = {act!r}
+def failstopped():
+    end = time.time() + 10
+    while time.time() < end and 'FAIL-STOP' not in open({str(plog)!r}).read(): time.sleep(0.02)
 if act == 'kill':
     s.sendall(struct.pack('<BIIQQQ', 7, 0, 1, 0, 1 << 20, 0) + b'x' * 1000); print('sent', flush=True); time.sleep(60)
-elif act == 'cmd13': s.sendall(struct.pack('<BIIQQQ', 13, 0, 0, 0, 0, 0)); time.sleep(2)
-else: s.sendall(struct.pack('<BIIQQQ', 7, 0, 1, 0, (64 << 20) + 1, 0)); time.sleep(2)
+elif act == 'cmd13': s.sendall(struct.pack('<BIIQQQ', 13, 0, 0, 0, 0, 0)); failstopped()
+else: s.sendall(struct.pack('<BIIQQQ', 7, 0, 1, 0, (64 << 20) + 1, 0)); failstopped()
 """
             cl = subprocess.Popen([PY, "-c", code], stdout=subprocess.PIPE, text=True)
             if act == "kill":

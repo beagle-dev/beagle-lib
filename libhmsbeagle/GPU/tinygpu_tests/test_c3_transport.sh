@@ -7,12 +7,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 W="$TINYGPU_TEST_WORK/c3"; mkdir -p "$W"
 SERVER_C="$TINYGRAD_PATH/extra/usbgpu/tbgpu/installer/Shared/server.c"
 [ -f "$SERVER_C" ] || { echo "no $SERVER_C (the tinygrad pin)"; exit 2; }
-# the stub names its shared memory as TinyGPU.app does (/tinygpu_N): never beside a hardware run
-HW_LOCK="${TMPDIR:-/tmp}"; HW_LOCK="${HW_LOCK%/}/beagle_tinygpu_hw.lock"
+# the stub names its shared memory as TinyGPU.app does (/tinygpu_N): never beside a hardware run (whose lock is in the user's
+# TMPDIR: BEAGLE_HW_TMPDIR names it when this runs with a TMPDIR of its own)
+HW_LOCK="${BEAGLE_HW_TMPDIR:-${TMPDIR:-/tmp}}"; HW_LOCK="${HW_LOCK%/}/beagle_tinygpu_hw.lock"
 [ -d "$HW_LOCK" ] && { echo "a hardware run holds $HW_LOCK; not running"; exit 2; }
 cc -O1 -Wno-deprecated-declarations -Wno-address-of-packed-member -o "$W/server_stub" "$SERVER_C" "$TG_TESTS/server_stub.c" || exit 2
 c++ -std=c++17 -O1 -I"$REPO" -o "$W/test_transport" "$TG_TESTS/test_transport.cpp" || exit 2
-PRIV=$(mktemp -d "${TMPDIR:-/tmp}/tgc3.XXXXXX"); SOCK="$PRIV/s.sock"
+PRIV=$(mktemp -d /tmp/tgc3.XXXXXX); SOCK="$PRIV/s.sock"   # short: a socket path has at most 104 bytes
 SRV=""
 cleanup() { [ -n "$SRV" ] && { kill "$SRV"; wait "$SRV"; } 2>/dev/null; rm -rf "${PRIV:?}"; }
 trap cleanup EXIT
@@ -24,6 +25,9 @@ start_server() {   # a fresh stub server on $SOCK, its output in $W/server_$1.lo
     echo "FAIL the server stub did not start"; exit 1
 }
 T() { env TMPDIR="$PRIV" APL_REMOTE_SOCK="$SOCK" BEAGLE_TINYGPU_NO_LAUNCH=1 "$@"; }
+# those shared memory names are the computer's: one stub user at a time (this and replay/test_v1_proxy.py, which may run beside
+# it), each holding /tmp/beagle_tinygpu_shm.lock (a flock on fd 9, which the stubs inherit: released when the last of them exits)
+exec 9> /tmp/beagle_tinygpu_shm.lock; lockf -t 600 9 || { echo "another stub user held /tmp/beagle_tinygpu_shm.lock for 10 minutes; not running"; exit 2; }
 fails=0
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
@@ -56,11 +60,14 @@ out=$(T env BEAGLE_TINYGPU_APP=/nonexistent/TinyGPU.app "$W/test_transport" open
 sleep 0.3
 [[ "$out" == *"is missing"* ]] && ! grep -q "client connected" "$W/server_refusals.log" \
     && pass "a refused TinyGPU.app: open() connects nowhere" || fail "app refusal: $out"
-T "$W/test_transport" open 3 > "$W/holder.txt" &
-HOLDER=$!
+env TMPDIR="$PRIV" APL_REMOTE_SOCK="$SOCK" BEAGLE_TINYGPU_NO_LAUNCH=1 "$W/test_transport" open 3 > "$W/holder.txt" &
+HOLDER=$!   # T's environment, but not through T: $! is test_transport itself (with T it would be a subshell), so kill ends it
 for i in $(seq 30); do grep -q "open: ok" "$W/holder.txt" 2>/dev/null && break; sleep 0.1; done
 out=$(T "$W/test_transport" open)
-wait "$HOLDER"
+kill "$HOLDER" 2>/dev/null; wait "$HOLDER" 2>/dev/null   # its hold (3 s at most) has served once the second process has tried
+# the server serves one client at a time: a connection the second process made waits in its queue until the holder's ends, and
+# is logged once accepted
+for i in $(seq 100); do grep -q "client disconnected" "$W/server_refusals.log" && break; sleep 0.1; done; sleep 0.3
 [[ "$out" == *"Failed to acquire lock file nv_usb4.lock"* ]] && [ "$(grep -c "client connected" "$W/server_refusals.log")" -eq 1 ] \
     && pass "a second process fails on nv_usb4.lock, without connecting" || fail "lock: $out; $(grep -c "client connected" "$W/server_refusals.log") connections"
 

@@ -102,7 +102,8 @@ def py_cot_init_hw(sock_path, out, path):
     out.append(f"gsp_started={int(getattr(dev, 'beagle_gsp_started', False))}")
     return dev
 
-def compare(exe, srv, sock_path, priv, only=None, quiet=False):
+def compare(exe, srv, sock_path, priv, only=None, quiet=False, py=None):
+    """py: the cases' tinygrad sides by name, reused where present, kept otherwise"""
     fails = n = 0
     for name, kw in CASES + COT_CASES:
         if only is not None and name not in only: continue
@@ -110,6 +111,9 @@ def compare(exe, srv, sock_path, priv, only=None, quiet=False):
         results = {}
         cot = name.startswith("COT")
         for side in ("tinygrad", "c++"):
+            if side == "tinygrad" and py is not None and name in py:
+                results[side] = py[name]
+                continue
             s, rec, out = cot_script(**kw) if cot else script(**kw), bytearray(), []
             bpath = f"{priv}/boot_args_{side}"
             def accept():
@@ -131,6 +135,7 @@ def compare(exe, srv, sock_path, priv, only=None, quiet=False):
                 out = r.stdout.splitlines() + ([f"exit {r.returncode}: {r.stderr.strip()}"] if r.returncode else [])
             t.join(timeout=30)
             results[side] = (out, collapse_pairs(s.trace) if cot else gg.collapse(s.trace), open(bpath, "rb").read() if cot else b"")
+        if py is not None: py[name] = results["tinygrad"]
         (po, ptr, pb), (co, ctr, cb) = results["tinygrad"], results["c++"]
         ok = po == co and ptr == ctr and pb == cb
         fails += not ok
@@ -163,6 +168,7 @@ PERTURBED = [("const uint32_t gfw = reg(NV_PGC6_AON_SECURE_SCRATCH_GROUP_05)[0].
 def main():
     exe = f"{WORK}/golden_flcn_hw"
     tgpaths.build_cpp(f"{HERE}/golden_flcn_hw.cpp", exe)
+    builds = gg.perturbed_builds(f"{HERE}/golden_flcn_hw.cpp", [("TinyGPUNVFalcon.h", old, new) for old, new, _ in PERTURBED])
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tgfh.")
     sock_path = f"{priv}/s.sock"
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -170,16 +176,11 @@ def main():
     saved_wait = ip.wait_cond
     ip.wait_cond = functools.partial(saved_wait, timeout_ms=gg.WAIT_MS)   # timeouts in milliseconds, as golden_gsp.py's
     try:
-        n, fails = compare(exe, srv, sock_path, priv)
+        py = {}   # each case's tinygrad side, which the perturbed copies' reruns reuse
+        n, fails = compare(exe, srv, sock_path, priv, py=py)
         print(f"C9 NV_FLCN.init_hw and B2's NV_FLCN_COT.init_hw vs tinygrad and nv_init_helper: {n - fails} of {n} cases identical")
-        gpu = tgpaths.REPO / "libhmsbeagle" / "GPU"
-        for old, new, cases in PERTURBED:
-            inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-            text = (gpu / "TinyGPUNVFalcon.h").read_text()
-            assert text.count(old) == 1, old
-            open(f"{inc}/libhmsbeagle/GPU/TinyGPUNVFalcon.h", "w").write(text.replace(old, new))
-            tgpaths.build_cpp(f"{HERE}/golden_flcn_hw.cpp", f"{priv}/golden_flcn_hw_perturbed", "-iquote", inc)   # found before the repository's
-            _, f = compare(f"{priv}/golden_flcn_hw_perturbed", srv, sock_path, priv, only=cases, quiet=True)
+        for (old, new, cases), build in zip(PERTURBED, builds):
+            _, f = compare(build.result(), srv, sock_path, priv, only=cases, quiet=True, py=py)
             fails += f == 0
             print(f"perturbed ({old[:60]} -> {new[:60]}): {'REJECTED' if f else 'NOT CAUGHT'}")
     finally: ip.wait_cond = saved_wait

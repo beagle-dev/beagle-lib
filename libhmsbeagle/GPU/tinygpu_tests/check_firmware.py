@@ -31,7 +31,8 @@ for subdir, name, digest in FIRMWARE:
     if not cached.is_file() or sha(cached.read_bytes()) != digest:
         backup = tgpaths.DATA / "fw" / f"{subdir.split('/')[1]}-{name}"
         if backup.is_file() and sha(backup.read_bytes()) == digest:
-            cached.parent.mkdir(parents=True, exist_ok=True); cached.write_bytes(backup.read_bytes())
+            cached.parent.mkdir(parents=True, exist_ok=True); tmp = cached.with_name(f"{cached.name}.part.{os.getpid()}")
+            tmp.write_bytes(backup.read_bytes()); tmp.replace(cached)   # a concurrent reader sees the old file or the whole new one
             print(f"re-staged {subdir}/{name} from {backup}")
         else:
             print(f"MISSING {subdir}/{name}: neither {cached} nor {backup} has sha256 {digest}"); ok = False; continue
@@ -42,7 +43,8 @@ for subdir, name, digest, md5 in re.findall(r'^    \{"gfx\w+", "[^"]+", "(amdgpu
     if cached.is_file() and sha(cached.read_bytes()) == digest: continue
     backup = tgpaths.DATA / "fw" / f"{subdir}-{name}"
     if backup.is_file() and sha(backup.read_bytes()) == digest:
-        cached.parent.mkdir(parents=True, exist_ok=True); cached.write_bytes(backup.read_bytes())
+        cached.parent.mkdir(parents=True, exist_ok=True); tmp = cached.with_name(f"{cached.name}.part.{os.getpid()}")
+        tmp.write_bytes(backup.read_bytes()); tmp.replace(cached)
         print(f"re-staged {subdir}/{name} from {backup}")
     else: print(f"MISSING {subdir}/{name}: neither {cached} nor {backup} has sha256 {digest}"); ok = False
 

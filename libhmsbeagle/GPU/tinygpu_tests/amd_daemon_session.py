@@ -6,8 +6,12 @@ tinygrad's atexit hook finalizes the device (AMDev.fini). No compile_all: the pl
 connection is closed last, which ends the session on the fake.
     session(fake_socket, pool_size, before_fini=None, env=None, daemon=None) -> (boot reply, handoff reply, its HSACO blob)
 daemon: the script to spawn (default amd_daemon_on_fake.py); run_amd_l0.sh runs the oracle's amd_dispatch_daemon.py itself on the eGPU:
-    python amd_daemon_session.py --hw <socket> [pool size]"""
-import os, sys, json, socket, struct, subprocess
+    python amd_daemon_session.py --hw <socket> [pool size]
+On a fake, the daemon gets a directory of its own under the work directory as its TMPDIR (where it takes am_usb4.lock) and its
+TINYGPU_TEST_WORK (its log, amd_dispatch_daemon.log), so sessions can run at the same time; env may name either instead. The
+directory is removed after the session; its log is moved to $TINYGPU_TEST_WORK/amd_dispatch_daemon.log first, so that file holds
+the latest session's log, as when every daemon wrote it."""
+import os, sys, json, shutil, socket, struct, tempfile, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 
@@ -31,6 +35,11 @@ def session(fake_socket, pool_size, before_fini=None, env=None, variant="SP_4", 
     status, _, _ = struct.unpack("<BQQ", _recv_exact(tg, 17))
     if status != 0: raise RuntimeError("the PCI id read failed")
     mine, theirs = socket.socketpair()
+    priv = None
+    if daemon is None:   # on a fake (the eGPU's daemon keeps the user's TMPDIR: its lock guards the real card)
+        tgpaths.WORK.mkdir(parents=True, exist_ok=True)
+        priv = tempfile.mkdtemp(dir=tgpaths.WORK, prefix="amd_daemon.")
+        env = {"TMPDIR": priv, "TINYGPU_TEST_WORK": priv, **(env or {})}
     p = subprocess.Popen([os.environ.get("BEAGLE_PYTHON", sys.executable), str(daemon or tgpaths.HERE / "amd_daemon_on_fake.py"),
                           str(theirs.fileno()), str(tg.fileno())], pass_fds=(theirs.fileno(), tg.fileno()), env={**os.environ, **(env or {})})
     theirs.close()
@@ -52,6 +61,9 @@ def session(fake_socket, pool_size, before_fini=None, env=None, variant="SP_4", 
         mine.close()
         if p.poll() is None: p.wait(timeout=120)
         tg.close()
+        if priv:   # the log goes where the daemon's log always was (os.replace: of concurrent sessions, the last wins)
+            if os.path.exists(log := os.path.join(priv, "amd_dispatch_daemon.log")): os.replace(log, tgpaths.WORK / "amd_dispatch_daemon.log")
+            shutil.rmtree(priv, ignore_errors=True)
     return boot, info, blob
 
 if __name__ == "__main__":   # run_amd_l0.sh: the real daemon on the eGPU, through the given socket (tgproxy's)

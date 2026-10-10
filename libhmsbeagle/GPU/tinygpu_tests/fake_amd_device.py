@@ -25,9 +25,11 @@ FAKE_AMD_FAULT=1: from the 3rd dispatch on, the GPU stops (signals nothing more)
 FAKE_AMD_HANG=1: the same stop with no fault posted, a GPU that hangs. FAKE_AMD_DROP_AT=<n>: TinyGPU.app goes away, the
 session's connection closed at its n-th request.
 FAKE_AMD_RECORD=<path>: each session's requests, headers and payloads, to <path>.<n> (n from 0).
+FAKE_CHECK_CACHE=1: every GMC translation, which the card caches (fake_am_gpu.translate), is also walked afresh: a difference
+is an ERROR.
     python3 fake_amd_device.py <socket path> <work dir>
 It prints "fake TinyGPU.app (AMD device) listening", and after each session its counts and NO ERRORS or the errors."""
-import os, sys, json, mmap, struct, socket, collections
+import os, sys, json, mmap, ctypes, struct, socket, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fake_am_gpu as amg
 
@@ -36,6 +38,9 @@ MAP_BAR, MAP_SYSMEM_FD, CFG_READ, CFG_WRITE, MMIO_READ, MMIO_WRITE, RESIZE_BAR =
 BARS = amg.BARS
 def reg(name): return amg.card_regs()[name].addr[0]   # a register's dword address on this card (its table's bases)
 IOVA_BASE, IOVA_STRIDE = 0x80_0000_0000, 0x1_0000_0000
+_libc = ctypes.CDLL(None, use_errno=True)   # mmap and munmap (FileMapping)
+_libc.mmap.restype, _libc.mmap.argtypes = ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_longlong]
+_libc.munmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
 
 def msgpack(b, i=0):
     """The msgpack value at b[i:] and the offset after it (the types LLVM's AMDGPU metadata uses, and the rest of the format's
@@ -88,6 +93,38 @@ def load_hsaco(variant):
                            ptrs=ptrs[name])
     return table, bytes(img)
 
+class FileMapping:
+    """mmap.mmap(fd, size): the file's shared read-write mapping, made with libc's mmap, as fast as the plugin's own: CPython's
+    first asks the drive to flush its cache (fcntl F_FULLFSYNC on macOS), about 5 ms for each of a session's ~40 allocations.
+    What the fake uses behaves as mmap's does: slices read as bytes and take a buffer of their size, an index is a byte's
+    int, struct.unpack_from reads it (the buffer protocol), and close() unmaps it."""
+    def __init__(self, fd, size):
+        addr = _libc.mmap(None, size, mmap.PROT_READ | mmap.PROT_WRITE, mmap.MAP_SHARED, fd, 0)
+        if addr is None or addr == ctypes.c_void_p(-1).value: e = ctypes.get_errno(); raise OSError(e, os.strerror(e))
+        self.addr, self.size = addr, size
+        self.mv = memoryview((ctypes.c_char * size).from_address(addr)).cast("B")
+    def __len__(self): return self.size
+    def __buffer__(self, flags):
+        if self.mv is None: raise ValueError("mmap closed or invalid")
+        return self.mv
+    def __getitem__(self, k):
+        mv = self.mv
+        if mv is None: raise ValueError("mmap closed or invalid")
+        if isinstance(k, slice): return bytes(mv[k])
+        if not -self.size <= k < self.size: raise IndexError("mmap index out of range")
+        return mv[k]
+    def __setitem__(self, k, v):
+        mv = self.mv
+        if mv is None: raise ValueError("mmap closed or invalid")
+        if isinstance(k, slice):
+            if len(range(*k.indices(self.size))) != memoryview(v).nbytes: raise IndexError("mmap slice assignment is wrong size")
+        elif not -self.size <= k < self.size: raise IndexError("mmap index out of range")
+        mv[k] = v
+    def close(self):
+        if self.mv is None: return
+        self.mv.release(); self.mv = None
+        _libc.munmap(self.addr, self.size)
+
 class Sysmem:
     """One MAP_SYSMEM_FD allocation: a file and made-up DMA segments, listed at the mapping's start as server.c does."""
     def __init__(self, work, n, size):
@@ -95,7 +132,7 @@ class Sysmem:
         self.path = os.path.join(work, f"amd_sysmem_{n}.bin")
         self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
         os.ftruncate(self.fd, self.size)
-        self.mm = mmap.mmap(self.fd, self.size)
+        self.mm = FileMapping(self.fd, self.size)
         self.base = IOVA_BASE + n * IOVA_STRIDE
         self.mm[:32] = struct.pack("<QQ", self.base, self.size) + bytes(16)
     def close(self):
@@ -108,16 +145,27 @@ class Gpu:
         self.am = amg.AMGpu(log=lambda m: self.say(m))
         self.am.errors, self.am.counts = self.errors, self.counts   # one list and one tally for the card and the front end
         self.variants = [dict(zip(("kernels", "image"), load_hsaco(v))) for v in os.environ.get("FAKE_AMD_HSACO", "").split(",") if v]
+        for var in self.variants:   # its kernels by where their code is in the image (descriptor plus entry), in table order
+            var["at"] = collections.defaultdict(list)
+            for name, kk in var["kernels"].items(): var["at"][kk["kd_off"] + kk["entry"]].append(name)
+        self.ring_pages, self.ring_dirty = set(), False   # doorbell: the pages its ring span was read from; written since
         self.reset()
     def reset(self):
         """A session's end: TinyGPU.app unwires its sysmem; the card keeps its registers, VRAM and queues."""
         self.sysmem, self.last_kargs, self.stopped = [], None, False
+        self.sys_disjoint = True   # every allocation within its own IOVA_STRIDE (then no two hold one address)
         for var in self.variants: var["lib"] = None   # where the session uploaded each variant's image
         self.am.sysmem_segs, self.am.hdp_flushed = [], False
     def err(self, msg): self.am.err(msg)
 
     # ── GPU memory: through the page tables the boot set ──
     def sys_at(self, iova, n):
+        if self.sys_disjoint and n > 0:   # the one allocation whose IOVA_STRIDE holds iova is the only one that can
+            j = (iova - IOVA_BASE) // IOVA_STRIDE
+            if 0 <= j < len(self.sysmem):
+                s = self.sysmem[j]
+                if s.base <= iova and iova + n <= s.base + s.size: return s, iova - s.base
+            return None, None
         for s in self.sysmem:
             if s.base <= iova and iova + n <= s.base + s.size: return s, iova - s.base
         return None, None
@@ -140,6 +188,7 @@ class Gpu:
                 else: s.mm[off:off + k] = data[pos:pos + k]
             elif data is None: out += self.am.vram_read(addr, k)
             else: self.am.vram_write(addr, data[pos:pos + k])
+            if data is not None and (is_sys, addr >> 12) in self.ring_pages: self.ring_dirty = True
             pos += k
         return bytes(out) if data is None else None
     def u32(self, va, what): return struct.unpack("<I", self.rw(va, 4, what=what))[0]
@@ -162,20 +211,52 @@ class Gpu:
         if start // (nbytes // 4) != end // (nbytes // 4) and end % (nbytes // 4): self.counts[f"{q['kind']} ring wraps"] += 1
         if end - start > nbytes // 4: self.err(f"{q['kind']}: {end - start} dwords submitted at once into a {nbytes // 4}-dword ring (overwritten unread)")
         pos = start
-        while pos < end and not self.stopped:
-            n = (self.pm4 if q["kind"] == "compute" else self.sdma)(dword, pos, end)
-            if n is None: break
-            pos += n
+        words = self.ring_span(q, start, end)
+        if words is not None:   # the span read once: each dword from it, unless the GPU has since written its pages or the tables changed
+            clears, read = self.am.tlb_clears, dword
+            fresh = lambda: not self.ring_dirty and self.am.tlb_clears == clears
+            dword = lambda i: words[i - start] if start <= i < end and fresh() else read(i)
+            dwords = lambda i, n: words[i - start:i - start + n] if start <= i and i + n <= end and fresh() else [dword(i + j) for j in range(n)]
+        else: dwords = lambda i, n: [dword(i + j) for j in range(n)]
+        try:
+            while pos < end and not self.stopped:
+                n = (self.pm4 if q["kind"] == "compute" else self.sdma)(dword, dwords, pos, end)
+                if n is None: break
+                pos += n
+        finally: self.ring_pages, self.ring_dirty = set(), False
         if pos > end: self.err(f"{q['kind']}: a packet runs past the doorbell's write pointer")
         q["done"] = value if not self.stopped else q["done"]
         report(q["done"])   # the engine reports its read pointer
 
-    def pm4(self, dw, pos, end):
+    def ring_span(self, q, start, end):
+        """The ring's dwords [start, end) (dword indices, wrapping at its size), read now, each GPU page once, the physical pages
+        they came from in ring_pages; None where a dword read could fail or alias (then they are read one by one, as ever)."""
+        ring, size = q["ring"], q["size"]
+        if not start < end or end - start > size // 4 or not self.sys_disjoint: return None
+        words, pages, i = [], set(), start
+        while i < end:
+            b = (i * 4) % size
+            k = min(end - i, (size - b) // 4, (0x1000 - ((ring + b) & 0xfff)) // 4)   # to the ring's end or the GPU page's
+            t = self.am.translate(ring + b, 4 * k)
+            if t is None: return None
+            is_sys, addr = t
+            if is_sys:
+                s, off = self.sys_at(addr, 4 * k)
+                if s is None: return None
+                raw = s.mm[off:off + 4 * k]
+            else: raw = self.am.vram_read(addr, 4 * k)
+            words += struct.unpack(f"<{k}I", raw)
+            pages.add((is_sys, addr >> 12))
+            i += k
+        self.ring_pages = pages
+        return words
+
+    def pm4(self, dw, dws, pos, end):   # dws(i, n): dwords i .. i+n-1, as [dw(i), ..., dw(i+n-1)]
         h = dw(pos)
         if h >> 30 != 3: return self.err(f"PM4 dword {h:#x} at {pos} is not a type-3 packet")
         op, n = (h >> 8) & 0xff, ((h >> 16) & 0x3fff) + 1
         if pos + 1 + n > end: return self.err(f"PM4 opcode {op:#x} at {pos} runs past the write pointer")
-        v = [dw(pos + 1 + i) for i in range(n)]
+        v = dws(pos + 1, n)
         self.counts[f"pm4 {op:#x}"] += 1
         if op == 0x3c:   # WAIT_REG_MEM: memory (the timeline) or the HDP flush request/done registers
             if n != 6: return self.err(f"WAIT_REG_MEM with {n} dwords")
@@ -228,7 +309,9 @@ class Gpu:
             return
         match = k = None
         for var in self.variants:
-            for name, kk in var["kernels"].items():
+            # once its image's place is known, only the kernels whose code is at prog can pass the first test below
+            for name in var["kernels"] if var["lib"] is None else var["at"].get(prog - var["lib"], ()):
+                kk = var["kernels"][name]
                 lib = prog - kk["entry"] - kk["kd_off"]
                 if var["lib"] not in (None, lib) or not self.mapped(lib, len(var["image"])) or \
                    self.rw(lib + kk["kd_off"], 64, what="the kernel descriptor") != var["image"][kk["kd_off"]:kk["kd_off"] + 64]: continue
@@ -251,14 +334,14 @@ class Gpu:
                 if p and not self.mapped(p): self.err(f"{match}: its pointer argument at kernarg offset {o} is {p:#x}, which is not mapped")
         if not in_vram(scratch): self.err(f"{match}: scratch at {scratch:#x} is not in VRAM")
 
-    def sdma(self, dw, pos, end):
+    def sdma(self, dw, dws, pos, end):
         h = dw(pos)
         op, sub = h & 0xff, (h >> 8) & 0xff
         sizes = {0: 1, 1: 7, 5: 4, 8: 6}
         if op not in sizes or (op == 1 and sub != 0): return self.err(f"SDMA opcode {op}/{sub}, which the C++ encoder never emits")
         n = sizes[op]
         if pos + n > end: return self.err(f"SDMA opcode {op} at {pos} runs past the write pointer")
-        v = [dw(pos + i) for i in range(n)]
+        v = dws(pos, n)
         self.counts[f"sdma {op}"] += 1
         if op == 1:   # COPY_LINEAR
             count = (v[1] & 0x3fffffff) + 1
@@ -283,18 +366,33 @@ def recv_exact(conn, n):
         b += c
     return bytes(b)
 
+class Reader:
+    """recv_exact through a buffer: one recv takes whatever the client has sent (at least 1 MiB asked for), so a burst of
+    requests costs one system call rather than two per request. Not with FAKE_AMD_DROP_AT, whose closing leaves unread exactly what it did."""
+    def __init__(self, conn): self.conn, self.buf, self.pos = conn, bytearray(), 0
+    def recv_exact(self, n):
+        buf = self.buf
+        while len(buf) - self.pos < n:
+            if self.pos: del buf[:self.pos]; self.pos = 0
+            c = self.conn.recv(max(n - len(buf), 1 << 20))
+            if not c: return None
+            buf += c
+        self.pos += n
+        return bytes(buf[self.pos - n:self.pos])
+
 def serve(conn, gpu, work):
     """One client session. gpu.record, a list if set, gets every request: its header and an MMIO_WRITE's payload."""
     am = gpu.am
     nreq = 0
-    while (hdr := recv_exact(conn, 33)) is not None:
+    rx = Reader(conn).recv_exact if not DROP_AT else lambda n: recv_exact(conn, n)
+    while (hdr := rx(33)) is not None:
         nreq += 1
         if nreq == DROP_AT: break   # TinyGPU.app gone: this request is never served
         cmd, _, bar, a0, a1, a2 = REQ.unpack(hdr)
         gpu.counts[f"cmd {cmd}"] += 1
         if getattr(gpu, "record", None) is not None: gpu.record.append(hdr)
         if cmd == MMIO_WRITE:
-            data = recv_exact(conn, a1)
+            data = rx(a1)
             if data is None: break
             if getattr(gpu, "record", None) is not None: gpu.record.append(data)
             if bar not in BARS or a0 + a1 > BARS[bar][1]: gpu.err(f"MMIO_WRITE outside BAR{bar} ({a0:#x}+{a1:#x})"); continue
@@ -319,6 +417,7 @@ def serve(conn, gpu, work):
         if cmd == MAP_SYSMEM_FD:
             s = Sysmem(work, len(gpu.sysmem), a0)
             gpu.sysmem.append(s)
+            if s.size > IOVA_STRIDE: gpu.sys_disjoint = False
             am.add_sysmem([(s.base, s.size)])
             conn.sendmsg([RESP.pack(0, s.size, s.n)], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("i", s.fd))]); continue
         gpu.err(f"command {cmd}, which BEAGLE never sends"); conn.sendall(RESP.pack(1, 0, 0))

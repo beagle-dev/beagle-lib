@@ -46,6 +46,8 @@ Plan step C13c, for the checks that ran on the fake daemon: FAKE_SM_VERSION=<hex
 (0x705: sm_75, which no embedded cubin serves); FAKE_NO_HALT=1: on the GB205 the RISC-V core never halts after the unload;
 FAKE_COPY_LOG=<file> appends each copy-engine copy (its destination VA and length, 8 bytes each, then the bytes), so a check can
 read what the client uploaded (check_upload.py).
+FAKE_CHECK_CACHE=1: every GPU address translation, which the front end caches (tggpu.Memory), is also walked afresh: a
+difference is an ERROR.
 FAKE_NV_CHIP=gb205 (plan step B2) plays an RTX 5070 instead: its ids, VRAM and BARs (STATUS.md R22), GB20x's registers and
 MMU v3, QMD v5, and the COT boot. The FSP is ready at once, takes tinygrad's one COT message through its EMEM, and
 starts GSP-RM from the boot parameters it names (the WPR meta and the libos arguments), raising WPR2; no falcon is started
@@ -56,7 +58,7 @@ on the AD107's model otherwise (its BARs, VRAM, registers and captured VBIOS: Am
     <tinygrad venv>/python fake_nv_device.py <socket path> <memory dir>
 It prints "fake TinyGPU.app (AD107 device) listening" (GB205 or GA104 with FAKE_NV_CHIP), and after each session its counts and
 NO ERRORS or the errors."""
-import os, sys, json, mmap, glob, time, socket, select, struct, ctypes, types, collections
+import os, sys, json, glob, time, socket, select, struct, ctypes, types, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -133,7 +135,7 @@ class Sysmem:
         self.path = os.path.join(MEM, f"sysmem_{n}.bin")
         self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
         os.ftruncate(self.fd, self.size)
-        self.mm = mmap.mmap(self.fd, self.size)
+        self.mm = tggpu.FileMapping(self.fd, self.size)
         # one segment up to 2 MiB, 2 MiB segments above (at most 32, the dext's DMA list): tinygrad hands the GSP one device address
         # for its bootloader and log buffer (ip.py:388-392, 419-432), so those must be contiguous; nothing asks for it (server.c
         # ignores the contiguous flag), and plan V1's L0 recordings show the real lists
@@ -154,6 +156,9 @@ class Sysmem:
 class Device:
     def __init__(self):
         self.vram, self.regs, self.sysmem, self.n_alloc = tggpu.Vram(), {}, [], 0
+        # iova >> 12 -> (the first allocation holding that device page, its offset there): segments start and end on pages, and
+        # allocations are only appended within a session, so a page's first holder never changes until the session's end
+        self.sys_pages = {}
         self.wpr2 = bool(WARM)
         self.falcon = {GSP_BASE: dict(halted=False, riscv_active=WARM == "1"), SEC2_BASE: dict(halted=False, riscv_active=False)}
         self.gsp = None          # set up when booter_load (or, on a GB205, the FSP's COT boot) starts GSP-RM
@@ -171,10 +176,16 @@ class Device:
 
     # sysmem by device address
     def sys_rw(self, iova, n, data=None):
-        for s in self.sysmem:
-            off = s.offset(iova)
-            if off is not None:
-                if off + n > s.size: break
+        hit = self.sys_pages.get(iova >> 12)
+        if hit is None:
+            for s in self.sysmem:
+                off = s.offset(iova)
+                if off is not None:
+                    hit = self.sys_pages[iova >> 12] = (s, off - (iova & (PAGE - 1)))
+                    break
+        if hit is not None:
+            s, off = hit[0], hit[1] + (iova & (PAGE - 1))
+            if off + n <= s.size:
                 if data is None: return bytes(s.mm[off:off + n])
                 s.mm[off:off + n] = data; return
         raise RuntimeError(f"device access to {iova:#x} (+{n}): not a device address of any live sysmem allocation")
@@ -411,26 +422,42 @@ def recv_exact(conn, n):
         b += c
     return bytes(b)
 
+class Reader:
+    """recv_exact through a buffer: one recv takes whatever the client has sent (at least 1 MiB asked for), so a burst of
+    requests costs one system call rather than two per request. Only where nothing watches the socket itself: not with FAKE_GPU_LAG_MS or
+    FAKE_DROP_AT, whose select() calls ask whether the client has sent more, and whose closing leaves unread what it did."""
+    def __init__(self, conn): self.conn, self.buf, self.pos = conn, bytearray(), 0
+    def recv_exact(self, n):
+        buf = self.buf
+        while len(buf) - self.pos < n:
+            if self.pos: del buf[:self.pos]; self.pos = 0
+            c = self.conn.recv(max(n - len(buf), 1 << 20))
+            if not c: return None
+            buf += c
+        self.pos += n
+        return bytes(buf[self.pos - n:self.pos])
+
 def bar_ok(bar, off, n): return bar in (0, 1) and off + n <= BARS[bar][1] and n <= (64 << 20)
 
-def next_header(conn, dev):
+def next_header(conn, dev, rx):
     """The next request's header; until it comes (FAKE_GPU_LAG_MS) the GPU runs the lagged doorbells as they fall due."""
     while dev.lagged:
         readable = select.select([conn], [], [], max(0.0, dev.lagged[0][0] - time.monotonic()))[0]
         dev.run_due()
         if readable: break
-    return recv_exact(conn, 33)
+    return rx(33)
 
 def serve(conn, dev):
     """One client, as server.c's handle_client (:185-257), over the device."""
     dev.conn = conn
-    while not dev.drop and (hdr := next_header(conn, dev)) is not None:
+    rx = Reader(conn).recv_exact if not (LAG or DROP_AT) else lambda n: recv_exact(conn, n)
+    while not dev.drop and (hdr := next_header(conn, dev, rx)) is not None:
         cmd, _, bar, a0, a1, a2 = REQ.unpack(hdr)
         counts[f"cmd {cmd}"] += 1
         if RECORD: RECORD.write(hdr)
         try:
             if cmd == MMIO_WRITE:
-                data = recv_exact(conn, a1)
+                data = rx(a1)
                 if data is None: break
                 if RECORD: RECORD.write(data)
                 if not bar_ok(bar, a0, a1): err(f"MMIO_WRITE outside BAR{bar} ({a0:#x}+{a1:#x}): server.c drops it"); continue
@@ -471,7 +498,7 @@ def serve(conn, dev):
     dev.lagged.clear()
     dev.drop = False
     for s in dev.sysmem: s.close()   # server.c's cleanup (:171-183)
-    dev.sysmem, dev.gsp = [], None
+    dev.sysmem, dev.gsp, dev.sys_pages = [], None, {}
     print(f"fake TinyGPU.app ({NAME} device): client done: " + json.dumps(dict(sorted(counts.items()))), flush=True)
     print(f"fake TinyGPU.app ({NAME} device): " + ("NO ERRORS" if not errors else f"{len(errors)} ERRORS, first: " + "; ".join(errors[:3])), flush=True)
 

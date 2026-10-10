@@ -30,7 +30,7 @@ for SDMA), and a doorbell then runs it (fake_amd_device.py's PM4 and SDMA 6 exec
 the GMC page tables in this VRAM: GCVM_CONTEXT0's base, 4 levels (39, 30, 21, 12), huge pages by PDE_PTE. A system PTE
 must point into a MAP_SYSMEM_FD allocation's DMA segments: at every TLB invalidation the page tables written since the
 last are audited (the DART check: a stray system address is a host panic on the Mac), and so is every GPU access."""
-import os, sys, json, glob, struct, functools, collections
+import os, sys, json, glob, struct, bisect, itertools, functools, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -38,6 +38,7 @@ from tinygrad.runtime.support.amd import AMDReg, import_asic_regs, import_module
 from tinygrad.runtime.autogen.am import am
 
 PAGE = 0x1000
+CHECK_CACHE = os.environ.get("FAKE_CHECK_CACHE", "") == "1"   # every cached GMC translation also walked afresh: a difference is an ERROR
 WEDGED = os.environ.get("FAKE_AMD_WEDGED", "") == "1"   # a dequeue request leaves the compute queue active (plan step A2k)
 VERSION = 0xA0000008                       # AMDev.Version (amdev.py:147)
 BARS = {0: (0x2e_4000_0000, int(os.environ.get("FAKE_AMD_BAR0_MB", "256")) << 20), 2: (0x2e_5000_0000, 2 << 20),
@@ -124,6 +125,10 @@ class AMGpu:
         self.smu_mod = import_module("smu", IPV["MP1_HWIP"])
         self.hqd_lo, self.hqd_hi = a("regCP_MQD_BASE_ADDR") - 9, a("regCP_HQD_PQ_WPTR_HI") + 0x20   # the CP_MQD_*/CP_HQD_* block
         self.errors, self.counts, self.touched = [], collections.Counter(), collections.Counter()
+        # the GMC translations' cache (translate): va >> 12 -> its walk; the VRAM pages those walks read; a count of its clears
+        self.tlb, self.tlb_watch, self.tlb_clears = {}, set(), 0
+        self.pt_regs = {a(n) for n in ("regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_LO32", "regGCVM_CONTEXT0_PAGE_TABLE_BASE_ADDR_HI32",
+                                       "regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_LO32", "regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_HI32")}
         self.reset(state or os.environ.get("FAKE_AMD_STATE", "warm"))
 
     def err(self, msg):
@@ -139,6 +144,7 @@ class AMGpu:
         for off, v in CFG.items(): self.cfg[off:off + 4] = struct.pack("<I", v)
         self.sos_alive, self.smu_pending = state != "cold", None
         self.queues, self.pt_pages, self.pt_dirty, self.sysmem_segs = {}, {}, set(), []
+        self.tlb_clear()
         self.vram_write(self.vram_size - (64 << 10), self.table)
         self.r[self.A("regMMMC_VM_FB_LOCATION_BASE")] = FB_BASE >> 24
         self.r[self.A("regMMMC_VM_FB_LOCATION_TOP")] = (FB_BASE + self.vram_size - 1) >> 24
@@ -163,6 +169,10 @@ class AMGpu:
 
     # ── VRAM (BAR0's window and the indirect one) ──────────────────────────────────────────────────────────────────────
     def vram_read(self, off, n):
+        o = off & (PAGE - 1)
+        if 0 < n <= PAGE - o:   # inside one page (the page walk's entries, most GPU accesses)
+            p = self.vram.get(off >> 12)
+            return bytes(p[o:o + n]) if p is not None else bytes(n)
         out = bytearray()
         for page in range(off // PAGE, (off + n + PAGE - 1) // PAGE):
             lo, hi = max(off, page * PAGE), min(off + n, (page + 1) * PAGE)
@@ -172,9 +182,11 @@ class AMGpu:
     def vram_write(self, off, data):
         for page in range(off // PAGE, (off + len(data) + PAGE - 1) // PAGE):
             lo, hi = max(off, page * PAGE), min(off + len(data), (page + 1) * PAGE)
-            p = self.vram.setdefault(page, bytearray(PAGE))
+            p = self.vram.get(page)
+            if p is None: p = self.vram[page] = bytearray(PAGE)
             p[lo - page * PAGE:hi - page * PAGE] = data[lo - off:hi - off]
             if page in self.pt_pages: self.pt_dirty.add(page)
+            if page in self.tlb_watch: self.tlb_clear()   # a page some cached walk read
     def u32(self, off): return struct.unpack("<I", self.vram_read(off, 4))[0]
     def u64(self, off): return struct.unpack("<Q", self.vram_read(off, 8))[0]
 
@@ -219,6 +231,7 @@ class AMGpu:
                 self.queues = {k: x for k, x in self.queues.items() if x.get("hqd") != self.sel[:3]}
             return
         self.r[dw] = v
+        if dw in self.pt_regs: self.tlb_clear()   # the page tables' root or start
         if dw == self.A("regGRBM_GFX_CNTL"):
             f = self.decode("regGRBM_GFX_CNTL", v)
             self.sel = (f["meid"], f["pipeid"], f["queueid"], f["vmid"])
@@ -292,10 +305,39 @@ class AMGpu:
         return None if not base & 1 else base & 0x0000FFFFFFFFF000
     def vm_start(self): return self.pair("regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_LO32", "regGCVM_CONTEXT0_PAGE_TABLE_START_ADDR_HI32") << 12
     def add_sysmem(self, segs): self.sysmem_segs.append(segs)
-    def in_sysmem(self, iova, n):
-        return any(p <= iova and iova + n <= p + s for segs in self.sysmem_segs for p, s in segs)
     def translate(self, va, n):
-        """(is_sys, address) of [va, va+n), which must not cross a page of the mapping, or None if unmapped."""
+        """(is_sys, address) of [va, va+n), which must not cross a page of the mapping, or None if unmapped. Each 4 KiB page's
+        walk is cached until anything it read changes (tlb_clear); FAKE_CHECK_CACHE=1 checks every lookup against a fresh walk."""
+        w = self.tlb.get(va >> 12, self)   # (self: never walked)
+        if w is self: w = self.tlb[va >> 12] = self.walk(va >> 12)
+        if w is None: t = None
+        else:
+            inpage = w[2] + (va & (PAGE - 1))
+            t = None if inpage + n > w[3] else (w[0], w[1] + inpage)
+        if CHECK_CACHE and (fresh := self.translate_fresh(va, n)) != t:
+            self.err(f"translation cache: [{va:#x}, +{n:#x}) translates to {t} cached, {fresh} walked afresh")
+            return fresh
+        return t
+    def walk(self, vpn):
+        """translate's walk for the 4 KiB page vpn: None if unmapped, or (is_sys, the leaf's address, the page's offset in the
+        leaf, the leaf's size). The VRAM pages it reads are watched (vram_write), and wr() watches the root and start."""
+        root = self.pt_root()
+        if root is None: return None
+        off, paddr = (vpn << 12) - self.vm_start(), root
+        if off < 0: return None
+        for lv, shift in enumerate((39, 30, 21, 12)):
+            a = paddr + ((off >> shift) & 0x1ff) * 8
+            self.tlb_watch.update((a >> 12, (a + 7) >> 12))
+            pte = self.u64(a)
+            if not pte & am.AMDGPU_PTE_VALID: return None
+            addr = pte & 0x0000FFFFFFFFF000
+            if lv == 3 or pte & PDE_PTE: return bool(pte & am.AMDGPU_PTE_SYSTEM), addr, off & ((1 << shift) - 1), 1 << shift
+            paddr = addr
+        return None
+    def tlb_clear(self):
+        self.tlb.clear(); self.tlb_watch.clear(); self.tlb_clears += 1
+    def translate_fresh(self, va, n):
+        """The walk with no cache (FAKE_CHECK_CACHE's reference)."""
         root = self.pt_root()
         if root is None: return None
         off, paddr = va - self.vm_start(), root
@@ -320,17 +362,23 @@ class AMGpu:
             self.pt_dirty = {root // PAGE}
         todo = sorted(self.pt_dirty)
         self.pt_dirty = set()
+        # whether [iova, iova+n) lies in some allocation's segment, by bisection: the segments by start, and the furthest end among
+        # those starting at or before each
+        segs = sorted(seg for segs in self.sysmem_segs for seg in segs)
+        starts, ends = [p for p, _ in segs], list(itertools.accumulate((p + n for p, n in segs), max))
+        def in_sysmem(iova, n):
+            i = bisect.bisect_right(starts, iova) - 1
+            return i >= 0 and ends[i] >= iova + n
         while todo:
             page = todo.pop()
             lv = self.pt_pages[page]
-            for i in range(512):
-                pte = self.u64(page * PAGE + i * 8)
+            for i, pte in enumerate(struct.unpack("<512Q", self.vram_read(page * PAGE, PAGE))):
                 if not pte & am.AMDGPU_PTE_VALID: continue
                 addr = pte & 0x0000FFFFFFFFF000
                 leaf = lv == 3 or pte & PDE_PTE
                 if pte & am.AMDGPU_PTE_SYSTEM:
                     if not leaf: self.err(f"a page directory entry {pte:#x} at VRAM {page * PAGE + i * 8:#x} marked system")
-                    elif not self.in_sysmem(addr, 1 << (12 + 9 * (3 - lv))):
+                    elif not in_sysmem(addr, 1 << (12 + 9 * (3 - lv))):
                         self.err(f"a system PTE {pte:#x} (level {lv}) points at {addr:#x}, which no MAP_SYSMEM_FD allocation holds (a DART panic)")
                     self.counts["system PTEs audited"] += 1
                 elif not leaf and addr // PAGE not in self.pt_pages:

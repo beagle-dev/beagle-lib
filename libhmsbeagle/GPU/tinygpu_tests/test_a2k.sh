@@ -13,45 +13,45 @@
 #   - killed with a request in flight, and in the plugin's own fini: the guard holds, sending nothing;
 #   - a compute queue that stays active after its dequeue (FAKE_AMD_WEDGED=1): the plugin's own fini cannot see it off and
 #     says hold, and killed with a batch on the GPU, the guard's own fini cannot either: both hold.
-# A guard that holds keeps the fake's connection as it would the eGPU's, so it is ended here (offline only). One PASS or FAIL
+# A guard that holds keeps the fake's connection as it would the eGPU's, so it is ended here (offline only). The runs go in
+# parallel (env.sh pjob), each with its own fake and its own TinyGPULog file, the checks after them all. One PASS or FAIL
 # line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
 GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
-W="$TINYGPU_TEST_WORK/a2k"; rm -rf "$W"; mkdir -p "$W"
-TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs
+W="$TINYGPU_TEST_WORK/a2k_${FAKE_AMD_CHIP:-gfx1100}"; rm -rf "$W"; mkdir -p "$W"   # the chip's own: both chips' passes may run at once
+TG_PIDS="$W/pids"   # each fake and guard these runs start (env.sh track_pid), for the last check
 fails=0
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
-glog() { sed -n "/a2k run $1 starts/,/a2k run .* starts/p" "$TL"; }   # one run's TinyGPULog lines
+glog() { cat "$W/$1.tglog"; }   # one run's TinyGPULog lines (the plugin's and its guard's), in the run's own file
 verdict() { grep -E "fake TinyGPU.app \(AMD device\): (NO ERRORS|[0-9]+ ERRORS)" "$W/$1.dev" | tail -1; }
 counts() { grep "fake TinyGPU.app (AMD device): client done: " "$W/$1.dev" | tail -1; }
 # a run that went to the end with no runtime error (test_a2.sh's: kernels are not run, so logL is wrong by design)
 ran() { grep -q "^per evaluation:" "$W/$1.txt" && ! grep -qE "TinyGPU/AMD: .*(failed|refused|fault)|TinyGPU/AMD: handoff:" "$W/$1.txt"; }
 
-SRV=""; SOCKDIR=""; DEV=""; NSESS=0
+# start_fake, run_test and stop_fake share SRV, SOCKDIR, DEV and NSESS, which each job (run, boot_rest) declares local
 start_fake() {   # <label> [VAR=value ...]: a fresh fake card, its log $W/<label>.dev, every session recorded to $W/<label>.rec.<n>
     local l=$1; shift
     SOCKDIR=$(mktemp -d /tmp/tgk.XXXXXX); DEV="$W/$l.dev"; NSESS=0
     mkdir -p "$W/mem_$l"
     env "$@" FAKE_AMD_RECORD="$W/$l.rec" "$BEAGLE_PYTHON" "$TG_TESTS/fake_amd_device.py" "$SOCKDIR/dev.sock" "$W/mem_$l" > "$DEV" 2>&1 &
-    SRV=$!
-    for i in $(seq 100); do grep -q listening "$DEV" 2>/dev/null && break; sleep 0.1; done
+    SRV=$!; track_pid $SRV fake_amd_device
+    for i in $(seq 300); do grep -q listening "$DEV" 2>/dev/null && break; kill -0 $SRV 2>/dev/null || break; sleep 0.1; done
 }
 stop_fake() { kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; rm -rf "$SOCKDIR"; SRV=""; }
 run_test() {   # <label> [VAR=value ...]: tinygputest on the fake, then its guard: waited for, or ended if it holds
     local l=$1; shift
-    echo "a2k run $l starts" >> "$TL"
-    rm -f "$SOCKDIR/guard.pid"
-    env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$SOCKDIR/dev.sock" TMPDIR="$SOCKDIR" \
+    rm -f "$SOCKDIR/guard.pid"; : > "$W/$l.tglog"
+    env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$W/$l.tglog" APL_REMOTE_SOCK="$SOCKDIR/dev.sock" TMPDIR="$SOCKDIR" \
         BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
         BEAGLE_AMD_DATA_MB=512 DYLD_LIBRARY_PATH="$TEST_LIBS" "$@" "$TEST_BIN" --state-count 4 --reps 2 > "$W/$l.txt" 2>&1
-    local gpid; gpid=$(cat "$SOCKDIR/guard.pid" 2>/dev/null)
+    local gpid; gpid=$(cat "$SOCKDIR/guard.pid" 2>/dev/null); track_pid "$gpid" beagle-tinygpu-guard
     if [ -n "$gpid" ]; then
-        for i in $(seq 600); do kill -0 "$gpid" 2>/dev/null || break; grep -q "then kill $gpid\." "$TL" && break; sleep 0.1; done
+        for i in $(seq 600); do kill -0 "$gpid" 2>/dev/null || break; grep -q "then kill $gpid\." "$W/$l.tglog" && break; sleep 0.1; done
         if kill -0 "$gpid" 2>/dev/null; then
             echo "[$l] the guard (pid $gpid) held the fake connection; ending it" > "$W/$l.held"; kill -KILL "$gpid"
             for i in $(seq 50); do kill -0 "$gpid" 2>/dev/null || break; sleep 0.1; done   # not this shell's child: polled
@@ -60,31 +60,42 @@ run_test() {   # <label> [VAR=value ...]: tinygputest on the fake, then its guar
     NSESS=$((NSESS + 2))   # BEAGLE's resource listing makes a session of its own (one CFG_READ) before the run's
     for i in $(seq 600); do [ "$(grep -c 'client done' "$DEV")" -ge $NSESS ] && break; sleep 0.1; done
 }
-run() { start_fake "$@"; run_test "$@"; stop_fake; }   # one run on a fresh card
+run() { local SRV SOCKDIR DEV NSESS; start_fake "$@"; run_test "$@"; stop_fake; }   # one run on a fresh card
+boot_rest() {   # killed once the AMDev booted, then the next run on the same card
+    local SRV SOCKDIR DEV NSESS
+    start_fake boot_rest FAKE_AMD_STATE=cold
+    run_test boot_rest BEAGLE_AMD_TEST_KILL=boot_rest
+    run_test boot_rest_next
+    stop_fake
+}
+
+# the runs, longest first: the two that wait out the plugin's 10 s HQD dequeue timeout, then the two runs on one card
+pjob_init "$W"
+pjob wedged run wedged FAKE_AMD_WEDGED=1
+pjob wedged_batch run wedged_batch FAKE_AMD_WEDGED=1 BEAGLE_AMD_TEST_KILL=batch
+pjob boot_rest boot_rest
+pjob normal run normal
+for k in batch idle frame teardown; do pjob $k run $k BEAGLE_AMD_TEST_KILL=$k; done
+pjob dirty run dirty FAKE_AMD_STATE=dirty
+pjob boot_guard run boot_guard BEAGLE_AMD_TEST_KILL=boot_guard
+pwait
 
 # 1. a normal run
-run normal
 check "a normal run PASS with the C++ boot, the guard had the fini state before any queue and exited at the plugin's clean" \
     "ran normal && grep -q 'C++ runtime: handed over after the C++ boot' $W/normal.txt && glog normal | grep -q 'the setup.s rest (AMD)' \
      && glog normal | grep -q 'the plugin finalized the GPU itself; exiting' && verdict normal | grep -q 'NO ERRORS' && [ ! -f $W/normal.held ]"
 
 # 2. a dirty card: refused before the mode1 reset
-run dirty FAKE_AMD_STATE=dirty
 check "a dirty card: refused before the mode1 reset, and the guard exits at the plugin's 'N'" \
     "grep -q 'needs an SMU mode1 reset' $W/dirty.txt && glog dirty | grep -q 'boot ended with no queue ever live' && verdict dirty | grep -q 'NO ERRORS' \
      && ! counts dirty | grep -q 'mode1 resets' && [ ! -f $W/dirty.held ]"
 
 # 3. killed right after the guard started
-run boot_guard BEAGLE_AMD_TEST_KILL=boot_guard
 check "killed right after the guard started: it closes, and the boot never wrote to the card" \
     "glog boot_guard | grep -q 'no queue was ever live, so closing is safe' && ! glog boot_guard | grep -q 'its fini first' \
      && verdict boot_guard | grep -q 'NO ERRORS' && ! counts boot_guard | grep -q '\"cmd 7\"' && [ ! -f $W/boot_guard.held ]"
 
 # 4. killed once the AMDev booted, before any queue: the guard finalizes the card, and the next boot is a partial one
-start_fake boot_rest FAKE_AMD_STATE=cold
-run_test boot_rest BEAGLE_AMD_TEST_KILL=boot_rest
-run_test boot_rest_next
-stop_fake
 check "killed once the AMDev booted, before any queue: the guard finalizes the card and closes" \
     "glog boot_rest | grep -q 'its fini first' && glog boot_rest | grep -q 'the fini is done' && glog boot_rest | grep -q 'closing is safe' \
      && grep -c 'NO ERRORS' $W/boot_rest.dev | grep -q '^4$' && [ ! -f $W/boot_rest.held ]"
@@ -93,7 +104,6 @@ check "... and the next run's boot is a partial one, and passes" \
 
 # 5, 6. killed with a batch on the GPU, and idle at fini: the guard's fini
 for k in batch idle; do
-    run $k BEAGLE_AMD_TEST_KILL=$k
     check "killed $([ $k = batch ] && echo 'with a batch on the GPU' || echo 'idle at fini'): the guard finalizes the GPU, no queue live at the end (NO ERRORS)" \
         "glog $k | grep -q 'the GPU is finalized, every queue off; closing' && verdict $k | grep -q 'NO ERRORS' && [ ! -f $W/$k.held ]"
 done
@@ -102,7 +112,6 @@ check "... and killed idle it sends what the plugin's own fini sends: the whole 
 
 # 7, 8. a request in flight, and the plugin's own fini: hold, sending nothing
 for k in frame teardown; do
-    run $k BEAGLE_AMD_TEST_KILL=$k
     why=$([ $k = frame ] && echo 'a request may be cut mid-send, or its reply unread' || echo "the plugin's own GPU teardown did not finish")
     check "killed $([ $k = frame ] && echo 'with a request in flight' || echo "in the plugin's own fini"): the guard holds, sending nothing" \
         "glog $k | grep -qF \"HOLDING the TinyGPU.app connection ($why)\" && [ -f $W/$k.held ] && ! counts $k | grep -q 'hqd dequeue requests' \
@@ -110,16 +119,14 @@ for k in frame teardown; do
 done
 
 # 9, 10. a compute queue that survives its dequeue
-run wedged FAKE_AMD_WEDGED=1
 check "a queue that stays active after its dequeue: the plugin's own fini cannot see it off, says hold, and the guard holds" \
     "grep -q 'not seen inactive after their dequeue' $W/wedged.txt && grep -q 'holds the TinyGPU.app connection' $W/wedged.txt \
      && glog wedged | grep -q 'HOLDING the TinyGPU.app connection (the plugin.s own GPU teardown was not confirmed)' && [ -f $W/wedged.held ]"
-run wedged_batch FAKE_AMD_WEDGED=1 BEAGLE_AMD_TEST_KILL=batch
 check "... and killed with a batch on the GPU, the guard's own fini cannot see it off either: it holds" \
     "glog wedged_batch | grep -q 'not seen inactive after their dequeue' && glog wedged_batch | grep -qF 'HOLDING the TinyGPU.app connection (the GPU did not confirm its queues off)' \
      && [ -f $W/wedged_batch.held ]"
 
-left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
+left=$(tracked_alive | wc -l | tr -d ' ')   # this stage's own fakes and guards only: other stages' run at the same time
 check "no fake or guard is left running" "[ $left -eq 0 ]"
 echo; [ $fails -eq 0 ] && echo "test_a2k: PASS" || echo "test_a2k: $fails FAILED"
 [ $fails -eq 0 ]

@@ -241,14 +241,17 @@ static void cycles(const char* name, bool nv, uint64_t va, uint64_t n) {
           std::to_string(first_peak >> 20) + " MiB");
 }
 
-int main() {
+int main(int argc, char** argv) {   // test_c14_pool [nv|amd]: one vendor's checks alone (test_c14.sh runs the two at once)
+    const std::string only = argc > 1 ? argv[1] : "";
+    if (argc > 2 || (only != "" && only != "nv" && only != "amd")) { fprintf(stderr, "usage: test_c14_pool [nv|amd]\n"); return 2; }
+    const bool nv = only != "amd", amd = only != "nv";
     const uint64_t nv_va = 0x1080000000ull, amd_va = 0x20000c000000ull, n = 1ull << 30;   // where the GPUs put their pools
-    no_frees("NV", true, nv_va, n);
-    no_frees("AMD", false, amd_va, n);
-    random_ops("NV", true, nv_va, n);
-    random_ops("AMD", false, amd_va, n);
-    cycles("NV", true, nv_va, n);
-    cycles("AMD", false, amd_va, n);
+    if (nv) no_frees("NV", true, nv_va, n);
+    if (amd) no_frees("AMD", false, amd_va, n);
+    if (nv) random_ops("NV", true, nv_va, n);
+    if (amd) random_ops("AMD", false, amd_va, n);
+    if (nv) cycles("NV", true, nv_va, n);
+    if (amd) cycles("AMD", false, amd_va, n);
     printf("\ntest_c14_pool: %s\n", fails ? (std::to_string(fails) + " FAILED").c_str() : "PASS");
     return fails ? 1 : 0;
 }

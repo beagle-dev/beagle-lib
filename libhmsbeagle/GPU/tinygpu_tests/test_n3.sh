@@ -9,15 +9,21 @@
 #   - a MEMSIZE of 0 or 0xffffffff (FAKE_AMD_MEMSIZE) and a 512 MiB BAR0 (FAKE_AMD_BAR0_MB) stop it (exit 1) with no MMIO
 #     write at all;
 #   - tinygrad's download cache is unchanged.
-# One PASS or FAIL line per check; exit 0 only if all pass.
+# The sessions go in parallel (env.sh's pjob), the longest first; then one PASS or FAIL line per check, in this order; exit 0
+# only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 W="$TINYGPU_TEST_WORK/n3"; rm -rf "$W"; mkdir -p "$W"
+TG_PIDS="$W/pids"   # the fakes the sessions start (env.sh's track_pid), for the check that none is left running
+pjob_init "$W"
 fails=0
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
 STORED=$(ls "$BEAGLE_TINYGPU_DATA"/discovery/1002_744c_*.json | head -1)
+# The cache is shared: this before/after comparison holds only if nothing else writes it while this stage runs. In the suite
+# its one writer, check_firmware.py (when it restores a blob), runs before the stages start, and N9's no-firmware case uses
+# an XDG_CACHE_HOME of its own.
 DLCACHE="${XDG_CACHE_HOME:-$HOME/Library/Caches}/tinygrad/downloads"
 ls -lR "$DLCACHE" > "$W/dlcache_before.txt" 2>&1
 
@@ -25,16 +31,17 @@ session() {   # <label> <client: capture|reference> [VAR=value ...]: one client 
     local l=$1 client=$2; shift 2
     local d; d=$(mktemp -d /tmp/tgn3.XXXXXX)
     env "$@" FAKE_AMD_RECORD="$W/$l.rec" "$BEAGLE_PYTHON" "$TG_TESTS/fake_amd_device.py" "$d/dev.sock" "$W/mem_$l" > "$W/$l.dev" 2>&1 &
-    local srv=$!
-    for i in $(seq 100); do grep -q listening "$W/$l.dev" 2>/dev/null && break; sleep 0.1; done
+    local srv=$!; track_pid $srv fake_amd_device
+    for i in $(seq 300); do grep -q listening "$W/$l.dev" 2>/dev/null && break; sleep 0.1; done
     if [ "$client" = capture ]; then
         env "$@" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" "$BEAGLE_PYTHON" "$TG_TESTS/amd_discovery_ro.py" "$W/disc_$l" > "$W/$l.txt" 2>&1
     else
         env "$@" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" "$BEAGLE_PYTHON" "$W/reference.py" > "$W/$l.txt" 2>&1
     fi
     echo $? > "$W/$l.rc"
-    for i in $(seq 100); do grep -q 'client done' "$W/$l.dev" && break; sleep 0.1; done
+    for i in $(seq 300); do grep -q 'client done' "$W/$l.dev" && break; sleep 0.1; done
     kill $srv 2>/dev/null; wait $srv 2>/dev/null; rm -rf "$d"
+    "$BEAGLE_PYTHON" "$W/requests.py" "$W/$l.rec.0" > "$W/$l.req"
 }
 cat > "$W/reference.py" <<'EOF'
 # the pin's own session: tinygrad's RemotePCIDevice, PCIIfaceBase.__init__'s RESIZE_BAR, then AMDev unmodified (it goes on to
@@ -61,9 +68,14 @@ while i < len(b):
 EOF
 export TG_TESTS
 
+# the sessions, the longest first: the pin's (it goes on into the boot), the capture, then the stops
+pjob ref session ref reference
+pjob cap session cap capture
+for m in 0 ffffffff; do pjob mem_$m session mem_$m capture FAKE_AMD_MEMSIZE=$m; done
+pjob bar512 session bar512 capture FAKE_AMD_BAR0_MB=512
+pwait
+
 # 1. the capture, and the pin's own session on the same card
-session cap capture
-session ref reference
 check "the capture: exit 0, the table equal to the stored RX 7900 XT capture byte for byte" \
     "[ \"\$(cat $W/cap.rc)\" = 0 ] && cmp -s $W/disc_cap/1002_744c_56dd0ec116e3d382.bin ${STORED%.json}.bin"
 cat > "$W/samejson.py" <<'PYEOF'
@@ -76,7 +88,6 @@ sys.exit(1 if bad else 0)
 PYEOF
 check "the capture's .json: the stored IP versions, bases, harvest, VRAM, BAR0, gc_info and reserved VRAM" \
     "\"$BEAGLE_PYTHON\" $W/samejson.py $W/disc_cap/1002_744c_56dd0ec116e3d382.json $STORED"
-"$BEAGLE_PYTHON" "$W/requests.py" "$W/cap.rec.0" > "$W/cap.req"; "$BEAGLE_PYTHON" "$W/requests.py" "$W/ref.rec.0" > "$W/ref.req"
 n=$(($(wc -l < "$W/cap.req") - 3))
 check "its requests but the last three (the identity reads: config dwords 0x00, 0x08, 0x2c) are byte for byte the start of the pin's session ($n requests)" \
     "head -c \$(( \$(wc -c < $W/cap.rec.0) - 99 )) $W/cap.rec.0 | cmp -s - <(head -c \$(( \$(wc -c < $W/cap.rec.0) - 99 )) $W/ref.rec.0) \
@@ -87,19 +98,15 @@ check "it writes nothing but LNKCTL (one config write) and the index registers (
 
 # 2. the stops: before any index write
 for m in 0 ffffffff; do
-    session mem_$m capture FAKE_AMD_MEMSIZE=$m
-    "$BEAGLE_PYTHON" "$W/requests.py" "$W/mem_$m.rec.0" > "$W/mem_$m.req"
     check "MEMSIZE 0x$m: it stops (exit 1) with no MMIO write" \
         "[ \"\$(cat $W/mem_$m.rc)\" = 1 ] && grep -q 'STOP: MEMSIZE reads 0x$m' $W/mem_$m.txt && ! awk '\$1 == 7' $W/mem_$m.req | grep -q ."
 done
-session bar512 capture FAKE_AMD_BAR0_MB=512
-"$BEAGLE_PYTHON" "$W/requests.py" "$W/bar512.rec.0" > "$W/bar512.req"
 check "a 512 MiB BAR0: it stops (exit 1) with no MMIO write" \
     "[ \"\$(cat $W/bar512.rc)\" = 1 ] && grep -q 'STOP: BAR0 is 512 MiB' $W/bar512.txt && ! awk '\$1 == 7' $W/bar512.req | grep -q ."
 
 ls -lR "$DLCACHE" > "$W/dlcache_after.txt" 2>&1
 check "tinygrad's download cache is unchanged" "cmp -s $W/dlcache_before.txt $W/dlcache_after.txt"
-left=$(ps -axo command= | awk '$0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
-check "no fake is left running" "[ $left -eq 0 ]"
+left=$(tracked_alive)   # this stage's own fakes only: other stages' may be running
+check "no fake is left running" "[ -z \"\$left\" ]"
 echo; [ $fails -eq 0 ] && echo "test_n3: PASS" || echo "test_n3: $fails FAILED"
 [ $fails -eq 0 ]

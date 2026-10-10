@@ -11,9 +11,10 @@
      (golden_amd_boot --session): the same requests, pages and audits;
   4. the C++ session killed after its handoff, before its fini, through tgproxy.py --guard: the proxy holds (fail-stop)
      instead of closing the upstream connection under live queues.
-No GPU, no TinyGPU.app and no network.
+Sections 2-3 (cold, then warm) and 4 run at the same time, each its own card, sockets, TMPDIR (the C++ client's lock) and plugin
+log; the checks are printed in this order. No GPU, no TinyGPU.app and no network.
     python test_a2i.py"""
-import os, sys, json, time, struct, signal, socket, tempfile, subprocess
+import os, sys, json, time, shutil, struct, signal, socket, tempfile, traceback, subprocess, concurrent.futures
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay"))
 import tgpaths
@@ -28,7 +29,8 @@ HERE, WORK = tgpaths.HERE, tgpaths.WORK / "a2i"
 PY = os.environ.get("BEAGLE_PYTHON", sys.executable)
 POOL = 64 << 20
 results = []
-def check(name, ok, detail=""): results.append(f"{name}: {'PASS' if ok else 'FAIL'}{(' (' + detail + ')') if detail else ''}")
+def line(name, ok, detail=""): return f"{name}: {'PASS' if ok else 'FAIL'}{(' (' + detail + ')') if detail else ''}"
+def check(name, ok, detail=""): results.append(line(name, ok, detail))
 
 # ── 1. the guard on synthetic events ─────────────────────────────────────────────────────────────────────────────────
 def guard_unit(meta):
@@ -91,22 +93,18 @@ def start(argv, ready, log):
         time.sleep(0.05)
     raise RuntimeError(f"{argv[1]} did not start: {open(log).read()[-800:]}")
 
-def main():
-    WORK.mkdir(parents=True, exist_ok=True)
-    work = tempfile.mkdtemp(dir=WORK)
-    for dev in (0x744c, 0x7550):
-        meta = amg.table_for(dev)[1]
-        guard_unit(meta); guard_huge(meta)
-    exe = gab.WORK / "golden_amd_boot"
-    tgpaths.build_cpp(HERE / "golden_amd_boot.cpp", exe)
-    blobs = gab.blobs_file(work)
-    env_c = lambda sock: {**os.environ, "APL_REMOTE_SOCK": sock, "BEAGLE_TINYGPU_NO_LAUNCH": "1", "TMPDIR": work,
-                          "BEAGLE_TINYGPU_LOG": str(WORK / "test_a2i.log")}
-    for state, prep in (("cold", []), ("warm", ["cold"])):
-        card = gab.Card(work, "cold")
+def env_c(sock, tmp, log):
+    return {**os.environ, "APL_REMOTE_SOCK": sock, "BEAGLE_TINYGPU_NO_LAUNCH": "1", "TMPDIR": tmp, "BEAGLE_TINYGPU_LOG": log}
+
+def record_and_replay(state, prep, work, exe, blobs):
+    """2 and 3 for one state: its check lines. The card's socket and sysmem, the proxy's and the replays' sockets and the C++
+    client's TMPDIR are in a directory of its own under /tmp (socket paths are short); logs and the recording in work."""
+    out, priv = [], tempfile.mkdtemp(prefix=f"a2i{state[0]}.", dir="/tmp")
+    try:
+        card = gab.Card(priv, "cold")
         for label in prep: gab.run(card, gab_py(card.path), {**os.environ}, record=False)
         rec, plog = os.path.join(work, f"rec_{state}"), os.path.join(work, f"proxy_{state}.log")
-        listen = os.path.join(work, f"px_{state}.sock")
+        listen = os.path.join(priv, "px.sock")
         px = start([PY, str(HERE / "replay/tgproxy.py"), "--listen", listen, "--upstream", card.path, "--out", rec, "--guard",
                     "--label", f"a2i {state}"], "tgproxy listening", plog)
         try:
@@ -116,36 +114,69 @@ def main():
             px.send_signal(signal.SIGTERM); px.wait(timeout=60)
         meta = json.load(open(os.path.join(rec, "meta.json")))
         sess = meta["end"]["sessions"]
-        check(f"recording {state} through tgproxy --guard", sess and all(x["how"] == "eof" for x in sess) and "session: the AMD card" in open(plog).read()
-              and card.verdict() == "NO ERRORS", f"{meta['counts']}, sessions {[x['how'] for x in sess]}")
+        out.append(line(f"recording {state} through tgproxy --guard", sess and all(x["how"] == "eof" for x in sess) and "session: the AMD card" in open(plog).read()
+                        and card.verdict() == "NO ERRORS", f"{meta['counts']}, sessions {[x['how'] for x in sess]}"))
         for client in ("daemon", "c++"):
-            rlog, rsock = os.path.join(work, f"replay_{state}_{client}.log"), os.path.join(work, f"rp_{state}_{client}.sock")
+            rlog, rsock = os.path.join(work, f"replay_{state}_{client}.log"), os.path.join(priv, f"rp_{client}.sock")
             rp = start([PY, str(HERE / "replay/tgreplay.py"), "--listen", rsock, "--rec", rec, "--mem", os.path.join(work, f"mem_{state}_{client}"), "--guard"],
                        "tgreplay listening", rlog)
             try:
                 if client == "daemon": ds.session(rsock, POOL)
-                else: subprocess.run([str(exe), blobs, "--session", str(POOL)], env=env_c(rsock), capture_output=True, text=True, timeout=600)
+                else: subprocess.run([str(exe), blobs, "--session", str(POOL)], env=env_c(rsock, priv, os.path.join(work, f"replay_{state}_{client}.tglog")),
+                                     capture_output=True, text=True, timeout=600)
                 rp.wait(timeout=120)
             finally:
                 if rp.poll() is None: rp.kill()
-            out = open(rlog).read()
-            verdict = [l for l in out.splitlines() if l.startswith("replay session")]
-            check(f"replay {state} to the {client}", rp.returncode == 0 and verdict and "PASS" in verdict[0], verdict[0][:300] if verdict else out[-300:])
+            log = open(rlog).read()
+            verdict = [l for l in log.splitlines() if l.startswith("replay session")]
+            out.append(line(f"replay {state} to the {client}", rp.returncode == 0 and verdict and "PASS" in verdict[0], verdict[0][:300] if verdict else log[-300:]))
         card.srv.close()
-    # 4. the C++ session dies after its handoff: the proxy must hold
-    card = gab.Card(work, "cold")
-    listen, plog = os.path.join(work, "px_die.sock"), os.path.join(work, "proxy_die.log")
-    px = start([PY, str(HERE / "replay/tgproxy.py"), "--listen", listen, "--upstream", card.path, "--out", os.path.join(work, "rec_die"), "--guard",
-                "--label", "a2i die"], "tgproxy listening", plog)
-    r = subprocess.run([str(exe), blobs, "--session", str(POOL), "--die-before-fini"], env=env_c(listen), capture_output=True, text=True, timeout=600)
-    for _ in range(100):
-        if "FAIL-STOP" in open(plog).read(): break
-        time.sleep(0.1)
-    held = "FAIL-STOP" in open(plog).read() and "did not see the GPU torn down" in open(plog).read() and px.poll() is None
-    px.kill(); px.wait()
-    check("a C++ session killed before its fini: tgproxy --guard holds", held and r.returncode == 3,
-          [l for l in open(plog).read().splitlines() if "ended:" in l][-1][:300] if "ended:" in open(plog).read() else open(plog).read()[-300:])
-    card.srv.close()
+    finally:
+        shutil.rmtree(priv, ignore_errors=True)
+    return out
+
+def die(work, exe, blobs):
+    """4: the C++ session dies after its handoff: the proxy must hold. Its check line; its sockets and TMPDIR as above."""
+    priv = tempfile.mkdtemp(prefix="a2id.", dir="/tmp")
+    try:
+        card = gab.Card(priv, "cold")
+        listen, plog = os.path.join(priv, "px.sock"), os.path.join(work, "proxy_die.log")
+        px = start([PY, str(HERE / "replay/tgproxy.py"), "--listen", listen, "--upstream", card.path, "--out", os.path.join(work, "rec_die"), "--guard",
+                    "--label", "a2i die"], "tgproxy listening", plog)
+        r = subprocess.run([str(exe), blobs, "--session", str(POOL), "--die-before-fini"], env=env_c(listen, priv, os.path.join(work, "die.tglog")),
+                           capture_output=True, text=True, timeout=600)
+        for _ in range(300):
+            if "FAIL-STOP" in open(plog).read(): break
+            time.sleep(0.1)
+        held = "FAIL-STOP" in open(plog).read() and "did not see the GPU torn down" in open(plog).read() and px.poll() is None
+        px.kill(); px.wait()
+        card.done.acquire(timeout=60)   # the card's session ended (its sysmem files closed) before its directory goes
+        out = [line("a C++ session killed before its fini: tgproxy --guard holds", held and r.returncode == 3,
+                    [l for l in open(plog).read().splitlines() if "ended:" in l][-1][:300] if "ended:" in open(plog).read() else open(plog).read()[-300:])]
+        card.srv.close()
+    finally:
+        shutil.rmtree(priv, ignore_errors=True)
+    return out
+
+def main():
+    WORK.mkdir(parents=True, exist_ok=True)
+    work = tempfile.mkdtemp(dir=WORK, prefix=f"{amg.CHIP}_")
+    for dev in (0x744c, 0x7550):
+        meta = amg.table_for(dev)[1]
+        guard_unit(meta); guard_huge(meta)
+    gab.WORK.mkdir(parents=True, exist_ok=True)   # (a stage's own work directory may not have it yet)
+    exe = gab.WORK / "golden_amd_boot"
+    tgpaths.build_cpp(HERE / "golden_amd_boot.cpp", exe)
+    blobs = gab.blobs_file(work)
+    parts = {"cold": lambda: record_and_replay("cold", [], work, exe, blobs), "warm": lambda: record_and_replay("warm", ["cold"], work, exe, blobs),
+             "die": lambda: die(work, exe, blobs)}
+    with concurrent.futures.ThreadPoolExecutor(1 if os.environ.get("TINYGPU_TEST_JOBS") == "1" else len(parts)) as ex:
+        futures = {name: ex.submit(parts[name]) for name in ("warm", "cold", "die")}   # (longest first)
+    for name in ("cold", "warm", "die"):
+        try: results.extend(futures[name].result())
+        except Exception as e:
+            traceback.print_exception(e)
+            check(f"the {name} part", False, f"{type(e).__name__}: {e}"[:300])
     print("=== A2i"); print("\n".join(results))
     sys.exit(0 if all("PASS" in r for r in results) else 1)
 

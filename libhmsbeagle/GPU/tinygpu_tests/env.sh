@@ -99,7 +99,8 @@ amd_d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
 # changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
 # exit; it is in $TMPDIR, next to tinygrad's nv_usb4.lock, so a computer sharing $BEAGLE_TINYGPU_DATA runs its own eGPU freely).
 hw_begin() {
-    local v
+    local v fwlog="$TINYGPU_TEST_WORK/check_firmware_hw.log"
+    [ "$DRY" = 1 ] && fwlog="$TMPDIR/check_firmware_hw.log"   # run_l0.sh's dry run: its own (its TMPDIR is its private directory)
     # the plugin's knobs, and the harness's (plan V1's markers and fakes, the log, C10's test kill, run_point.sh --kill, and the
     # guard's path); since plan step C13c no Python runs, so tinygrad's own variables change nothing
     for v in BEAGLE_NV_TEARDOWN BEAGLE_NV_RECOVER BEAGLE_NV_DATA_MB APL_REMOTE_SOCK BEAGLE_TINYGPU_NO_LAUNCH FAKE_TEST_BIN BEAGLE_NV_FILL_LAUNCH_DIMS \
@@ -109,8 +110,8 @@ hw_begin() {
     require_status_build
     # the firmware is staged where the boot looks for it, BEAGLE's cache (decision 5; macOS may purge ~/Library/Caches): offline,
     # re-staging from tinygrad's cache and $BEAGLE_TINYGPU_DATA/fw if needed
-    "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$TINYGPU_TEST_WORK/check_firmware_hw.log" 2>&1 \
-        || { cat "$TINYGPU_TEST_WORK/check_firmware_hw.log"; echo "firmware not staged (check_firmware.py failed); not running"; exit 2; }
+    "$BEAGLE_PYTHON" "$TG_TESTS/check_firmware.py" > "$fwlog" 2>&1 \
+        || { cat "$fwlog"; echo "firmware not staged (check_firmware.py failed); not running"; exit 2; }
     # the one allowed knob: plan step B1's fallback unload (LEVEL_0 when 0), announced so the run's output says so
     [ -n "${BEAGLE_NV_UNLOAD_LEVEL+x}" ] && echo "note: BEAGLE_NV_UNLOAD_LEVEL=$BEAGLE_NV_UNLOAD_LEVEL is set (0: the LEVEL_0 unload, plan step B1's fallback)"
     mkdir -p "$BEAGLE_TINYGPU_DATA/runs"; HW_LOCK="${TMPDIR:-/tmp}"; HW_LOCK="${HW_LOCK%/}/beagle_tinygpu_hw.lock"
@@ -215,4 +216,55 @@ amd_hw_end() {
     taken=$(amd_boot_taken "$1")
     [ -z "$AMD_PREDICTED" ] || [ -z "$taken" ] || [ "$taken" = "$AMD_PREDICTED" ] \
         || { echo "STOP: a $taken boot where amd_state.py predicted a $AMD_PREDICTED one (stop rule S8): stop all hardware work"; return 1; }
+}
+
+# ── Parallel runs (the offline suite) ──────────────────────────────────────────────────────────────────────────────────
+# pjob runs a job (a fake run and its checks' inputs, say) in the background once one of this computer's TINYGPU_TEST_JOBS
+# slots is free. The slots are files in TINYGPU_TEST_SLOTS, shared by every stage and every suite on the computer, so their
+# jobs together keep about that many runs going (each about two busy threads: a Python fake and its client; the default
+# leaves the performance cores some room, so the long runs stay off the efficiency cores). pjob takes the
+# slot in the calling shell, so a stage's jobs start in the order it asks for them: longest first. A job must not call pjob
+# itself (it would hold a slot while it waits for another). TINYGPU_TEST_JOBS=1 runs a stage's jobs one at a time.
+: "${TINYGPU_TEST_JOBS:=$(( $(sysctl -n hw.perflevel0.physicalcpu 2>/dev/null || echo 8) * 5 / 8 ))}"
+: "${TINYGPU_TEST_SLOTS:=$HOME/Library/Caches/beagle-tinygpu-tests/.slots}"
+export TINYGPU_TEST_JOBS TINYGPU_TEST_SLOTS
+pjob_init() {   # <dir>: the jobs' exit statuses go to <dir>/.pjob (a stage's work directory)
+    PJOB_DIR=$1/.pjob; PJOB_PIDS=""
+    rm -rf "$PJOB_DIR"; mkdir -p "$PJOB_DIR" "$TINYGPU_TEST_SLOTS"
+}
+slot_take() {   # sets SLOT: a slot file, created here (noclobber: a builtin, no fork) and holding this shell's pid
+    local i f p ok nc=""
+    [[ $- == *C* ]] && nc=1
+    while :; do
+        for ((i = 1; i <= TINYGPU_TEST_JOBS; i++)); do
+            f="$TINYGPU_TEST_SLOTS/$i"
+            set -C; { echo $$ > "$f"; } 2>/dev/null; ok=$?; [ -z "$nc" ] && set +C
+            [ $ok -eq 0 ] && { SLOT=$f; return 0; }
+            p=""; { read -r p < "$f"; } 2>/dev/null   # a slot whose job died without freeing it (SIGKILL) is free again
+            [ -n "$p" ] && ! kill -0 "$p" 2>/dev/null && rm -f "$f"
+        done
+        sleep 0.2
+    done
+}
+pjob() {   # <name> <command> [args ...]: <command> in the background, in a slot; after pwait, pjob_rc <name> is its exit status
+    local name=$1; shift
+    slot_take
+    (
+        echo "$(exec sh -c 'echo $PPID')" > "$SLOT"   # this job's own pid (bash 3.2 has no BASHPID)
+        trap 'echo $? > "$PJOB_DIR/$name.rc"; rm -f "$SLOT"' EXIT
+        "$@"
+    ) &
+    PJOB_PIDS="$PJOB_PIDS $!"
+}
+pwait() { [ -z "$PJOB_PIDS" ] || wait $PJOB_PIDS; PJOB_PIDS=""; }   # every pjob of this shell (not other children)
+pjob_rc() { local rc; { read -r rc < "$PJOB_DIR/$1.rc"; } 2>/dev/null && echo "$rc" || echo 255; }   # 255: it never finished
+# The checks that nothing is left running see only the stage's own processes: its run helpers record each fake, proxy,
+# replay server and crash guard they start in TG_PIDS (a file; unset, nothing is recorded), with a word of its command line,
+# so a reused pid is not mistaken for one of them.
+track_pid() { [ -n "$TG_PIDS" ] && [ -n "$1" ] && echo "$1 $2" >> "$TG_PIDS"; return 0; }   # <pid> <a word of its command>
+tracked_alive() {   # every recorded process still running: "pid command" lines
+    local p w c
+    [ -n "$TG_PIDS" ] && [ -f "$TG_PIDS" ] || return 0
+    while read -r p w; do c=$(ps -o command= -p "$p" 2>/dev/null) && [[ $c == *"$w"* ]] && echo "$p $c"; done < "$TG_PIDS"
+    return 0
 }

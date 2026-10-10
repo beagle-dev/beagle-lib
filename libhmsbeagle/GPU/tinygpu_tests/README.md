@@ -56,6 +56,19 @@ python test_n9.py                                                             # 
 Outputs go to `~/Library/Caches/beagle-tinygpu-tests/` on each computer (`TINYGPU_TEST_WORK` overrides; the old in-repo
 `.work/` stays git-ignored).
 
+`run_offline.sh` runs the stages at the same time, each in its own work directory (`s/<key>` under `TINYGPU_TEST_WORK`;
+its log stays at the top, as `test_*.log` always did) and TMPDIR, and holds the hardware scripts' lock while it runs, so no
+hardware script starts beside it. Inside the stages, each fake run is a job (env.sh `pjob`) that waits for one of this
+computer's `TINYGPU_TEST_JOBS` slots (default: five eighths of the performance cores; the slot files are in
+`TINYGPU_TEST_SLOTS`, shared by every suite and stage run on the computer), longest first. `TINYGPU_TEST_JOBS=1` runs the
+jobs one at a time. Every stage also runs alone, as listed above. The harness's C++ builds (`tgpaths.build_cpp`) are kept
+and rebuilt only when the compiler, the command line or the preprocessed source changes; `TINYGPU_TEST_CACHE` (default
+`TINYGPU_TEST_WORK`; the suite uses the top directory) is where the builds of repository sources are shared between stages.
+Each run's plugin and guard log is its own file (`tglog_<label>.log` from `run_fake_device.sh`, `tglog_replay_<label>.log`
+from `run_replay.sh`, `<label>.tglog` from the AMD tests' own run helpers), and each stage's "nothing left running" check
+sees only the processes its runs recorded (env.sh `track_pid`); the suite checks once more at the end for anything it
+started. `FAKE_CHECK_CACHE=1` makes the fakes compare every cached GPU page-table translation with a fresh walk.
+
 | File | What it checks |
 |---|---|
 | `oracle/` | plan steps C13b and A2l: `nv_dispatch_daemon.py`, `nv_init_helper.py` and `nv_compile_helper.py`, and `amd_dispatch_daemon.py`, `amd_compile_helper.py` and `amd_hcq_patch.py`, moved unchanged from `libhmsbeagle/GPU`: tinygrad plus BEAGLE's patches, which the goldens import (`tgpaths.setup()`). Not installed and off the run path: the plugin boots Ada, Blackwell and the RX 7900 XT itself and refuses any other. Since plan step C13c nothing runs the NV daemon (its command loop, the levels' commands included, stays as the reference it was); the AMD daemon runs only in the harness, as the oracle (`amd_daemon_session.py`, `run_amd_l0.sh`) |

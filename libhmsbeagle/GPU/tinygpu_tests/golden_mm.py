@@ -14,8 +14,8 @@ states) and send the same requests, byte for byte, reads included, leaving the s
   - fence: a system-memory mapping at an address TinyGPU.app never handed out is refused before anything is sent.
   - DMA segment lists of 1, 3 and 32 segments.
 Then perturbed copies of the port must fail. No GPU and no TinyGPU.app: a private socket and TMPDIR.
-    python golden_mm.py"""
-import os, sys, json, random, socket, struct, tempfile, threading, subprocess, hashlib, types
+    python golden_mm.py [--part N/K]   (one of K parts of the checks: see PARTS)"""
+import os, sys, json, random, socket, struct, tempfile, threading, subprocess, hashlib, types, functools
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
@@ -375,29 +375,38 @@ PERTURBED = [("TinyGPUMemory.h", "uint64_t start = storage[l1][l2][0], nsize", "
              ("TinyGPUNVMemory.h", 'if (is_page(entry_id)) return read_fields(entry_id)["valid"] != 0;',
               'if (is_page(entry_id)) return pte().decode(entry(entry_id))["valid"] != 0;', "random from the constructor, MMU v3, seed 1")]   # a vfree of huge pages
 
-def main():
+# --part N/K runs the N-th of these slices of the checks (TLSF, the cases in cases()'s order, the fence, each perturbed copy)
+# and exits with its number of failures: run_goldens.sh runs the K parts as separate jobs, about 10 s each, and prints their
+# output in order with the verdict
+PARTS = ((0, 7), (7, 12), (12, 19), (19, 22), (22, 24))
+
+def main(part=None):
     exe = f"{WORK}/golden_mm"
     tgpaths.build_cpp(f"{HERE}/golden_mm.cpp", exe)
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tgmm.")
     tempfile.tempdir = priv
-    total, fails = run_tlsf(exe, priv)
-    print(f"TLSF: {total} operations")
     all_cases = cases()
-    for c in all_cases:
+    def tlsf():
+        total, fails = run_tlsf(exe, priv)
+        print(f"TLSF: {total} operations")
+        return fails
+    def one_case(c):
         same, summary = run_case(c, exe, priv)
-        fails += not same
         print(f"{'IDENTICAL' if same else 'MISMATCH '} {c.name}: {summary}")
-    ok = run_fence(exe, priv)
-    fails += not ok
-    print(f"{'PASS' if ok else 'FAIL'} fence: a system-memory mapping at a device address TinyGPU.app never handed out is refused, sending nothing")
-    caught, gpu = 0, tgpaths.REPO / "libhmsbeagle" / "GPU"
-    for hdr, old, new, case in PERTURBED:
-        inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
+        return not same
+    def fence():
+        ok = run_fence(exe, priv)
+        print(f"{'PASS' if ok else 'FAIL'} fence: a system-memory mapping at a device address TinyGPU.app never handed out is refused, sending nothing")
+        return not ok
+    def perturbed(i):   # PERTURBED[i] built from its own include directory, then the case that shows it: 1 if NOT CAUGHT
+        hdr, old, new, case = PERTURBED[i]
+        inc, gpu = f"{priv}/perturbed{i}", tgpaths.REPO / "libhmsbeagle" / "GPU"
+        os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
         for f in ("TinyGPUMemory.h", "TinyGPUNVMemory.h"):
             text = (gpu / f).read_text()
             if f == hdr: assert text.count(old) == 1, (hdr, old); text = text.replace(old, new)
             open(f"{inc}/libhmsbeagle/GPU/{f}", "w").write(text)
-        pexe = f"{priv}/golden_mm_perturbed"
+        pexe = f"{priv}/golden_mm_perturbed{i}"
         tgpaths.build_cpp(f"{HERE}/golden_mm.cpp", pexe, "-iquote", inc)   # found before the repository's
         if case == "TLSF":
             with open(os.devnull, "w") as null:
@@ -406,11 +415,20 @@ def main():
                 finally: sys.stdout = saved
             hit = f > 0
         else: hit = not run_case(next(c for c in all_cases if c.name == case), pexe, priv, quiet=True)[0]
-        caught += hit
         print(f"perturbed {hdr} ({old.splitlines()[0][:60]} ...): {'REJECTED' if hit else 'NOT CAUGHT'} by '{case}'")
-    fails += len(PERTURBED) - caught
+        return not hit
+    checks = ([tlsf] + [functools.partial(one_case, c) for c in all_cases] + [fence]
+              + [functools.partial(perturbed, i) for i in range(len(PERTURBED))])
+    assert PARTS[0][0] == 0 and PARTS[-1][1] == len(checks) and all(a[1] == b[0] for a, b in zip(PARTS, PARTS[1:])), "PARTS must cover every check"
+    lo, hi = PARTS[part - 1] if part else (0, len(checks))
+    fails = sum(check() for check in checks[lo:hi])
+    if part: sys.exit(fails)
     print(f"C6 memory manager vs tinygrad: {'all identical' if not fails else f'{fails} FAILED'}")
     sys.exit(1 if fails else 0)
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:2] == ["--part"]:
+        n, k = map(int, sys.argv[2].split("/"))
+        if k != len(PARTS) or not 1 <= n <= k: sys.exit(f"--part {sys.argv[2]}: golden_mm has {len(PARTS)} parts")
+        main(n)
+    else: main()

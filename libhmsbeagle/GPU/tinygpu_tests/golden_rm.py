@@ -139,32 +139,35 @@ def nvdevice_rm(o, gsp):
 GB20X = dict(gb2=1, gpfifo_class=nv_gpu.BLACKWELL_CHANNEL_GPFIFO_A, compute_class=nv_gpu.BLACKWELL_COMPUTE_B, dma_class=nv_gpu.BLACKWELL_DMA_COPY_B,
              viddec_class=nv_gpu.NVCFB0_VIDEO_DECODER)
 
-def run_case(mmu, vram_mb, exe, priv, quiet=False):
+def run_case(mmu, vram_mb, exe, priv, quiet=False, py=None):
+    """Returns (identical, summary, tinygrad's side): its results, which a rerun of the case (py) reuses."""
     STATE.clear(); STATE.update(ADA if mmu == 2 else {**ADA, **GB20X})
     srv, path = gm.listen(priv)
-    fake = gm.FakeTG(priv)
-    t = gm.serve_once(srv, fake)
-    dev, ifa = gm.py_dev(path, mmu, vram_mb)
-    gm.boot_phase(dev, ifa)
-    export = json.dumps(d._mm_export(types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev, pci_dev=dev.pci_dev))))
-    gm.sync(dev.pci_dev)
-    snap, mark = fake.snapshot(), len(fake.rec)
     qpath = f"{priv}/queues"
-    qm = gg.init_queues(qpath)
-    rm_fake = FakeRM(qm, fake)
-    gsp = py_rm(dev, qpath)
-    o = PyOps(gsp, ifa)
-    nvdevice_rm(o, gsp)
-    py_out = o.finish(dev.mm)
-    dev.pci_dev.sock.close(); t.join(timeout=60)
-    py_rec, py_bar1, py_q = bytes(fake.rec[mark:]), hashlib.sha256(fake.bar1).hexdigest(), bytes(qm)
-    qm.close()
+    if py is None:
+        fake = gm.FakeTG(priv)
+        t = gm.serve_once(srv, fake)
+        dev, ifa = gm.py_dev(path, mmu, vram_mb)
+        gm.boot_phase(dev, ifa)
+        export = json.dumps(d._mm_export(types.SimpleNamespace(iface=types.SimpleNamespace(dev_impl=dev, pci_dev=dev.pci_dev))))
+        gm.sync(dev.pci_dev)
+        snap, mark = fake.snapshot(), len(fake.rec)
+        qm = gg.init_queues(qpath)
+        rm_fake = FakeRM(qm, fake)
+        gsp = py_rm(dev, qpath)
+        o = PyOps(gsp, ifa)
+        nvdevice_rm(o, gsp)
+        py_out = o.finish(dev.mm)
+        dev.pci_dev.sock.close(); t.join(timeout=60)
+        py = export, snap, o.ops, py_out, bytes(fake.rec[mark:]), hashlib.sha256(fake.bar1).hexdigest(), bytes(qm), len(rm_fake.rpcs)
+        qm.close()
+    export, snap, ops, py_out, py_rec, py_bar1, py_q, rpcs = py
 
     fake2 = gm.FakeTG(priv, snap=snap)
     qm2 = gg.init_queues(qpath)
     FakeRM(qm2, fake2)
     t2 = gm.serve_once(srv, fake2)
-    for name, text in (("export.json", export), ("ops.txt", "\n".join(o.ops) + "\n"),
+    for name, text in (("export.json", export), ("ops.txt", "\n".join(ops) + "\n"),
                        ("state.txt", "\n".join([f"{k} {v}" for k, v in STATE.items() if k not in ("runlists", "grctx")] +
                                                [f"runlist {k} {v}" for k, v in STATE["runlists"].items()] +
                                                [f"grctx {' '.join(map(str, g))}" for g in STATE["grctx"]]) + "\n")):
@@ -177,15 +180,14 @@ def run_case(mmu, vram_mb, exe, priv, quiet=False):
     qm2.close()
     same = py_out == cpp_out and py_rec == crec and py_bar1 == cbar1 and py_q == cq
     frames = gm.count_frames(py_rec)
-    rpcs = len(rm_fake.rpcs)
-    summary = (f"{len(o.ops)} calls ({sum(l.startswith('error') for l in py_out)} raised), {rpcs} RPCs, {frames['MMIO_READ']} BAR reads, "
+    summary = (f"{len(ops)} calls ({sum(l.startswith('error') for l in py_out)} raised), {rpcs} RPCs, {frames['MMIO_READ']} BAR reads, "
                f"{frames['MMIO_WRITE']} writes, {frames['MAP_SYSMEM_FD']} sysmem")
     if not same and not quiet:
         i = next((i for i, (a, b) in enumerate(zip(py_out, cpp_out)) if a != b), min(len(py_out), len(cpp_out)))
         summary += (f"\n   first differing result line {i} of {len(py_out)}/{len(cpp_out)}: tinygrad {py_out[i:i + 1]} c++ {cpp_out[i:i + 1]}"
                     f"\n   streams {'same' if py_rec == crec else 'differ'}, VRAM {'same' if py_bar1 == cbar1 else 'differs'}, "
                     f"queues {'same' if py_q == cq else 'differ'}")
-    return same, summary
+    return same, summary, py
 
 # a perturbed copy of the port must be caught
 PERTURBED = [("TinyGPUNVRM.h", "TGVirtMapping fresh = mm.valloc(desc.size, 0x1000, false, true);   // allocate buffers (dict.get's default: always)\n            const TGVirtMapping& x = bufs && bufs->count(buf) ? bufs->at(buf) : fresh;",
@@ -196,22 +198,18 @@ PERTURBED = [("TinyGPUNVRM.h", "TGVirtMapping fresh = mm.valloc(desc.size, 0x100
 def main():
     exe = f"{WORK}/golden_rm"
     tgpaths.build_cpp(f"{HERE}/golden_rm.cpp", exe)
+    builds = gg.perturbed_builds(f"{HERE}/golden_rm.cpp", PERTURBED)
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tgrm.")
     tempfile.tempdir = priv
     fails = 0
     for mmu, vram in ((2, 8188), (3, 16304)):
-        same, summary = run_case(mmu, vram, exe, priv)
+        same, summary, p = run_case(mmu, vram, exe, priv)
+        if mmu == 2: py = p   # tinygrad's side, which the perturbed copies' reruns reuse
         fails += not same
         print(f"{'IDENTICAL' if same else 'MISMATCH '} NVDevice's RM calls, {'Ada, MMU v2' if mmu == 2 else 'GB20x, MMU v3'} ({vram} MiB): {summary}")
-    caught, gpu = 0, tgpaths.REPO / "libhmsbeagle" / "GPU"
-    for hdr, old, new in PERTURBED:
-        inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-        text = (gpu / hdr).read_text()
-        assert text.count(old) == 1, (hdr, old)
-        open(f"{inc}/libhmsbeagle/GPU/{hdr}", "w").write(text.replace(old, new))
-        pexe = f"{priv}/golden_rm_perturbed"
-        tgpaths.build_cpp(f"{HERE}/golden_rm.cpp", pexe, "-iquote", inc)
-        hit = not run_case(2, 8188, pexe, priv, quiet=True)[0]
+    caught = 0
+    for (hdr, old, new), build in zip(PERTURBED, builds):
+        hit = not run_case(2, 8188, build.result(), priv, quiet=True, py=py)[0]
         caught += hit
         print(f"perturbed {hdr} ({old.splitlines()[0][:60]} ...): {'REJECTED' if hit else 'NOT CAUGHT'}")
     fails += len(PERTURBED) - caught

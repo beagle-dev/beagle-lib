@@ -5,7 +5,7 @@ byte for byte, and every audit pass. No GPU and no TinyGPU.app: tgreplay serves 
 recorded card's chip (its first config read of dword 0: TODO.md plan step N14) chooses the firmware and FAKE_AMD_CHIP;
 --chip prints it and exits.
     python amd_l0_replay.py [--chip] <recording dir>"""
-import os, sys, time, tempfile, subprocess
+import os, sys, time, shutil, tempfile, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "replay"))
 import tgpaths
@@ -25,7 +25,9 @@ HERE, WORK = tgpaths.HERE, tgpaths.WORK / "a2j"
 PY = os.environ.get("BEAGLE_PYTHON", sys.executable)
 
 def replay(rec, client, work, exe, blobs):
-    log, sock = os.path.join(work, f"replay_{client}.log"), os.path.join(work, f"rp_{client}.sock")
+    # the socket in a directory of its own under /tmp: under a work directory its path can pass AF_UNIX's 104 bytes
+    log, sdir = os.path.join(work, f"replay_{client}.log"), tempfile.mkdtemp(prefix="a2j.", dir="/tmp")
+    sock = os.path.join(sdir, f"rp_{client}.sock")
     f = open(log, "w")
     rp = subprocess.Popen([PY, str(HERE / "replay/tgreplay.py"), "--listen", sock, "--rec", rec, "--mem", os.path.join(work, f"mem_{client}"), "--guard"],
                           stdout=f, stderr=subprocess.STDOUT)
@@ -44,6 +46,7 @@ def replay(rec, client, work, exe, blobs):
     except Exception as e: out += f" ({type(e).__name__}: {e})"
     finally:
         if rp.poll() is None: rp.kill()
+        shutil.rmtree(sdir, ignore_errors=True)
     lines = open(log).read().splitlines()
     verdict = next((l for l in lines if l.startswith("replay session")), "(no verdict)")
     report = [l for l in lines if l.startswith("  ")][:22]
@@ -55,6 +58,7 @@ def main():
     import golden_amd_boot as gab   # after FAKE_AMD_CHIP is the recorded card's: its firmware (FW_NAMES), the daemon's id
     WORK.mkdir(parents=True, exist_ok=True)
     work = tempfile.mkdtemp(dir=WORK)
+    gab.WORK.mkdir(parents=True, exist_ok=True)   # (a stage's own work directory may not have it yet)
     exe = gab.WORK / "golden_amd_boot"
     tgpaths.build_cpp(HERE / "golden_amd_boot.cpp", exe)
     blobs = gab.blobs_file(work)

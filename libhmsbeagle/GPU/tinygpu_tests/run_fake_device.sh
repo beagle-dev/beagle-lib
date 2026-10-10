@@ -12,31 +12,40 @@
 # Exit status 0 only if the test booted once, loaded its programs, the teardown says the next boot needs no power cycle
 # (fini_verdict), and the fake device reports NO ERRORS (and the proxy, if any, ended every session cleanly); tinygputest
 # must also have timed its evaluations. Kernels are not run by the fake, so logL is wrong by design.
+# The plugin's and its crash guard's TinyGPULog lines are this run's alone, in $TINYGPU_TEST_WORK/tglog_<label>.log
+# (FAKE_TG_LOG names another file, which must be this run's alone). Every
+# output of the label is removed before anything can fail, so a caller never reads an earlier run's. FAKE_RUN_TIMEOUT: the
+# test's time limit in seconds (300). With TG_PIDS set, the fake, the proxy and the crash guard are recorded there (env.sh).
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-require_no_launch_guard
 LABEL=$1; shift
+MEM="$TINYGPU_TEST_WORK/fake_device_$LABEL"; DLOG="$TINYGPU_TEST_WORK/fake_device_$LABEL.log"; OUT="$TINYGPU_TEST_WORK/run_device_$LABEL.txt"
+PLOG="$TINYGPU_TEST_WORK/proxy_$LABEL.log"; OUT2="$TINYGPU_TEST_WORK/run_device_${LABEL}_second.txt"
+TGLOG=${FAKE_TG_LOG:-$TINYGPU_TEST_WORK/tglog_$LABEL.log}
+rm -rf "$MEM"; rm -f "$DLOG" "$OUT" "$PLOG" "$OUT2" "$TGLOG"
+require_no_launch_guard
 ENVS=(); while [ $# -gt 0 ] && [ "$1" != "--" ]; do ENVS+=("$1"); shift; done; [ "$1" = "--" ] && shift
 TEST_BIN=${FAKE_TEST_BIN:-$TEST_BIN}
 [ -x "$TEST_BIN" ] || { echo "no $TEST_BIN; build it first"; exit 2; }
 SOCKDIR=$(mktemp -d /tmp/tgd.XXXXXX); SOCK="$SOCKDIR/dev.sock"
-MEM="$TINYGPU_TEST_WORK/fake_device_$LABEL"; rm -rf "$MEM"; mkdir -p "$MEM"
-DLOG="$TINYGPU_TEST_WORK/fake_device_$LABEL.log"; OUT="$TINYGPU_TEST_WORK/run_device_$LABEL.txt"; rm -f "$DLOG" "$OUT"
+mkdir -p "$MEM"
 SRV=""; TST=""; T2=""; PRX=""
 cleanup() { [ -n "$TST" ] && kill -KILL "$TST" 2>/dev/null; [ -n "$T2" ] && kill -KILL "$T2" 2>/dev/null
             [ -n "$PRX" ] && { kill -KILL "$PRX" 2>/dev/null; wait "$PRX" 2>/dev/null; }
-            [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }; rm -rf "$SOCKDIR"; }
+            [ -n "$SRV" ] && { kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null; }
+            local g=""; { read -r g < "$SOCKDIR/guard.pid"; } 2>/dev/null; track_pid "$g" beagle-tinygpu-guard
+            rm -rf "$SOCKDIR"; }
 trap cleanup EXIT
 trap 'echo "[$LABEL] interrupted"; exit 130' INT TERM
 "$BEAGLE_PYTHON" "$TG_TESTS/fake_nv_device.py" "$SOCK" "$MEM" > "$DLOG" 2>&1 &
-SRV=$!
+SRV=$!; track_pid $SRV fake_nv_device
 for i in $(seq 100); do grep -q listening "$DLOG" 2>/dev/null && break; sleep 0.1; done
 grep -q listening "$DLOG" || { echo "the fake device did not start:"; cat "$DLOG"; exit 2; }
 CLIENT_SOCK=$SOCK
 if [ -n "$FAKE_TG_PROXY" ]; then
-    PLOG="$TINYGPU_TEST_WORK/proxy_$LABEL.log"; CLIENT_SOCK="$SOCKDIR/px.sock"
+    CLIENT_SOCK="$SOCKDIR/px.sock"
     "$BEAGLE_PYTHON" "$TG_TESTS/replay/tgproxy.py" --listen "$CLIENT_SOCK" --upstream "$SOCK" --out "$FAKE_TG_PROXY" --label "$LABEL" \
         $([ "${FAKE_TG_GUARD:-0}" = 1 ] && echo --guard) > "$PLOG" 2>&1 &
-    PRX=$!
+    PRX=$!; track_pid $PRX tgproxy
     for i in $(seq 100); do grep -q "tgproxy listening" "$PLOG" 2>/dev/null && break; sleep 0.1; done
     grep -q "tgproxy listening" "$PLOG" || { echo "the proxy did not start:"; cat "$PLOG"; exit 2; }
     # what ran, for run_replay.sh: the same test and variables replay the recording
@@ -47,30 +56,31 @@ fi
 # the watchdog's SIGKILL must reach (with FAKE_SIGINT_AFTER, perl comes before env: macOS strips DYLD_LIBRARY_PATH from a system
 # binary's environment).
 run_test() {
-    exec ${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" APL_REMOTE_SOCK="$CLIENT_SOCK" \
+    exec ${FAKE_SIGINT_AFTER:+perl -e 'setpgrp(0, 0); exec @ARGV or die "exec: $!"'} env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TGLOG" APL_REMOTE_SOCK="$CLIENT_SOCK" \
         BEAGLE_NV_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard" BEAGLE_TG_GUARD_PIDFILE="$SOCKDIR/guard.pid" \
         BEAGLE_NV_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" TMPDIR="$SOCKDIR" "${ENVS[@]}" "$TEST_BIN" "$@"
 }
 run_test "$@" > "$OUT" 2>&1 &
 TST=$!
 TRIP=""
-for i in $(seq ${FAKE_RUN_TIMEOUT:-300}); do
+end=$((SECONDS + ${FAKE_RUN_TIMEOUT:-300}))
+while [ $SECONDS -le $end ]; do
     kill -0 $TST 2>/dev/null || break
     if [ -n "$FAKE_SIGINT_AFTER" ] && grep -qE "$FAKE_SIGINT_AFTER" "$OUT"; then   # its group is its own pid (setpgrp above)
         FAKE_SIGINT_AFTER=; kill -INT -- -$TST; echo "[$LABEL] SIGINT sent to the test's process group"
     fi
     if [ -n "$FAKE_SECOND_AFTER" ] && grep -qE "$FAKE_SECOND_AFTER" "$OUT"; then
-        FAKE_SECOND_AFTER=; OUT2="$TINYGPU_TEST_WORK/run_device_${LABEL}_second.txt"; s0=$(date +%s)
+        FAKE_SECOND_AFTER=; s0=$(date +%s)
         run_test --reps 1 > "$OUT2" 2>&1 &
         T2=$!
-        for j in $(seq 30); do kill -0 $T2 2>/dev/null || break; sleep 1; done
+        e2=$((SECONDS + 30)); while [ $SECONDS -le $e2 ] && kill -0 $T2 2>/dev/null; do sleep 0.1; done
         if kill -0 $T2 2>/dev/null; then echo "[$LABEL] second process still running after 30 s; killing it (fake device only)"; kill -KILL $T2; fi
         wait $T2; rc2=$?; T2=""; echo "[$LABEL] second process exit=$rc2 after $(( $(date +%s) - s0 )) s (output: $OUT2)"
     fi
     if [ -n "$FAKE_TG_PROXY" ] && grep -q "FAIL-STOP" "$PLOG" 2>/dev/null; then   # the guard (or the proxy) stopped forwarding
         TRIP=$(grep -m1 "ended: failstop" "$PLOG" | sed 's/.*ended: failstop: //'); kill -KILL $TST 2>/dev/null; break
     fi
-    sleep 1
+    sleep 0.1
 done
 if kill -0 $TST 2>/dev/null; then echo "[$LABEL] timed out; killing the test (fake device only)"; kill -KILL $TST; fi
 wait $TST; RC=$?; TST=""
@@ -80,7 +90,7 @@ GPID=$(cat "$SOCKDIR/guard.pid" 2>/dev/null)
 if [ -n "$GPID" ]; then
     for i in $(seq 600); do
         kill -0 "$GPID" 2>/dev/null || break
-        grep -q "then kill $GPID\." "$TINYGPU_TEST_WORK/beagle_tinygpu_offline.log" 2>/dev/null && break
+        grep -q "then kill $GPID\." "$TGLOG" 2>/dev/null && break
         sleep 0.1
     done
     if kill -0 "$GPID" 2>/dev/null; then
@@ -94,7 +104,16 @@ if [ -n "$PRX" ]; then
     kill -0 $PRX 2>/dev/null && { echo "[$LABEL] the proxy did not end its recording"; kill -KILL $PRX; }
     wait $PRX 2>/dev/null; PRX=""
 fi
-sleep 0.3; kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
+# every client is gone: the fake ends each session it served with its counts ("client done") and its verdict. Wait (3 s at
+# most) until it has printed them for all: it then sleeps in accept() with a verdict for every "client done"
+for i in $(seq 60); do
+    case $(ps -o stat= -p $SRV 2>/dev/null) in
+        [SI]*) awk '/ device\): client done: /{c++} / device\): (NO ERRORS|[0-9]+ ERRORS, first: )/{v++} END{exit c != v}' "$DLOG" && break ;;
+        Z*|"") break ;;   # it has exited
+    esac
+    sleep 0.05
+done
+kill $SRV 2>/dev/null; wait $SRV 2>/dev/null; SRV=""
 [ -n "$FAKE_TG_PROXY" ] && [ -d "$FAKE_TG_PROXY" ] && cp "$SOCKDIR/run.json" "$FAKE_TG_PROXY/run.json"
 echo "[$LABEL] tinygputest exit=$RC (output: $OUT)"
 grep -E "fake TinyGPU.app \((AD107|GA104|GB205) device\): " "$DLOG" | tail -2 | cut -c1-600

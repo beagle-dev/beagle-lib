@@ -17,13 +17,14 @@ recordings' replies) when this Mac has the recordings, and their streams must th
 goes. The VBIOS variants are the captured dumps and copies made malformed or ambiguous at the places the walk reads. Then
 perturbed copies of the port must fail. No GPU and no TinyGPU.app.
     python golden_boot.py"""
-import os, re, sys, glob, socket, struct, hashlib, tempfile, subprocess, contextlib, collections, pathlib, shutil, ctypes
+import os, re, sys, glob, socket, struct, hashlib, tempfile, subprocess, contextlib, collections, pathlib, shutil, ctypes, functools
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
 tgpaths.setup()
 sys.path.insert(0, str(tgpaths.HERE / "replay"))
 import nv_init_helper  # the daemon's patches: the WARM guard, the suppressed wait_for_reset, COT's log, the BAR check, P2's images
 import golden_mm as gm
+import golden_gsp as gg   # perturbed_builds
 import tgwire
 from tinygrad.runtime.support.system import APLRemotePCIDevice, RemoteCmd
 from tinygrad.runtime.support.nv.nvdev import NVDev, NVMemoryManager
@@ -239,6 +240,7 @@ def frames(rec):
         if not (out and cmd == RemoteCmd.MMIO_READ and out[-1] == f): out.append(f)
     return out
 
+@functools.cache   # (a recording is read once: every rerun of the case compares with it)
 def l0_frames(name, mode):
     """The L0 recording's requests from the BAR resize to the end of the case's step: the first BAR1 write (early: the root
     page table), the last request before the first MAP_SYSMEM_FD (flcn: NV_FLCN.init_sw's last image), or NV_GSP.init_sw's
@@ -259,16 +261,21 @@ def l0_frames(name, mode):
 def names(fs):
     return [tgwire.cmd_name(f[0]) + (f" {tgwire.reg_name(struct.unpack_from(gm.REQ, f)[3])}" if f[0] == RemoteCmd.MMIO_READ else "") for f in fs]
 
-def run_case(c, exe, priv, quiet=False):
-    """Returns (identical, summary)."""
+def run_case(c, exe, priv, quiet=False, py=None):
+    """Returns (identical, summary, tinygrad's side): its results, which a rerun of the case (py) reuses."""
     mask = lambda s: re.sub(r"after \d+ ms", "after N ms", s)
     pd, cd = f"{priv}/data_py", f"{priv}/data_cpp"
-    for p in (pd, cd): shutil.rmtree(p, ignore_errors=True); os.makedirs(p)
+    saved = lambda d: sorted((p.name, hashlib.sha256(p.read_bytes()).hexdigest()) for p in pathlib.Path(d).glob("vbios/*"))
+    sysmem = lambda fk: [(f.seek(0), f.read())[1] for f in fk.keep]   # every allocation's contents, in order
+    for p in (pd, cd) if py is None else (cd,): shutil.rmtree(p, ignore_errors=True); os.makedirs(p)
     srv, path = gm.listen(priv)
-    fake = FakeBoot(priv, c)
-    t = gm.serve_once(srv, fake)
-    py_out = mask(py_boot(path, c, pd))
-    t.join(timeout=60)
+    if py is None:
+        fake = FakeBoot(priv, c)
+        t = gm.serve_once(srv, fake)
+        py_out = mask(py_boot(path, c, pd))
+        t.join(timeout=60)
+        py = py_out, frames(fake.rec), fake.bar1, saved(pd), sysmem(fake)
+    py_out, pf, py_bar1, py_saved, ps = py
     fake2 = FakeBoot(priv, c)
     t2 = gm.serve_once(srv, fake2)
     # BEAGLE_NV_RECOVER=0: tinygrad's code has no recovery of a warm GPU (plan step P4 is the port's own, test_p4.sh's)
@@ -278,11 +285,8 @@ def run_case(c, exe, priv, quiet=False):
     r = subprocess.run([exe, c.mode], capture_output=True, text=True, timeout=120, env=env)
     t2.join(timeout=60); srv.close()
     cpp_out = mask(r.stdout.strip() + (f" exit {r.returncode}: {r.stderr.strip()}" if r.returncode else ""))
-    pf, cf = frames(fake.rec), frames(fake2.rec)
-    saved = lambda d: sorted((p.name, hashlib.sha256(p.read_bytes()).hexdigest()) for p in pathlib.Path(d).glob("vbios/*"))
-    sysmem = lambda fk: [(f.seek(0), f.read())[1] for f in fk.keep]   # every allocation's contents, in order
-    ps, cs = sysmem(fake), sysmem(fake2)
-    same = py_out == cpp_out and pf == cf and fake.bar1 == fake2.bar1 and saved(pd) == saved(cd) and ps == cs
+    cf, cs = frames(fake2.rec), sysmem(fake2)
+    same = py_out == cpp_out and pf == cf and py_bar1 == fake2.bar1 and py_saved == saved(cd) and ps == cs
     ok = same and c.expect is not None and re.search(c.expect, py_out) is not None
     summary = f"{len(pf)} requests: {py_out.splitlines()[-1][:110]}"
     if c.stream is not None:
@@ -300,10 +304,10 @@ def run_case(c, exe, priv, quiet=False):
     if not same and not quiet:
         k = next((i for i, (a, b) in enumerate(zip(pf, cf)) if a != b), min(len(pf), len(cf)))
         summary += (f"\n    tinygrad: {py_out}\n    c++     : {cpp_out}\n    streams: {len(pf)} vs {len(cf)} requests, first difference at {k}: "
-                    f"{names(pf[k:k + 2])} | {names(cf[k:k + 2])}; VRAM {'same' if fake.bar1 == fake2.bar1 else 'differs'}; saved {saved(pd)} | {saved(cd)}; "
+                    f"{names(pf[k:k + 2])} | {names(cf[k:k + 2])}; VRAM {'same' if py_bar1 == fake2.bar1 else 'differs'}; saved {py_saved} | {saved(cd)}; "
                     f"sysmem allocations {len(ps)}/{len(cs)}, differing: {[i for i, (a, b) in enumerate(zip(ps, cs)) if a != b]}")
     elif (c.expect is None or not re.search(c.expect, py_out)) and not quiet: summary += f"\n    unexpected result: {py_out}"
-    return ok, summary
+    return ok, summary, py
 
 # (header, text, replacement, the case that must catch it)
 PERTURBED = [
@@ -346,22 +350,20 @@ PERTURBED = [
 def main():
     exe = f"{WORK}/golden_boot"
     tgpaths.build_cpp(f"{HERE}/golden_boot.cpp", exe)
+    builds = gg.perturbed_builds(f"{HERE}/golden_boot.cpp", [p[:3] for p in PERTURBED])
     priv = tempfile.mkdtemp(dir="/tmp", prefix="tgboot.")
     tempfile.tempdir = priv
     all_cases, fails = cases(), 0
+    targets = [next(c for c in all_cases if c.name.startswith(case)) for *_, case in PERTURBED]
+    hits = [None] * len(PERTURBED)
     for c in all_cases:
-        ok, summary = run_case(c, exe, priv)
+        ok, summary, py = run_case(c, exe, priv)
         fails += not ok
         print(f"{'IDENTICAL' if ok else 'MISMATCH '} {c.name}: {summary}")
-    caught, gpu = 0, tgpaths.REPO / "libhmsbeagle" / "GPU"
-    for hdr, old, new, case in PERTURBED:
-        inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
-        text = (gpu / hdr).read_text()
-        assert text.count(old) == 1, (hdr, old)
-        open(f"{inc}/libhmsbeagle/GPU/{hdr}", "w").write(text.replace(old, new))
-        pexe = f"{priv}/golden_boot_perturbed"
-        tgpaths.build_cpp(f"{HERE}/golden_boot.cpp", pexe, "-iquote", inc)   # found before the repository's
-        hit = not run_case(next(c for c in all_cases if c.name.startswith(case)), pexe, priv, quiet=True)[0]
+        # the perturbed copies this case must catch, run now: they reuse its tinygrad side (VRAM is 256 MiB: one case's at a time)
+        for i in (i for i, t in enumerate(targets) if t is c): hits[i] = not run_case(c, builds[i].result(), priv, quiet=True, py=py)[0]
+    caught = 0
+    for (hdr, old, new, case), hit in zip(PERTURBED, hits):
         caught += hit
         print(f"perturbed {hdr} ({old.strip()[:60]} -> {new.strip()[:40]}): {'REJECTED' if hit else 'NOT CAUGHT'} by '{case}'")
     fails += len(PERTURBED) - caught

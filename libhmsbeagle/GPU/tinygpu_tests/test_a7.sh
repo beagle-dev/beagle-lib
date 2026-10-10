@@ -8,18 +8,19 @@
 #   - every synthetictest line of d1_runs.txt with --doubleprecision: exactly the line's kernels, as in single precision
 #     (amd_d1_verdict), against the DP_ variant. (hmctest's --tinygpu is single precision only.)
 # The fake runs no kernel, so results are wrong by design: tinygputest exits 1 here, and run_amd_point.sh --double and
-# run_amd_d1.sh's D1_DOUBLE=1 compare the numbers on the card. One PASS or FAIL line per check; exit 0 only if all pass.
+# run_amd_d1.sh's D1_DOUBLE=1 compare the numbers on the card. The runs go in parallel (env.sh pjob), each with its own fake
+# and its own TinyGPULog file, the checks after them all. One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
 GUARD_BIN="$BEAGLE_BUILD/libhmsbeagle/GPU/CMake_TinyGPU/beagle-tinygpu-guard"
 [ -x "$GUARD_BIN" ] || { echo "no $GUARD_BIN; build beagle-tinygpu-guard first"; exit 2; }
-W="$TINYGPU_TEST_WORK/a7"; rm -rf "$W"; mkdir -p "$W"
-TL="$W/beagle_tinygpu.log"   # the plugin's and the guard's TinyGPULog lines in these runs
+W="$TINYGPU_TEST_WORK/a7_${FAKE_AMD_CHIP:-gfx1100}"; rm -rf "$W"; mkdir -p "$W"   # the chip's own: both chips' passes may run at once
+TG_PIDS="$W/pids"   # each fake and guard these runs start (env.sh track_pid), for the last check
 fails=0
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
-glog() { sed -n "/a7 run $1 starts/,/a7 run .* starts/p" "$TL"; }   # one run's TinyGPULog lines
+glog() { cat "$W/$1.tglog"; }   # one run's TinyGPULog lines (the plugin's and its guard's), in the run's own file
 verdict() { grep -E "fake TinyGPU.app \(AMD device\): (NO ERRORS|[0-9]+ ERRORS)" "$W/$1.dev" | tail -1; }
 CLEAN="the plugin finalized the GPU itself; exiting"
 padded() {   # BeagleGPUImpl's padded state count
@@ -29,25 +30,38 @@ padded() {   # BeagleGPUImpl's padded state count
 run() {   # <label> <variant> <program> [args ...]: one run on a fresh fake card, then its guard (waited for, or ended if it holds)
     local l=$1 v=$2 prog=$3; shift 3
     local d; d=$(mktemp -d /tmp/tg7.XXXXXX)
-    mkdir -p "$W/mem_$l"
-    echo "a7 run $l starts" >> "$TL"
+    mkdir -p "$W/mem_$l"; : > "$W/$l.tglog"
     FAKE_AMD_HSACO=$v "$BEAGLE_PYTHON" "$TG_TESTS/fake_amd_device.py" "$d/dev.sock" "$W/mem_$l" > "$W/$l.dev" 2>&1 &
-    local srv=$!
-    for i in $(seq 100); do grep -q listening "$W/$l.dev" 2>/dev/null && break; sleep 0.1; done
-    env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$TL" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" \
+    local srv=$!; track_pid $srv fake_amd_device
+    for i in $(seq 300); do grep -q listening "$W/$l.dev" 2>/dev/null && break; kill -0 $srv 2>/dev/null || break; sleep 0.1; done
+    env BEAGLE_TINYGPU_NO_LAUNCH=1 BEAGLE_TINYGPU_NO_DOWNLOAD=1 BEAGLE_TINYGPU_LOG="$W/$l.tglog" APL_REMOTE_SOCK="$d/dev.sock" TMPDIR="$d" \
         BEAGLE_AMD_GUARD="$TG_TESTS/replay/crash_guard_wrap.sh" BEAGLE_TG_GUARD_BIN="$GUARD_BIN" BEAGLE_TG_GUARD_PIDFILE="$d/guard.pid" \
         BEAGLE_AMD_DATA_MB=${POOL_MB:-512} BEAGLE_AMD_PROFILE=1 DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAGLE_BUILD/examples/$prog" "$@" > "$W/$l.out" 2> "$W/$l.err" < /dev/null
     echo $? > "$W/$l.rc"
-    local gpid; gpid=$(cat "$d/guard.pid" 2>/dev/null)
+    local gpid; gpid=$(cat "$d/guard.pid" 2>/dev/null); track_pid "$gpid" beagle-tinygpu-guard
     if [ -n "$gpid" ]; then   # it exits at the plugin's clean; one that holds keeps the fake's connection
-        for i in $(seq 600); do kill -0 "$gpid" 2>/dev/null || break; grep -q "then kill $gpid\." "$TL" && break; sleep 0.1; done
+        for i in $(seq 600); do kill -0 "$gpid" 2>/dev/null || break; grep -q "then kill $gpid\." "$W/$l.tglog" && break; sleep 0.1; done
         if kill -0 "$gpid" 2>/dev/null; then
             echo "[$l] the guard (pid $gpid) held the fake connection; ending it" > "$W/$l.held"; kill -KILL "$gpid"
             for i in $(seq 50); do kill -0 "$gpid" 2>/dev/null || break; sleep 0.1; done   # not this shell's child: polled
         fi
     fi
-    for i in $(seq 100); do [ "$(grep -c 'client done' "$W/$l.dev")" -ge 2 ] && break; sleep 0.1; done
+    # the fake's verdict on both sessions (the resource listing's and the run's), which it prints after their "client done"
+    for i in $(seq 100); do [ "$(grep -cE 'fake TinyGPU.app \(AMD device\): (NO ERRORS|[0-9]+ ERRORS)' "$W/$l.dev")" -ge 2 ] && break; sleep 0.1; done
     kill $srv 2>/dev/null; wait $srv 2>/dev/null; rm -rf "$d" "$W/mem_$l"
+}
+d1_run() {   # <label> <variant> <command words ...>: a D1 line's run in double precision
+    local l=$1 v=$2; shift 2
+    POOL_MB=2048 run d1_$l $v "$@" --doubleprecision   # at 63 states in double, 655 MB of buffers besides DP_64's 24 MiB of scratch
+}
+d1_jobs() {   # <1|0>: a job for each synthetictest line of d1_runs.txt on a variant bigger than DP_4 (1), or on DP_4 (0)
+    local label cmd kernels v
+    while IFS='|' read -r label cmd kernels; do
+        [ ${cmd%% *} = synthetictest ] || continue
+        v=DP_$(padded $(echo "$cmd" | sed -nE 's/.*--states ([0-9]+).*/\1/p'))
+        [ $1 = 1 ] && [ $v = DP_4 ] && continue; [ $1 = 0 ] && [ $v != DP_4 ] && continue
+        pjob d1_$label d1_run $label $v $cmd   # $cmd split into the program and its arguments
+    done < <(grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt")
 }
 
 loaded() {   # <label> <variants, comma-separated>: exactly these variants' programs loaded, each once
@@ -60,26 +74,30 @@ runs_on() {   # <label> <variants> <implementation>: the run's instances, its va
         && grep -qE "(Implementation : |\()TinyGPU-$3" "$W/$1.out" && glog $1 | grep -q "$CLEAN" && verdict $1 | grep -q "NO ERRORS"
 }
 
+# the runs, longest first (the D1 lines at 63 states, on DP_64), then their checks in order
+pjob_init "$W"
+d1_jobs 1
+pjob dp4 run dp4 DP_4 tinygputest --double --state-count 4 --reps 3 --diag-compare-cpu
+pjob dp64 run dp64 DP_64 tinygputest --double --state-count 64 --reps 3 --diag-compare-cpu
+pjob dp2 run dp2 DP_4,DP_64 tinygputest --double --state-count 4,64 --reps 3
+pjob sp4 run sp4 SP_4 tinygputest --state-count 4 --reps 3
+d1_jobs 0
+pwait
+
 # 1. tinygputest in double precision
-run dp4 DP_4 tinygputest --double --state-count 4 --reps 3 --diag-compare-cpu
 check "--double at 4 states: the resource lists DOUBLE, a TinyGPU-Double instance on DP_4, the card finalized (NO ERRORS)" "runs_on dp4 DP_4 Double"
-run dp64 DP_64 tinygputest --double --state-count 64 --reps 3 --diag-compare-cpu
 check "--double at 64 states: TinyGPU-Double on DP_64, the card finalized (NO ERRORS)" "runs_on dp64 DP_64 Double"
-run dp2 DP_4,DP_64 tinygputest --double --state-count 4,64 --reps 3
 check "--double, two instances at 4 and 64 states: one boot, DP_4 and DP_64 each loaded once, every instance's tips read back exactly (NO ERRORS)" \
     "runs_on dp2 DP_4,DP_64 Double && [ \"\$(grep -c 'TinyGPU/AMD: C++ boot done' $W/dp2.err)\" -eq 1 ] \
      && grep -q '^tips: every instance read back its own tip partials exactly' $W/dp2.out"
 
 # 2. the default stays single precision
-run sp4 SP_4 tinygputest --state-count 4 --reps 3
 check "without --double: TinyGPU-Single on SP_4, as before" "runs_on sp4 SP_4 Single"
 
 # 3. D1's synthetictest lines in double precision
 while IFS='|' read -r label cmd kernels; do
-    set -- $cmd; prog=$1; shift
-    [ $prog = synthetictest ] || continue
+    [ ${cmd%% *} = synthetictest ] || continue
     states=$(echo "$cmd" | sed -nE 's/.*--states ([0-9]+).*/\1/p'); v=DP_$(padded $states)
-    POOL_MB=2048 run d1_$label $v $prog "$@" --doubleprecision   # at 63 states in double, 655 MB of buffers besides DP_64's 24 MiB of scratch
     why=$(amd_d1_verdict "$W/d1_$label.out" "$W/d1_$label.err" "$kernels")
     if [ -z "$why" ] && [ "$(cat $W/d1_$label.rc)" = 0 ] && grep -q "Impl Name : TinyGPU-Double" "$W/d1_$label.out" \
        && glog d1_$label | grep -q "$CLEAN" && verdict d1_$label | grep -q "NO ERRORS"; then
@@ -89,7 +107,7 @@ while IFS='|' read -r label cmd kernels; do
     fi
 done < <(grep -E '^[a-z0-9_]+\|' "$TG_TESTS/d1_runs.txt")
 
-left=$(ps -axo command= | awk '$1 ~ /beagle-tinygpu-guard$/ || $0 ~ /fake_amd_device\.py/' | wc -l | tr -d ' ')
+left=$(tracked_alive | wc -l | tr -d ' ')   # this stage's own fakes and guards only: other stages' run at the same time
 check "no fake or guard is left running" "[ $left -eq 0 ]"
 echo; [ $fails -eq 0 ] && echo "test_a7: PASS" || echo "test_a7: $fails FAILED"
 [ $fails -eq 0 ]

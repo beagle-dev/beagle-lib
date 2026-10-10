@@ -185,7 +185,7 @@ def main():
     py = lambda sock, pause=False: [sys.executable, __file__, "--py-session", sock] + (["--pause"] if pause else [])
     cpp = lambda extra=(): [str(exe), blobs] + list(extra)
     env_for = lambda card, extra=None: {"APL_REMOTE_SOCK": card.path, "BEAGLE_TINYGPU_NO_LAUNCH": "1", "TMPDIR": work,
-                                        "BEAGLE_TINYGPU_LOG": str(WORK / "golden_amd_boot.log"), **(extra or {})}
+                                        "BEAGLE_TINYGPU_LOG": str(WORK / f"golden_amd_boot_{fad.amg.CHIP}.log"), **(extra or {})}
     def prep(card, steps):   # tinygrad's own sessions bring a card to a case's state
         for label in steps:
             out, _, err = run(card, py(card.path, pause=label == "faults"), env_for(card), inject=cov.inject_faults if label == "faults" else None, record=False)

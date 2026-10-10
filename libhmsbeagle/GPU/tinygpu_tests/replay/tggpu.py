@@ -5,7 +5,7 @@ GPU, and tgreplay.py, which replays what the GSP wrote but runs what the GPU doe
 page tables are exercised, not assumed (inv:verification#5).
 Also the GSP message queues as both see them: the elements tinygrad queues (NVRpcQueue._send_rpc_record, ip.py:38-54) and
 the replies it reads (read_resp, :63-80), and the channel facts a front end learns from them."""
-import os, sys, struct, types, pathlib, collections
+import os, sys, mmap, ctypes, struct, types, pathlib, collections
 HERE = pathlib.Path(__file__).resolve().parent
 if str(HERE.parent) not in sys.path: sys.path.insert(0, str(HERE.parent))
 import tgpaths
@@ -17,6 +17,9 @@ sys.path.insert(0, str(HERE))
 import tgwire
 
 PAGE = 0x1000
+_libc = ctypes.CDLL(None, use_errno=True)   # mmap and munmap (FileMapping)
+_libc.mmap.restype, _libc.mmap.argtypes = ctypes.c_void_p, [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_longlong]
+_libc.munmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
 
 def levels(mmu_ver):
     """((shift, entries), ...) from the top level down: MemoryManager's pte_covers and pte_cnt (memory.py:186-187) for
@@ -39,9 +42,14 @@ def chip(boot42):
     return ("gb20x", 3, nv_gpu.BLACKWELL_COMPUTE_B) if arch >= 0x1a else ("ada", 2, nv_gpu.ADA_COMPUTE_A)
 
 class Vram:
-    """Sparse VRAM: 4 KiB pages, zero until written."""
-    def __init__(self): self.pages = {}
+    """Sparse VRAM: 4 KiB pages, zero until written. watch: the pages Memory's cached translations read; a write to one of
+    them bumps gen, which empties those caches (Memory.translate)."""
+    def __init__(self): self.pages, self.watch, self.gen = {}, set(), 0
     def read(self, pa, n):
+        o = pa & (PAGE - 1)
+        if 0 < n <= PAGE - o:   # inside one page (the walk's entries, most GPU accesses)
+            p = self.pages.get(pa >> 12)
+            return bytes(p[o:o + n]) if p is not None else bytes(n)
         out, end = bytearray(), pa + n
         while pa < end:
             p, o = divmod(pa, PAGE); k = min(PAGE - o, end - pa)
@@ -49,31 +57,126 @@ class Vram:
             pa += k
         return bytes(out)
     def write(self, pa, data):
-        i = 0
-        while i < len(data):
-            p, o = divmod(pa + i, PAGE); k = min(PAGE - o, len(data) - i)
-            self.pages.setdefault(p, bytearray(PAGE))[o:o + k] = data[i:i + k]
+        i, n, pages, watch = 0, len(data), self.pages, self.watch
+        while i < n:
+            p, o = divmod(pa + i, PAGE); k = min(PAGE - o, n - i)
+            page = pages.get(p)
+            if page is None: page = pages[p] = bytearray(PAGE)
+            page[o:o + k] = data[i:i + k]
+            if p in watch: watch.clear(); self.gen += 1   # a page some cached walk read
             i += k
-    def view(self, off, size, fmt='Q'):   # what NVPageTableEntry reads entries through (nvdev.vram.view, nvdev.py:34)
-        vram = self
-        class V:
-            def __getitem__(self, i): return struct.unpack("<Q", vram.read(off + i * 8, 8))[0]
-            def __setitem__(self, i, v): vram.write(off + i * 8, struct.pack("<Q", v))
-        return V()
+    def view(self, off, size, fmt='Q'): return Entries(self, off)   # what NVPageTableEntry reads entries through (nvdev.vram.view, nvdev.py:34)
+
+class Entries:
+    """A page table's 8-byte entries at VRAM off, as Vram.view gives them; seen, if set, collects the VRAM pages each read
+    touched (Memory's walk: what its cached translations depend on)."""
+    __slots__ = ("vram", "off", "seen")
+    def __init__(self, vram, off, seen=None): self.vram, self.off, self.seen = vram, off, seen
+    def __getitem__(self, i):
+        a = self.off + i * 8
+        if self.seen is not None: self.seen.update((a >> 12, (a + 7) >> 12))
+        return struct.unpack("<Q", self.vram.read(a, 8))[0]
+    def __setitem__(self, i, v): self.vram.write(self.off + i * 8, struct.pack("<Q", v))
+
+class WalkVram:
+    """Memory.mmu.vram: the views a walk's NVPageTableEntry reads, recording their pages in seen while a step runs."""
+    def __init__(self, vram): self.vram, self.seen = vram, None
+    def view(self, off, size, fmt='Q'): return Entries(self.vram, off, self.seen)
+
+CHECK_CACHE = os.environ.get("FAKE_CHECK_CACHE", "") == "1"   # every cached translation also walked afresh; a difference raises
+
+class FileMapping:
+    """mmap.mmap(fd, size): the file's shared read-write mapping, made with libc's mmap, as fast as the plugin's own: CPython's
+    first asks the drive to flush its cache (fcntl F_FULLFSYNC on macOS), about 5 ms for each of a session's ~40 allocations.
+    What the fake uses behaves as mmap's does: slices read as bytes and take a buffer of their size, an index is a byte's
+    int, struct.unpack_from reads it (the buffer protocol), and close() unmaps it."""
+    def __init__(self, fd, size):
+        addr = _libc.mmap(None, size, mmap.PROT_READ | mmap.PROT_WRITE, mmap.MAP_SHARED, fd, 0)
+        if addr is None or addr == ctypes.c_void_p(-1).value: e = ctypes.get_errno(); raise OSError(e, os.strerror(e))
+        self.addr, self.size = addr, size
+        self.mv = memoryview((ctypes.c_char * size).from_address(addr)).cast("B")
+    def __len__(self): return self.size
+    def __buffer__(self, flags):
+        if self.mv is None: raise ValueError("mmap closed or invalid")
+        return self.mv
+    def __getitem__(self, k):
+        mv = self.mv
+        if mv is None: raise ValueError("mmap closed or invalid")
+        if isinstance(k, slice): return bytes(mv[k])
+        if not -self.size <= k < self.size: raise IndexError("mmap index out of range")
+        return mv[k]
+    def __setitem__(self, k, v):
+        mv = self.mv
+        if mv is None: raise ValueError("mmap closed or invalid")
+        if isinstance(k, slice):
+            if len(range(*k.indices(self.size))) != memoryview(v).nbytes: raise IndexError("mmap slice assignment is wrong size")
+        elif not -self.size <= k < self.size: raise IndexError("mmap index out of range")
+        mv[k] = v
+    def close(self):
+        if self.mv is None: return
+        self.mv.release(); self.mv = None
+        _libc.munmap(self.addr, self.size)
 
 class Memory:
     """GPU virtual addresses, through the client's page tables to VRAM or to sysmem by device address (sys_rw(iova, n) reads,
-    sys_rw(iova, n, data) writes)."""
+    sys_rw(iova, n, data) writes). Translations are cached exactly: per 4 KiB page (tlb) and per level's step of the walk
+    (steps, keyed by the table and the entry), until VRAM a cached walk read is written (Vram.gen) or, for tlb, the root
+    changes; FAKE_CHECK_CACHE=1 compares every translation with a fresh walk."""
     def __init__(self, vram, sys_rw, r, mmu_ver=2):   # r: regs() of the chip, which has its MMU version's entry types
-        self.vram, self.sys_rw, self.root, self.levels = vram, sys_rw, None, levels(mmu_ver)
+        self.vram, self.sys_rw, self.levels = vram, sys_rw, levels(mmu_ver)
+        self.tlb, self.steps, self.gen, self.walk_vram = {}, {}, vram.gen, WalkVram(vram)
+        self.root = None
         v = f"NV_MMU_VER{mmu_ver}"
         self.mmu = types.SimpleNamespace(mm=types.SimpleNamespace(level_cnt=len(self.levels), pte_covers=[1 << s for s, _ in self.levels]),
-                                         mmu_ver=mmu_ver, vram=vram, pte_t=getattr(r, f"{v}_PTE"), pde_t=getattr(r, f"{v}_PDE"),
+                                         mmu_ver=mmu_ver, vram=self.walk_vram, pte_t=getattr(r, f"{v}_PTE"), pde_t=getattr(r, f"{v}_PDE"),
                                          dual_pde_t=getattr(r, f"{v}_DUAL_PDE"))
+
+    @property
+    def root(self): return self._root
+    @root.setter
+    def root(self, pa):   # the page-directory root (SET_PAGE_DIRECTORY): the page walks start elsewhere (a step does not depend on it)
+        self._root = pa
+        self.tlb.clear()
 
     def translate(self, va):
         """(is_sysmem, address), as the GPU's MMU would find it."""
         if self.root is None: raise RuntimeError(f"GPU access to VA {va:#x} before any SET_PAGE_DIRECTORY")
+        if self.gen != self.vram.gen: self.tlb.clear(); self.steps.clear(); self.gen = self.vram.gen
+        if CHECK_CACHE: return self.check(va)
+        hit = self.tlb.get(va >> 12)
+        if hit is None: hit = self.tlb[va >> 12] = self.walk(va)
+        return hit[0], hit[1] + (va & (PAGE - 1))
+
+    def walk(self, va):
+        """(is_sysmem, the address of va's 4 KiB page) through the steps, each cached; raises for an unmapped VA."""
+        pt, steps = self.root, self.steps
+        for lv, (shift, cnt) in enumerate(self.levels):
+            idx = (va >> shift) & (cnt - 1)
+            s = steps.get((pt, lv, idx))
+            if s is None: s = steps[(pt, lv, idx)] = self.step(pt, lv, idx)
+            if s[0] is None: raise RuntimeError(f"GPU access to unmapped VA {va:#x} (level {lv})")
+            if s[0]: return s[1], s[2] + (va & ((1 << shift) - 1) & ~(PAGE - 1))
+            pt = s[1]
+        raise RuntimeError(f"GPU page walk for {va:#x} ran past the last level")
+
+    def step(self, pt, lv, idx):
+        """Entry idx of the level-lv table at pt, as tinygrad's decoders read it (nvdev.py:33-67): (None,) not valid, (True,
+        is_sysmem, address) a PTE (tinygrad writes its address as address_sys, whatever the aperture, nvdev.py:39), or
+        (False, the next table). The VRAM pages it read are watched."""
+        self.walk_vram.seen = seen = set()
+        try:
+            e = NVPageTableEntry(self.mmu, pt, lv)
+            if not e.valid(idx): return (None,)
+            if e.is_page(idx):
+                f = e.read_fields(idx)
+                return True, f["aperture"] == 2, f["address_sys"] << 12
+            return False, e.address(idx)
+        finally:
+            self.walk_vram.seen = None
+            self.vram.watch |= seen
+
+    def fresh(self, va):
+        """The walk with no cache (FAKE_CHECK_CACHE's reference)."""
         pt = self.root
         for lv, (shift, cnt) in enumerate(self.levels):
             e = NVPageTableEntry(self.mmu, pt, lv)
@@ -84,6 +187,20 @@ class Memory:
                 return f["aperture"] == 2, (f["address_sys"] << 12) + (va & ((1 << shift) - 1))
             pt = e.address(idx)
         raise RuntimeError(f"GPU page walk for {va:#x} ran past the last level")
+
+    def check(self, va):
+        """FAKE_CHECK_CACHE=1: the cached translation (or its exception) must equal a fresh walk's; a difference raises."""
+        def outcome(f):
+            try: return f(va), None
+            except RuntimeError as e: return None, str(e)
+        def cached(va):
+            hit = self.tlb.get(va >> 12)
+            if hit is None: hit = self.tlb[va >> 12] = self.walk(va)
+            return hit[0], hit[1] + (va & (PAGE - 1))
+        c, f = outcome(cached), outcome(self.fresh)
+        if c != f: raise RuntimeError(f"translation cache: VA {va:#x} translates to {c[0] if c[1] is None else c[1]} cached, {f[0] if f[1] is None else f[1]} walked afresh")
+        if f[1] is not None: raise RuntimeError(f[1])
+        return f[0]
 
     def read(self, va, n):
         out = bytearray()
