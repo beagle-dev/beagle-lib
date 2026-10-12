@@ -34,7 +34,7 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
-      hSpectralDistances(NULL),
+      hSpectralDistances(NULL), hSpectralDistancesDirty(false),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
@@ -147,7 +147,6 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
     if (count > 0) {
         const double* categoryRates = this->hCategoryRates[0];
         int nCat = this->kCategoryCount;
-        GPUInterface* gpuIf = this->gpu;
 
         // Patch the touched matrices' entries into the persistent host mirror
         // (untouched matrices keep whatever they were last set to).
@@ -160,12 +159,21 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
             }
         }
 
-        // Push the whole pooled buffer in one call, rather than one
-        // MemcpyHostToDevice per matrix.
-        gpuIf->MemcpyHostToDevice(dSpectralDistancesOrigin, hSpectralDistances,
-            sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
+        // Uploaded by the next kernel that reads distances, so a model with one
+        // eigen decomposition per branch (one call per eigen index) uploads once
+        hSpectralDistancesDirty = true;
     }
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::flushSpectralDistances() {
+    if (hSpectralDistancesDirty) {
+        // the whole pooled buffer in one call, rather than one MemcpyHostToDevice per matrix
+        this->gpu->MemcpyHostToDevice(dSpectralDistancesOrigin, hSpectralDistances,
+            sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
+        hSpectralDistancesDirty = false;
+    }
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -177,6 +185,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPrunePP(
         int rescale, int streamIndex, int waitIndex) {
     int ei1 = hEigenIndexForMatrix[c1MatIdx];
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
     this->kernels->PartialsPartialsPruningSpectral(p1, p2, p3,
         this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
@@ -194,6 +203,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSP(
         int rescale, int streamIndex, int waitIndex) {
     int ei1 = hEigenIndexForMatrix[c1MatIdx];
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
     this->kernels->StatesPartialsPruningSpectral(s1, p2, p3,
         this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
@@ -211,6 +221,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         int rescale, int streamIndex, int waitIndex) {
     int ei1 = hEigenIndexForMatrix[c1MatIdx];
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
     this->kernels->StatesStatesPruningSpectral(s1, s2, p3,
         this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
         this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
@@ -317,6 +328,7 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
         GPUPtr partials1, GPUPtr c2, bool sibIsStates,
         GPUPtr partials3,
         int c1MatIdx, int c2MatIdx) {
+    flushSpectralDistances();
     int ei2 = hEigenIndexForMatrix[c2MatIdx];
     GPUPtr ievc2 = this->dIevc[ei2];
     GPUPtr evec2 = this->dEvec[ei2];
@@ -627,6 +639,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
     const int S  = this->kPaddedStateCount;
     const int SS = S * S;
     const int cwIdx = categoryWeightsIndices[0];
+
+    flushSpectralDistances();
 
     /* Compute per-site marginal likelihoods into dIntegrationTmp. */
     this->kernels->IntegrateLikelihoods(

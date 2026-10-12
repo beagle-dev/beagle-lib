@@ -47,9 +47,12 @@ private:
     /* Host-side mirror of dSpectralDistancesOrigin (same layout/size:
      * kMatrixCount * kSpectralDistanceStrideElements elements), kept
      * persistent across calls so updateTransitionMatrices can patch just the
-     * touched matrices' entries and then push the whole pooled buffer to the
-     * device in a single MemcpyHostToDevice call. */
+     * touched matrices' entries and mark the mirror dirty; the first kernel
+     * that reads distances afterwards pushes the whole pooled buffer in a
+     * single MemcpyHostToDevice call (flushSpectralDistances), however many
+     * updateTransitionMatrices calls (e.g. one per eigen index) came before. */
     Real*   hSpectralDistances;
+    bool    hSpectralDistancesDirty;
 
     /* Backward eigenvector buffers for the parent branch in pre-order.
      * dEvecT[ei]  = U   stored row-major (dEvecT[j*S+k] = U[j,k]).
@@ -225,6 +228,8 @@ protected:
                           int rescale, int streamIndex, int waitIndex) override;
 
 private:
+    void flushSpectralDistances();
+
     void dispatchGrowingSpectral(bool isTop, bool isRoot,
                                   GPUPtr partials1, GPUPtr c2, bool sibIsStates,
                                   GPUPtr partials3,
