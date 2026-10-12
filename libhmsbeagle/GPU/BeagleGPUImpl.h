@@ -252,6 +252,14 @@ protected:
     // Then a dense read of an index that was never written densely returns BEAGLE_ERROR_OUT_OF_RANGE.
     virtual bool denseMatricesOnDemand() const { return false; }
 
+    // ensureBufferCounts' steps for the structures of a derived class sized by the matrix count, called while the
+    // counts are still the old ones when the matrix count grows to newMatrixCount. Each returns BEAGLE_SUCCESS, or an
+    // error with the instance valid at the old counts. growDerivedHostArrays: larger host arrays, after the base
+    // ones. growDerivedPools: device pools through growPool, after the base ones; a std::bad_alloc thrown while it
+    // makes the handles of a pool that moved marks the pool lost.
+    virtual int growDerivedHostArrays(int newMatrixCount) { return BEAGLE_SUCCESS; }
+    virtual int growDerivedPools(int newMatrixCount) { return BEAGLE_SUCCESS; }
+
     // A sub-buffer of parent that is released by freeWithSubPointers(parent)
     GPUPtr createSubPointer(GPUPtr parent, size_t offset, size_t size);
     // Releases the sub-buffers made from parent by createSubPointer, then frees parent

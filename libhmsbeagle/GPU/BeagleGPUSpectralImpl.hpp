@@ -33,8 +33,8 @@ namespace gpu {
 
 BEAGLE_GPU_TEMPLATE
 BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
-    : dSpectralDistancesOrigin(0), dSpectralDistances(NULL), hEigenIndexForMatrix(NULL),
-      hSpectralDistances(NULL), hSpectralDistancesDirty(false),
+    : dSpectralDistancesOrigin(0), kSpectralDistancePoolCapacity(0), dSpectralDistances(NULL),
+      hEigenIndexForMatrix(NULL), hSpectralDistances(NULL), hSpectralDistancesDirty(false),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
@@ -98,6 +98,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     size_t distStride = gpuIf->AlignMemOffset(this->kCategoryCount * sizeof(Real));
     kSpectralDistanceStrideElements = (unsigned int)(distStride / sizeof(Real));
     dSpectralDistancesOrigin = gpuIf->AllocateMemory(this->kMatrixCount * distStride);
+    kSpectralDistancePoolCapacity = this->kMatrixCount;
     for (int i = 0; i < this->kMatrixCount; i++) {
         dSpectralDistances[i] = this->createSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
     }
@@ -432,11 +433,43 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitio
 }
 
 BEAGLE_GPU_TEMPLATE
-int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
-                                                                  int matrixBufferCount,
-                                                                  int scaleBufferCount) {
-    this->gpu->SynchronizeHost(); // as beagle.h says, also here
-    return BEAGLE_ERROR_NO_IMPLEMENTATION; // temporary, until the distance pool grows with the base pools
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::growDerivedHostArrays(int newMatrixCount) {
+    // the host mirror and the eigen indices keep their entries, with zeroes after them
+    Real* distances = (Real*) this->gpu->CallocHost(sizeof(Real),
+                                                    (size_t) newMatrixCount * kSpectralDistanceStrideElements);
+    if (distances == NULL)
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    const int oldLength = std::max(this->kMatrixCount, kSpectralDistancePoolCapacity);
+    const int newLength = std::max(newMatrixCount, kSpectralDistancePoolCapacity);
+    if (!growHostArray(hEigenIndexForMatrix, this->kMatrixCount, newMatrixCount) ||
+        !growHostArray(dSpectralDistances, oldLength, newLength)) { // zero handles until the pool grows
+        this->gpu->FreeHostMemory(distances);
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    memcpy(distances, hSpectralDistances,
+           sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
+    this->gpu->FreeHostMemory(hSpectralDistances);
+    hSpectralDistances = distances;
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::growDerivedPools(int newMatrixCount) {
+    // The host mirror is authoritative and the device pool only receives whole uploads of it, so nothing is copied:
+    // a pool that moved is uninitialised, and the next kernel that reads distances uploads the mirror. (Its offsets
+    // fit an int: the matrix pool's, which ensureBufferCounts checks first, are larger.)
+    const size_t stride = (size_t) kSpectralDistanceStrideElements * sizeof(Real);
+    const int length = std::max(newMatrixCount, kSpectralDistancePoolCapacity); // of dSpectralDistances
+    const int returnCode = this->growPool(dSpectralDistancesOrigin, kSpectralDistancePoolCapacity, stride,
+                                          newMatrixCount, 0);
+    if (!this->hasSubPointers(dSpectralDistancesOrigin)) { // it moved, or was lost
+        for (int i = 0; i < length; i++)
+            dSpectralDistances[i] = (i < kSpectralDistancePoolCapacity ?
+                                     this->createSubPointer(dSpectralDistancesOrigin, stride * i, stride) :
+                                     (GPUPtr)NULL);
+        hSpectralDistancesDirty = true;
+    }
+    return returnCode;
 }
 
 BEAGLE_GPU_TEMPLATE

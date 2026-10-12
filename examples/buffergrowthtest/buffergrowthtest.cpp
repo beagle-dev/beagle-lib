@@ -57,10 +57,22 @@
  * first post-order). Under AUTO, and without scaling with partitions, only equality is checked: on Apple OpenCL the
  * second tree's root log likelihood is -inf, in a fresh instance too (at 17 states under AUTO; with partitions also
  * before G2b, in the multi-grid post-order). Single and double precision (double is skipped if the resource has none);
- * a creation that fails other than with BEAGLE_ERROR_NO_IMPLEMENTATION is a failure. Then the contract checks (at 4 and
- * 17 states, the latter with transpose scratch past the matrix count), and spectral instances, which return
- * BEAGLE_ERROR_NO_IMPLEMENTATION for now and still work. If the library prints BEAGLE_DEBUG_MEMORY lines (a
- * -DBEAGLE_DEBUG_MEMORY=ON build): every instance must finalize with nothing left; 10 growth cycles, after each of
+ * a creation that fails other than with BEAGLE_ERROR_NO_IMPLEMENTATION is a failure. Spectral instances (if the
+ * resource has BEAGLE_FLAG_SPECTRAL_REPRESENTATION, else a skip line per precision), at 4 and 17 states with two eigen decompositions, matrices on both, MANUAL scaling and a TOP
+ * pre-order: G grows by a probe and by one before its dense matrix pool exists (a dense read of the new index is
+ * BEAGLE_ERROR_OUT_OF_RANGE), then setDifferentialMatrix makes the pool, and G grows to smaller counts, by (0, 0, 0),
+ * by several and to the final counts (the second differential matrix written in between; a dense read of a new index,
+ * never written, is BEAGLE_ERROR_OUT_OF_RANGE; then a dense write past the dense pool's first size, and a post-order
+ * on a new matrix index never updated, whose distance must be 0 as in R). After every growth, tree A's post-order on its matrices as computed
+ * before (eigen decomposition 1 included) gives the first root log likelihood exactly, and the old partials and dense
+ * matrices are byte-identical. Then tree A's pre-order, edge derivatives on the dense differential matrices, cross
+ * products and adjoint gradients on its old matrices, and tree B on new ones. Log likelihoods, partials, dense
+ * matrices, edge derivatives and cross products equal R's (memcmp); the adjoint gradients (float atomics) are within 4
+ * times the largest difference between R and a second fresh instance F, and at least 1e-6 of the largest gradient.
+ * Then the contract checks (at 4 and 17 states, the latter with transpose scratch past the matrix count). If the
+ * library prints BEAGLE_DEBUG_MEMORY lines (a
+ * -DBEAGLE_DEBUG_MEMORY=ON build): every instance must finalize with nothing left; a spectral growth before the dense
+ * pool exists must not make it (the first dense write reports it); 10 growth cycles, after each of
  * which G's buffer, sub-buffer and byte counters equal those of a fresh instance at the same counts that made the same
  * calls; BEAGLE_DEBUG_MEMORY_FAIL, which the test sets itself: 1 (the host-staged fallback, then results equal R's),
  * 1,2 (the fallback fails too) and 4, 5, 6 and 3,4 (a queue, or a later pool and its fallback, after the first pools
@@ -68,7 +80,12 @@
  * BEAGLE_ERROR_OUT_OF_MEMORY with the old contents and counts, results equal to a fresh instance at the old counts, and
  * a later growth that succeeds; 1,2,3 (the restore fails too): BEAGLE_ERROR_OUT_OF_MEMORY, the probe too, and a clean
  * finalize; and BEAGLE_DEBUG_MEMORY_SCRIBBLE, which fills the memory growth allocates with garbage, as CUDA and TinyGPU
- * may leave it, for the cases that read the buffer of zeroes.
+ * may leave it, for the cases that read the buffer of zeroes and the spectral cases (the new distance pool, also
+ * under 4 and 4,5 below). Spectral, with the dense pool made before the growth: 10 growth cycles; and the distance
+ * pool's allocation (4: the fallback; 4,5: OUT_OF_MEMORY and the old pool again, uninitialised, which the host mirror
+ * fills; 4,5,6: lost), the dense pool's (2; 2,3; 2,3,4) and the derivative queue's (5: after the distance pool moved,
+ * whose larger capacity the growth afterwards keeps) forced to fail, the allocation checked by its size, with the
+ * outcomes above; tree A's old matrices still give the first root log likelihood exactly.
  */
 
 #include <chrono>
@@ -625,46 +642,14 @@ private:
     }
 };
 
-// A 4-taxon Jukes-Cantor log likelihood, without degree-2 nodes (which GPU instances do not support); 0 if a call fails
-double gpuLogLikelihood(int instance) {
-    bool ok = true;
-    const double evec[16] = {1, 1, 1, 1, 1, -1, 1, 1, 1, 0, -2, 1, 1, 0, 0, -3};
-    double ivec[16];
-    for (int i = 0; i < 4; i++) {
-        double norm = 0;
-        for (int j = 0; j < 4; j++) norm += evec[j * 4 + i] * evec[j * 4 + i];
-        for (int j = 0; j < 4; j++) ivec[i * 4 + j] = evec[j * 4 + i] / norm;
-    }
-    const double eval[4] = {0, -4.0 / 3, -4.0 / 3, -4.0 / 3}, frequencies[4] = {0.25, 0.25, 0.25, 0.25};
-    const double rate = 1.0, weight = 1.0, patternWeights[2] = {1, 2};
-    ok &= beagleSetEigenDecomposition(instance, 0, evec, ivec, eval) == BEAGLE_SUCCESS;
-    ok &= beagleSetStateFrequencies(instance, 0, frequencies) == BEAGLE_SUCCESS;
-    ok &= beagleSetCategoryRates(instance, &rate) == BEAGLE_SUCCESS;
-    ok &= beagleSetCategoryWeights(instance, 0, &weight) == BEAGLE_SUCCESS;
-    ok &= beagleSetPatternWeights(instance, patternWeights) == BEAGLE_SUCCESS;
-    for (int tip = 0; tip < 4; ++tip) {
-        const int states[2] = {tip % 4, (tip * 3) % 4};
-        ok &= beagleSetTipStates(instance, tip, states) == BEAGLE_SUCCESS;
-    }
-    const int branches[6] = {0, 1, 2, 3, 4, 5};
-    const double lengths[6] = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6};
-    ok &= beagleUpdateTransitionMatrices(instance, 0, branches, NULL, NULL, lengths, 6) == BEAGLE_SUCCESS;
-    const BeagleOperation ops[3] = {{4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1},
-                                    {5, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3},
-                                    {6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 4, 4, 5, 5}};
-    ok &= beagleUpdatePartials(instance, ops, 3, BEAGLE_OP_NONE) == BEAGLE_SUCCESS;
-    const int root = 6, zero = 0, none = BEAGLE_OP_NONE;
-    double logL = 0.0;
-    ok &= beagleCalculateRootLogLikelihoods(instance, &root, &zero, &zero, &none, 1, &logL) == BEAGLE_SUCCESS;
-    return ok ? logL : 0.0;
-}
-
 // The GPU resource of --gpu, which every GPU instance requires, by number and by framework
 struct GpuResource {
     int number = -1;
     long framework = 0;  // BEAGLE_FLAG_FRAMEWORK_CUDA, _OPENCL or _TINYGPU
     std::string prefix;  // how its implementation names start: CUDA, OpenCL or TinyGPU
     bool doublePrecision = false;
+    unsigned long align = 1; // the offset alignment a debug-memory library reports: BEAGLE_DEBUG_OPENCL_ALIGN's, or
+                             // the base alignment of an OpenCL vendor other than Apple and NVIDIA
 };
 GpuResource gpu;
 bool debugMemory = false; // the library prints BEAGLE_DEBUG_MEMORY lines: a -DBEAGLE_DEBUG_MEMORY=ON build
@@ -1395,31 +1380,565 @@ private:
     }
 };
 
-// A spectral GPU instance cannot grow yet: BEAGLE_ERROR_NO_IMPLEMENTATION, also for the probe, and it still works.
-// false if there is no spectral implementation here
-bool gpuSpectral(bool single) {
-    const std::string name = gpu.prefix + (single ? "-Single" : "-Double") + "-Spectral";
-    current = "contract, " + name;
-    int resource = gpu.number;
-    BeagleInstanceDetails details;
-    const int instance = beagleCreateInstance(4, 3, 4, 4, 2, 1, 6, 1, 0, &resource, 1, 0,
-                                              BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework |
-                                              BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
-                                              (single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE),
-                                              &details);
-    if (instance < 0) return false;
-    const int failuresBefore = failures;
-    check(name == details.implName, std::string("created ") + details.implName);
-    const double before = gpuLogLikelihood(instance);
-    check(beagleEnsureBufferCounts(instance, 0, 0, 0) == BEAGLE_ERROR_NO_IMPLEMENTATION, "probe");
-    check(beagleEnsureBufferCounts(instance, 10, 10, 10) == BEAGLE_ERROR_NO_IMPLEMENTATION, "growth");
-    const double after = gpuLogLikelihood(instance);
-    check(before < 0.0 && after == before, "the instance changed or failed");
-    printf("%s %s: BEAGLE_ERROR_NO_IMPLEMENTATION, log likelihood %.10f before and after\n",
-           failures == failuresBefore ? "ok  " : "FAIL", current.c_str(), after);
-    finalizeGpu(instance);
-    return true;
-}
+struct SpectralRun : GpuRun {
+    std::vector<double> adjoint; // adjoint gradients: float atomics, so compared with a tolerance
+};
+
+// Spectral instances (BEAGLE_FLAG_SPECTRAL_REPRESENTATION): a matrix index holds branch lengths (a distance pool with
+// a host mirror) on an eigen decomposition; dense matrices live in a pool made at the first dense write. T = 8 tips,
+// K = 2 compact, 2 categories, MANUAL scaling, two eigen decompositions: the matrix of tree position p is on eigen
+// decomposition p % 2. Tree A on every tip: internal buffers T..2T-2, matrices 0..2T-3, TOP pre-order partials from
+// preA, scale buffers 0..T-1. The differential matrices of the two decompositions at kQ0 = 2T-2 and kQ1 = m0 (dense).
+// Tree B on every tip and A's root, on new buffers, matrices from m0 + 1 and scale buffers from s0. After the final
+// growth, M1 - 2 is written densely only (past the dense pool's first size), and M1 - 1 is never written: a
+// post-order on it reads the zero tail of the distances (the identity).
+class SpectralCase {
+public:
+    SpectralCase(bool single, int S, int P) : single(single), S(S), P(P), size(S * P * C), matrixSize(S * S * C) {
+        std::mt19937 rng(70000 + 1000 * S + P);
+        for (int e = 0; e < 2; ++e) {
+            std::vector<double> q;
+            randomReversible(rng, S, pi[e], evec[e], ivec[e], eval[e], q);
+            qk[e].resize(matrixSize);
+            for (int k = 0; k < C; ++k)
+                for (int i = 0; i < S * S; ++i) qk[e][k * S * S + i] = q[i] * rates[k];
+        }
+        patternWeights.resize(P);
+        for (auto& w : patternWeights) w = std::uniform_int_distribution<int>(1, 3)(rng);
+        states.resize(T);
+        tipPartials.resize(T);
+        for (int tip = 0; tip < T; ++tip) {
+            if (tip < K) { // states, about one in ten missing
+                states[tip].resize(P);
+                for (auto& x : states[tip]) {
+                    x = std::uniform_int_distribution<int>(0, S - 1)(rng);
+                    if (std::uniform_int_distribution<int>(0, 9)(rng) == 0) x = S;
+                }
+            } else {
+                tipPartials[tip].resize(S * P);
+                for (auto& x : tipPartials[tip]) x = std::uniform_real_distribution<double>(0.1, 1.0)(rng);
+            }
+        }
+        kQ0 = 2 * T - 2;
+        m0 = 2 * T - 1;
+        kQ1 = m0;
+        preA = 2 * T - 1;
+        B0 = preA + 2 * T - 1 + K; // + K: setPartials takes indices below the partials count
+        s0 = T;
+        std::vector<int> leaves;
+        for (int tip = 0; tip < T; ++tip) leaves.push_back(tip);
+        treeA = randomBifurcatingTree(rng, leaves, T);
+        leaves.push_back(treeA.buffer[treeA.root()]);
+        treeB = randomBifurcatingTree(rng, leaves, B0);
+        preB = B0 + T;
+        B1 = preB + treeB.root() + 1 + K + 2;
+        M1 = m0 + 1 + treeB.root() + 2; // the last two: see above
+        S1 = s0 + T + 2;
+        p0 = B0 - K;
+        p1 = B1 - K;
+    }
+
+    std::string name() const {
+        return expectedName() + " S=" + std::to_string(S) + " P=" + std::to_string(P) + " C=" + std::to_string(C) +
+               " MANUAL, 2 eigen decompositions";
+    }
+
+    // G grows; R and F are fresh at the final counts. False if there is no spectral implementation here.
+    bool run(const std::string& what = "") {
+        current = name() + what;
+        const int failuresBefore = failures;
+        SpectralRun r, f, g;
+        r.instance = create(p1, M1, S1);
+        if (r.instance < 0) return false;
+        f.instance = create(p1, M1, S1);
+        g.instance = create(p0, m0, s0);
+        check(f.instance >= 0 && g.instance >= 0, "could not create the instances");
+        if (f.instance < 0 || g.instance < 0) {
+            for (int i : {r.instance, f.instance, g.instance}) if (i >= 0) finalizeGpu(i);
+            return true;
+        }
+        std::vector<double> m(matrixSize);
+        for (SpectralRun* x : {&r, &f, &g}) begin(*x);
+        for (SpectralRun* x : {&r, &f, &g}) stageA(*x);
+        firstLogL = g.logL.front();
+        check(beagleGetTransitionMatrix(g.instance, 0, m.data()) == BEAGLE_ERROR_OUT_OF_RANGE,
+              "a dense read of a matrix with eigen-system contents only");
+        liveA();
+        snapshot(g);
+
+        bool grown = grow(g, 0, 0, 0, "probe");
+        grown &= grow(g, p0 + 1, m0 + 1, s0 + 1, "by one, without a dense pool");
+        check(beagleGetTransitionMatrix(g.instance, m0, m.data()) == BEAGLE_ERROR_OUT_OF_RANGE,
+              "a dense read of a new matrix index, never written");
+        for (SpectralRun* x : {&r, &f}) x->call(beagleSetDifferentialMatrix(x->instance, kQ0, qk[0].data()));
+        { // G's dense pool, made by this write: the growths without one must not have made it
+            StderrCapture capture;
+            g.call(beagleSetDifferentialMatrix(g.instance, kQ0, qk[0].data()));
+            const std::string text = capture.finish();
+            if (debugMemory)
+                check(!lastReport(text, "dense matrices").event.empty(), "a growth without a dense pool made one");
+        }
+        liveM.push_back(kQ0);
+        snapshot(g);
+        grown &= grow(g, 5, 3, 1, "to smaller counts");
+        grown &= grow(g, 0, 0, 0, "(0, 0, 0)");
+        grown &= grow(g, (p0 + p1) / 2, (m0 + M1) / 2, (s0 + S1) / 2, "by several");
+        for (SpectralRun* x : {&r, &f, &g}) x->call(beagleSetDifferentialMatrix(x->instance, kQ1, qk[1].data()));
+        liveM.push_back(kQ1);
+        snapshot(g);
+        grown &= grow(g, p1, M1, S1, "to the final counts");
+        if (grown) {
+            check(beagleGetTransitionMatrix(g.instance, M1 - 1, m.data()) == BEAGLE_ERROR_OUT_OF_RANGE,
+                  "a dense read of a new matrix index, never written");
+            for (SpectralRun* x : {&r, &f, &g}) x->call(beagleSetDifferentialMatrix(x->instance, M1 - 2, qk[0].data()));
+            liveM.push_back(M1 - 2);
+            for (SpectralRun* x : {&r, &f, &g}) afterA(*x, true);
+            for (SpectralRun* x : {&r, &f, &g}) stageB(*x);
+            liveB();
+            for (SpectralRun* x : {&r, &f, &g}) unwritten(*x);
+            liveP.push_back(p1 - 1);
+            compare(r, g);
+            adjointWithin(r, f, g);
+        }
+        for (int i : {r.instance, f.instance, g.instance}) finalizeGpu(i);
+        printf("%s %s%s\n", failures == failuresBefore ? "ok  " : "FAIL", current.c_str(), adjointNote.c_str());
+        return true;
+    }
+
+    // BEAGLE_DEBUG_MEMORY build: 10 cycles of growth and computation, the dense pool made in the first; after each,
+    // G and a fresh instance F at G's counts that made the same calls grow one more scale buffer, and the counters
+    // they report must be equal
+    void leakCycles() {
+        current = "10 growth cycles, " + name();
+        const int failuresBefore = failures;
+        SpectralRun g;
+        g.instance = create(p0, m0, s0);
+        check(g.instance >= 0, "could not create the instance to grow");
+        if (g.instance < 0) return;
+        begin(g);
+        cycle(g);
+        firstLogL = g.logL.front();
+        liveA();
+        liveM.push_back(kQ0);
+        int partials = p0, matrices = m0, scaleCount = s0;
+        MemoryReport last;
+        for (int k = 1; k <= 10; ++k) {
+            partials += (k % 2) ? 1 : 3;
+            matrices += (k % 2) ? 1 : 2;
+            scaleCount += 1;
+            if (g.call(beagleEnsureBufferCounts(g.instance, partials, matrices, scaleCount)) != BEAGLE_SUCCESS) {
+                check(false, "growth in cycle " + std::to_string(k));
+                break;
+            }
+            reuseA(g, "in cycle " + std::to_string(k));
+            g.logL.clear();
+            g.crossProducts.clear();
+            cycle(g);
+            SpectralRun f;
+            f.instance = create(partials, matrices, scaleCount);
+            check(f.instance >= 0, "could not create the fresh instance");
+            if (f.instance < 0) break;
+            begin(f);
+            cycle(f);
+            same(f, g, "in cycle " + std::to_string(k));
+            ++scaleCount;
+            MemoryReport counters[2];
+            SpectralRun* both[2] = {&g, &f};
+            for (int i = 0; i < 2; ++i) {
+                StderrCapture capture;
+                both[i]->call(beagleEnsureBufferCounts(both[i]->instance, 0, 0, scaleCount));
+                counters[i] = lastReport(capture.finish(), "grow");
+            }
+            check(!counters[0].event.empty() && counters[0].errors == 0 && counters[0].sameCounters(counters[1]),
+                  "cycle " + std::to_string(k) + ": " + counters[0].str() + ", but a fresh instance " +
+                  counters[1].str());
+            last = counters[0];
+            for (int code : f.codes) check(code == BEAGLE_SUCCESS, "a call failed on the fresh instance");
+            finalizeGpu(f.instance);
+        }
+        for (int code : g.codes) check(code == BEAGLE_SUCCESS, "a call failed");
+        finalizeGpu(g.instance);
+        printf("%s %s: %s after the last, as fresh\n", failures == failuresBefore ? "ok  " : "FAIL", current.c_str(),
+               last.str().c_str());
+    }
+
+    // BEAGLE_DEBUG_MEMORY build: the growth to the final counts, with the dense pool made, under
+    // BEAGLE_DEBUG_MEMORY_FAIL=list, whose first allocation is the pool (or queue) named (its size is checked). As
+    // GpuCase's, plus: G's old matrices, whose distances the growth may have left in new memory, still give the first
+    // root log likelihood exactly.
+    void forcedFailures(const char* list, const char* pool, int expected, bool lost, const std::string& what = "") {
+        const std::string named(pool);
+        current = "allocations " + std::string(list) + " forced to fail (the " + named +
+                  (named == "derivative queue" ? "), " : " pool), ") + name() + what;
+        const int failuresBefore = failures;
+        SpectralRun r, g, f;
+        r.instance = create(p1, M1, S1);
+        g.instance = create(p0, m0, s0);
+        f.instance = create(p0, m0, s0);
+        check(r.instance >= 0 && g.instance >= 0 && f.instance >= 0, "could not create the instances");
+        if (r.instance < 0 || g.instance < 0 || f.instance < 0) return;
+        for (SpectralRun* x : {&r, &g, &f}) begin(*x);
+        for (SpectralRun* x : {&r, &g, &f}) stageA(*x);
+        for (SpectralRun* x : {&r, &g, &f}) x->call(beagleSetDifferentialMatrix(x->instance, kQ0, qk[0].data()));
+        firstLogL = g.logL.front();
+        liveA();
+        liveM.push_back(kQ0);
+        snapshot(g);
+
+        StderrCapture capture;
+        setenv("BEAGLE_DEBUG_MEMORY_FAIL", list, 1);
+        const int code = beagleEnsureBufferCounts(g.instance, p1, M1, S1);
+        unsetenv("BEAGLE_DEBUG_MEMORY_FAIL");
+        const std::string text = capture.finish();
+        const unsigned long poolBytes = named == "derivative queue" ? (unsigned long) sizeof(unsigned int) * B1 * 3 :
+            (unsigned long) M1 * aligned((named == "distance" ? 1 : padded() * padded()) * C * realSize());
+        for (const char* k = list; *k != '\0';) { // every allocation in the list was made, and failed
+            char* end;
+            const long n = strtol(k, &end, 10);
+            const size_t at = text.find("allocation #" + std::to_string(n) + " (");
+            check(at != std::string::npos, "allocation #" + std::to_string(n) + " was not forced to fail");
+            if (at != std::string::npos && k == list) {
+                const unsigned long bytes = strtoul(text.c_str() + text.find('(', at) + 1, NULL, 10);
+                check(bytes == poolBytes, "allocation #" + std::to_string(n) + " has " + std::to_string(bytes) +
+                      " bytes, not the " + named + (named == "derivative queue" ? "'s " : " pool's ") +
+                      std::to_string(poolBytes));
+            }
+            k = (*end == ',') ? end + 1 : end;
+        }
+        check(code == expected, "growth returned " + std::to_string(code));
+        const int probe = beagleEnsureBufferCounts(g.instance, 0, 0, 0);
+        check(probe == (lost ? BEAGLE_ERROR_OUT_OF_MEMORY : BEAGLE_SUCCESS), "probe returned " + std::to_string(probe));
+        if (!lost) {
+            unchanged(g, "after the growth");
+            reuseA(g, "after the growth");
+            if (code != BEAGLE_SUCCESS) { // still at the old counts, as F
+                const std::vector<double> p(size, 0.5);
+                std::vector<double> m(matrixSize);
+                check(beagleSetPartials(g.instance, p0, p.data()) == BEAGLE_ERROR_OUT_OF_RANGE,
+                      "a partials index was added");
+                check(beagleSetTransitionMatrix(g.instance, m0, m.data(), 0.0) == BEAGLE_ERROR_OUT_OF_RANGE,
+                      "a matrix index was added"); // (a dense read is OUT_OF_RANGE at any index never written)
+                for (SpectralRun* x : {&r, &g, &f}) afterA(*x, false);
+                same(f, g, "at the old counts");
+                check(grow(g, p1, M1, S1, "afterwards"), "no growth afterwards");
+            }
+            for (SpectralRun* x : {&r, &g}) x->logL.clear();
+            for (SpectralRun* x : {&r, &g}) x->call(beagleSetDifferentialMatrix(x->instance, kQ1, qk[1].data()));
+            liveM.push_back(kQ1);
+            for (SpectralRun* x : {&r, &g}) afterA(*x, true);
+            for (SpectralRun* x : {&r, &g}) stageB(*x);
+            liveB();
+            compare(r, g);
+        }
+        for (int i : {r.instance, g.instance, f.instance}) finalizeGpu(i);
+        printf("%s %s: growth returned %d, probe %d\n", failures == failuresBefore ? "ok  " : "FAIL", current.c_str(),
+               code, probe);
+    }
+
+private:
+    static const int T = 8, K = 2, C = 2;
+    const bool single;
+    const int S, P, size, matrixSize;
+    const double rates[C] = {0.5, 1.5}, weights[C] = {0.4, 0.6};
+    int kQ0, kQ1, m0, preA, B0, s0, preB, B1, M1, S1, p0, p1;
+    GpuTree treeA, treeB;
+    std::vector<double> pi[2], evec[2], ivec[2], eval[2], qk[2], patternWeights;
+    std::vector<std::vector<int>> states;
+    std::vector<std::vector<double>> tipPartials;
+    double firstLogL = 0.0;
+    std::string adjointNote;
+    std::vector<int> liveP, liveM; // the partials and dense matrices written so far
+    std::map<int, std::vector<double>> partials, matrices; // G's snapshot
+
+    std::string expectedName() const { return gpu.prefix + (single ? "-Single" : "-Double") + "-Spectral"; }
+    size_t realSize() const { return single ? sizeof(float) : sizeof(double); }
+    int padded() const { return S <= 4 ? 4 : S <= 16 ? 16 : 32; } // the GPU's padded state count, up to 32 states
+    unsigned long aligned(unsigned long bytes) const { return (bytes + gpu.align - 1) / gpu.align * gpu.align; }
+
+    int create(int partialsCount, int matrixCount, int scaleCount) {
+        const long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework | BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
+                                  (single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
+        int resource = gpu.number;
+        BeagleInstanceDetails details;
+        const int instance = beagleCreateInstance(T, partialsCount, K, S, P, 2, matrixCount, C, scaleCount,
+                                                  &resource, 1, BEAGLE_FLAG_SCALING_MANUAL, requirements, &details);
+        if (instance < 0) { // only a missing implementation is a skip
+            check(instance == BEAGLE_ERROR_NO_IMPLEMENTATION, "create returned " + std::to_string(instance));
+            return instance;
+        }
+        if (expectedName() != details.implName || !(details.flags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ||
+            !(details.flags & BEAGLE_FLAG_SCALING_MANUAL)) {
+            check(false, std::string("created ") + details.implName + " with flags " + std::to_string(details.flags));
+            finalizeGpu(instance);
+            return -1;
+        }
+        return instance;
+    }
+
+    void begin(SpectralRun& x) {
+        const int i = x.instance;
+        x.call(beagleSetStateFrequencies(i, 0, pi[0].data()));
+        for (int e = 0; e < 2; ++e)
+            x.call(beagleSetEigenDecomposition(i, e, evec[e].data(), ivec[e].data(), eval[e].data()));
+        x.call(beagleSetCategoryRates(i, rates));
+        x.call(beagleSetCategoryWeights(i, 0, weights));
+        x.call(beagleSetPatternWeights(i, patternWeights.data()));
+        for (int tip = 0; tip < T; ++tip) {
+            if (tip < K) x.call(beagleSetTipStates(i, tip, states[tip].data()));
+            else x.call(beagleSetTipPartials(i, tip, tipPartials[tip].data()));
+        }
+    }
+
+    // tree A's matrices on both eigen decompositions, post-order, TOP pre-order and adjoint gradients
+    void stageA(SpectralRun& x) {
+        transitionMatrices(x, treeA, 0);
+        x.logL.push_back(postOrder(x, treeA, 0, 0));
+        preOrder(x, treeA, preA, 0);
+        adjoint(x, treeA, preA, 0);
+    }
+
+    // after growth, on tree A's matrices as they are: its pre-order, edge derivatives on the dense differential
+    // matrices (kQ1 too when it is written), cross products and adjoint gradients
+    void afterA(SpectralRun& x, bool bothQ) {
+        preOrder(x, treeA, preA, 0);
+        derivatives(x, treeA, preA, 0, bothQ);
+        adjoint(x, treeA, preA, 0);
+    }
+
+    // tree B, on matrices computed after the growth
+    void stageB(SpectralRun& x) {
+        transitionMatrices(x, treeB, m0 + 1);
+        x.logL.push_back(postOrder(x, treeB, m0 + 1, s0));
+        preOrder(x, treeB, preB, m0 + 1);
+        derivatives(x, treeB, preB, m0 + 1, true);
+        adjoint(x, treeB, preB, m0 + 1);
+    }
+
+    // a leak cycle's calls (edge derivatives allocate their unused dOutFirstDeriv at the buffer count of their first
+    // call, so a fresh instance would differ)
+    void cycle(SpectralRun& x) {
+        stageA(x);
+        x.call(beagleSetDifferentialMatrix(x.instance, kQ0, qk[0].data()));
+        std::vector<int> posts, pres;
+        std::vector<double> lengths;
+        for (int p = 0; p < treeA.root(); ++p) {
+            posts.push_back(treeA.buffer[p]);
+            pres.push_back(preA + p);
+            lengths.push_back(treeA.length[p]);
+        }
+        const int zero = 0;
+        std::vector<double> cross(S * S);
+        x.call(beagleCalculateCrossProductDerivative(x.instance, posts.data(), pres.data(), &zero, &zero,
+                                                     lengths.data(), (int) posts.size(), cross.data(), NULL));
+        x.crossProducts.insert(x.crossProducts.end(), cross.begin(), cross.end());
+    }
+
+    void transitionMatrices(SpectralRun& x, const GpuTree& t, int matrixBase) {
+        for (int e = 0; e < 2; ++e) {
+            std::vector<int> indices;
+            std::vector<double> lengths;
+            for (int p = e; p < t.root(); p += 2) {
+                indices.push_back(matrixBase + p);
+                lengths.push_back(t.length[p]);
+            }
+            x.call(beagleUpdateTransitionMatrices(x.instance, e, indices.data(), NULL, NULL, lengths.data(),
+                                                  (int) indices.size()));
+        }
+    }
+
+    // MANUAL post-order and the root log likelihood
+    double postOrder(SpectralRun& x, const GpuTree& t, int matrixBase, int scaleBase) {
+        const int i = x.instance;
+        std::vector<BeagleOperation> ops;
+        std::vector<int> scales;
+        for (int p = t.leaves; p <= t.root(); ++p) {
+            const int a = t.child[2 * p], b = t.child[2 * p + 1], w = scaleBase + p - t.leaves;
+            ops.push_back({t.buffer[p], w, w, t.buffer[a], matrixBase + a, t.buffer[b], matrixBase + b});
+            scales.push_back(w);
+        }
+        const int cumulative = scaleBase + t.leaves - 1, root = t.buffer[t.root()], zero = 0;
+        x.call(beagleUpdatePartials(i, ops.data(), (int) ops.size(), BEAGLE_OP_NONE));
+        x.call(beagleResetScaleFactors(i, cumulative));
+        x.call(beagleAccumulateScaleFactors(i, scales.data(), (int) scales.size(), cumulative));
+        double logL = 0.0;
+        x.call(beagleCalculateRootLogLikelihoods(i, &root, &zero, &zero, &cumulative, 1, &logL));
+        return logL;
+    }
+
+    // a post-order on matrix M1 - 1, never updated or written (distance 0, the identity), into buffer p1 - 1, and its
+    // root log likelihood: the new tail of the distances must be zero, as in a fresh instance
+    void unwritten(SpectralRun& x) {
+        const int i = x.instance, buffer = p1 - 1, none = BEAGLE_OP_NONE, zero = 0;
+        const BeagleOperation op = {buffer, BEAGLE_OP_NONE, BEAGLE_OP_NONE, K, M1 - 1, K + 1, M1 - 1};
+        x.call(beagleUpdatePartials(i, &op, 1, BEAGLE_OP_NONE));
+        double logL = 0.0;
+        x.call(beagleCalculateRootLogLikelihoods(i, &buffer, &zero, &zero, &none, 1, &logL));
+        x.logL.push_back(logL);
+    }
+
+    // TOP pre-order from the root's pre-order partials (the frequencies, set with setPartials)
+    void preOrder(SpectralRun& x, const GpuTree& t, int preBase, int matrixBase) {
+        std::vector<double> rootPre(size);
+        for (int k = 0; k < C * P; ++k) for (int s = 0; s < S; ++s) rootPre[k * S + s] = pi[0][s];
+        x.call(beagleSetPartials(x.instance, preBase + t.root(), rootPre.data()));
+        std::vector<BeagleOperation> ops;
+        for (int p = t.root(); p >= t.leaves; --p) {
+            for (int k = 0; k < 2; ++k) {
+                const int child = t.child[2 * p + k], sibling = t.child[2 * p + 1 - k];
+                ops.push_back({preBase + child, BEAGLE_OP_NONE, BEAGLE_OP_NONE, preBase + p,
+                               p == t.root() ? BEAGLE_OP_NONE : matrixBase + p, t.buffer[sibling],
+                               matrixBase + sibling});
+            }
+        }
+        x.call(beagleUpdatePrePartials_v5(x.instance, ops.data(), (int) ops.size(), BEAGLE_OP_NONE,
+                                          BEAGLE_PARTIALS_TOP));
+    }
+
+    // edge derivatives on the differential matrix of each branch's eigen decomposition (kQ0 only unless bothQ), and
+    // cross products
+    void derivatives(SpectralRun& x, const GpuTree& t, int preBase, int matrixBase, bool bothQ) {
+        std::vector<int> posts, pres, qs;
+        std::vector<double> lengths;
+        for (int p = 0; p < t.root(); ++p) {
+            posts.push_back(t.buffer[p]);
+            pres.push_back(preBase + p);
+            qs.push_back(bothQ && p % 2 ? kQ1 : kQ0);
+            lengths.push_back(t.length[p]);
+        }
+        const int count = (int) posts.size(), zero = 0;
+        std::vector<double> d(count * P), sums(count), cross(S * S);
+        x.call(beagleCalculateEdgeDerivatives(x.instance, posts.data(), pres.data(), qs.data(), &zero, count,
+                                              d.data(), sums.data(), NULL));
+        x.derivatives.insert(x.derivatives.end(), d.begin(), d.end());
+        x.sums.insert(x.sums.end(), sums.begin(), sums.end());
+        x.call(beagleCalculateCrossProductDerivative(x.instance, posts.data(), pres.data(), &zero, &zero,
+                                                     lengths.data(), count, cross.data(), NULL));
+        x.crossProducts.insert(x.crossProducts.end(), cross.begin(), cross.end());
+    }
+
+    // the adjoint gradient of every branch, twice: it returns the gradient of the first branch's eigen
+    // decomposition, so first a branch on decomposition 0 leads, then one on 1
+    void adjoint(SpectralRun& x, const GpuTree& t, int preBase, int matrixBase) {
+        const int count = t.root(), root = t.buffer[t.root()];
+        for (int first = 0; first < 2; ++first) {
+            std::vector<BeagleBranchOperation> ops;
+            for (int k = 0; k < count; ++k) {
+                const int p = (first + k) % count;
+                ops.push_back({t.buffer[p], preBase + p, matrixBase + p, 0});
+            }
+            std::vector<double> gradient(S * S);
+            x.call(beagleCalculateAdjointDerivative(x.instance, ops.data(), 0, 0, root, 0, count, gradient.data(),
+                                                    NULL));
+            x.adjoint.insert(x.adjoint.end(), gradient.begin(), gradient.end());
+        }
+    }
+
+    void liveA() {
+        liveP.clear();
+        liveM.clear();
+        for (int tip = K; tip < T; ++tip) liveP.push_back(tip);
+        for (int p = treeA.leaves; p <= treeA.root(); ++p) liveP.push_back(treeA.buffer[p]);
+        for (int p = 0; p <= treeA.root(); ++p) liveP.push_back(preA + p);
+    }
+
+    void liveB() {
+        for (int p = treeB.leaves; p <= treeB.root(); ++p) liveP.push_back(treeB.buffer[p]);
+        for (int p = 0; p <= treeB.root(); ++p) liveP.push_back(preB + p);
+    }
+
+    std::vector<double> readPartials(int instance, int index) {
+        std::vector<double> p(size);
+        check(beagleGetPartials(instance, index, BEAGLE_OP_NONE, p.data()) == BEAGLE_SUCCESS,
+              "getPartials " + std::to_string(index));
+        return p;
+    }
+
+    std::vector<double> readMatrix(int instance, int index) { // dense contents only
+        std::vector<double> m(matrixSize);
+        check(beagleGetTransitionMatrix(instance, index, m.data()) == BEAGLE_SUCCESS,
+              "getTransitionMatrix " + std::to_string(index));
+        return m;
+    }
+
+    void snapshot(SpectralRun& g) {
+        partials.clear();
+        matrices.clear();
+        for (int index : liveP) partials[index] = readPartials(g.instance, index);
+        for (int index : liveM) matrices[index] = readMatrix(g.instance, index);
+    }
+
+    void unchanged(SpectralRun& g, const std::string& when) {
+        for (const auto& p : partials)
+            check(::same(readPartials(g.instance, p.first), p.second),
+                  "partials " + std::to_string(p.first) + " changed " + when);
+        for (const auto& m : matrices)
+            check(::same(readMatrix(g.instance, m.first), m.second),
+                  "matrix " + std::to_string(m.first) + " changed " + when);
+    }
+
+    // tree A's post-order again on its matrices as computed before the growth (distances and eigen decompositions):
+    // the first root log likelihood exactly
+    void reuseA(SpectralRun& g, const std::string& when) {
+        const double logL = postOrder(g, treeA, 0, 0);
+        check(std::memcmp(&logL, &firstLogL, sizeof(double)) == 0,
+              "tree A's root log likelihood " + std::to_string(logL) + " is not " + std::to_string(firstLogL) + " " +
+              when);
+    }
+
+    bool grow(SpectralRun& g, int partialsCount, int matrixCount, int scaleCount, const std::string& how) {
+        const int code = g.call(beagleEnsureBufferCounts(g.instance, partialsCount, matrixCount, scaleCount));
+        check(code == BEAGLE_SUCCESS, "growth " + how + " returned " + std::to_string(code));
+        unchanged(g, "after growth " + how);
+        reuseA(g, "after growth " + how);
+        unchanged(g, "after growth " + how + " and tree A's post-order");
+        return code == BEAGLE_SUCCESS;
+    }
+
+    // a's results and live buffers equal b's, apart from the adjoint gradients
+    void same(SpectralRun& a, SpectralRun& b, const std::string& when) {
+        check(::same(a.logL, b.logL), "root log likelihoods differ " + when);
+        for (size_t k = 0; k < a.logL.size() && k < b.logL.size(); ++k)
+            if (a.logL[k] != b.logL[k]) printf("     log likelihood %zu: %.17g and %.17g\n", k, a.logL[k], b.logL[k]);
+        check(::same(a.derivatives, b.derivatives) && ::same(a.sums, b.sums), "edge derivatives differ " + when);
+        check(::same(a.crossProducts, b.crossProducts), "cross products differ " + when);
+        for (int index : liveP)
+            check(::same(readPartials(a.instance, index), readPartials(b.instance, index)),
+                  "partials " + std::to_string(index) + " differ " + when);
+        for (int index : liveM)
+            check(::same(readMatrix(a.instance, index), readMatrix(b.instance, index)),
+                  "matrix " + std::to_string(index) + " differs " + when);
+    }
+
+    void compare(SpectralRun& r, SpectralRun& g) {
+        int errors = 0;
+        for (const SpectralRun* x : {&r, &g})
+            for (int code : x->codes) if (code != BEAGLE_SUCCESS) ++errors;
+        check(errors == 0, std::to_string(errors) + " calls failed");
+        same(r, g, "from R's");
+        for (double l : r.logL) check(std::isfinite(l), "root log likelihood is not finite");
+        for (double v : g.adjoint) check(std::isfinite(v), "adjoint gradient is not finite");
+    }
+
+    // The adjoint gradients (float atomics) of G against R's, within a tolerance from the two fresh instances R and F:
+    // 4 times their largest difference, and at least 1e-6 of the largest |gradient|
+    void adjointWithin(SpectralRun& r, SpectralRun& f, SpectralRun& g) {
+        double fresh = 0.0, grown = 0.0, largest = 0.0;
+        check(r.adjoint.size() == f.adjoint.size() && r.adjoint.size() == g.adjoint.size() && !r.adjoint.empty(),
+              "adjoint gradients missing");
+        for (size_t k = 0; k < r.adjoint.size() && k < f.adjoint.size() && k < g.adjoint.size(); ++k) {
+            fresh = std::max(fresh, std::fabs(r.adjoint[k] - f.adjoint[k]));
+            grown = std::max(grown, std::fabs(r.adjoint[k] - g.adjoint[k]));
+            largest = std::max(largest, std::fabs(r.adjoint[k]));
+        }
+        const double tolerance = std::max(4.0 * fresh, 1e-6 * largest);
+        check(grown <= tolerance, "adjoint gradients differ by " + std::to_string(grown) + " > " +
+              std::to_string(tolerance));
+        char note[160];
+        snprintf(note, sizeof(note), ": adjoint |G - R| %.3g, fresh |F - R| %.3g, tolerance %.3g (largest %.3g)",
+                 grown, fresh, tolerance, largest);
+        adjointNote = note;
+    }
+};
 
 // The GPU axis on resource number; 77 if it is not a GPU resource
 int gpuAxis(int number, const std::string& precision, const std::string& only) {
@@ -1455,7 +1974,10 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
                                                   BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework |
                                                   BEAGLE_FLAG_PRECISION_SINGLE, &details);
         if (instance >= 0) beagleFinalizeInstance(instance);
-        debugMemory = !lastReport(capture.finish(), "create").event.empty();
+        const std::string text = capture.finish();
+        debugMemory = !lastReport(text, "create").event.empty();
+        const size_t at = text.find("offsets aligned to ");
+        if (at != std::string::npos) gpu.align = strtoul(text.c_str() + at + strlen("offsets aligned to "), NULL, 10);
     }
     printf("GPU resource %d: %s, %s%s; memory counters %s\n", number, resource.name, gpu.prefix.c_str(),
            gpu.doublePrecision ? ", double precision" : "", debugMemory ? "on" : "off");
@@ -1518,6 +2040,22 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
                 printf("skip %s: no implementation\n", test.name().c_str());
             }
         }
+        // a spectral implementation here; without the flag (TinyGPU, or no spectral plugin) creation would fail with
+        // BEAGLE_ERROR_NO_RESOURCE, so G2b's skip is printed after the contract checks
+        bool spectral = false;
+        const bool spectralResource = (resource.supportFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) != 0;
+        for (int S : {4, 17}) {
+            if (!spectralResource) break;
+            SpectralCase test(single, S, S == 4 ? 100 : 33);
+            if (!only.empty() && test.name().find(only) == std::string::npos) continue;
+            if (test.run()) {
+                ++cases;
+                spectral = true;
+            } else {
+                ++skipped;
+                printf("skip %s: no implementation\n", test.name().c_str());
+            }
+        }
         if (!only.empty()) continue;
         const GpuConfig manual = configs[2], transposed = configs[6], dynamic = configs[18], fromZero = configs[16];
         for (const GpuConfig& config : {manual, transposed}) { // transposed: scratch matrices past the matrix count
@@ -1536,9 +2074,7 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
                 printf("skip scale growth, %s: no implementation\n", GpuCase(dynamic).name().c_str());
             }
         }
-        if (gpuSpectral(single)) {
-            ++checks;
-        } else {
+        if (!spectralResource) {
             ++skipped;
             printf("skip %s-%s-Spectral: no implementation\n", gpu.prefix.c_str(), single ? "Single" : "Double");
         }
@@ -1568,7 +2104,34 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
                 config.what = what.c_str();
                 if (GpuCase(config).run()) ++checks;
             }
+            for (int S : {4, 17}) { // the new distance pool, which the host mirror must fill again
+                if (!spectral) break;
+                const int P = (S == 4) ? 100 : 33;
+                if (SpectralCase(single, S, P).run(", new memory scribbled")) ++checks;
+                // the fallback's block and the restored one, which may start at the old address with the old contents
+                SpectralCase(single, S, P).forcedFailures("4", "distance", BEAGLE_SUCCESS, false,
+                                                          ", new memory scribbled");
+                SpectralCase(single, S, P).forcedFailures("4,5", "distance", BEAGLE_ERROR_OUT_OF_MEMORY, false,
+                                                          ", new memory scribbled");
+                checks += 2;
+            }
             unsetenv("BEAGLE_DEBUG_MEMORY_SCRIBBLE");
+            for (int S : {4, 17}) {
+                if (!spectral) break;
+                const int P = (S == 4) ? 100 : 33;
+                SpectralCase(single, S, P).leakCycles();
+                // the dense pool is made before the growth: partials (1), dense (2), scale (3) and distance pool (4)
+                SpectralCase(single, S, P).forcedFailures("4", "distance", BEAGLE_SUCCESS, false); // the fallback
+                SpectralCase(single, S, P).forcedFailures("4,5", "distance", BEAGLE_ERROR_OUT_OF_MEMORY, false);
+                SpectralCase(single, S, P).forcedFailures("4,5,6", "distance", BEAGLE_ERROR_OUT_OF_MEMORY, true);
+                SpectralCase(single, S, P).forcedFailures("2", "dense matrix", BEAGLE_SUCCESS, false);
+                SpectralCase(single, S, P).forcedFailures("2,3", "dense matrix", BEAGLE_ERROR_OUT_OF_MEMORY, false);
+                SpectralCase(single, S, P).forcedFailures("2,3,4", "dense matrix", BEAGLE_ERROR_OUT_OF_MEMORY, true);
+                // a queue after the distance pool moved: its capacity stays above the matrix count, and the growth
+                // afterwards keeps its handles
+                SpectralCase(single, S, P).forcedFailures("5", "derivative queue", BEAGLE_ERROR_OUT_OF_MEMORY, false);
+                checks += 8;
+            }
         }
     }
     printf("buffergrowthtest --gpu %d: %d cases, %d other checks, %d skipped, %d failures\n", number, cases, checks,

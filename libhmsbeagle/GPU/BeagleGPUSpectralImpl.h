@@ -36,6 +36,8 @@ BEAGLE_GPU_TEMPLATE
 class BeagleGPUSpectralImpl : public BeagleGPUImpl<Real> {
 private:
     GPUPtr  dSpectralDistancesOrigin;
+    int     kSpectralDistancePoolCapacity; // matrix slots in dSpectralDistancesOrigin; ensureBufferCounts may leave
+                                           // more than kMatrixCount, and dSpectralDistances that many handles
     GPUPtr* dSpectralDistances;
     int*    hEigenIndexForMatrix;
     /* Per-matrix element stride within dSpectralDistancesOrigin, i.e.
@@ -44,8 +46,11 @@ private:
      * that indexes into the pooled origin buffer by matrix index (e.g. the
      * adjoint offset-queue) must multiply by this, not by kCategoryCount. */
     unsigned int kSpectralDistanceStrideElements;
-    /* Host-side mirror of dSpectralDistancesOrigin (same layout/size:
-     * kMatrixCount * kSpectralDistanceStrideElements elements), kept
+    /* Host-side mirror of the first kMatrixCount * kSpectralDistanceStrideElements
+     * elements of dSpectralDistancesOrigin (same per-matrix layout). After
+     * ensureBufferCounts either buffer may be longer (the pool has
+     * kSpectralDistancePoolCapacity slots), and only that kMatrixCount prefix
+     * is uploaded by flushSpectralDistances. Kept
      * persistent across calls so updateTransitionMatrices can patch just the
      * touched matrices' entries and mark the mirror dirty; the first kernel
      * that reads distances afterwards pushes the whole pooled buffer in a
@@ -130,12 +135,6 @@ public:
     char* getInstanceName() override;
     int getInstanceDetails(BeagleInstanceDetails* returnInfo) override;
 
-    /* Temporary: the spectral distance pool does not grow yet, so growing the base pools alone would leave it short.
-     * BEAGLE_ERROR_NO_IMPLEMENTATION, also for (0, 0, 0). */
-    int ensureBufferCounts(int partialsBufferCount,
-                           int matrixBufferCount,
-                           int scaleBufferCount) override;
-
     /* Paths that read transition matrices which spectral never computes (only setters write dense matrices here),
      * and pattern partitions, which the spectral dispatch does not honour: BEAGLE_ERROR_NO_IMPLEMENTATION. */
     int setPatternPartitions(int partitionCount,
@@ -216,6 +215,10 @@ public:
 protected:
     // matrices hold eigen-systems; the dense pool exists only once a setter writes a matrix
     bool denseMatricesOnDemand() const override { return true; }
+
+    // ensureBufferCounts: the distances and eigen indices by matrix
+    int growDerivedHostArrays(int newMatrixCount) override;
+    int growDerivedPools(int newMatrixCount) override;
 
     void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                           int c1MatIdx, int c2MatIdx,

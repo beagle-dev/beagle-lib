@@ -357,6 +357,9 @@ void GPUInterface::SetDevice(int deviceNumber,
         openClBaseAlign = ((requested + deviceAlign - 1) / deviceAlign) * deviceAlign;
         fprintf(stderr, "BEAGLE_DEBUG_OPENCL_ALIGN: every sub-buffer is a cl_mem, offsets aligned to %lu bytes\n",
                 (unsigned long) openClBaseAlign);
+    } else if (openClGenericVendor) { // the alignment AlignMemOffset uses, for tests that size the pools
+        fprintf(stderr, "OpenCL (BEAGLE_DEBUG_MEMORY): offsets aligned to %lu bytes, the device's base alignment\n",
+                (unsigned long) openClBaseAlign);
     }
 #endif
 

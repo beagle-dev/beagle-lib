@@ -1210,6 +1210,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growBufferCounts(int partialsBufferCount,
                 return BEAGLE_ERROR_OUT_OF_MEMORY;
             }
         }
+        returnCode = growDerivedHostArrays(newMatrix);
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
     }
     if (growScale) {
         if (dynamicScaling) {
@@ -1309,6 +1312,16 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growBufferCounts(int partialsBufferCount,
             gpu->MemcpyHostToDevice(dScalingFactors[newScale], zeroes, sizeof(Real) * kPaddedPatternCount);
             gpu->FreeHostMemory(zeroes);
         }
+    }
+    if (growMatrices) {
+        try {
+            returnCode = growDerivedPools(newMatrix);
+        } catch (const std::bad_alloc&) { // handles into a freed block remain
+            kPoolLost = true;
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
     }
 
     // Phase 3: the queues and multi-grid operation buffers that grow, into locals
