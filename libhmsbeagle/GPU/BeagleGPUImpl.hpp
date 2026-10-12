@@ -3192,7 +3192,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
         if (kUsingMultiGrid && (anyRescale != 1)) {
             int startBlock = 0;
-            int endBlock = kNumPatternBlocks;
+            int endBlock = kPaddedPartitionBlocks; // every block of hPartitionOffsets, also once partitions are set
             if (byPartition) {
                 startBlock = hPatternPartitionsStartBlocks[currentPartition];
                 endBlock = hPatternPartitionsStartBlocks[currentPartition+1];
