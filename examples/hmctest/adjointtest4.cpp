@@ -10,12 +10,16 @@
  *   (d) 56-state generalized-JC (all equal rates) model — real, (N-1)-fold
  *       degenerate eigenvalue; CPU adjoint gradient diagonal is checked against
  *       a central-difference derivative of log-likelihood w.r.t. eigenvalue
+ *   (e) --dynamic: one instance whose eigen decomposition goes real -> complex
+ *       -> real at 4 and 16 states; each step is checked against a fresh CPU
+ *       instance given only that decomposition (catches state cached per eigen
+ *       index and not refreshed by setEigenDecomposition)
  *
  * For each case, post-order and pre-order-TOP partials are compared first, then
  * the full adjoint gradient.
  *
  * Usage:
- *   adjointtest4 [--gpu <device>] [--nstates 4|16|17|56] [--all] [--eigenindex <k>]
+ *   adjointtest4 [--gpu <device>] [--nstates 4|16|17|56] [--dynamic] [--all] [--eigenindex <k>]
  *
  * Tree: ((human:0.1, chimp:0.1):0.5, gorilla:0.2)
  */
@@ -98,9 +102,10 @@ static void buildCirculantN(
     int N,
     std::vector<double>& evec,   /* N×N */
     std::vector<double>& ivec,   /* N×N */
-    std::vector<double>& eval)   /* 2N  */
+    std::vector<double>& eval,   /* 2N  */
+    double r_fwd = 1.0,
+    double r_bkd = 0.5)          /* r_fwd == r_bkd: symmetric, every eigenvalue real */
 {
-    const double r_fwd = 1.0, r_bkd = 0.5;
     const double two_pi_over_N = 2.0 * M_PI / N;
     const bool evenN = (N % 2 == 0);
     const int nPairs = evenN ? N/2 - 1 : (N-1)/2;
@@ -1192,6 +1197,167 @@ static int runTest56(int gpuDevice) {
     return (fdOk && gradOk) ? 0 : 1;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Dynamic test: one instance, eigen decomposition real -> complex -> real
+ * The real decomposition is the symmetric circulant (r_fwd = r_bkd) with its
+ * eigen order rotated by one, so it is not the b -> 0 limit of the complex one:
+ * conjugate-pair state left over from the complex step changes the answer.
+ * ═══════════════════════════════════════════════════════════════════════*/
+
+struct EigenSystem { std::vector<double> evec, ivec, eval; };
+
+static EigenSystem rotatedRealCirculant(int S) {
+    EigenSystem sym, rot;
+    buildCirculantN(S, sym.evec, sym.ivec, sym.eval, 1.0, 1.0);
+    rot.evec.assign(S * S, 0.0);
+    rot.ivec.assign(S * S, 0.0);
+    rot.eval.assign(2 * S, 0.0);   /* imaginary parts stay zero */
+    for (int k = 0; k < S; k++) {
+        int r = (k + 1) % S;
+        for (int j = 0; j < S; j++) {
+            rot.evec[j * S + r] = sym.evec[j * S + k];
+            rot.ivec[r * S + j] = sym.ivec[k * S + j];
+        }
+        rot.eval[r] = sym.eval[k];
+    }
+    return rot;
+}
+
+static double dynRates[2]    = { 0.5, 1.5 };
+static double dynCatWts[2]   = { 0.5, 0.5 };
+static double dynEdgeLens[4] = { 0.1, 0.1, 0.2, 0.5 };
+
+static void setupDynamic(int inst, int S) {
+    const int nPat = 4, nCats = 2;
+    int hSt[4] = { 3, 0, 5, 7 };
+    int cSt[4] = { 3, 0, 5, 5 };
+    int gSt[4] = { 0, 0, 0, 7 };
+    for (int p = 0; p < nPat; p++) { hSt[p] %= S; cSt[p] %= S; gSt[p] %= S; }
+    beagleSetTipStates(inst, 0, hSt);
+    beagleSetTipStates(inst, 1, cSt);
+    beagleSetTipStates(inst, 2, gSt);
+
+    std::vector<double> freqs(S, 1.0 / S);
+    beagleSetCategoryRates(inst, dynRates);
+    std::vector<double> pw(nPat, 1.0);
+    beagleSetPatternWeights(inst, pw.data());
+    beagleSetStateFrequencies(inst, 0, freqs.data());
+    beagleSetCategoryWeights(inst, 0, dynCatWts);
+
+    std::vector<double> rootPre((size_t)nCats * nPat * S, 1.0 / S);
+    beagleSetPartials(inst, 5, rootPre.data());
+}
+
+/* Sets the decomposition, then post-order, pre-order and the adjoint gradient over all four branches */
+static std::vector<double> runDynamicStep(int inst, int S, const EigenSystem& es) {
+    beagleSetEigenDecomposition(inst, gEigenIndex, es.evec.data(), es.ivec.data(), es.eval.data());
+
+    int nodeIdx[4] = { 0, 1, 2, 3 };
+    beagleUpdateTransitionMatrices(inst, gEigenIndex, nodeIdx, NULL, NULL, dynEdgeLens, 4);
+
+    BeagleOperation postOps[2] = {
+        { 3, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 },
+        { 4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2, 2, 3, 3 }
+    };
+    beagleUpdatePartials(inst, postOps, 2, BEAGLE_OP_NONE);
+
+    double logL = 0.0;
+    int rootIdx = 4, cwIdx = 0, sfIdx = 0, csi = BEAGLE_OP_NONE;
+    beagleCalculateRootLogLikelihoods(inst, &rootIdx, &cwIdx, &sfIdx, &csi, 1, &logL);
+
+    BeagleOperation preOps[4] = {
+        { 6, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 2, 2 },
+        { 7, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 5, BEAGLE_OP_NONE, 3, 3 },
+        { 8, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 0, 0 },
+        { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 6, 3, 1, 1 }
+    };
+    beagleUpdatePrePartials_v5(inst, preOps, 4, BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+
+    BeagleBranchOperation branchOps[4] = {
+        { 1, 8, 1, 0 },
+        { 0, 9, 0, 0 },
+        { 2, 7, 2, 0 },
+        { 3, 6, 3, 0 }
+    };
+    std::vector<double> grad(S * S, 0.0);
+    beagleCalculateAdjointDerivative(inst, branchOps, 0, 0, 4, 0, 4, grad.data(), NULL);
+    return grad;
+}
+
+/* max|a - b| (NaN if either has a NaN) against relTol * max(1, max|ref|) */
+static bool compareDynamic(const char* label, const std::vector<double>& ref,
+                           const std::vector<double>& tst, double relTol) {
+    double maxMag = 1.0, maxDiff = 0.0;
+    for (size_t k = 0; k < ref.size(); k++) {
+        maxMag = std::max(maxMag, fabs(ref[k]));
+        double d = fabs(ref[k] - tst[k]);
+        if (std::isnan(d) || d > maxDiff) maxDiff = d;
+        if (std::isnan(d)) break;
+    }
+    const double threshold = relTol * maxMag;
+    const bool ok = !std::isnan(maxDiff) && maxDiff <= threshold;
+    fprintf(stdout, "  %-38s max|diff|=%.3e  threshold=%.3e  %s\n",
+            label, maxDiff, threshold, ok ? "PASS" : "FAIL");
+    return ok;
+}
+
+static int runTestDynamic(int S, int gpuDevice) {
+    const int nPat = 4, nCats = 2;
+    const double cpuTol = 1e-9;     /* double vs double */
+    const double gpuTol = 1e-4;     /* single vs double */
+    const double repeatTol = 1e-6;  /* GPU vs itself on identical input (atomic-add order) */
+
+    fprintf(stdout, "\n=== %d-state dynamic test: eigen decomposition real -> complex -> real ===\n", S);
+
+    EigenSystem complexES;
+    buildCirculantN(S, complexES.evec, complexES.ivec, complexES.eval);
+    const EigenSystem realES = rotatedRealCirculant(S);
+    const EigenSystem* steps[3] = { &realES, &complexES, &realES };
+    const char* stepNames[3] = { "real", "complex", "real again" };
+
+    /* Reference: a fresh CPU instance per step */
+    std::vector<double> fresh[3];
+    for (int s = 0; s < 3; s++) {
+        int inst = createInstance(false, -1, false, S, nPat, nCats, /*complexEigen=*/true);
+        if (inst < 0) { fprintf(stderr, "Failed CPU instance\n"); return 1; }
+        setupDynamic(inst, S);
+        fresh[s] = runDynamicStep(inst, S, *steps[s]);
+        beagleFinalizeInstance(inst);
+    }
+
+    auto runTransitioned = [&](bool useGpu, int dev, std::vector<double> (&grads)[3]) -> bool {
+        int inst = createInstance(useGpu, dev, useGpu, S, nPat, nCats, /*complexEigen=*/true);
+        if (inst < 0) return false;
+        setupDynamic(inst, S);
+        for (int s = 0; s < 3; s++) grads[s] = runDynamicStep(inst, S, *steps[s]);
+        beagleFinalizeInstance(inst);
+        return true;
+    };
+
+    bool ok = true;
+    char label[64];
+
+    std::vector<double> cpu[3];
+    if (!runTransitioned(false, -1, cpu)) { fprintf(stderr, "Failed CPU instance\n"); return 1; }
+    for (int s = 0; s < 3; s++) {
+        snprintf(label, sizeof(label), "CPU step %d (%s) vs fresh CPU", s, stepNames[s]);
+        ok &= compareDynamic(label, fresh[s], cpu[s], cpuTol);
+    }
+
+    if (gpuDevice >= 0) {
+        std::vector<double> gpu[3];
+        if (!runTransitioned(true, gpuDevice, gpu)) { fprintf(stderr, "Failed GPU instance\n"); return 1; }
+        for (int s = 0; s < 3; s++) {
+            snprintf(label, sizeof(label), "GPU step %d (%s) vs fresh CPU", s, stepNames[s]);
+            ok &= compareDynamic(label, fresh[s], gpu[s], gpuTol);
+        }
+        ok &= compareDynamic("GPU step 2 vs GPU step 0", gpu[0], gpu[2], repeatTol);
+    }
+
+    fprintf(stdout, "%d-state dynamic test %s\n", S, ok ? "PASS" : "FAIL");
+    return ok ? 0 : 1;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 int main(int argc, const char *argv[]) {
@@ -1203,6 +1369,7 @@ int main(int argc, const char *argv[]) {
     bool run16     = false;
     bool run17     = false;
     bool run56     = false;
+    bool runDyn    = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--gpu") == 0 && i+1 < argc) {
@@ -1214,8 +1381,11 @@ int main(int argc, const char *argv[]) {
             run16 = (ns == 16);
             run17 = (ns == 17);
             run56 = (ns == 56);
+        } else if (strcmp(argv[i], "--dynamic") == 0) {
+            run4 = run16 = run17 = run56 = false;
+            runDyn = true;
         } else if (strcmp(argv[i], "--all") == 0) {
-            run4 = run16 = run17 = run56 = true;
+            run4 = run16 = run17 = run56 = runDyn = true;
         } else if (strcmp(argv[i], "--eigenindex") == 0 && i+1 < argc) {
             gEigenIndex = atoi(argv[++i]);
             fprintf(stdout, "Model in eigen decomposition %d\n", gEigenIndex);
@@ -1238,6 +1408,10 @@ int main(int argc, const char *argv[]) {
     if (run16) result |= runTest16(gpuDev);
     if (run17) result |= runTest17(gpuDev);
     if (run56) result |= runTest56(gpuDev);
+    if (runDyn) {
+        result |= runTestDynamic(4, gpuDev);
+        result |= runTestDynamic(16, gpuDev);
+    }
 
     return result;
 }
