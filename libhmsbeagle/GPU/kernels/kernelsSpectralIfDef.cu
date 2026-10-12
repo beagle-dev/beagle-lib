@@ -1232,10 +1232,10 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
     KW_LOCAL_MEM REAL sOpRow0   [PADDED_STATE_COUNT];
     KW_LOCAL_MEM REAL sOpRow1   [PADDED_STATE_COUNT];
 
-    if (tid < PADDED_STATE_COUNT) {
-        sEvecTCol[tid] = evecT[tid * PADDED_STATE_COUNT + ls];
-        sEvalR[tid]    = eigenValues[tid];
-        sEvalI[tid]    = isAllReal ? (REAL)0 : eigenValues[PADDED_STATE_COUNT + tid];
+    for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N) {
+        sEvecTCol[i] = evecT[i * PADDED_STATE_COUNT + ls];
+        sEvalR[i]    = eigenValues[i];
+        sEvalI[i]    = isAllReal ? (REAL)0 : eigenValues[PADDED_STATE_COUNT + i];
     }
     if (tid == 0) sCatW = categoryWeights[cat];
     KW_LOCAL_FENCE;
@@ -1245,7 +1245,7 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
     REAL regOp[PADDED_STATE_COUNT];
 
     if (isAllReal) {
-        if (tid < PADDED_STATE_COUNT) sExpat[tid] = exp(sEvalR[tid] * t);
+        for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N) sExpat[i] = exp(sEvalR[i] * t);
         KW_LOCAL_FENCE;
 
         ADJOINTN_ACCUM_ROW_RAW(sEvecTCol, isStates, regOp, sRawRow0)
@@ -1257,16 +1257,15 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
         const int pairPosition = (int) eigenValues[2 * PADDED_STATE_COUNT + ls];
         if (pairPosition < 0) return;
         const bool isPairLeader = (pairPosition > 0);
-        if (isPairLeader && tid < PADDED_STATE_COUNT)
-            sEvecTCol1[tid] = evecT[tid * PADDED_STATE_COUNT + (ls+1)];
-
-        if (tid < PADDED_STATE_COUNT) {
-            const REAL e = exp(sEvalR[tid] * t);
-            sExpat[tid] = e;
+        for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N) {
+            if (isPairLeader)
+                sEvecTCol1[i] = evecT[i * PADDED_STATE_COUNT + (ls+1)];
+            const REAL e = exp(sEvalR[i] * t);
+            sExpat[i] = e;
             REAL sv, cv;
-            SPECTRAL_SINCOS(sEvalI[tid] * t, sv, cv);
-            sCosbt[tid] = cv; sSinbt[tid] = sv;
-            sExpatC[tid] = e * cv; sExpatS[tid] = e * sv;
+            SPECTRAL_SINCOS(sEvalI[i] * t, sv, cv);
+            sCosbt[i] = cv; sSinbt[i] = sv;
+            sExpatC[i] = e * cv; sExpatS[i] = e * sv;
         }
         KW_LOCAL_FENCE;
 

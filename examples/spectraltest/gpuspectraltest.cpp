@@ -1,8 +1,8 @@
 /*
  * gpuspectraltest: every GPU spectral kernel against CPU spectral (double), in isolation. Each post-order and
- * pre-order (BOTTOM and TOP) operation runs on its own from the CPU's inputs, and the adjoint gradient from the
- * CPU's partials, so a wrong kernel is reported as such rather than through the errors it propagates. Each
- * post-order operation also runs with fixed scaling, reading the scale factors it wrote.
+ * pre-order (BOTTOM and TOP) operation runs on its own from the CPU's inputs, and the root integration and the
+ * adjoint gradient from the CPU's partials, so a wrong kernel is reported as such rather than through the errors it
+ * propagates. Each post-order operation also runs with fixed scaling, reading the scale factors it wrote.
  *
  * The models are a random reversible one (real eigenvalues) and a random asymmetric circulant one (complex
  * conjugate pairs; the first eigenvalue of a pair is a + bi or a - bi), the latter also with the sign of every
@@ -181,6 +181,16 @@ double relativeError(const std::vector<double>& x, const std::vector<double>& re
     return worst;
 }
 
+// The largest difference of a site's log likelihoods: the relative error of that site's likelihood
+double logError(const std::vector<double>& x, const std::vector<double>& ref) {
+    double worst = 0.0;
+    for (size_t i = 0; i < ref.size(); ++i) {
+        if (!std::isfinite(x[i])) return INFINITY;
+        worst = std::max(worst, std::fabs(x[i] - ref[i]));
+    }
+    return worst;
+}
+
 // (((0,1),(2,3)),(4,(5,6))),7) with random branch lengths: every kind of operation occurs, each child type
 // in the post-order and each sibling type in the pre-order, at the root and below it. Tips 0-7, root 14.
 struct Tree {
@@ -209,7 +219,8 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--tolerance") && i + 1 < argc) tolerance = atof(argv[++i]);
         else { fprintf(stderr, "usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t]\n"); return 2; }
     }
-    if (stateCounts.empty()) stateCounts = {4, 17, 61};
+    // padded 4, 16, 64, 80, 192 and 256: the last two above the adjoint kernel's 128 threads
+    if (stateCounts.empty()) stateCounts = {4, 17, 61, 70, 150, 256};
 
     BeagleResourceList* resources = beagleGetResourceList();
     if (gpuResource < 0) {
@@ -300,6 +311,11 @@ int main(int argc, char** argv) {
             std::vector<double> cpuGradient(S * S), gpuGradient(S * S);
             beagleCalculateAdjointDerivative(cpu, branches.data(), 0, 0, root, 0, (int) branches.size(),
                                              cpuGradient.data(), NULL);
+            const int zero = 0, noScaling = BEAGLE_OP_NONE;
+            double lnL;
+            std::vector<double> cpuSites(C), gpuSites(C);
+            beagleCalculateRootLogLikelihoods(cpu, &root, &zero, &zero, &noScaling, 1, &lnL);
+            beagleGetSiteLogLikelihoods(cpu, cpuSites.data());
             beagleFinalizeInstance(cpu);
 
             const int gpu = create(true, gpuName);
@@ -322,6 +338,10 @@ int main(int argc, char** argv) {
                        relativeError(partials(gpu, op.destinationPartials), ref[op.destinationPartials], S));
             }
             for (int n = N; n < M; n++) beagleSetPartials(gpu, n, ref[n].data());
+            // the root integration, which the adjoint gradient divides by
+            beagleCalculateRootLogLikelihoods(gpu, &root, &zero, &zero, &noScaling, 1, &lnL);
+            beagleGetSiteLogLikelihoods(gpu, gpuSites.data());
+            record("root, site log likelihoods", logError(gpuSites, cpuSites));
             for (const bool isTop : {false, true}) {
                 for (auto& op : isTop ? top : bottom) {
                     const int parent = op.child1Partials;

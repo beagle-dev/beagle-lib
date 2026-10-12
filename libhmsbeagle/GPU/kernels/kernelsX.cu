@@ -269,22 +269,16 @@
     int state   = KW_LOCAL_ID_0;\
     int pattern = KW_GROUP_ID_0;\
     KW_LOCAL_MEM REAL stateFreq[PADDED_STATE_COUNT];\
-    /* TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount */\
-    KW_LOCAL_MEM REAL matrixProp[MATRIX_BLOCK_SIZE];\
     KW_LOCAL_MEM REAL sum[PADDED_STATE_COUNT];\
     /* Load shared memory */\
     stateFreq[state] = dFrequencies[state];\
     sum[state] = 0;\
-    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {\
-        int x = matrixEdge + state;\
-        if (x < matrixCount)\
-            matrixProp[x] = dWeights[x];\
-    }\
-    KW_LOCAL_FENCE;\
     int u = state + pattern * PADDED_STATE_COUNT;\
     int delta = patternCount * PADDED_STATE_COUNT;\
+    /* weights from global memory: a MATRIX_BLOCK_SIZE local copy overflowed when */\
+    /* matrixCount > MATRIX_BLOCK_SIZE (e.g. the AMD/Apple GPU table's 1 at 192/256 states) */\
     for(int r = 0; r < matrixCount; r++) {\
-        FMA(dRootPartials[u + delta * r], matrixProp[r], sum[state]);\
+        FMA(dRootPartials[u + delta * r], dWeights[r], sum[state]);\
     }\
     sum[state] *= stateFreq[state];\
     KW_LOCAL_FENCE;
