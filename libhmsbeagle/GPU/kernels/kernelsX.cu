@@ -1260,20 +1260,24 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     int expTmp;
     REAL sigTmp = frexp(tmpPartial, &expTmp);
 
-    if (pattern < totalPatterns) {
-        if (abs(expTmp) > SCALING_EXPONENT_THRESHOLD) {
-            // now using sPartials2 to hold scaling trigger boolean
-            sPartials2[patIdx][0] = 1;
-        } else {
-            partials3[u] = tmpPartial;
-            sPartials2[patIdx][0] = 0;
-            sPartials1[patIdx][0] = 0;
-        }
-    }
+    // now using sPartials2 to hold the scaling trigger: set if any state of the pattern needs rescaling
+    if (state == 0)
+        sPartials2[patIdx][0] = 0;
+
+    KW_LOCAL_FENCE;
+
+    if (pattern < totalPatterns && abs(expTmp) > SCALING_EXPONENT_THRESHOLD)
+        sPartials2[patIdx][0] = 1;
 
     KW_LOCAL_FENCE;
 
     int scalingActive = sPartials2[patIdx][0];
+
+    if (!scalingActive) {
+        if (pattern < totalPatterns)
+            partials3[u] = tmpPartial;
+        sPartials1[patIdx][0] = 0;
+    }
 
     if (scalingActive) {
         // now using sPartials1 to store max unscaled partials3

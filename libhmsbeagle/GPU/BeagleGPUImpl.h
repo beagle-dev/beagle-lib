@@ -135,6 +135,7 @@ private:
     GPUPtr dMatricesOrigin;           // 0 until the first dense write when denseMatricesOnDemand()
     int kMatrixPoolCapacity;          // matrix slots in dMatricesOrigin; 0 while there is no pool
     std::vector<bool> hDenseWritten;  // per matrix index, when denseMatricesOnDemand()
+    std::vector<bool> hActiveScalingFactors; // SCALING_AUTO, per internal buffer: its last operation wrote its factors
 
     // Every sub-buffer made by createSubPointer, by parent; per-index arrays (dPartials, dStates, ...) alias each
     // other and are swapped by reorderPatternsByPartition, so they cannot tell what to release

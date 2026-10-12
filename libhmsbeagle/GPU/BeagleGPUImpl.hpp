@@ -808,6 +808,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             kScalePoolCapacity = kScaleBufferCount;
             for (int i=0; i < kScaleBufferCount; i++)
                 dScalingFactors[i] = createSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
+            hActiveScalingFactors.assign(kScaleBufferCount, false); // no operation has written factors yet
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
 #ifdef CUDA
             dScalingFactors = (GPUPtr*) calloc(sizeof(GPUPtr), kScaleBufferCount);
@@ -1008,6 +1009,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
         dAccumulatedScalingFactors = gpu->AllocateMemory(sizeof(int) * kScaleBufferSize);
+        // no scaling until the first accumulateScaleFactors: new device memory need not be zero (CUDA, TinyGPU)
+        int* zeroes = (int*) gpu->CallocHost(sizeof(int), kScaleBufferSize);
+        checkHostMemory(zeroes);
+        gpu->MemcpyHostToDevice(dAccumulatedScalingFactors, zeroes, sizeof(int) * kScaleBufferSize);
+        gpu->FreeHostMemory(zeroes);
     }
 
     kUsingAutoTranspose = (kPaddedStateCount > 4 &&
@@ -1228,6 +1234,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growBufferCounts(int partialsBufferCount,
 #endif
         } else if (!growHostArray(dScalingFactors, kScalePoolCapacity, newScaleLength)) {
             return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        if (autoScaling && (int) hActiveScalingFactors.size() < newScale) {
+            try { // new buffers hold no factors yet
+                std::vector<bool> activeScalingFactors(hActiveScalingFactors);
+                activeScalingFactors.resize(newScale, false);
+                hActiveScalingFactors.swap(activeScalingFactors);
+            } catch (const std::bad_alloc&) {
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            }
         }
     }
 
@@ -3087,6 +3102,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 anyRescale = 0;
             }
         }
+    } else if (kUsingMultiGrid && (kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS))) {
+        anyRescale = 1; // the multi-grid kernels only read scale factors; AUTO and ALWAYS write them, operation by operation
     }
 
     int streamIndex = -1;
@@ -3151,6 +3168,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 rescale = 2;
                 scalingFactors = dScalingFactors[sIndex];
             }
+            // as the CPU's gActiveScalingFactors: a node with a tip-states child writes no factors, so accumulate skips it
+            hActiveScalingFactors[sIndex] = (rescale == 2);
         } else if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             rescale = 1;
             scalingFactors = dScalingFactors[parIndex - kTipCount];
@@ -3795,14 +3814,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
 
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
 
+        int activeCount = 0; // the nodes whose last operation wrote factors, as on the CPU; none gives no scaling
         for(int n = 0; n < count; n++) {
             int sIndex = scalingIndices[n] - kTipCount;
-            hPtrQueue[n] = sIndex;
+            if (hActiveScalingFactors[sIndex])
+                hPtrQueue[activeCount++] = sIndex;
         }
 
-        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+        if (activeCount > 0)
+            gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * activeCount);
 
-        kernels->AccumulateFactorsAutoScaling(scalingFactorsOrigin(), dPtrQueue, dAccumulatedScalingFactors, count, kPaddedPatternCount, kScaleBufferStride);
+        kernels->AccumulateFactorsAutoScaling(scalingFactorsOrigin(), dPtrQueue, dAccumulatedScalingFactors, activeCount, kPaddedPatternCount, kScaleBufferStride);
 
     } else {
         for(int n = 0; n < count; n++) {

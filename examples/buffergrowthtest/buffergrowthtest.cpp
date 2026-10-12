@@ -34,8 +34,8 @@
  * only, and exits 77 (skipped) if it is not a GPU resource, or has no double precision when only that is asked for.
  * With --control, G is a second fresh instance at the final counts, created while another instance is alive (so its
  * memory lies elsewhere), and nothing grows: the cases then compare two fresh instances, which shows which comparisons
- * a device does not reproduce at all (on TinyGPU-AMD, 13 of the 42 cases, before G2 too); the checks of growth itself
- * and the spectral cases are not run.
+ * a device does not reproduce at all (on TinyGPU it found 13 of the 42 cases, from uninitialized device memory, before
+ * the fixes of pre-G2-library-bug.md); the checks of growth itself and the spectral cases are not run.
  * Every instance requires the resource's framework (CUDA, OpenCL or TinyGPU) and checks its implementation name and
  * flags. The flow keeps to what GPU instances implement: bifurcating trees; root pre-order partials through
  * setPartials, so below the partials count; BOTTOM pre-order; getPartials of bound buffers only; edge derivatives and
@@ -58,8 +58,7 @@
  * reordered partitions after them; scale growth from 0 scale buffers; PARALLELOPS_STREAMS; DYNAMIC (off CUDA only
  * multi-grid, without scale buffers, where more of them are BEAGLE_ERROR_NO_IMPLEMENTATION: the per-operation DYNAMIC
  * kernels read scale buffer -1 when there are none, and crash; on CUDA, from 0 scale buffers G grows them before its
- * first post-order). Under AUTO only equality is checked: on Apple OpenCL the second tree's root log likelihood at 17
- * states is -inf, in a fresh instance too. Single and double precision (double is skipped if the resource has none);
+ * first post-order). Single and double precision (double is skipped if the resource has none);
  * a creation that fails other than with BEAGLE_ERROR_NO_IMPLEMENTATION is a failure. Spectral instances (if the
  * resource has BEAGLE_FLAG_SPECTRAL_REPRESENTATION, else a skip line per precision), at 4 and 17 states with two eigen decompositions, matrices on both, MANUAL scaling and a TOP
  * pre-order: G grows by a probe and by one before its dense matrix pool exists (a dense read of the new index is
@@ -1386,8 +1385,7 @@ private:
             for (int code : x->codes) if (code != BEAGLE_SUCCESS) ++errors;
         check(errors == 0, std::to_string(errors) + " calls failed");
         same(r, g, "from R's");
-        if (c.scaling != AUTO) // see the header
-            for (double l : r.logL) check(std::isfinite(l), "root log likelihood is not finite");
+        for (double l : r.logL) check(std::isfinite(l), "root log likelihood is not finite");
         // after growth, the old buffers and scale factors still give the first root log likelihoods
         if (firstLogL > 0)
             check(g.logL.size() >= 2 * firstLogL &&

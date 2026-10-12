@@ -520,9 +520,9 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
 
                 patternDenominator += innerProduct[0] * weight;
                 numerator += pre[i] * post[j] * weight * scale;
-            }
 
-//            KW_LOCAL_FENCE; // TODO necessary?
+                KW_LOCAL_FENCE; // every thread has read pre, post and innerProduct[0] before they are overwritten
+            }
 
             if (patternDenominator > (REAL) 0.0) {
                 acrossPatterns += numerator * inPatternWeights[pattern] / patternDenominator;
@@ -640,6 +640,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
 
                 patternDenominator += innerProduct[0] * weight;
                 numerator += post[i] * pre[j] * weight * scale;
+
+                KW_LOCAL_FENCE; // every thread has read pre, post and innerProduct[0] before they are overwritten
             }
 
             if (patternDenominator > (REAL) 0.0) {
