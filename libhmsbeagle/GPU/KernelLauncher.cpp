@@ -286,14 +286,10 @@ void KernelLauncher::LoadKernels() {
 		fMatrixMulADB = gpu->GetFunction("kernelMatrixMulADB");
 	}
 
-    fprintf(stderr, "test: %ld\n", (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION));
-
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
             (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
             "kernelPartialsPartialsNoScaleSpectral" :
             "kernelPartialsPartialsNoScale");
-
-    fprintf(stderr, "loaded\n");
 
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
             (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
