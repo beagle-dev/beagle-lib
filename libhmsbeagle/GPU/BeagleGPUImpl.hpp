@@ -23,8 +23,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <climits>
 #include <iostream>
 #include <cstring>
+#include <new>
 #include <vector>
 
 #include "libhmsbeagle/beagle.h"
@@ -105,6 +107,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dMatrices = NULL;
 
     dMatricesOrigin = (GPUPtr)NULL;
+    kMatrixPoolCapacity = 0;
     dScalingFactorsOrigin = (GPUPtr)NULL;
     kScaleBufferStride = 0;
     dEigenValuesOrigin = (GPUPtr)NULL;
@@ -162,16 +165,126 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::freeWithSubPointers(GPUPtr parent) {
 }
 
 BEAGLE_GPU_TEMPLATE
-void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureDenseMatrixPool() {
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growPool(GPUPtr& origin,
+                                                int& capacity,
+                                                size_t strideBytes,
+                                                int newCapacity,
+                                                int usedSlots) {
+    if (newCapacity <= capacity)
+        return BEAGLE_SUCCESS;
+    BEAGLE_GPU_RETURN_IF_LOST(); // a lost or failed TinyGPU instance allocates nothing, and is not out of memory
+    if (strideBytes > (size_t)-1 / newCapacity || newCapacity * strideBytes / sizeof(Real) > INT_MAX)
+        return BEAGLE_ERROR_OUT_OF_RANGE; // kernels offset the pool by int element counts
+    const size_t newBytes = newCapacity * strideBytes;
+    const size_t oldBytes = capacity * strideBytes;
+    const size_t usedBytes = usedSlots * strideBytes;
+    if (newBytes == 0) // never allocate 0 bytes
+        return BEAGLE_SUCCESS;
+
+    const GPUPtr oldOrigin = origin;
+    if (oldOrigin == (GPUPtr)NULL) { // no pool yet: nothing to copy or free
+        if (usedSlots > 0)
+            return BEAGLE_ERROR_OUT_OF_MEMORY; // the pool was lost by a failed restore: its contents cannot be provided
+        GPUPtr newOrigin = tryAllocate(newBytes);
+        if (newOrigin == (GPUPtr)NULL) {
+            BEAGLE_GPU_RETURN_IF_LOST();
+#ifdef FW_TINYGPU
+            gpu->ReportOutOfMemory(newBytes);
+#endif
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        origin = newOrigin;
+        capacity = newCapacity;
+        return BEAGLE_SUCCESS;
+    }
+
+    // Old and new block together, then a device-to-device copy
+    gpu->SynchronizeHost(); // queued work on the old block has finished
+    GPUPtr newOrigin = tryAllocate(newBytes);
+    if (newOrigin != (GPUPtr)NULL) {
+        bool copied = true;
+        if (usedBytes > 0) {
+#ifdef FW_TINYGPU
+            try { // TinyGPU copies through a host buffer of usedBytes
+                gpu->MemcpyDeviceToDevice(newOrigin, oldOrigin, usedBytes);
+            } catch (const std::bad_alloc&) {
+                copied = false;
+            }
+#else
+            gpu->MemcpyDeviceToDevice(newOrigin, oldOrigin, usedBytes);
+#endif
+        }
+        if (copied) {
+            gpu->SynchronizeHost(); // the copy has finished before the old block and its sub-buffers go
+            freeWithSubPointers(oldOrigin);
+            origin = newOrigin;
+            capacity = newCapacity;
+            BEAGLE_GPU_RETURN_IF_LOST();
+            return BEAGLE_SUCCESS;
+        }
+        gpu->FreeMemory(newOrigin);
+    }
+    BEAGLE_GPU_RETURN_IF_LOST(); // a lost instance stages, frees and reports nothing: it keeps the old block
+
+    // Fallback, staged through the host: the old block is freed before the new one is allocated
+    gpu->SynchronizeHost();
+    void* staging = NULL;
+    if (usedBytes > 0) {
+        staging = malloc(usedBytes);
+        if (staging == NULL)
+            return BEAGLE_ERROR_OUT_OF_MEMORY; // the pool is unchanged
+        gpu->MemcpyDeviceToHost(staging, oldOrigin, usedBytes);
+        gpu->SynchronizeHost();
+#ifdef FW_TINYGPU
+        if (gpu->GetDeviceLost()) { // a lost instance copies back 0xff, not the pool: keep the old block
+            free(staging);
+            BEAGLE_GPU_RETURN_IF_LOST();
+        }
+#endif
+    }
+    // CUDA and TinyGPU may give the new block the old address, so the old registry key goes first
+    freeWithSubPointers(oldOrigin);
+    origin = (GPUPtr)NULL;
+    int returnCode = BEAGLE_SUCCESS;
+    int keptCapacity = newCapacity;
+    newOrigin = tryAllocate(newBytes);
+    if (newOrigin == (GPUPtr)NULL) { // best effort: the old pool again
+#ifdef FW_TINYGPU
+        if (!gpu->GetDeviceLost())
+            gpu->ReportOutOfMemory(newBytes);
+#endif
+        returnCode = BEAGLE_ERROR_OUT_OF_MEMORY;
+        keptCapacity = capacity;
+        newOrigin = tryAllocate(oldBytes);
+    }
+    if (newOrigin != (GPUPtr)NULL) {
+        if (usedBytes > 0)
+            gpu->MemcpyHostToDevice(newOrigin, staging, usedBytes);
+        origin = newOrigin;
+        capacity = keptCapacity;
+    } else {
+        capacity = 0;
+    }
+    gpu->SynchronizeHost(); // the copy has read the staging buffer
+    free(staging);
+    BEAGLE_GPU_RETURN_IF_LOST();
+    return returnCode;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureDenseMatrixPool() {
     if (dMatricesOrigin != (GPUPtr)NULL)
-        return;
+        return BEAGLE_SUCCESS;
     const size_t ptrIncrement = kIndexOffsetMat * sizeof(Real); // AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real))
-    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+    int returnCode = growPool(dMatricesOrigin, kMatrixPoolCapacity, ptrIncrement, kMatrixCount, 0);
+    if (returnCode != BEAGLE_SUCCESS)
+        return returnCode;
     for (int i = 0; i < kMatrixCount; i++) {
         dMatrices[i] = createSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
     }
     if (denseMatricesOnDemand())
         gpu->ReportMemory("dense matrices"); // BEAGLE_DEBUG_MEMORY only
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -640,6 +753,22 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     kernels = new KernelLauncher(gpu);
 
+    // the matrix pool before the host caches: a failed creation frees only dMatrices (the destructor frees kernels and gpu)
+    dMatrices = (GPUPtr*) calloc(sizeof(GPUPtr), kMatrixCount);
+
+    size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
+    kIndexOffsetMat = ptrIncrement/sizeof(Real);
+    if (denseMatricesOnDemand()) {
+        hDenseWritten.assign(kMatrixCount, false); // no pool until the first dense write
+    } else {
+        int poolCode = ensureDenseMatrixPool();
+        if (poolCode != BEAGLE_SUCCESS) {
+            free(dMatrices);
+            dMatrices = NULL;
+            return poolCode;
+        }
+    }
+
     // TODO: only allocate if necessary on the fly
     hWeightsCache = (Real*) gpu->CallocHost(kCategoryCount, sizeof(Real));
     hFrequenciesCache = (Real*) gpu->CallocHost(kPaddedStateCount, sizeof(Real));
@@ -658,16 +787,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dEigenValues = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dWeights = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
-
-    dMatrices = (GPUPtr*) calloc(sizeof(GPUPtr), kMatrixCount);
-
-    size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
-    kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    if (denseMatricesOnDemand()) {
-        hDenseWritten.assign(kMatrixCount, false); // no pool until the first dense write
-    } else {
-        ensureDenseMatrixPool();
-    }
 
     if (kScaleBufferCount > 0) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
@@ -1810,7 +1929,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setMatrixBufferImpl(int matrixIndex,
     if (matrixIndex < 0 || matrixIndex >= kMatrixCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
     if (denseMatricesOnDemand()) {
-        ensureDenseMatrixPool();
+        int poolCode = ensureDenseMatrixPool();
+        if (poolCode != BEAGLE_SUCCESS)
+            return poolCode;
         hDenseWritten[matrixIndex] = true;
     }
 
@@ -1854,7 +1975,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setTransitionMatrices(const int* matrixIn
             return BEAGLE_ERROR_OUT_OF_RANGE;
     }
     if (denseMatricesOnDemand() && count > 0) { // an empty batch writes nothing, so allocates nothing
-        ensureDenseMatrixPool();
+        int poolCode = ensureDenseMatrixPool();
+        if (poolCode != BEAGLE_SUCCESS)
+            return poolCode;
         for (int k = 0; k < count; k++)
             hDenseWritten[matrixIndices[k]] = true;
     }
@@ -2974,34 +3097,42 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::waitForPartials(const int* /*destinationP
 }
 
 BEAGLE_GPU_TEMPLATE
-std::vector<int>
-BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int *operations,
-                                                                       int operationCount) {
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int *operations,
+                                                                          int operationCount,
+                                                                          std::vector<int>& newOperation) {
 
-    if (kExtraMatrixCount < operationCount) {
+    const int newCapacity = kMatrixCount + operationCount;
+    if (kMatrixPoolCapacity < newCapacity) {
 
-        size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
-        GPUPtr dMatricesNewOrigin = gpu->AllocateMemory((kMatrixCount + operationCount) * ptrIncrement);
+        const size_t ptrIncrement = kIndexOffsetMat * sizeof(Real); // AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real))
 
-        gpu->MemcpyDeviceToDevice(dMatricesNewOrigin, dMatricesOrigin,
-                (kMatrixCount + kExtraMatrixCount) * ptrIncrement);
-
-        gpu->SynchronizeHost(); // the copy has finished before the old pool and its sub-buffers go
-        freeWithSubPointers(dMatricesOrigin);
-        free(dMatrices);
-
-        dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * (kMatrixCount + operationCount));
-        dMatricesOrigin = dMatricesNewOrigin;
-
-        for (int i = 0; i < kMatrixCount + operationCount; ++i) {
-            dMatrices[i] = createSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement);
-
+        int matrixLength = kMatrixCount + kExtraMatrixCount; // the entries of dMatrices
+        if (matrixLength < newCapacity) {
+            GPUPtr* newMatrices = (GPUPtr*) realloc(dMatrices, sizeof(GPUPtr) * newCapacity);
+            if (newMatrices == NULL)
+                return BEAGLE_ERROR_OUT_OF_MEMORY; // dMatrices is unchanged
+            memset(newMatrices + matrixLength, 0, sizeof(GPUPtr) * (newCapacity - matrixLength));
+            dMatrices = newMatrices;
+            matrixLength = newCapacity;
         }
 
-        kExtraMatrixCount = operationCount;
+        // the scratch matrices above kMatrixCount are rewritten below, so they are not copied
+        int returnCode = growPool(dMatricesOrigin, kMatrixPoolCapacity, ptrIncrement, newCapacity, kMatrixCount);
+
+        // After an OOM that lost the pool (origin 0), every handle is 0 and later growths return OOM: finalize the instance
+        if (!hasSubPointers(dMatricesOrigin)) { // the pool moved: the old handles are released
+            for (int i = 0; i < matrixLength; ++i) {
+                dMatrices[i] = (i < kMatrixPoolCapacity ?
+                                createSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement) : (GPUPtr)NULL);
+            }
+        }
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
+
+        kExtraMatrixCount = std::max(kExtraMatrixCount, operationCount);
     }
 
-    std::vector<int> newOperation(operations, operations + (7 * operationCount)); // make copy
+    newOperation.assign(operations, operations + (7 * operationCount)); // make copy
     std::vector<int> oldMatrices(operationCount);
     std::vector<int> newMatrices(operationCount);
 
@@ -3015,7 +3146,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const int
 
     transposeTransitionMatrices(oldMatrices.data(), newMatrices.data(), operationCount);
 
-    return newOperation;
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -3057,7 +3188,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPrePartialsBottom(bool byPartition,
     std::vector<int> newOperations;
 
     if (kUsingAutoTranspose) {
-        newOperations = transposeTransitionMatricesOnTheFly(operations, operationCount);
+        int returnCode = transposeTransitionMatricesOnTheFly(operations, operationCount, newOperations);
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
         operations = newOperations.data();
     }
 

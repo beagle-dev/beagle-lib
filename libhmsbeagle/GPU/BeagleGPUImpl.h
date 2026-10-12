@@ -132,6 +132,7 @@ private:
 
     GPUPtr* dMatrices;
     GPUPtr dMatricesOrigin;           // 0 until the first dense write when denseMatricesOnDemand()
+    int kMatrixPoolCapacity;          // matrix slots in dMatricesOrigin; 0 while there is no pool
     std::vector<bool> hDenseWritten;  // per matrix index, when denseMatricesOnDemand()
 
     // Every sub-buffer made by createSubPointer, by parent; per-index arrays (dPartials, dStates, ...) alias each
@@ -245,6 +246,18 @@ protected:
     GPUPtr createSubPointer(GPUPtr parent, size_t offset, size_t size);
     // Releases the sub-buffers made from parent by createSubPointer, then frees parent
     void freeWithSubPointers(GPUPtr parent);
+    // Whether createSubPointer has made sub-buffers of parent that are not yet released
+    bool hasSubPointers(GPUPtr parent) const { return hSubPointers.find(parent) != hSubPointers.end(); }
+    // Moves the pool at origin (capacity slots of strideBytes) to a block of newCapacity slots that starts with its first
+    // usedSlots slots; nothing changes when newCapacity <= capacity. BEAGLE_ERROR_OUT_OF_RANGE before any change when the
+    // block would exceed INT_MAX elements. BEAGLE_ERROR_OUT_OF_MEMORY leaves the old pool, possibly restored at a new
+    // address by the host-staged fallback (best effort: origin 0 and capacity 0 if that fails too). After such a failed
+    // restore the pool stays lost: a later growth that must keep slots returns BEAGLE_ERROR_OUT_OF_MEMORY, so a caller
+    // growing from no pool passes usedSlots 0, and the instance must be finalized. On TinyGPU, a lost or failed instance
+    // returns BEAGLE_ERROR_GENERAL (BEAGLE_ERROR_OUT_OF_MEMORY when GetOutOfMemory) and stages, frees and reports nothing.
+    // Whenever the old block is freed, its sub-buffers are released and !hasSubPointers(origin): the caller then rebuilds
+    // its handles with createSubPointer(origin, ...).
+    int growPool(GPUPtr& origin, int& capacity, size_t strideBytes, int newCapacity, int usedSlots);
 
     /* Accessors for the pooled partials/states origins and their per-index
      * element offsets, and the per-eigen-decomposition matrix/eigenvalue
@@ -566,18 +579,22 @@ private:
 
     virtual char* getInstanceName();
 
+    // Every device allocation growPool makes
+    GPUPtr tryAllocate(size_t bytes) { return gpu->TryAllocateMemory(bytes); }
+
     void  allocateMultiGridBuffers();
 
     int  reorderPatternsByPartition();
 
-    std::vector<int> transposeTransitionMatricesOnTheFly(const int *operations,
-                                                         int operationCount);
+    int transposeTransitionMatricesOnTheFly(const int *operations,
+                                            int operationCount,
+                                            std::vector<int>& newOperation);
 
     int setMatrixBufferImpl(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue,
                             bool transpose);
-    void ensureDenseMatrixPool();
+    int ensureDenseMatrixPool();
     bool isDenseMatrix(int matrixIndex) const; // a valid index with dense contents
 
     int upPartials(bool byPartition,

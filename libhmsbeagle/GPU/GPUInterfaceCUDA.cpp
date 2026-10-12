@@ -621,6 +621,38 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
     return ptr;
 }
 
+GPUPtr GPUInterface::TryAllocateMemory(size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::TryAllocateMemory\n");
+#endif
+
+    GPUPtr ptr = 0;
+
+    SAFE_CUDA(cuCtxPushCurrent(cudaContext));
+    CUresult result = cuMemAlloc(&ptr, memSize);
+    SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
+
+    if (result == CUDA_ERROR_OUT_OF_MEMORY) {
+        ptr = 0;
+    } else {
+        SAFE_CUDA(result);
+
+#ifdef BEAGLE_DEBUG_MEMORY
+        DebugAddBuffer(ptr, memSize);
+#endif
+
+#ifdef BEAGLE_DEBUG_VALUES
+        fprintf(stderr, "Allocated GPU memory %llu to %llu.\n", (unsigned long long)ptr, (unsigned long long)(ptr + memSize));
+#endif
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::TryAllocateMemory\n");
+#endif
+
+    return ptr;
+}
+
 GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateRealMemory\n");

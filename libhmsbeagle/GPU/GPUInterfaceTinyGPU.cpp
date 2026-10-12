@@ -75,9 +75,19 @@ uint16_t tg_pci_device_id() { return g_tgDeviceId; }
 
 GPUInterface::GPUInterface() : numStreams(1), tgpuSock(-1), tgpuDevId(0), isNVIDIA(true), nvGspState(nullptr),
     kernelResource(nullptr), resourceMap(nullptr), supportDoublePrecision(false)
-{}
+{
+#ifdef BEAGLE_DEBUG_MEMORY
+    debugBytes = 0;
+    debugPeakBytes = 0;
+    debugErrors = 0;
+#endif
+}
 
 GPUInterface::~GPUInterface() {
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (debugPeakBytes > 0 || debugErrors > 0)
+        ReportMemory("finalize");
+#endif
     if (!isNVIDIA) {
         AmdFini(this);  // releases this instance; the card stays for later instances until exit (TODO.md plan step A5)
         if (tgpuSock >= 0) { tg_transport().close(); tgpuSock = -1; }   // the resource listing's, or a failed boot's
@@ -250,8 +260,24 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction fn, Dim3Int block, Dim3Int
 // ── Memory ────────────────────────────────────────────────────────────────────
 
 GPUPtr GPUInterface::AllocateMemory(size_t sz) {
-    if (!isNVIDIA) return AmdAllocateMemory(this, sz);
-    return NvAllocateMemory(this, sz);
+    GPUPtr p = isNVIDIA ? NvAllocateMemory(this, sz) : AmdAllocateMemory(this, sz);
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (p) DebugAddBuffer(p, sz);   // a failed instance's 0 is no allocation
+#endif
+    return p;
+}
+
+GPUPtr GPUInterface::TryAllocateMemory(size_t sz) {
+    GPUPtr p = isNVIDIA ? NvTryAllocateMemory(this, sz) : AmdTryAllocateMemory(this, sz);
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (p) DebugAddBuffer(p, sz);
+#endif
+    return p;
+}
+
+void GPUInterface::ReportOutOfMemory(size_t sz) {
+    if (!isNVIDIA) { AmdReportOutOfMemory(sz); return; }
+    NvReportOutOfMemory(sz);
 }
 
 GPUPtr GPUInterface::AllocateRealMemory(size_t n)  { return AllocateMemory(n * sizeof(double)); }
@@ -266,7 +292,35 @@ void GPUInterface::ReleaseSubPointer(GPUPtr, GPUPtr) {}   // a sub-pointer is ba
 // assume unpadded matrix strides (STATUS.md R25).
 size_t GPUInterface::AlignMemOffset(size_t off) { return off; }
 
-void GPUInterface::ReportMemory(const char*) {}   // BEAGLE_DEBUG_MEMORY's counts are kept by CUDA and OpenCL only
+// BEAGLE_DEBUG_MEMORY only, as on CUDA: a sub-pointer is an address, so there are no sub-buffers to count
+void GPUInterface::ReportMemory(const char* event) {
+#ifdef BEAGLE_DEBUG_MEMORY
+    fprintf(stderr, "BEAGLE_DEBUG_MEMORY %s: %d buffers, 0 sub-buffers, %lu bytes (peak %lu), %d errors\n",
+            event, (int) debugBuffers.size(), (unsigned long) debugBytes, (unsigned long) debugPeakBytes,
+            debugErrors);
+#else
+    (void) event;
+#endif
+}
+
+#ifdef BEAGLE_DEBUG_MEMORY
+void GPUInterface::DebugAddBuffer(GPUPtr dPtr, size_t memSize) {
+    debugBuffers[dPtr] = memSize;
+    debugBytes += memSize;
+    if (debugBytes > debugPeakBytes)
+        debugPeakBytes = debugBytes;
+}
+
+void GPUInterface::DebugRemoveBuffer(GPUPtr dPtr) {
+    std::map<GPUPtr, size_t>::iterator it = debugBuffers.find(dPtr);
+    if (it == debugBuffers.end()) {
+        debugErrors++; // not a live allocation: a sub-pointer, or a second release
+    } else {
+        debugBytes -= it->second;
+        debugBuffers.erase(it);
+    }
+}
+#endif
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
     if (!isNVIDIA) { AmdMemcpyHostToDevice(this, dst, src, sz); return; }
@@ -304,6 +358,9 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t sz, bool, bool) { return mal
 void  GPUInterface::FreeHostMemory(void* p)        { free(p); }
 void  GPUInterface::FreePinnedHostMemory(void* p)  { free(p); }
 void  GPUInterface::FreeMemory(GPUPtr p) {   // TODO.md plan step C14
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (p) DebugRemoveBuffer(p);   // a failed instance frees the 0s its allocations returned
+#endif
     if (!isNVIDIA) { AmdFreeMemory(this, p); return; }
     NvFreeMemory(this, p);
 }

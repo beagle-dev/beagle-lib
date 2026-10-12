@@ -932,6 +932,33 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
     return data;
 }
 
+GPUPtr GPUInterface::TryAllocateMemory(size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::TryAllocateMemory\n");
+#endif
+
+    GPUPtr data;
+
+    int err;
+    data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, memSize, NULL, &err);
+    if (err == CL_MEM_OBJECT_ALLOCATION_FAILURE || err == CL_OUT_OF_RESOURCES ||
+        err == CL_INVALID_BUFFER_SIZE || err == CL_OUT_OF_HOST_MEMORY) { // also a size above CL_DEVICE_MAX_MEM_ALLOC_SIZE
+        data = (GPUPtr) NULL;
+    } else {
+        SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_MEMORY
+        DebugAddBuffer(data, memSize);
+#endif
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::TryAllocateMemory\n");
+#endif
+
+    return data;
+}
+
 GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::AllocateRealMemory\n");

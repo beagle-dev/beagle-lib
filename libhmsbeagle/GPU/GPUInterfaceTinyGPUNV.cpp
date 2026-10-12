@@ -1198,6 +1198,23 @@ GPUPtr NvAllocateMemory(GPUInterface* self, size_t sz) {
     return (GPUPtr)va;
 }
 
+// GPUInterface::TryAllocateMemory: as NvAllocateMemory, but a block that does not fit returns 0 without failing the instance
+GPUPtr NvTryAllocateMemory(GPUInterface* self, size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    NVInstance* in = (NVInstance*)self->nvGspState;
+    if (!in || nv_failed(*in) || !sz) return 0;
+    return (GPUPtr)nvd_pool_alloc(g_nvd->rt.pool, g_nvd->pool_pos, sz, &g_nvd->pool_free);
+}
+
+// GPUInterface::ReportOutOfMemory: NvAllocateMemory's diagnostic, for an NvTryAllocateMemory that returned 0
+void NvReportOutOfMemory(size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    if (!g_nvd) return;
+    fprintf(stderr, "TinyGPU/NV: out of GPU memory: an allocation of %.1f MiB, with %.1f MiB left of the %llu MiB VRAM pool "
+            "(BEAGLE_NV_DATA_MB sets it, by default half the VRAM)\n", sz / 1048576.0,
+            nvd_pool_left(*g_nvd) / 1048576.0, (unsigned long long)(g_nvd->rt.pool.size >> 20));
+}
+
 // Plan step C14: the block goes back to the pool (TinyGPUPool.h), once this instance's queued launches, which may use it, are
 // submitted. An address no allocation returned is ignored.
 void NvFreeMemory(GPUInterface* self, GPUPtr p) {

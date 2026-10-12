@@ -112,6 +112,7 @@ private:
     friend void AmdMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
     friend void AmdFini(GPUInterface*);
     friend GPUPtr AmdAllocateMemory(GPUInterface*, size_t);
+    friend GPUPtr AmdTryAllocateMemory(GPUInterface*, size_t);
     friend void AmdFreeMemory(GPUInterface*, GPUPtr);
     friend bool AmdDeviceLost(GPUInterface*);
     friend bool AmdOutOfMemory(GPUInterface*);
@@ -127,6 +128,7 @@ private:
     friend void NvMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
     friend void NvFini(GPUInterface*);
     friend GPUPtr NvAllocateMemory(GPUInterface*, size_t);
+    friend GPUPtr NvTryAllocateMemory(GPUInterface*, size_t);
     friend void NvFreeMemory(GPUInterface*, GPUPtr);
     friend bool NvDeviceLost(GPUInterface*);
     friend bool NvOutOfMemory(GPUInterface*);
@@ -212,6 +214,9 @@ public:
     // TODO.md plan step M1: ... and the reason was memory (an allocation, a program load or the VRAM pool did not fit), so
     // BeagleGPUImpl returns BEAGLE_ERROR_OUT_OF_MEMORY rather than BEAGLE_ERROR_GENERAL
     bool GetOutOfMemory();
+    // For growPool: the diagnostic AllocateMemory prints when an allocation does not fit, for a TryAllocateMemory that
+    // returned 0; it neither fails the instance nor sets GetOutOfMemory
+    void ReportOutOfMemory(size_t memSize);
 #endif
 
 #ifdef FW_OPENCL
@@ -223,6 +228,10 @@ public:
 #endif
 
     GPUPtr AllocateMemory(size_t memSize);
+
+    // Returns 0, leaving the device usable, when the device is out of memory; otherwise as AllocateMemory (memSize > 0).
+    // On TinyGPU also 0 for an instance that has already failed or lost its GPU (GetDeviceLost)
+    GPUPtr TryAllocateMemory(size_t memSize);
 
     GPUPtr AllocateRealMemory(size_t length);
 

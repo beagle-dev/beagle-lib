@@ -671,6 +671,27 @@ GPUPtr AmdAllocateMemory(GPUInterface* self, size_t sz) {
     return (GPUPtr)va;
 }
 
+// GPUInterface::TryAllocateMemory: as AmdAllocateMemory, but a block that does not fit returns 0 without failing the instance
+GPUPtr AmdTryAllocateMemory(GPUInterface* self, size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
+    AMDInstance* in = (AMDInstance*)self->amdInstance;
+    if (!in || amd_failed(*in) || !sz) return 0;
+    auto t0 = amd_profile_start();
+    uint64_t va = 0;
+    if (!g_amd->rt->alloc(sz, va)) va = 0;
+    amd_profile_end("alloc (C++)", t0);
+    return (GPUPtr)va;
+}
+
+// GPUInterface::ReportOutOfMemory: AmdAllocateMemory's diagnostic, for an AmdTryAllocateMemory that returned 0
+void AmdReportOutOfMemory(size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
+    if (!g_amd) return;
+    fprintf(stderr, "TinyGPU/AMD: out of GPU memory: an allocation of %.1f MiB, with %.1f MiB left of the %llu MiB VRAM pool "
+            "(BEAGLE_AMD_DATA_MB sets it, by default half the VRAM)\n", sz / 1048576.0,
+            g_amd->rt->available() / 1048576.0, (unsigned long long)(g_amd->rt->h.pool_size >> 20));
+}
+
 // Plan step C14: the block goes back to the pool (TinyGPUPool.h), once this instance's queued launches, which may use it, are
 // submitted. An address no allocation returned is ignored.
 void AmdFreeMemory(GPUInterface* self, GPUPtr p) {
