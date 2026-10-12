@@ -271,7 +271,7 @@ if(TARGET hmsbeagle-opencl)
 		get_target_property(GPU_SPECTRAL_PLUGIN_DIR hmsbeagle-opencl-spectral BINARY_DIR)
 		string(APPEND GPU_PLUGIN_DIRS ":${GPU_SPECTRAL_PLUGIN_DIR}")
 	endif()
-	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu hmctest5-gpu gpuspectraltest openclspectraltest gpuspectraldensetest)
+	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu adjointtest4-gpu-eigenindex hmctest5-gpu gpuspectraltest openclspectraltest gpuspectraldensetest)
 		if(TEST ${GPU_TEST})
 			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
 				"DYLD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}")
