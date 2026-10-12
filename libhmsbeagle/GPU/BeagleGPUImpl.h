@@ -110,11 +110,11 @@ private:
 	GPUPtr dMultipleDerivatives;
 	GPUPtr dMultipleDerivativeSum;
 
-    GPUPtr dBranchLengths;
-
     GPUPtr dDistanceQueue;
+    int kDistanceQueueLength; // Reals in dDistanceQueue and hDistanceQueue
 
     GPUPtr dPtrQueue;
+    int kPtrQueueLength;      // entries in dPtrQueue and hPtrQueue
 
 	GPUPtr dDerivativeQueue;
 
@@ -125,6 +125,7 @@ private:
 
     GPUPtr* dScalingFactors;
     GPUPtr dScalingFactorsOrigin; // the pool behind dScalingFactors; 0 with CUDA dynamic scaling (one buffer each)
+    int kScalePoolCapacity;          // slots in that pool, with the zero buffer of raw scalers; 0 while there is none
     unsigned int kScaleBufferStride; // elements between consecutive scale buffers in that pool
     GPUPtr scalingFactorsOrigin() const { // what kernels offset by scale index
         return dScalingFactorsOrigin != (GPUPtr)NULL ? dScalingFactorsOrigin : dScalingFactors[0];
@@ -165,6 +166,8 @@ private:
     GPUPtr  dTipOffsets;
     GPUPtr  dTipTypes;
     GPUPtr  dPartialsOrigin;
+    int kPartialsPoolCapacity;  // slots in dPartialsOrigin, which may exceed kPartialsBufferCount (pattern reorder)
+    int kPartialsHandleCount;   // entries in dPartials and hPartialsOffsets, which may exceed kBufferCount
     GPUPtr  dStatesOrigin;
     GPUPtr  dStatesSortOrigin;
     GPUPtr  dPatternWeightsSort;
@@ -216,6 +219,13 @@ private:
 
     int* hStreamIndices;
 
+    bool kPoolLost; // a pool was lost by a failed restore in growPool: every growth returns BEAGLE_ERROR_OUT_OF_MEMORY
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    std::vector<int> hDebugFailAllocations; // BEAGLE_DEBUG_MEMORY_FAIL during one ensureBufferCounts call, else empty
+    int kDebugAllocationCount;              // tryAllocate calls so far in that call
+#endif
+
 protected:
     GPUInterface*  gpu;
     KernelLauncher* kernels;
@@ -252,9 +262,9 @@ protected:
     // usedSlots slots; nothing changes when newCapacity <= capacity. BEAGLE_ERROR_OUT_OF_RANGE before any change when the
     // block would exceed INT_MAX elements. BEAGLE_ERROR_OUT_OF_MEMORY leaves the old pool, possibly restored at a new
     // address by the host-staged fallback (best effort: origin 0 and capacity 0 if that fails too). After such a failed
-    // restore the pool stays lost: a later growth that must keep slots returns BEAGLE_ERROR_OUT_OF_MEMORY, so a caller
-    // growing from no pool passes usedSlots 0, and the instance must be finalized. On TinyGPU, a lost or failed instance
-    // returns BEAGLE_ERROR_GENERAL (BEAGLE_ERROR_OUT_OF_MEMORY when GetOutOfMemory) and stages, frees and reports nothing.
+    // restore the pool stays lost (kPoolLost): every later growth returns BEAGLE_ERROR_OUT_OF_MEMORY, and the instance
+    // must be finalized. On TinyGPU, a lost or failed instance returns BEAGLE_ERROR_GENERAL (BEAGLE_ERROR_OUT_OF_MEMORY
+    // when GetOutOfMemory) and stages, frees and reports nothing.
     // Whenever the old block is freed, its sub-buffers are released and !hasSubPointers(origin): the caller then rebuilds
     // its handles with createSubPointer(origin, ...).
     int growPool(GPUPtr& origin, int& capacity, size_t strideBytes, int newCapacity, int usedSlots);
@@ -575,12 +585,24 @@ public:
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 
+    int ensureBufferCounts(int partialsBufferCount,
+                           int matrixBufferCount,
+                           int scaleBufferCount);
+
 private:
 
     virtual char* getInstanceName();
 
-    // Every device allocation growPool makes
+    // Every device allocation growPool and ensureBufferCounts make
+#ifdef BEAGLE_DEBUG_MEMORY
+    // fails the allocations BEAGLE_DEBUG_MEMORY_FAIL lists; with BEAGLE_DEBUG_MEMORY_SCRIBBLE set, fills new memory with
+    // 0x3f bytes
+    GPUPtr tryAllocate(size_t bytes);
+#else
     GPUPtr tryAllocate(size_t bytes) { return gpu->TryAllocateMemory(bytes); }
+#endif
+
+    int growBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount); // ensureBufferCounts
 
     void  allocateMultiGridBuffers();
 

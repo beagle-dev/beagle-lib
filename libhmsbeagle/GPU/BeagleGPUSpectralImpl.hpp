@@ -432,6 +432,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitio
 }
 
 BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
+                                                                  int matrixBufferCount,
+                                                                  int scaleBufferCount) {
+    this->gpu->SynchronizeHost(); // as beagle.h says, also here
+    return BEAGLE_ERROR_NO_IMPLEMENTATION; // temporary, until the distance pool grows with the base pools
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* operations,
                                                                          int operationCount) {
     return BEAGLE_ERROR_NO_IMPLEMENTATION;

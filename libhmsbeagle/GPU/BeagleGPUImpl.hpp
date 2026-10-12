@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <algorithm>
 #include <climits>
 #include <iostream>
 #include <cstring>
@@ -30,6 +31,7 @@
 #include <vector>
 
 #include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/BufferCountRule.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
@@ -81,11 +83,11 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
 
     dPatternWeights = (GPUPtr)NULL;
 
-    dBranchLengths = (GPUPtr)NULL;
-
     dDistanceQueue = (GPUPtr)NULL;
+    kDistanceQueueLength = 0;
 
     dPtrQueue = (GPUPtr)NULL;
+    kPtrQueueLength = 0;
 
     dDerivativeQueue = (GPUPtr)NULL;
 
@@ -109,6 +111,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dMatricesOrigin = (GPUPtr)NULL;
     kMatrixPoolCapacity = 0;
     dScalingFactorsOrigin = (GPUPtr)NULL;
+    kScalePoolCapacity = 0;
     kScaleBufferStride = 0;
     dEigenValuesOrigin = (GPUPtr)NULL;
     dEvecOrigin = (GPUPtr)NULL;
@@ -116,6 +119,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     dWeightsOrigin = (GPUPtr)NULL;
     dFrequenciesOrigin = (GPUPtr)NULL;
     dPartialsOrigin = (GPUPtr)NULL;
+    kPartialsPoolCapacity = 0;
+    kPartialsHandleCount = 0;
     dStatesOrigin = (GPUPtr)NULL;
     dStatesSortOrigin = (GPUPtr)NULL;
 
@@ -140,6 +145,11 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::BeagleGPUImpl() {
     hRescalingTrigger = NULL;
     dRescalingTrigger = (GPUPtr)NULL;
     dScalingFactorsMaster = NULL;
+
+    kPoolLost = false;
+#ifdef BEAGLE_DEBUG_MEMORY
+    kDebugAllocationCount = 0;
+#endif
 
 }
 
@@ -173,6 +183,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growPool(GPUPtr& origin,
     if (newCapacity <= capacity)
         return BEAGLE_SUCCESS;
     BEAGLE_GPU_RETURN_IF_LOST(); // a lost or failed TinyGPU instance allocates nothing, and is not out of memory
+    if (kPoolLost)
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
     if (strideBytes > (size_t)-1 / newCapacity || newCapacity * strideBytes / sizeof(Real) > INT_MAX)
         return BEAGLE_ERROR_OUT_OF_RANGE; // kernels offset the pool by int element counts
     const size_t newBytes = newCapacity * strideBytes;
@@ -264,6 +276,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growPool(GPUPtr& origin,
         capacity = keptCapacity;
     } else {
         capacity = 0;
+        kPoolLost = true;
     }
     gpu->SynchronizeHost(); // the copy has read the staging buffer
     free(staging);
@@ -322,7 +335,7 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             }
             free(dScalingFactorsMaster);
         } else {
-            if (kScaleBufferCount > 0)
+            if (dScalingFactorsOrigin != (GPUPtr)NULL) // also made by a growth from 0 scale buffers that then failed
                 freeWithSubPointers(dScalingFactorsOrigin);
         }
 
@@ -360,7 +373,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             free(hGridOpIndices);
         }
 
-        freeWithSubPointers(dPartialsOrigin);
+        if (dPartialsOrigin != (GPUPtr)NULL) // 0 after a growth lost it
+            freeWithSubPointers(dPartialsOrigin);
 
         if (kCompactBufferCount > 0)
             freeWithSubPointers(dStatesOrigin);
@@ -386,8 +400,6 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         }
 
         gpu->FreeMemory(dPatternWeights);
-
-        gpu->FreeMemory(dBranchLengths);
 
         gpu->FreeMemory(dDistanceQueue);
 
@@ -735,7 +747,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
                                              kScaleBufferCount * kPaddedPatternCount + // dScalingFactors
                                              kPartialsBufferCount * kPartialsSize + // dTipPartialsBuffers + dPartials
                                              kMatrixCount * kMatrixSize * kCategoryCount + // dMatrices
-                                             kBufferCount + // dBranchLengths
                                              kMatrixCount * kCategoryCount * 2) + // dDistanceQueue
     sizeof(int) * kCompactBufferCount * kPaddedPatternCount + // dCompactBuffers
     sizeof(GPUPtr) * ptrQueueLength;  // dPtrQueue
@@ -794,6 +805,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             ptrIncrement = gpu->AlignMemOffset(kScaleBufferSize * sizeof(signed char)); // TODO: char won't work for double-precision
             kScaleBufferStride = ptrIncrement / sizeof(signed char);
             dScalingFactorsOrigin =  gpu->AllocateMemory(ptrIncrement * kScaleBufferCount);
+            kScalePoolCapacity = kScaleBufferCount;
             for (int i=0; i < kScaleBufferCount; i++)
                 dScalingFactors[i] = createSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
         } else if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
@@ -812,6 +824,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
             kScaleBufferSize = ptrIncrement / sizeof(Real);
             kScaleBufferStride = kScaleBufferSize;
             dScalingFactorsOrigin = gpu->AllocateMemory(ptrIncrement * (kScaleBufferCount + 1));
+            kScalePoolCapacity = kScaleBufferCount + 1;
             for (int i=0; i < (kScaleBufferCount + 1); i++) {
                 dScalingFactors[i] = createSubPointer(dScalingFactorsOrigin, ptrIncrement*i, ptrIncrement);
             }
@@ -883,7 +896,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
     dPartialsOrigin = gpu->AllocateMemory(partialsBufferCountTotal * ptrIncrement); // the pool, which kernels offset
+    kPartialsPoolCapacity = partialsBufferCountTotal;
     hPartialsOffsets = (unsigned int*) calloc(sizeof(unsigned int), bufferCountTotal);
+    kPartialsHandleCount = bufferCountTotal;
     kIndexOffsetPat = gpu->AlignMemOffset(kPartialsSize * sizeof(Real)) / sizeof(Real);
 
     size_t ptrIncrementStates = gpu->AlignMemOffset(kPaddedPatternCount * sizeof(int));
@@ -920,9 +935,6 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     kLastCompactBufferIndex = kCompactBufferCount - 1;
     kLastTipPartialsBufferIndex = kTipPartialsBufferCount - 1;
 
-    // No execution has more no kBufferCount events
-    dBranchLengths = gpu->AllocateMemory(kBufferCount * sizeof(Real));
-
     const int distanceQueueLength = std::max(
         kMatrixCount * kCategoryCount * 2, // for transition matrices
         kMatrixCount + kCategoryCount); // for cross-products
@@ -930,10 +942,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dDistanceQueue = gpu->AllocateMemory(distanceQueueLength * sizeof(Real));
     hDistanceQueue = (Real*) gpu->MallocHost(distanceQueueLength *  sizeof(Real));
     checkHostMemory(hDistanceQueue);
+    kDistanceQueueLength = distanceQueueLength;
 
     dPtrQueue = gpu->AllocateMemory(sizeof(unsigned int) * ptrQueueLength);
     hPtrQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
+    kPtrQueueLength = ptrQueueLength;
 
     dDerivativeQueue = gpu->AllocateMemory(sizeof(unsigned int) * kBufferCount * 3);
     hDerivativeQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * kBufferCount * 3);
@@ -1041,6 +1055,387 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateMultiGridBuffers() {
     checkHostMemory(hPartitionOffsets);
 
     hGridOpIndices = (int*) malloc(sizeof(int) * kInternalPartialsBufferCount * (ptrsPerOp-2));
+}
+
+// Grows a host array to newLength entries, keeping its first oldLength and zeroing the rest; false, with the array
+// unchanged, if that fails
+template <typename T>
+bool growHostArray(T*& array, size_t oldLength, size_t newLength) {
+    T* grown = (T*) realloc(array, sizeof(T) * newLength);
+    if (grown == NULL)
+        return false;
+    memset(grown + oldLength, 0, sizeof(T) * (newLength - oldLength));
+    array = grown;
+    return true;
+}
+
+#ifdef BEAGLE_DEBUG_MEMORY
+BEAGLE_GPU_TEMPLATE
+GPUPtr BeagleGPUImpl<BEAGLE_GPU_GENERIC>::tryAllocate(size_t bytes) {
+    if (!hDebugFailAllocations.empty()) {
+        kDebugAllocationCount++;
+        if (std::find(hDebugFailAllocations.begin(), hDebugFailAllocations.end(), kDebugAllocationCount) !=
+            hDebugFailAllocations.end()) {
+            fprintf(stderr, "BEAGLE_DEBUG_MEMORY_FAIL: allocation #%d (%lu bytes) forced to fail\n",
+                    kDebugAllocationCount, (unsigned long) bytes);
+            return (GPUPtr)NULL;
+        }
+    }
+    const GPUPtr ptr = gpu->TryAllocateMemory(bytes);
+    if (ptr != (GPUPtr)NULL && getenv("BEAGLE_DEBUG_MEMORY_SCRIBBLE") != NULL) {
+        // garbage, as CUDA and a pool that reuses freed memory (TinyGPU) may give, where OpenCL may give zeroes
+        std::vector<unsigned char> garbage(bytes, 0x3f);
+        gpu->MemcpyHostToDevice(ptr, garbage.data(), bytes);
+    }
+    return ptr;
+}
+#endif
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
+                                                          int matrixBufferCount,
+                                                          int scaleBufferCount) {
+#ifdef BEAGLE_DEBUG_MEMORY
+    // BEAGLE_DEBUG_MEMORY_FAIL=<k1,k2,...>: the k-th device allocation of this call fails, counting from 1
+    hDebugFailAllocations.clear();
+    kDebugAllocationCount = 0;
+    const char* failList = getenv("BEAGLE_DEBUG_MEMORY_FAIL");
+    while (failList != NULL && *failList != '\0') {
+        char* end;
+        const long k = strtol(failList, &end, 10);
+        if (end == failList)
+            break;
+        hDebugFailAllocations.push_back((int) k);
+        failList = (*end == ',') ? end + 1 : end;
+    }
+    int returnCode;
+    try {
+        returnCode = growBufferCounts(partialsBufferCount, matrixBufferCount, scaleBufferCount);
+    } catch (...) { // std::bad_alloc, which beagleEnsureBufferCounts returns as BEAGLE_ERROR_OUT_OF_MEMORY
+        hDebugFailAllocations.clear();
+        throw;
+    }
+    hDebugFailAllocations.clear();
+    return returnCode;
+#else
+    return growBufferCounts(partialsBufferCount, matrixBufferCount, scaleBufferCount);
+#endif
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growBufferCounts(int partialsBufferCount,
+                                                        int matrixBufferCount,
+                                                        int scaleBufferCount) {
+    gpu->SynchronizeHost(); // on every path, as beagle.h says (a lost TinyGPU instance does nothing)
+    BEAGLE_GPU_RETURN_IF_LOST();
+    if (kPoolLost)
+        return BEAGLE_ERROR_OUT_OF_MEMORY; // an earlier growth lost a pool: the instance must be finalized
+
+    BufferCounts counts;
+    int returnCode = BEAGLE_SUCCESS;
+    if (!ensureBufferCountsRule(partialsBufferCount, matrixBufferCount, scaleBufferCount, kTipCount,
+                                kCompactBufferCount, kBufferCount, kMatrixCount, kScaleBufferCount, kFlags,
+                                &counts, &returnCode))
+        return returnCode;
+    const int newBuffer = counts.bufferCount;
+    const int newInternal = counts.internalCount;
+    const int newMatrix = counts.matrixCount;
+    const int newScale = counts.scaleCount;
+    const bool growPartials = counts.growPartials;
+    const bool growMatrices = counts.growMatrices;
+    const bool growScale = counts.growScale;
+
+    const bool autoScaling = (kFlags & BEAGLE_FLAG_SCALING_AUTO) != 0;
+    const bool dynamicScaling = (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) != 0;
+#ifndef CUDA
+    if (growScale && dynamicScaling)
+        return BEAGLE_ERROR_NO_IMPLEMENTATION; // as at creation, which refuses dynamic scale buffers off CUDA
+#endif
+
+    // The pools: slots, the strides (growing from 0 scale buffers, those createInstance would have set) and the
+    // lengths of their handle arrays. The matrix pool keeps room for the scratch matrices of the on-the-fly transposes.
+    const size_t partialsStride = kIndexOffsetPat * sizeof(Real);
+    const int newPartialsCapacity = std::max(kPartialsPoolCapacity, newBuffer - kCompactBufferCount);
+    const int newPartialsLength = std::max(kPartialsHandleCount, newBuffer);
+    const bool matrixPool = !denseMatricesOnDemand() || dMatricesOrigin != (GPUPtr)NULL;
+    const size_t matrixStride = kIndexOffsetMat * sizeof(Real);
+    const long long matrixSlots = (long long) newMatrix + kExtraMatrixCount; // 64 bits until checked below
+    const int oldMatrixLength = std::max(kMatrixCount + kExtraMatrixCount, kMatrixPoolCapacity);
+    const size_t scaleElementSize = autoScaling ? sizeof(signed char) : sizeof(Real); // as at creation
+    const size_t scaleStride = (kScaleBufferStride != 0 ? kScaleBufferStride * scaleElementSize :
+                                gpu->AlignMemOffset(kScaleBufferSize * scaleElementSize));
+    const long long scaleSlots = autoScaling ? (long long) newScale :
+                                 (long long) newScale + 1; // + 1 for the buffer of zeroes of raw scalers; 64 bits too
+    const bool growGrid = growPartials && (kUsingMultiGrid || kPartitionsInitialised); // as in the destructor
+
+    // sizes that overflow: the pools, which kernels offset by int element counts, and later int arithmetic
+    if ((growPartials && ((long long) newPartialsCapacity * kIndexOffsetPat > INT_MAX ||
+                          (long long) kPaddedPatternCount * newBuffer * 2 > INT_MAX || // dOutFirstDeriv, initDerivatives
+                          (long long) newBuffer * kMaxPartitionCount > INT_MAX)) ||   // hStreamIndices
+        (growGrid && (long long) newInternal * kMaxPaddedPartitionBlocks * 8 > INT_MAX) || // multi-grid operations
+        (growMatrices && (matrixSlots * kIndexOffsetMat > INT_MAX ||
+                          (long long) newMatrix * kCategoryCount * 3 * 3 > INT_MAX)) ||  // dPtrQueue
+        (growScale && !dynamicScaling && scaleSlots * (scaleStride / scaleElementSize) > INT_MAX))
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    const int newMatrixCapacity = (int) matrixSlots;
+    const int newMatrixLength = std::max(newMatrixCapacity, kMatrixPoolCapacity);
+    const int newScaleSlots = dynamicScaling ? 0 : (int) scaleSlots; // DYNAMIC has no pool
+    const int newScaleLength = std::max(newScaleSlots, kScalePoolCapacity);
+
+    // Every phase leaves the instance valid at the old counts, which index only the prefixes of the larger arrays and
+    // pools; a pool that moved keeps its larger capacity.
+
+    // Phase 1: larger host arrays, each swapped in once it is complete
+    if (growPartials) {
+        int* streamIndices = (int*) malloc(sizeof(int) * (size_t) newBuffer * kMaxPartitionCount); // set per use
+        if (streamIndices == NULL ||
+            !growHostArray(dPartials, kPartialsHandleCount, newPartialsLength) ||
+            !growHostArray(hPartialsOffsets, kPartialsHandleCount, newPartialsLength) ||
+            !growHostArray(dStates, kBufferCount, newBuffer)) {
+            free(streamIndices);
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+        free(hStreamIndices);
+        hStreamIndices = streamIndices;
+    }
+    if (growMatrices) {
+        if (!growHostArray(dMatrices, oldMatrixLength, newMatrixLength)) // zero handles while there is no pool
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        if (denseMatricesOnDemand()) {
+            try {
+                std::vector<bool> denseWritten(hDenseWritten);
+                denseWritten.resize(newMatrix, false);
+                hDenseWritten.swap(denseWritten);
+            } catch (const std::bad_alloc&) {
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            }
+        }
+    }
+    if (growScale) {
+        if (dynamicScaling) {
+#ifdef CUDA
+            // one buffer per index, allocated on first use; copyScaleFactors' aliases are copied
+            if (!growHostArray(dScalingFactors, kScaleBufferCount, newScale) ||
+                !growHostArray(dScalingFactorsMaster, kScaleBufferCount, newScale))
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            if (hRescalingTrigger == NULL) { // created without scale buffers; exits on failure, as at creation
+                hRescalingTrigger = (int*) gpu->AllocatePinnedHostMemory(sizeof(int), false, true);
+                dRescalingTrigger = gpu->GetDeviceHostPointer((void*) hRescalingTrigger);
+            }
+#endif
+        } else if (!growHostArray(dScalingFactors, kScalePoolCapacity, newScaleLength)) {
+            return BEAGLE_ERROR_OUT_OF_MEMORY;
+        }
+    }
+
+    // Phase 2: the device pools. A pool that moved (!hasSubPointers(origin), also when it was lost) gets its handles
+    // made again at once, since the old block is gone; if that runs out of host memory, handles into the freed block
+    // remain, and the instance must be finalized.
+    if (growPartials) {
+        const int oldCapacity = kPartialsPoolCapacity;
+        const int oldLength = kPartialsHandleCount;
+        returnCode = growPool(dPartialsOrigin, kPartialsPoolCapacity, partialsStride, newPartialsCapacity,
+                              oldCapacity); // every slot: pattern reordering permutes them
+        if (!hasSubPointers(dPartialsOrigin)) {
+            const bool lost = (dPartialsOrigin == (GPUPtr)NULL);
+            try {
+                for (int k = 0; k < kTipPartialsBufferCount; k++)
+                    dTipPartialsBuffers[k] = lost ? (GPUPtr)NULL :
+                                             createSubPointer(dPartialsOrigin, partialsStride * k, partialsStride);
+                for (int i = 0; i < oldLength; i++) {
+                    if (dPartials[i] != (GPUPtr)NULL) { // a tip without partials stays unbound
+                        const int slot = hPartialsOffsets[i] / kIndexOffsetPat;
+                        dPartials[i] = (slot < kTipPartialsBufferCount ? dTipPartialsBuffers[slot] :
+                                        lost ? (GPUPtr)NULL :
+                                        createSubPointer(dPartialsOrigin, partialsStride * slot, partialsStride));
+                    }
+                }
+            } catch (const std::bad_alloc&) {
+                kPoolLost = true;
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            }
+        }
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
+        for (int i = oldLength; i < newBuffer; i++) { // new internal buffers, in the slots createInstance gives them
+            const int slot = i - kCompactBufferCount;
+            dPartials[i] = createSubPointer(dPartialsOrigin, partialsStride * slot, partialsStride);
+            hPartialsOffsets[i] = kIndexOffsetPat * slot;
+        }
+        kPartialsHandleCount = newPartialsLength; // bindings past the old counts stay, unused, if a later phase fails
+    }
+    if (growMatrices && matrixPool) {
+        returnCode = growPool(dMatricesOrigin, kMatrixPoolCapacity, matrixStride, newMatrixCapacity,
+                              dMatricesOrigin != (GPUPtr)NULL ? kMatrixCount : 0); // the scratch is rewritten per use
+        if (!hasSubPointers(dMatricesOrigin)) {
+            try {
+                for (int i = 0; i < newMatrixLength; i++)
+                    dMatrices[i] = (i < kMatrixPoolCapacity ?
+                                    createSubPointer(dMatricesOrigin, matrixStride * i, matrixStride) : (GPUPtr)NULL);
+            } catch (const std::bad_alloc&) {
+                kPoolLost = true;
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            }
+        }
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
+    }
+    if (growScale && !dynamicScaling) {
+        if (kScaleBufferStride == 0) { // the first pool: the strides createInstance sets with one
+            kScaleBufferStride = scaleStride / scaleElementSize;
+            if (!autoScaling)
+                kScaleBufferSize = kScaleBufferStride;
+        }
+        const int usedSlots = (dScalingFactorsOrigin == (GPUPtr)NULL ? 0 :
+                               autoScaling ? kScaleBufferCount : kScaleBufferCount + 1); // with the old zeroes
+        returnCode = growPool(dScalingFactorsOrigin, kScalePoolCapacity, scaleStride, newScaleSlots, usedSlots);
+        if (!hasSubPointers(dScalingFactorsOrigin)) {
+            try {
+                for (int i = 0; i < newScaleLength; i++)
+                    dScalingFactors[i] = (i < kScalePoolCapacity ?
+                                          createSubPointer(dScalingFactorsOrigin, scaleStride * i, scaleStride) :
+                                          (GPUPtr)NULL);
+            } catch (const std::bad_alloc&) {
+                kPoolLost = true;
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            }
+        }
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
+        if (!autoScaling) { // the buffer of zeroes for the new count; the old one stays until the commit
+            Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedPatternCount);
+            if (zeroes == NULL)
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            gpu->MemcpyHostToDevice(dScalingFactors[newScale], zeroes, sizeof(Real) * kPaddedPatternCount);
+            gpu->FreeHostMemory(zeroes);
+        }
+    }
+
+    // Phase 3: the queues and multi-grid operation buffers that grow, into locals
+    const int newPtrQueueLength = std::max(newMatrix * kCategoryCount * 3 * 3, newInternal); // as at creation
+    const int newDistanceQueueLength = std::max(newMatrix * kCategoryCount * 2, newMatrix + kCategoryCount);
+    const size_t newOpOffsetsSize = sizeof(unsigned int) * newInternal * kMaxPaddedPartitionBlocks * 8;
+    GPUPtr newDerivativeQueue = (GPUPtr)NULL;
+    unsigned int* newHDerivativeQueue = NULL;
+    GPUPtr newPtrQueue = (GPUPtr)NULL;
+    unsigned int* newHPtrQueue = NULL;
+    GPUPtr newDistanceQueue = (GPUPtr)NULL;
+    Real* newHDistanceQueue = NULL;
+    GPUPtr newPartialsPtrs = (GPUPtr)NULL;
+    unsigned int* newHPartialsPtrs = NULL;
+    int* newGridOpIndices = NULL;
+    size_t failedBytes = 0; // a device request that failed, for TinyGPU's diagnostic
+    auto tryDevice = [&](size_t size) {
+        const GPUPtr ptr = tryAllocate(size);
+        if (ptr == (GPUPtr)NULL)
+            failedBytes = size;
+        return ptr;
+    };
+    bool ok = true;
+    if (growPartials) {
+        const size_t size = sizeof(unsigned int) * newBuffer * 3;
+        ok = (newDerivativeQueue = tryDevice(size)) != (GPUPtr)NULL &&
+             (newHDerivativeQueue = (unsigned int*) gpu->MallocHost(size)) != NULL;
+    }
+    if (ok && newPtrQueueLength > kPtrQueueLength) {
+        const size_t size = sizeof(unsigned int) * newPtrQueueLength;
+        ok = (newPtrQueue = tryDevice(size)) != (GPUPtr)NULL &&
+             (newHPtrQueue = (unsigned int*) gpu->MallocHost(size)) != NULL;
+    }
+    if (ok && newDistanceQueueLength > kDistanceQueueLength) {
+        const size_t size = sizeof(Real) * newDistanceQueueLength;
+        ok = (newDistanceQueue = tryDevice(size)) != (GPUPtr)NULL &&
+             (newHDistanceQueue = (Real*) gpu->MallocHost(size)) != NULL;
+    }
+    if (ok && growGrid) { // never allocateMultiGridBuffers, which would replace hPartitionOffsets too
+        ok = (newGridOpIndices = (int*) malloc(sizeof(int) * newInternal * 6)) != NULL;
+#ifdef FW_OPENCL
+        if (ok) { // last, since it exits on failure; mapped between calls, as allocateMultiGridBuffers leaves it
+            newPartialsPtrs = (GPUPtr) gpu->AllocatePinnedHostMemory(newOpOffsetsSize, false, false);
+            newHPartialsPtrs = (unsigned int*) gpu->MapMemory(newPartialsPtrs, newOpOffsetsSize);
+        }
+#else
+        ok = ok && (newPartialsPtrs = tryDevice(newOpOffsetsSize)) != (GPUPtr)NULL &&
+             (newHPartialsPtrs = (unsigned int*) gpu->MallocHost(newOpOffsetsSize)) != NULL;
+#endif
+    }
+    if (!ok) {
+        if (newDerivativeQueue != (GPUPtr)NULL)
+            gpu->FreeMemory(newDerivativeQueue);
+        gpu->FreeHostMemory(newHDerivativeQueue);
+        if (newPtrQueue != (GPUPtr)NULL)
+            gpu->FreeMemory(newPtrQueue);
+        gpu->FreeHostMemory(newHPtrQueue);
+        if (newDistanceQueue != (GPUPtr)NULL)
+            gpu->FreeMemory(newDistanceQueue);
+        gpu->FreeHostMemory(newHDistanceQueue);
+#ifndef FW_OPENCL
+        if (newPartialsPtrs != (GPUPtr)NULL)
+            gpu->FreeMemory(newPartialsPtrs);
+        gpu->FreeHostMemory(newHPartialsPtrs);
+#endif
+        free(newGridOpIndices);
+        BEAGLE_GPU_RETURN_IF_LOST();
+#ifdef FW_TINYGPU
+        if (failedBytes > 0)
+            gpu->ReportOutOfMemory(failedBytes); // as growPool does
+#endif
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+
+    // Phase 4: commit
+    gpu->SynchronizeHost(); // queued work that reads the replaced buffers has finished
+    if (newDerivativeQueue != (GPUPtr)NULL) {
+        gpu->FreeMemory(dDerivativeQueue);
+        gpu->FreeHostMemory(hDerivativeQueue);
+        dDerivativeQueue = newDerivativeQueue;
+        hDerivativeQueue = newHDerivativeQueue;
+    }
+    if (newPtrQueue != (GPUPtr)NULL) {
+        gpu->FreeMemory(dPtrQueue);
+        gpu->FreeHostMemory(hPtrQueue);
+        dPtrQueue = newPtrQueue;
+        hPtrQueue = newHPtrQueue;
+        kPtrQueueLength = newPtrQueueLength;
+    }
+    if (newDistanceQueue != (GPUPtr)NULL) {
+        gpu->FreeMemory(dDistanceQueue);
+        gpu->FreeHostMemory(hDistanceQueue);
+        dDistanceQueue = newDistanceQueue;
+        hDistanceQueue = newHDistanceQueue;
+        kDistanceQueueLength = newDistanceQueueLength;
+    }
+    if (growGrid) {
+#ifdef FW_OPENCL
+        gpu->UnmapMemory(dPartialsPtrs, hPartialsPtrs);
+#else
+        gpu->FreeHostMemory(hPartialsPtrs);
+#endif
+        gpu->FreeMemory(dPartialsPtrs);
+        free(hGridOpIndices);
+        dPartialsPtrs = newPartialsPtrs;
+        hPartialsPtrs = newHPartialsPtrs;
+        hGridOpIndices = newGridOpIndices;
+        kOpOffsetsSize = newOpOffsetsSize;
+    }
+    if (growPartials && kMultipleDerivativesLength > 0) { // sized by the buffer count; initDerivatives makes them again
+        gpu->FreeMemory(dMultipleDerivatives);
+        gpu->FreeMemory(dMultipleDerivativeSum);
+        dMultipleDerivatives = (GPUPtr)NULL;
+        dMultipleDerivativeSum = (GPUPtr)NULL;
+        kMultipleDerivativesLength = 0;
+    }
+
+    kBufferCount = newBuffer;
+    kPartialsBufferCount = newBuffer - kCompactBufferCount;
+    kInternalPartialsBufferCount = newInternal;
+    kMatrixCount = newMatrix;
+    kScaleBufferCount = newScale;
+
+    gpu->ReportMemory("grow"); // BEAGLE_DEBUG_MEMORY only
+
+    BEAGLE_GPU_RETURN_IF_LOST();
+    return BEAGLE_SUCCESS;
 }
 
 #ifdef CUDA
@@ -3106,7 +3501,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const
 
         const size_t ptrIncrement = kIndexOffsetMat * sizeof(Real); // AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real))
 
-        int matrixLength = kMatrixCount + kExtraMatrixCount; // the entries of dMatrices
+        // the entries of dMatrices, which a failed ensureBufferCounts may leave bound up to the pool's capacity
+        int matrixLength = std::max(kMatrixCount + kExtraMatrixCount, kMatrixPoolCapacity);
         if (matrixLength < newCapacity) {
             GPUPtr* newMatrices = (GPUPtr*) realloc(dMatrices, sizeof(GPUPtr) * newCapacity);
             if (newMatrices == NULL)
@@ -3121,9 +3517,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatricesOnTheFly(const
 
         // After an OOM that lost the pool (origin 0), every handle is 0 and later growths return OOM: finalize the instance
         if (!hasSubPointers(dMatricesOrigin)) { // the pool moved: the old handles are released
-            for (int i = 0; i < matrixLength; ++i) {
-                dMatrices[i] = (i < kMatrixPoolCapacity ?
-                                createSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement) : (GPUPtr)NULL);
+            try {
+                for (int i = 0; i < matrixLength; ++i) {
+                    dMatrices[i] = (i < kMatrixPoolCapacity ?
+                                    createSubPointer(dMatricesOrigin, ptrIncrement * i, ptrIncrement) : (GPUPtr)NULL);
+                }
+            } catch (const std::bad_alloc&) { // handles into the freed block remain: finalize the instance
+                kPoolLost = true;
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
             }
         }
         if (returnCode != BEAGLE_SUCCESS)

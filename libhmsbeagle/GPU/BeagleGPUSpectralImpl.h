@@ -130,6 +130,12 @@ public:
     char* getInstanceName() override;
     int getInstanceDetails(BeagleInstanceDetails* returnInfo) override;
 
+    /* Temporary: the spectral distance pool does not grow yet, so growing the base pools alone would leave it short.
+     * BEAGLE_ERROR_NO_IMPLEMENTATION, also for (0, 0, 0). */
+    int ensureBufferCounts(int partialsBufferCount,
+                           int matrixBufferCount,
+                           int scaleBufferCount) override;
+
     /* Paths that read transition matrices which spectral never computes (only setters write dense matrices here),
      * and pattern partitions, which the spectral dispatch does not honour: BEAGLE_ERROR_NO_IMPLEMENTATION. */
     int setPatternPartitions(int partitionCount,

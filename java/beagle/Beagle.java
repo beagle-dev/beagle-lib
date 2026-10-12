@@ -155,7 +155,10 @@ public interface Beagle extends Serializable {
      * @param matrixBufferCount    Number of transition matrix buffers (input)
      * @param scaleBufferCount     Number of scale buffers (input)
      * @throws BeagleException with NO_IMPLEMENTATION_ERROR when the implementation (or an older native library)
-     *         cannot grow buffers; OUT_OF_RANGE_ERROR or OUT_OF_MEMORY_ERROR leave the instance unchanged
+     *         cannot grow buffers; OUT_OF_RANGE_ERROR or OUT_OF_MEMORY_ERROR leave the instance unchanged (on a GPU,
+     *         after OUT_OF_MEMORY_ERROR the old contents are kept on a best-effort basis: if ensureBufferCounts(0, 0, 0)
+     *         then fails too, finalize the instance; on OpenCL a lazily committed allocation can still fail later
+     *         and exit)
      */
     void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
 

@@ -234,6 +234,15 @@ if(BUILD_SSE AND BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(buffergrowthtest buffergrowthtest)
+    if(BUILD_OPENCL OR BUILD_CUDA)
+        # its GPU axis on resource 1, skipped without a GPU; a BEAGLE_DEBUG_MEMORY build also checks the counters and
+        # forces allocations to fail, with every sub-buffer padded, as AMD and Intel OpenCL do
+        add_test(buffergrowthtest-gpu buffergrowthtest --gpu 1)
+        set_tests_properties(buffergrowthtest-gpu PROPERTIES SKIP_RETURN_CODE 77)
+        if(BEAGLE_DEBUG_MEMORY)
+            set_tests_properties(buffergrowthtest-gpu PROPERTIES ENVIRONMENT BEAGLE_DEBUG_OPENCL_ALIGN=128)
+        endif(BEAGLE_DEBUG_MEMORY)
+    endif(BUILD_OPENCL OR BUILD_CUDA)
 endif(BUILD_SSE AND BUILD_SPECTRAL)
 
 if(BUILD_TINYGPU)
@@ -277,4 +286,17 @@ if(TARGET hmsbeagle-opencl)
 				"DYLD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}")
 		endif()
 	endforeach()
+endif()
+# buffergrowthtest-gpu gets the CUDA plugin directories as well, so that its GPU cases do not skip on a CUDA build
+if(TEST buffergrowthtest-gpu)
+	set(GROWTH_PLUGIN_DIRS "")
+	foreach(GPU_PLUGIN hmsbeagle-opencl hmsbeagle-opencl-spectral hmsbeagle-cuda hmsbeagle-cuda-spectral)
+		if(TARGET ${GPU_PLUGIN})
+			get_target_property(GPU_PLUGIN_DIR ${GPU_PLUGIN} BINARY_DIR)
+			list(APPEND GROWTH_PLUGIN_DIRS ${GPU_PLUGIN_DIR})
+		endif()
+	endforeach()
+	string(REPLACE ";" ":" GROWTH_PLUGIN_DIRS "${GROWTH_PLUGIN_DIRS}")
+	set_property(TEST buffergrowthtest-gpu APPEND PROPERTY ENVIRONMENT
+		"DYLD_LIBRARY_PATH=${GROWTH_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GROWTH_PLUGIN_DIRS}")
 endif()

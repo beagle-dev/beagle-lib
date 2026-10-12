@@ -481,7 +481,8 @@ BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
  * BEAGLE_FLAG_SCALING_ALWAYS the scale count follows the partials count and scaleBufferCount is ignored.
  * Tip, compact, eigen, state, pattern and category counts, pattern partitions, pattern weights and the thread
  * count do not change. An implementation may reserve more memory than requested; only the requested indices are
- * valid. Must not run concurrently with any other call on the same instance.
+ * valid. Must not run concurrently with any other call on the same instance. Synchronous: on a GPU it waits for
+ * queued work.
  *
  * @param instance             Instance number (input)
  * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
@@ -490,9 +491,13 @@ BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
  *
  * @return BEAGLE_SUCCESS;
  *         BEAGLE_ERROR_OUT_OF_RANGE for a negative count or a count whose sizes overflow (instance unchanged);
- *         BEAGLE_ERROR_OUT_OF_MEMORY if an allocation fails (instance unchanged and usable);
- *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, currently the GPU
- *         implementations (instance unchanged);
+ *         BEAGLE_ERROR_OUT_OF_MEMORY if an allocation fails (instance unchanged and usable; on a GPU, a buffer
+ *         pool that cannot grow is put back through host memory on a best-effort basis, and if that fails too,
+ *         beagleEnsureBufferCounts(instance, 0, 0, 0) also returns BEAGLE_ERROR_OUT_OF_MEMORY and the instance
+ *         must be finalized; on OpenCL a lazily committed allocation can still fail later and exit);
+ *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, currently the spectral GPU
+ *         implementations, or for more scale buffers under BEAGLE_FLAG_SCALING_DYNAMIC on a GPU other than CUDA
+ *         (instance unchanged);
  *         BEAGLE_ERROR_UNINITIALIZED_INSTANCE for an invalid instance.
  */
 BEAGLE_DLLEXPORT int beagleEnsureBufferCounts(int instance,
