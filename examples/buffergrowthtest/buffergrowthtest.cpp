@@ -32,6 +32,10 @@
  *
  * GPU axis: buffergrowthtest --gpu <resource> [--precision single|double] runs the GPU cases instead, on that resource
  * only, and exits 77 (skipped) if it is not a GPU resource, or has no double precision when only that is asked for.
+ * With --control, G is a second fresh instance at the final counts, created while another instance is alive (so its
+ * memory lies elsewhere), and nothing grows: the cases then compare two fresh instances, which shows which comparisons
+ * a device does not reproduce at all (on TinyGPU-AMD, 13 of the 42 cases, before G2 too); the checks of growth itself
+ * and the spectral cases are not run.
  * Every instance requires the resource's framework (CUDA, OpenCL or TinyGPU) and checks its implementation name and
  * flags. The flow keeps to what GPU instances implement: bifurcating trees; root pre-order partials through
  * setPartials, so below the partials count; BOTTOM pre-order; getPartials of bound buffers only; edge derivatives and
@@ -653,6 +657,7 @@ struct GpuResource {
 };
 GpuResource gpu;
 bool debugMemory = false; // the library prints BEAGLE_DEBUG_MEMORY lines: a -DBEAGLE_DEBUG_MEMORY=ON build
+bool control = false;     // --control: G is a second fresh instance at the final counts, and nothing grows
 
 // What the library writes to stderr (its BEAGLE_DEBUG_MEMORY lines) while it exists; finish() passes it on to stderr
 class StderrCapture {
@@ -859,7 +864,10 @@ public:
         GpuRun r, g;
         r.instance = create(p1, M1, S1);
         if (r.instance < 0) return false;
+        // --control: another instance is alive while G is created, so G's memory lies elsewhere than R's
+        const int other = control ? create(p1, M1, S1) : -1;
         g.instance = create(p0, m0, c.scaleFromZero ? 0 : s0);
+        if (other >= 0) finalizeGpu(other);
         check(g.instance >= 0, "could not create the instance to grow");
         if (g.instance < 0) { finalizeGpu(r.instance); return true; }
 
@@ -1111,6 +1119,11 @@ private:
     std::string expectedName() const { return gpu.prefix + (c.single ? "-Single" : "-Double"); }
 
     int create(int partialsCount, int matrixCount, int scaleCount) {
+        if (control) { // --control: every instance at the final counts
+            partialsCount = p1;
+            matrixCount = M1;
+            scaleCount = S1;
+        }
         const long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework |
                                   (c.single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
         long preferences = c.preferences;
@@ -1342,6 +1355,10 @@ private:
     }
 
     bool grow(GpuRun& g, int partialsCount, int matrixCount, int scaleCount, const std::string& how) {
+        if (control) { // --control: no growth
+            unchanged(g, "after growth " + how);
+            return true;
+        }
         const int code = g.call(beagleEnsureBufferCounts(g.instance, partialsCount, matrixCount, scaleCount));
         check(code == BEAGLE_SUCCESS, "growth " + how + " returned " + std::to_string(code));
         unchanged(g, "after growth " + how);
@@ -2040,6 +2057,7 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
                 printf("skip %s: no implementation\n", test.name().c_str());
             }
         }
+        if (control) continue; // fresh vs fresh: the spectral cases and the checks of growth itself are not run
         // a spectral implementation here; without the flag (TinyGPU, or no spectral plugin) creation would fail with
         // BEAGLE_ERROR_NO_RESOURCE, so G2b's skip is printed after the contract checks
         bool spectral = false;
@@ -2134,8 +2152,8 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
             }
         }
     }
-    printf("buffergrowthtest --gpu %d: %d cases, %d other checks, %d skipped, %d failures\n", number, cases, checks,
-           skipped, failures);
+    printf("buffergrowthtest --gpu %d%s: %d cases, %d other checks, %d skipped, %d failures\n", number,
+           control ? " --control" : "", cases, checks, skipped, failures);
     const bool pass = failures == 0 && cases > 0;
     printf("%s\n", pass ? "PASS" : "FAIL");
     return pass ? 0 : 1;
@@ -2184,8 +2202,10 @@ int main(int argc, char** argv) {
         } else if (arg == "--precision" && a + 1 < argc && (std::string(argv[a + 1]) == "single" ||
                                                             std::string(argv[a + 1]) == "double")) {
             precision = argv[++a];
+        } else if (arg == "--control") {
+            control = true;
         } else if (arg.compare(0, 2, "--") == 0) {
-            printf("usage: buffergrowthtest [--gpu <resource> [--precision single|double]] [label]\n");
+            printf("usage: buffergrowthtest [--gpu <resource> [--precision single|double] [--control]] [label]\n");
             return 1;
         } else {
             only = arg;
