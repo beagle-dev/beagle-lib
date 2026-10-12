@@ -146,6 +146,13 @@ if(BUILD_SPECTRAL)
     if(BUILD_OPENCL)
         add_test(adjointtest4-gpu adjointtest4 --gpu 1 --all)
         set_tests_properties(adjointtest4-gpu PROPERTIES SKIP_RETURN_CODE 77)
+        # the model at eigen index 1, so the adjoint reaches the eigen-indexed offsets of its pools; a
+        # BEAGLE_DEBUG_MEMORY build also pads every sub-buffer, as AMD and Intel OpenCL do
+        add_test(adjointtest4-gpu-eigenindex adjointtest4 --gpu 1 --all --eigenindex 1)
+        set_tests_properties(adjointtest4-gpu-eigenindex PROPERTIES SKIP_RETURN_CODE 77)
+        if(BEAGLE_DEBUG_MEMORY)
+            set_tests_properties(adjointtest4-gpu-eigenindex PROPERTIES ENVIRONMENT BEAGLE_DEBUG_OPENCL_ALIGN=128)
+        endif(BEAGLE_DEBUG_MEMORY)
         # pre-order with PREORDER_TRANSPOSE_AUTO and edge derivatives on a GPU; skipped without one
         add_test(hmctest5-gpu hmctest5 --gpu 1)
         set_tests_properties(hmctest5-gpu PROPERTIES SKIP_RETURN_CODE 77)
