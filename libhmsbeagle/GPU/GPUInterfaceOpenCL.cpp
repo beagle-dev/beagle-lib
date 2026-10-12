@@ -587,9 +587,10 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif
 
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernel] %s: parameterCountV=%d totalParameterCount=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount);
     }
@@ -598,7 +599,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernel] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
             fflush(stderr);
         }
@@ -607,7 +608,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernel] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
             fflush(stderr);
         }
@@ -627,7 +628,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
                 kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
                 localWorkSize[0], localWorkSize[1], localWorkSize[2],
@@ -645,7 +646,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     printf("local = %lu\n\n", local);
 #endif
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         size_t maxLocal = 0;
         clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE,
                                   sizeof(maxLocal), &maxLocal, NULL);
@@ -657,7 +658,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
         fflush(stderr);
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: about to enqueue\n", kernelNameBuf);
         fflush(stderr);
     }
@@ -673,7 +674,7 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernel] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
         fflush(stderr);
         clFinish(openClCommandQueues[0]);
@@ -698,9 +699,10 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif
 
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
     char kernelNameBuf[256] = {0};
-    clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
         fprintf(stderr, "[LaunchKernelConcurrent] %s: parameterCountV=%d totalParameterCount=%d streamIndex=%d waitIndex=%d\n",
                 kernelNameBuf, parameterCountV, totalParameterCount, streamIndex, waitIndex);
     }
@@ -709,7 +711,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernelConcurrent] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
             fflush(stderr);
         }
@@ -718,7 +720,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
-        if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+        if (debugArgs) {
             fprintf(stderr, "[LaunchKernelConcurrent] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
             fflush(stderr);
         }
@@ -738,7 +740,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
                 kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
                 localWorkSize[0], localWorkSize[1], localWorkSize[2],
@@ -763,7 +765,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
         dims = 2;
     }
 
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: about to enqueue (dims=%d)\n", kernelNameBuf, dims);
         fflush(stderr);
     }
@@ -807,7 +809,7 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize,
                                        0, NULL, NULL));
     // }
-    if (getenv("BEAGLE_DEBUG_KERNEL_ARGS")) {
+    if (debugArgs) {
         fprintf(stderr, "[LaunchKernelConcurrent] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
         fflush(stderr);
         clFinish(openClCommandQueues[0]);
