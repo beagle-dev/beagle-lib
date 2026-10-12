@@ -155,6 +155,7 @@ private:
     unsigned int kSlowReweighing;
     unsigned int kMultiplyBlockSize;
     unsigned int kSumSitesBlockSize;
+    unsigned int kAdjointBlockSizeN;
     long kFlags;
     bool kCPUImplementation;
     bool kAppleCPUImplementation;

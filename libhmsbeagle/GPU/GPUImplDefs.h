@@ -565,6 +565,11 @@ enum BeagleDeviceImplementationCodes {
 #define REORDER_BLOCK_SIZE           32
 #define REORDER_BLOCK_SIZE_CPU      256
 #define REORDER_BLOCK_SIZE_APPLECPU 128
+// kernelAdjointMergedN's block: 64 threads where FW_OPENCL_AMDGPU is defined (AMD and Apple GPUs; faster
+// there on an AMD gfx906 and an Apple M1 Max), 128 elsewhere (NVIDIA, CUDA: not measured at 64). Host code
+// never has FW_OPENCL_AMDGPU; KernelLauncher picks the same width from the device's implementation code.
+#define ADJOINT_BLOCK_SP_N_DEFAULT  128
+#define ADJOINT_BLOCK_SP_N_AMDGPU    64
 
 #define SUM_SITES_BLOCK_SIZE    GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
 #define MULTI_NODE_SUM_BLOCK_SIZE    GET2_VALUE(MULTI_NODE_SUM_BLOCK_SIZE, PREC)
@@ -572,6 +577,11 @@ enum BeagleDeviceImplementationCodes {
     #define MULTIPLY_BLOCK_SIZE     GET3_VALUE(MULTIPLY_BLOCK_SIZE, PREC, APPLECPU)
 #else
     #define MULTIPLY_BLOCK_SIZE     GET2_VALUE(MULTIPLY_BLOCK_SIZE, PREC)
+#endif
+#if defined(FW_OPENCL_AMDGPU)
+    #define ADJOINT_BLOCK_SP_N      ADJOINT_BLOCK_SP_N_AMDGPU
+#else
+    #define ADJOINT_BLOCK_SP_N      ADJOINT_BLOCK_SP_N_DEFAULT
 #endif
 
 #define MEMCNV(to, from, length, toType)    { \

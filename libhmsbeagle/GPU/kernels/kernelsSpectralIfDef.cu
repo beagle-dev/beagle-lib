@@ -849,7 +849,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 #endif
 
-#define ADJOINT_BLOCK_SP_N  128
+/* ADJOINT_BLOCK_SP_N (64 on AMD and Apple GPUs, 128 elsewhere) is in GPUImplDefs.h, shared with KernelLauncher */
 
 /* CAS-retry float/double atomic add, in its own KW_DEVICE_FUNC-free OpenCL
  * helper function rather than inlined as a macro at the call site.
@@ -900,12 +900,12 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
  * fixed register pressure and coalescing but, benchmarked, was a real
  * regression at moderate-to-large pattern counts (e.g. S=32, nPat=2000:
  * 0.803 -> 1.114 ms/branch, ~40% slower) because it cut per-block pattern
- * parallelism from 128-way down to (ADJOINT_BLOCK_SP_N/S)-way — 4-way at
+ * parallelism from ADJOINT_BLOCK_SP_N-way down to (ADJOINT_BLOCK_SP_N/S)-way — 4-way at
  * S=32 — and the `lhs` projection (`EVECT_COL . prePartials[k,:]`, O(S))
  * still has to happen once per pattern regardless, so throughput dropped
  * ~32x for the dominant, patterns-scaling term while only removing an S-way
  * redundancy elsewhere. Reverted to the design below, which keeps full
- * 128-way pattern parallelism (matching the original kernel) and removes
+ * ADJOINT_BLOCK_SP_N-way pattern parallelism (matching the original kernel) and removes
  * *only* the redundant `ievc` projection — the part that was genuinely
  * S-fold redundant across the `S` per-row blocks (see STATUS.md's
  * O(S^3)-vs-O(S^2) derivation), without touching pattern-level parallelism
@@ -924,7 +924,7 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
 /* Extracted into its own `__attribute__((noinline))` helper (§5.4 of
  * GPU_ADJOINT_PLAN.md) — this is the single densest concentration of
  * `tid`-predicated, barrier-synchronized code in the kernel (a 32x-repeated
- * 128-wide tree reduction), shared by every code path (isAllReal, singleton,
+ * ADJOINT_BLOCK_SP_N-wide tree reduction), shared by every code path (isAllReal, singleton,
  * pairleader alike) and never previously isolated by the noinline treatment
  * already proven for the SINGLETON/PAIRLEADER bodies above. Giving it its
  * own function/register-allocation scope is a diagnostic for whether it is

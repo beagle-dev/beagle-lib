@@ -49,6 +49,7 @@ KernelLauncher::~KernelLauncher() {
 void KernelLauncher::SetupKernelBlocksAndGrids() {
     kCPUImplementation = false;
     kAppleCPUImplementation = false;
+    kAdjointBlockSizeN = ADJOINT_BLOCK_SP_N_DEFAULT;
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
@@ -59,6 +60,12 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_CPU) {
         kCPUImplementation = true;
         kAppleCPUImplementation = true;
+    }
+    // the devices whose kernels GPUInterface::SetDevice builds with FW_OPENCL_AMDGPU
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU) {
+        kAdjointBlockSizeN = ADJOINT_BLOCK_SP_N_AMDGPU;
     }
 #endif
 
@@ -1179,7 +1186,7 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
                                                          unsigned int patternCount,
                                                          unsigned int categoryCount,
                                                          int branchCount) {
-    Dim3Int block(128);
+    Dim3Int block(kAdjointBlockSizeN);
     Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
     gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 12,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,

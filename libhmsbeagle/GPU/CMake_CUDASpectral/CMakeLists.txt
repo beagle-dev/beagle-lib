@@ -34,6 +34,7 @@ add_custom_command(
             "../kernels/kernelsAll.cu"
             "../kernels/kernelsSpectralIfDef.cu"
             "../kernels/kernelsSpectralIfDef4.cu"
+            "../GPUImplDefs.h"
         COMMENT "Building CUDA spectral kernels"
         VERBATIM)
 
