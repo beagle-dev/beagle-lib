@@ -161,9 +161,10 @@ hw_logstream() {
 # inheritance (RunningBoard, as its window's visibility changes: STATUS.md R35), with that message's continuation lines, and
 # the system broadcasts its GUI process receives: macOS's GenerativeModels availability change and the CFPrefs reload that
 # came with it (STATUS.md R117), and the Sandbox denying a process an NVRAM read of a panicmedic-* variable, which the filter
-# catches by its name (softwareupdated's, STATUS.md R120). Any other line from TinyGPU.app (a RunningBoard termination, say),
-# and every DART, apciec or panic line, still stops the run.
-HW_LOG_BENIGN='^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE[0-9]+:|H13Cam|TinyGPU: \(RunningBoardServices\) (didChangeInheritances$|\[com\.apple\.runningboard:connection\] (Gained|Lost) inheritances: \{\($)|^    <RBSInheritance[|] |^\)\}$|TinyGPU: \(GenerativeModels\) \[com\.apple\.GenerativeModels:availability\] |TinyGPU: \(CoreFoundation\) Loading Preferences From User CFPrefsD$|kernel: \(Sandbox\) Sandbox: [A-Za-z0-9_.]+\([0-9]+\) deny\([0-9]+\) nvram-get panicmedic-[a-z-]+$'
+# catches by its name (softwareupdated's, STATUS.md R120), and TinyGPU.app's GUI process told of the display's sleep or system
+# state (SkyLight's CGSDisplayNotifyProc, R121). Any other line from TinyGPU.app (a RunningBoard termination, say), and every
+# DART, apciec or panic line, still stops the run.
+HW_LOG_BENIGN='^Filtering the log data|^Timestamp +Thread|\(AppleH11ANEInterface\) ANE[0-9]+:|H13Cam|TinyGPU: \(RunningBoardServices\) (didChangeInheritances$|\[com\.apple\.runningboard:connection\] (Gained|Lost) inheritances: \{\($)|^    <RBSInheritance[|] |^\)\}$|TinyGPU: \(GenerativeModels\) \[com\.apple\.GenerativeModels:availability\] |TinyGPU: \(CoreFoundation\) Loading Preferences From User CFPrefsD$|kernel: \(Sandbox\) Sandbox: [A-Za-z0-9_.]+\([0-9]+\) deny\([0-9]+\) nvram-get panicmedic-[a-z-]+$|TinyGPU: \(SkyLight\) \[com\.apple\.SkyLight:default\] \[[0-9]+\] CGSDisplayNotifyProc: '
 # hw_logstream_stop: after the run, lets log stream flush and stops it; fails if it had already ended (the check was blind)
 hw_logstream_stop() {
     kill -0 $LSP 2>/dev/null || return 1
