@@ -67,6 +67,12 @@ private:
     GPUFunction fPartialsStatesGrowingTopSpectral;
     GPUFunction fPartialsPartialsGrowingTopRootSpectral;
     GPUFunction fPartialsStatesGrowingTopRootSpectral;
+    /* degree 2 (one child), spectral: post-order, NoScale and FixedScale, and pre-order (BOTTOM and TOP) */
+    GPUFunction fPartialsDegree2NoScaleSpectral;
+    GPUFunction fPartialsDegree2FixedScaleSpectral;
+    GPUFunction fStatesDegree2NoScaleSpectral;
+    GPUFunction fStatesDegree2FixedScaleSpectral;
+    GPUFunction fPartialsDegree2GrowingSpectral;
 
     /* Adjoint cross-product kernel — generic N-state, merged single launch
      * (see STATUS.md/TODO.md — supersedes earlier two-phase, fused, and
@@ -358,6 +364,32 @@ public:
                                       int streamIndex,
                                       int waitIndex);
 
+    /* Degree 2 (child 2 BEAGLE_OP_NONE): partials3 = P_1 x_1, clamped at zero. A single child never gets AUTO's
+     * doRescaling 2: AUTO leaves it unscaled, as the CPU does */
+    void PartialsDegree2PruningSpectral(GPUPtr partials1,
+                                        GPUPtr partials3,
+                                        GPUPtr ievc1, GPUPtr evec1,
+                                        GPUPtr eigenValues1, GPUPtr distances1,
+                                        GPUPtr scalingFactors,
+                                        GPUPtr cumulativeScaling,
+                                        unsigned int patternCount,
+                                        unsigned int categoryCount,
+                                        int doRescaling,
+                                        int streamIndex,
+                                        int waitIndex);
+
+    void StatesDegree2PruningSpectral(GPUPtr states1,
+                                      GPUPtr partials3,
+                                      GPUPtr ievc1, GPUPtr evec1,
+                                      GPUPtr eigenValues1, GPUPtr distances1,
+                                      GPUPtr scalingFactors,
+                                      GPUPtr cumulativeScaling,
+                                      unsigned int patternCount,
+                                      unsigned int categoryCount,
+                                      int doRescaling,
+                                      int streamIndex,
+                                      int waitIndex);
+
 	void PartialsStatesGrowing(GPUPtr partials1,
                                GPUPtr partials2,
                                GPUPtr partials3,
@@ -437,6 +469,14 @@ public:
                                               GPUPtr eigenValues2, GPUPtr distances2,
                                               unsigned int patternCount,
                                               unsigned int categoryCount);
+
+    /* Degree 2 (no sibling), BOTTOM and TOP alike: dest = P_1^T p_par, clamped at zero */
+    void PartialsDegree2GrowingSpectral(GPUPtr partials1,
+                                        GPUPtr partials3,
+                                        GPUPtr evecT1, GPUPtr ievcT1,
+                                        GPUPtr eigenValues1, GPUPtr distances1,
+                                        unsigned int patternCount,
+                                        unsigned int categoryCount);
 
     /* Adjoint cross-product launchers — merged single launch covers every
      * branch in a call at once (grid spans branchCount), isStates/isAllReal

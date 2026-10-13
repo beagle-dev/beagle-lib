@@ -60,6 +60,7 @@
  *   SPECTRAL_WRITE_NO_SCALE_GPU()
  *   SPECTRAL_WRITE_FIXED_SCALE_GPU()
  *   SPECTRAL_WRITE_AUTO_SCALE_GPU()
+ *   SPECTRAL_NON_NEGATIVE(X)                  — X clamped at zero, NaN passes (the CPU's nonNegative)
  */
 
 /* ── FMA helper ─────────────────────────────────────────────────────────── */
@@ -316,6 +317,11 @@
     }
 
 /* ── Output writers ─────────────────────────────────────────────────────── */
+/* P x is computed as V (e^{Dt} (V^{-1} x)), so cancellation can leave small negative values; as the CPU's nonNegative
+ * (BeagleCPUSpectralImpl.hpp), a degree-2 product is clamped at zero, by a comparison rather than fmax, so a NaN passes
+ * through. */
+#define SPECTRAL_NON_NEGATIVE(X)  (((X) < (REAL)0) ? (REAL)0 : (X))
+
 #define SPECTRAL_WRITE_NO_SCALE_GPU() \
     if (pattern < totalPatterns) \
         partials3[u] = sum1 * sum2;
@@ -823,6 +829,126 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowingTopRootSpectral(
         SPECTRAL_FROM_EIGEN_GPU(FORWARD, 2, sibling)
         if (pattern < totalPatterns)
             partials3[u] = sibling * sP1[patIdx][state];
+    }
+}
+
+/* ── Degree 2 (one child: BEAGLE_OP_NONE as child 2 or as the sibling) ─────
+ * As CPU-Spectral's calcDegree2Partials and calcDegree2PrePartials:
+ *   post-order:  dest = max(P_1 x_1, 0)      FORWARD; x_1 partials, or a tip state
+ *   pre-order:   dest = max(P_1^T p_par, 0)  BACKWARD; BOTTOM and TOP alike
+ * FixedScale divides by the pattern's factor. AUTO leaves a degree-2 node unscaled,
+ * so there is no AutoScale kernel. With no branch the host copies p_par.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+KW_GLOBAL_KERNEL void kernelPartialsDegree2NoScaleSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        int totalPatterns) {
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_TO_EIGEN_GPU(FORWARD, 1, sP1)
+    SPECTRAL_EXP_GPU(FORWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = SPECTRAL_NON_NEGATIVE(sum);
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelPartialsDegree2FixedScaleSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+        int totalPatterns) {
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()
+    SPECTRAL_LOAD_SCALE_GPU()
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_TO_EIGEN_GPU(FORWARD, 1, sP1)
+    SPECTRAL_EXP_GPU(FORWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = SPECTRAL_NON_NEGATIVE(sum) * ((REAL)1 / sScale[patIdx]);
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelStatesDegree2NoScaleSpectral(
+        KW_GLOBAL_VAR int*  KW_RESTRICT states1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        int totalPatterns) {
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 1, states1)
+    SPECTRAL_EXP_GPU(FORWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = SPECTRAL_NON_NEGATIVE(sum);
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelStatesDegree2FixedScaleSpectral(
+        KW_GLOBAL_VAR int*  KW_RESTRICT states1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievc1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evec1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scalingFactors,
+        int totalPatterns) {
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_SCALE_GPU()
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 1, states1)
+    SPECTRAL_EXP_GPU(FORWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = SPECTRAL_NON_NEGATIVE(sum) * ((REAL)1 / sScale[patIdx]);
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecT1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcT1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues1,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distances1,
+        int totalPatterns) {
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_TO_EIGEN_GPU(BACKWARD, 1, sP1)
+    SPECTRAL_EXP_GPU(BACKWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(BACKWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = SPECTRAL_NON_NEGATIVE(sum);
     }
 }
 

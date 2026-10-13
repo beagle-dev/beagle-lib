@@ -234,6 +234,31 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
         rescale, streamIndex, waitIndex);
 }
 
+// child 1 forward, as in dispatchPrunePP; there is no child 2, and its matrix (op[6]) is never read
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneDegree2(
+        GPUPtr c1, bool c1IsStates, GPUPtr p3,
+        int c1MatIdx,
+        GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+        unsigned int startPattern, unsigned int endPattern,
+        int rescale, int streamIndex, int waitIndex) {
+    int ei1 = hEigenIndexForMatrix[c1MatIdx];
+    flushSpectralDistances();
+    if (c1IsStates) {
+        this->kernels->StatesDegree2PruningSpectral(c1, p3,
+            this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+            scalingFactors, cumulativeScaling,
+            this->kPaddedPatternCount, this->kCategoryCount,
+            rescale, streamIndex, waitIndex);
+    } else {
+        this->kernels->PartialsDegree2PruningSpectral(c1, p3,
+            this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+            scalingFactors, cumulativeScaling,
+            this->kPaddedPatternCount, this->kCategoryCount,
+            rescale, streamIndex, waitIndex);
+    }
+}
+
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
         int eigenIndex,
@@ -396,10 +421,6 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
         const int* operations, int operationCount,
         int cumulativeScaleIndex, BeaglePartialsType partialsType) {
-    int singleChildCode = this->checkSingleChild(operations, operationCount, 7);
-    if (singleChildCode != BEAGLE_SUCCESS)
-        return singleChildCode;
-
     bool isTop = (partialsType == BEAGLE_PARTIALS_TOP);
     for (int op = 0; op < operationCount; op++) {
         const int parIndex          = operations[op * 7 + 0];
@@ -407,6 +428,22 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
         const int child1TransMatIdx = operations[op * 7 + 4];
         const int child2Index       = operations[op * 7 + 5];
         const int child2TransMatIdx = operations[op * 7 + 6];
+
+        if (child2Index == BEAGLE_OP_NONE) {   // degree 2, TOP and BOTTOM alike, as calcDegree2PrePartials
+            GPUPtr partials1 = this->dPartials[child1Index];
+            GPUPtr partials3 = this->dPartials[parIndex];
+            if (child1TransMatIdx < 0) {   // no branch to propagate through: a copy, as growPool copies
+                this->gpu->MemcpyDeviceToDevice(partials3, partials1, sizeof(Real) * this->kPaddedPatternCount *
+                                                                      this->kPaddedStateCount * this->kCategoryCount);
+            } else {
+                flushSpectralDistances();
+                const int ei1 = hEigenIndexForMatrix[child1TransMatIdx];   // backward, as dispatchGrowingSpectral
+                this->kernels->PartialsDegree2GrowingSpectral(partials1, partials3,
+                    dEvecT[ei1], dIevcT[ei1], this->dEigenValues[ei1], dSpectralDistances[child1TransMatIdx],
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            }
+            continue;
+        }
 
         bool isRoot     = isTop && (child1TransMatIdx < 0);
         bool sibIsStates = (this->dStates[child2Index] != 0);

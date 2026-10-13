@@ -241,6 +241,14 @@ protected:
                           unsigned int startPattern, unsigned int endPattern,
                           int rescale, int streamIndex, int waitIndex) override;
 
+    // degree-2 operations are computed: post-order by dispatchPruneDegree2, pre-order in updatePrePartials
+    int checkSingleChild(const int* operations, int operationCount, int numOps) override { return BEAGLE_SUCCESS; }
+    void dispatchPruneDegree2(GPUPtr c1, bool c1IsStates, GPUPtr p3,
+                              int c1MatIdx,
+                              GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                              unsigned int startPattern, unsigned int endPattern,
+                              int rescale, int streamIndex, int waitIndex) override;
+
 private:
     void flushSpectralDistances();
 

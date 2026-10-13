@@ -1003,9 +1003,12 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
  * destination is the parent's pre-order partial propagated along
  * child1TransitionMatrix (BOTTOM: this node's own branch; TOP: the parent's
  * own branch, or copied unchanged when child1TransitionMatrix is
- * BEAGLE_OP_NONE because the parent is the root). Currently supported by the
- * CPU implementations (including the spectral representation) only; on GPU
- * the update returns BEAGLE_ERROR_NO_IMPLEMENTATION without computing anything.
+ * BEAGLE_OP_NONE because the parent is the root). Supported by the CPU
+ * implementations (including the spectral representation) and by the GPU
+ * spectral representation, with scaling as on the CPU: AUTO leaves a degree-2
+ * node unscaled. As on the CPU, their products are clamped at zero. The
+ * standard (not spectral) GPU implementations return
+ * BEAGLE_ERROR_NO_IMPLEMENTATION without computing anything.
  */
 typedef struct {
     int destinationPartials;    /**< index of destination, or parent, partials buffer  */

@@ -307,12 +307,19 @@ protected:
                                   GPUPtr scalingFactors, GPUPtr cumulativeScaling,
                                   unsigned int startPattern, unsigned int endPattern,
                                   int rescale, int streamIndex, int waitIndex);
+    // A degree-2 (single-child) post-order operation, child 2 BEAGLE_OP_NONE: p3 = P(c1MatIdx) c1. Reached only from a
+    // subclass whose checkSingleChild accepts degree 2 (BeagleGPUSpectralImpl)
+    virtual void dispatchPruneDegree2(GPUPtr c1, bool c1IsStates, GPUPtr p3,
+                                      int c1MatIdx,
+                                      GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                      unsigned int startPattern, unsigned int endPattern,
+                                      int rescale, int streamIndex, int waitIndex) {}
 
-    // Degree-2 (single-child) nodes, a second child or sibling of BEAGLE_OP_NONE, are only supported on the CPU:
-    // BEAGLE_ERROR_NO_IMPLEMENTATION if an operation has one, BEAGLE_SUCCESS otherwise
-    int checkSingleChild(const int* operations,
-                         int operationCount,
-                         int numOps);
+    // Degree-2 (single-child) nodes, a second child or sibling of BEAGLE_OP_NONE: BEAGLE_ERROR_NO_IMPLEMENTATION if an
+    // operation has one, BEAGLE_SUCCESS otherwise. BeagleGPUSpectralImpl computes them and accepts every operation
+    virtual int checkSingleChild(const int* operations,
+                                 int operationCount,
+                                 int numOps);
 
 public:
     BeagleGPUImpl();

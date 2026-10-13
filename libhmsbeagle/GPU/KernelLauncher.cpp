@@ -318,6 +318,11 @@ void KernelLauncher::LoadKernels() {
         fPartialsStatesGrowingTopSpectral      = gpu->GetFunction("kernelPartialsStatesGrowingTopSpectral");
         fPartialsPartialsGrowingTopRootSpectral= gpu->GetFunction("kernelPartialsPartialsGrowingTopRootSpectral");
         fPartialsStatesGrowingTopRootSpectral  = gpu->GetFunction("kernelPartialsStatesGrowingTopRootSpectral");
+        fPartialsDegree2NoScaleSpectral        = gpu->GetFunction("kernelPartialsDegree2NoScaleSpectral");
+        fPartialsDegree2FixedScaleSpectral     = gpu->GetFunction("kernelPartialsDegree2FixedScaleSpectral");
+        fStatesDegree2NoScaleSpectral          = gpu->GetFunction("kernelStatesDegree2NoScaleSpectral");
+        fStatesDegree2FixedScaleSpectral       = gpu->GetFunction("kernelStatesDegree2FixedScaleSpectral");
+        fPartialsDegree2GrowingSpectral        = gpu->GetFunction("kernelPartialsDegree2GrowingSpectral");
 
         if (kPaddedStateCount == 4) {
             fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
@@ -1147,6 +1152,21 @@ void KernelLauncher::PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
     gpu->SynchronizeDevice();
 }
 
+void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
+                                                    GPUPtr partials3,
+                                                    GPUPtr evecT1, GPUPtr ievcT1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsDegree2GrowingSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      6, 7,
+                      partials1, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      patternCount);
+    gpu->SynchronizeDevice();
+}
+
 
 void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
                                                          GPUPtr statesOrigin,
@@ -1917,6 +1937,77 @@ void KernelLauncher::StatesStatesPruningSpectral(GPUPtr states1,
                                     states1, states2, partials3,
                                     ievc1, evec1, eigenValues1, distances1,
                                     ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+// a single child never gets AUTO's doRescaling 2 (BeagleGPUImpl::upPartials leaves it unscaled, as the CPU does)
+void KernelLauncher::PartialsDegree2PruningSpectral(GPUPtr partials1,
+                                                    GPUPtr partials3,
+                                                    GPUPtr ievc1, GPUPtr evec1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    GPUPtr scalingFactors,
+                                                    GPUPtr cumulativeScaling,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount,
+                                                    int doRescaling,
+                                                    int streamIndex,
+                                                    int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fPartialsDegree2NoScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    6, 7,
+                                    partials1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fPartialsDegree2FixedScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    7, 8,
+                                    partials1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesDegree2PruningSpectral(GPUPtr states1,
+                                                  GPUPtr partials3,
+                                                  GPUPtr ievc1, GPUPtr evec1,
+                                                  GPUPtr eigenValues1, GPUPtr distances1,
+                                                  GPUPtr scalingFactors,
+                                                  GPUPtr cumulativeScaling,
+                                                  unsigned int patternCount,
+                                                  unsigned int categoryCount,
+                                                  int doRescaling,
+                                                  int streamIndex,
+                                                  int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesDegree2NoScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    6, 7,
+                                    states1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesDegree2FixedScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    7, 8,
+                                    states1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
                                     scalingFactors,
                                     patternCount);
     }

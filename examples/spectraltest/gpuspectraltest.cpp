@@ -6,6 +6,8 @@
  * adjoint gradient also runs with padded patterns of zero site likelihood, and must not change the site log likelihoods.
  * Each tested partials buffer is filled with NaN before its operation, and a call that fails counts as an infinite
  * error. For the first model the whole post-order also runs under ALWAYS and AUTO scaling, each in one call.
+ * The tree has two degree-2 nodes (one child, BEAGLE_OP_NONE as child 2 or sibling), which also run as a whole tree, one
+ * call per pass, against the same tree encoded with a ones buffer through a zero-length branch (no degree-2 operation).
  *
  * The models are a random reversible one (real eigenvalues) and a random asymmetric circulant one (complex
  * conjugate pairs; the first eigenvalue of a pair is a + bi or a - bi), the latter also with the sign of every
@@ -195,19 +197,32 @@ double logError(const std::vector<double>& x, const std::vector<double>& ref) {
     return worst;
 }
 
-// (((0,1),(2,3)),(4,(5,6))),7) with random branch lengths: every kind of operation occurs, each child type
-// in the post-order and each sibling type in the pre-order, at the root and below it. Tips 0-7, root 14.
+// ((((0,1),(2,(3))),(4,(5,6))),7) with random branch lengths: every kind of operation occurs, each child type
+// in the post-order and each sibling type in the pre-order, at the root and below it; node 9 is degree 2 over tip 3,
+// node 14 over node 13. Children have smaller indices than their parents. Tips 0-7, root 16.
 struct Tree {
-    int tips = 8, nodes = 15, root = 14;
+    int tips = 8, nodes = 17, root = 16;
     std::vector<std::vector<int>> children = {{}, {}, {}, {}, {}, {}, {}, {},
-                                              {0, 1}, {2, 3}, {8, 9}, {5, 6}, {4, 11}, {10, 12}, {13, 7}};
+        {0, 1}, {3}, {2, 9}, {8, 10}, {5, 6}, {4, 12}, {13}, {11, 14}, {15, 7}};
     std::vector<double> lengths;
 };
 
+// The first 15 lengths, drawn first as before the tree had degree-2 nodes; moreLengths draws the other two after the
+// models, so the tips, the prior and the models are drawn as before
 Tree randomLengths(std::mt19937& rng, double scale) {
     Tree t;
-    for (int n = 0; n < t.nodes; n++) t.lengths.push_back(scale * std::uniform_real_distribution<double>(0.1, 0.5)(rng));
+    for (int n = 0; n < 15; n++) t.lengths.push_back(scale * std::uniform_real_distribution<double>(0.1, 0.5)(rng));
     return t;
+}
+
+void moreLengths(Tree& t, std::mt19937& rng, double scale) {
+    while ((int) t.lengths.size() < t.nodes)
+        t.lengths.push_back(scale * std::uniform_real_distribution<double>(0.1, 0.5)(rng));
+}
+
+// The number of entries below zero (D1: the degree-2 kernels clamp them, as the CPU's nonNegative)
+double belowZero(const std::vector<double>& x) {
+    return (double) std::count_if(x.begin(), x.end(), [](double v) { return v < 0.0; });
 }
 
 } // namespace
@@ -245,9 +260,25 @@ int main(int argc, char** argv) {
     const double rates[K] = {0.5, 1.5}, weights[K] = {0.5, 0.5};
     bool ok = true;
 
+    // a standard (not spectral) GPU instance refuses degree-2 operations; TinyGPU runs are spectral only
+    if (!(resources->list[gpuResource].supportFlags & BEAGLE_FLAG_FRAMEWORK_TINYGPU)) {
+        int resource = gpuResource;
+        BeagleInstanceDetails details;
+        const int standard = beagleCreateInstance(2, 3, 2, 4, 1, 1, 2, 1, 0, &resource, 1, 0, BEAGLE_FLAG_PROCESSOR_GPU |
+                                 (gpuDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE), &details);
+        const BeagleOperation op = {2, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, BEAGLE_OP_NONE, BEAGLE_OP_NONE};
+        const int rcPost = standard < 0 ? standard : beagleUpdatePartials(standard, &op, 1, BEAGLE_OP_NONE);
+        const int rcPre  = standard < 0 ? standard :
+                           beagleUpdatePrePartials_v5(standard, &op, 1, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+        const bool refused = rcPost == BEAGLE_ERROR_NO_IMPLEMENTATION && rcPre == BEAGLE_ERROR_NO_IMPLEMENTATION;
+        printf("standard GPU instance, degree 2: post-order %d, pre-order %d%s\n", rcPost, rcPre, refused ? "" : "  FAIL");
+        ok = ok && refused;
+        if (standard >= 0) beagleFinalizeInstance(standard);
+    }
+
     for (const int S : stateCounts) {
         std::mt19937 rng(S);
-        const Tree tree = randomLengths(rng, scale);
+        Tree tree = randomLengths(rng, scale);
         const int M = tree.nodes, root = tree.root;
         std::vector<std::vector<int>> states(N, std::vector<int>(C));
         for (auto& tip : states) for (int k = 0; k < C; k++) // every 11th pattern missing
@@ -257,15 +288,20 @@ int main(int argc, char** argv) {
 
         const Model circ = circulant(rng, S);
         const std::vector<Model> models = {reversible(rng, S), circ, skewed(flipped(circ, S), rng, S)};
+        moreLengths(tree, rng, scale);
 
-        // buffers: post-order 0..M-1, BOTTOM pre-order M..2M-1, TOP pre-order 2M..3M-1
+        // buffers: post-order 0..M-1, BOTTOM pre-order M..2M-1, TOP pre-order 2M..3M-1; the ones-and-identity encoding
+        // 3M..6M-1 (tips shared); ONES 6M, COPY 6M+1. Matrices 0..M-1, and Z = M, of branch length 0 (P = I)
+        const int ONES = 6 * M, COPY = 6 * M + 1, Z = M;
         std::vector<BeagleOperation> post, bottom, top;
         for (int n = N; n < M; n++) {
-            const int c1 = tree.children[n][0], c2 = tree.children[n][1];
-            post.push_back({n, BEAGLE_OP_NONE, BEAGLE_OP_NONE, c1, c1, c2, c2});
+            const std::vector<int>& ch = tree.children[n];
+            const int c2 = ch.size() > 1 ? ch[1] : BEAGLE_OP_NONE;   // degree 2: no second child
+            post.push_back({n, BEAGLE_OP_NONE, BEAGLE_OP_NONE, ch[0], ch[0], c2, c2});
         }
-        for (int n = M - 1; n >= N; n--) for (int k = 0; k < 2; k++) {
-            const int c = tree.children[n][k], s = tree.children[n][1 - k];
+        for (int n = M - 1; n >= N; n--) for (size_t k = 0; k < tree.children[n].size(); k++) {
+            const std::vector<int>& ch = tree.children[n];
+            const int c = ch[k], s = ch.size() > 1 ? ch[1 - k] : BEAGLE_OP_NONE;   // degree 2: no sibling
             bottom.push_back({M + c, BEAGLE_OP_NONE, BEAGLE_OP_NONE, M + n, c, s, s});
             top.push_back({2 * M + c, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 2 * M + n, n == root ? BEAGLE_OP_NONE : n, s, s});
         }
@@ -274,10 +310,32 @@ int main(int argc, char** argv) {
         std::vector<int> matrices;
         std::vector<double> lengths;
         for (int n = 0; n < M; n++) if (n != root) { matrices.push_back(n); lengths.push_back(tree.lengths[n]); }
+        matrices.push_back(Z); lengths.push_back(0.0);
+        auto degree2 = [](const BeagleOperation& op) { return op.child2Partials == BEAGLE_OP_NONE; };
+        // the encoding before 621e2e62: a ones sibling through P(0) = I, in buffers shifted by 3M (tips shared)
+        auto shift = [&](int b) { return b < N ? b : b + 3 * M; };
+        auto ones = [&](std::vector<BeagleOperation> ops) {
+            for (BeagleOperation& op : ops) {
+                op.destinationPartials = shift(op.destinationPartials);
+                op.child1Partials = shift(op.child1Partials);
+                if (degree2(op)) { op.child2Partials = ONES; op.child2TransitionMatrix = Z; }
+                else op.child2Partials = shift(op.child2Partials);
+            }
+            return ops;
+        };
+        const std::vector<BeagleOperation> postOnes = ones(post), bottomOnes = ones(bottom), topOnes = ones(top);
+        std::vector<BeagleBranchOperation> branchesOnes = branches;
+        for (BeagleBranchOperation& b : branchesOnes) {
+            b.postOrderPartials = shift(b.postOrderPartials);
+            b.preOrderPartials = shift(b.preOrderPartials);
+        }
+        const std::vector<double> onesPartials((size_t) K * C * S, 1.0);
 
-        // the post-order destinations whose factors AUTO accumulates (buffergrowthtest.cpp's internalNodes)
-        std::vector<int> internal;
+        // the post-order destinations whose factors AUTO accumulates (buffergrowthtest.cpp's internalNodes; a degree-2
+        // node writes none, so accumulate skips it), in each encoding
+        std::vector<int> internal, internalOnes;
         for (const BeagleOperation& op : post) internal.push_back(op.destinationPartials);
+        for (const BeagleOperation& op : postOnes) internalOnes.push_back(op.destinationPartials);
 
         for (const Model& model : models) {
             auto create = [&](bool gpu, std::string& name, long scaling = BEAGLE_FLAG_SCALING_MANUAL) -> int {
@@ -287,7 +345,7 @@ int main(int argc, char** argv) {
                                    (gpu && !gpuDouble ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
                 int resource = gpu ? gpuResource : 0;
                 BeagleInstanceDetails details;
-                const int instance = beagleCreateInstance(N, 3 * M, N, S, C, 1, M, K, (int) post.size() + 1, &resource, 1,
+                const int instance = beagleCreateInstance(N, 6 * M + 2, N, S, C, 1, M + 1, K, 6 * M + 2 - N, &resource, 1,
                                                           BEAGLE_FLAG_SCALERS_RAW | scaling, flags, &details);
                 if (instance < 0) return instance;
                 if (scaling != BEAGLE_FLAG_SCALING_MANUAL && !(details.flags & scaling)) {   // not the scaling asked for
@@ -350,11 +408,23 @@ int main(int argc, char** argv) {
                 for (int c : {op.child1Partials, op.child2Partials}) if (c >= N) beagleSetPartials(gpu, c, ref[c].data());
                 poison(gpu, op.destinationPartials);
                 const int rc = beagleUpdatePartials(gpu, &op, 1, BEAGLE_OP_NONE);
+                const std::vector<double> out = partials(gpu, op.destinationPartials);
                 const int tipChildren = (op.child1Partials < N) + (op.child2Partials < N);
-                record(tipChildren == 2 ? "post-order, states x states" :
+                record(degree2(op) ? (op.child1Partials < N ? "post-order, degree-2, states child"
+                                                            : "post-order, degree-2, partials child") :
+                       tipChildren == 2 ? "post-order, states x states" :
                        tipChildren == 1 ? "post-order, states x partials" : "post-order, partials x partials",
-                       rc == BEAGLE_SUCCESS ? relativeError(partials(gpu, op.destinationPartials), ref[op.destinationPartials], S)
-                                            : INFINITY);
+                       rc == BEAGLE_SUCCESS ? relativeError(out, ref[op.destinationPartials], S) : INFINITY);
+                if (degree2(op)) {
+                    record("degree-2, entries below zero", rc == BEAGLE_SUCCESS ? belowZero(out) : INFINITY);
+                    // child 2's matrix is ignored (beagle.h): a valid but different one gives the same result, bit for bit
+                    BeagleOperation other = op;
+                    other.child2TransitionMatrix = Z;
+                    poison(gpu, op.destinationPartials);
+                    const int rcOther = beagleUpdatePartials(gpu, &other, 1, BEAGLE_OP_NONE);
+                    record("degree-2, child 2 matrix ignored", rc == BEAGLE_SUCCESS && rcOther == BEAGLE_SUCCESS &&
+                                                               partials(gpu, op.destinationPartials) == out ? 0.0 : INFINITY);
+                }
             }
             for (int n = N; n < M; n++) beagleSetPartials(gpu, n, ref[n].data());
             // the root integration, which the adjoint gradient divides by
@@ -370,11 +440,25 @@ int main(int argc, char** argv) {
                     poison(gpu, op.destinationPartials);
                     const int rc = beagleUpdatePrePartials_v5(gpu, &op, 1, BEAGLE_OP_NONE,
                                                               isTop ? BEAGLE_PARTIALS_TOP : BEAGLE_PARTIALS_BOTTOM);
-                    const std::string sibling = op.child2Partials < N ? "states sibling" : "partials sibling";
+                    const std::vector<double> out = partials(gpu, op.destinationPartials);
+                    const std::string sibling = degree2(op) ? "degree-2" :
+                                                op.child2Partials < N ? "states sibling" : "partials sibling";
                     record(isTop ? (atRoot ? "TOP at the root, " : "TOP, ") + sibling : "BOTTOM, " + sibling,
-                           rc == BEAGLE_SUCCESS ? relativeError(partials(gpu, op.destinationPartials),
-                                                                ref[op.destinationPartials], S) : INFINITY);
+                           rc == BEAGLE_SUCCESS ? relativeError(out, ref[op.destinationPartials], S) : INFINITY);
+                    if (degree2(op)) record("degree-2, entries below zero", rc == BEAGLE_SUCCESS ? belowZero(out) : INFINITY);
                 }
+            }
+            // root copies (op[4] = BEAGLE_OP_NONE, no sibling): exactly the tested instance's own source buffer
+            for (const bool isTop : {true, false}) {
+                const int source = isTop ? 2 * M + root : M + root;
+                const BeagleOperation copy = {COPY, BEAGLE_OP_NONE, BEAGLE_OP_NONE, source, BEAGLE_OP_NONE,
+                                              BEAGLE_OP_NONE, BEAGLE_OP_NONE};
+                beagleSetPartials(gpu, source, prior.data());
+                poison(gpu, COPY);
+                const int rc = beagleUpdatePrePartials_v5(gpu, &copy, 1, BEAGLE_OP_NONE,
+                                                          isTop ? BEAGLE_PARTIALS_TOP : BEAGLE_PARTIALS_BOTTOM);
+                record(isTop ? "TOP at the root, degree-2 (a copy)" : "BOTTOM without a branch, degree-2 (a copy)",
+                       rc == BEAGLE_SUCCESS && partials(gpu, COPY) == partials(gpu, source) ? 0.0 : INFINITY);
             }
             for (int b = 2 * M; b < 3 * M; b++) beagleSetPartials(gpu, b, b == 2 * M + root ? prior.data() : ref[b].data());
             std::fill(gpuGradient.begin(), gpuGradient.end(), NAN);
@@ -435,23 +519,82 @@ int main(int argc, char** argv) {
             if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(gpu, sitesAfterAdjoint.data());
             record("site log likelihoods after the adjoint",
                    rc == BEAGLE_SUCCESS ? logError(sitesAfterAdjoint, scaledSites) : INFINITY);
+            // the whole tree, one call per pass (post-order, the priors, BOTTOM, TOP), then the root and the adjoint: in the
+            // degree-2 encoding against the CPU, then in the ones-and-identity encoding (no degree-2 operation, buffers
+            // shifted by 3M) against the degree-2 run, node by node
+            std::vector<std::vector<double>> tree2(3 * M);
+            std::vector<double> sites2(C, NAN), gradient2(S * S, NAN);
+            int rcTree2 = BEAGLE_SUCCESS;
+            for (const bool onesEncoding : {false, true}) {
+                const int offset = onesEncoding ? 3 * M : 0, rootBuffer = root + offset;
+                for (int b = N; b < 3 * M; b++) poison(gpu, b + offset);
+                rc = onesEncoding ? beagleSetPartials(gpu, ONES, onesPartials.data()) : BEAGLE_SUCCESS;
+                const std::vector<BeagleOperation>& p = onesEncoding ? postOnes : post;
+                const std::vector<BeagleOperation>& b = onesEncoding ? bottomOnes : bottom;
+                const std::vector<BeagleOperation>& t = onesEncoding ? topOnes : top;
+                if (rc == BEAGLE_SUCCESS) rc = beagleUpdatePartials(gpu, p.data(), (int) p.size(), BEAGLE_OP_NONE);
+                if (rc == BEAGLE_SUCCESS) rc = beagleSetPartials(gpu, M + root + offset, prior.data());
+                if (rc == BEAGLE_SUCCESS) rc = beagleSetPartials(gpu, 2 * M + root + offset, prior.data());
+                if (rc == BEAGLE_SUCCESS)
+                    rc = beagleUpdatePrePartials_v5(gpu, b.data(), (int) b.size(), BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+                if (rc == BEAGLE_SUCCESS)
+                    rc = beagleUpdatePrePartials_v5(gpu, t.data(), (int) t.size(), BEAGLE_OP_NONE, BEAGLE_PARTIALS_TOP);
+                const bool compared = rc == BEAGLE_SUCCESS && (!onesEncoding || rcTree2 == BEAGLE_SUCCESS);
+                const std::string prefix = onesEncoding ? "degree-2 vs ones and identity: " : "full tree: ";
+                for (int x = N; x < 3 * M; x++) {
+                    const std::vector<double> out = partials(gpu, x + offset);
+                    record(prefix + (x < M ? "post-order" : x < 2 * M ? "BOTTOM" : "TOP"),
+                           compared ? relativeError(out, onesEncoding ? tree2[x] : ref[x], S) : INFINITY);
+                    if (!onesEncoding) tree2[x] = out;
+                }
+                if (!onesEncoding) {
+                    for (const auto* ops : {&post, &bottom, &top}) for (const BeagleOperation& op : *ops)
+                        if (degree2(op))
+                            record("degree-2, entries below zero",
+                                   rc == BEAGLE_SUCCESS ? belowZero(tree2[op.destinationPartials]) : INFINITY);
+                }
+                std::fill(gpuSites.begin(), gpuSites.end(), NAN);
+                std::fill(gpuGradient.begin(), gpuGradient.end(), NAN);
+                if (rc == BEAGLE_SUCCESS)
+                    rc = beagleCalculateRootLogLikelihoods(gpu, &rootBuffer, &zero, &zero, &noScaling, 1, &lnL);
+                if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(gpu, gpuSites.data());
+                const std::vector<BeagleBranchOperation>& br = onesEncoding ? branchesOnes : branches;
+                if (rc == BEAGLE_SUCCESS)
+                    rc = beagleCalculateAdjointDerivative(gpu, br.data(), 0, 0, rootBuffer, 0, (int) br.size(),
+                                                          gpuGradient.data(), NULL);
+                const bool computed = rc == BEAGLE_SUCCESS && (!onesEncoding || rcTree2 == BEAGLE_SUCCESS);
+                record(prefix + "root site log likelihoods",
+                       computed ? logError(gpuSites, onesEncoding ? sites2 : cpuSites) : INFINITY);
+                record(prefix + "adjoint gradient",
+                       computed ? relativeError(gpuGradient, onesEncoding ? gradient2 : cpuGradient, 0) : INFINITY);
+                if (!onesEncoding) { rcTree2 = rc; sites2 = gpuSites; gradient2 = gpuGradient; }
+            }
             beagleFinalizeInstance(gpu);
             // today's GPU spectral scaling (first model): the post-order in one call, then the root, against the CPU's
             // unscaled site log likelihoods (CPU-Spectral AUTO exits at a partials x partials node,
             // BeagleCPUSpectralImpl.hpp:337-343)
             if (&model == &models.front())
+                for (const bool onesEncoding : {false, true})
                 for (const long scaling : {BEAGLE_FLAG_SCALING_ALWAYS, BEAGLE_FLAG_SCALING_AUTO}) {
                     std::string name;
                     const int scaled = create(true, name, scaling);
+                    const int rootBuffer = onesEncoding ? shift(root) : root;
+                    const std::vector<BeagleOperation>& p = onesEncoding ? postOnes : post;
+                    const std::vector<int>& accumulated = onesEncoding ? internalOnes : internal;
                     std::fill(gpuSites.begin(), gpuSites.end(), NAN);
-                    rc = scaled < 0 ? scaled : beagleUpdatePartials(scaled, post.data(), (int) post.size(), BEAGLE_OP_NONE);
+                    rc = scaled < 0 ? scaled : BEAGLE_SUCCESS;
+                    if (rc == BEAGLE_SUCCESS && onesEncoding) rc = beagleSetPartials(scaled, ONES, onesPartials.data());
+                    if (rc == BEAGLE_SUCCESS && onesEncoding && scaling == BEAGLE_FLAG_SCALING_ALWAYS)
+                        rc = beagleResetScaleFactors(scaled, ONES - N);   // ALWAYS accumulates the ONES child's factors
+                    if (rc == BEAGLE_SUCCESS) rc = beagleUpdatePartials(scaled, p.data(), (int) p.size(), BEAGLE_OP_NONE);
                     if (rc == BEAGLE_SUCCESS && scaling == BEAGLE_FLAG_SCALING_AUTO)   // as buffergrowthtest.cpp
-                        rc = beagleAccumulateScaleFactors(scaled, internal.data(), (int) internal.size(), BEAGLE_OP_NONE);
+                        rc = beagleAccumulateScaleFactors(scaled, accumulated.data(), (int) accumulated.size(),
+                                                          BEAGLE_OP_NONE);
                     if (rc == BEAGLE_SUCCESS)   // the GPU picks the scale buffer itself (BeagleGPUImpl.hpp:4145-4151)
-                        rc = beagleCalculateRootLogLikelihoods(scaled, &root, &zero, &zero, &noScaling, 1, &lnL);
+                        rc = beagleCalculateRootLogLikelihoods(scaled, &rootBuffer, &zero, &zero, &noScaling, 1, &lnL);
                     if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(scaled, gpuSites.data());
-                    record(scaling == BEAGLE_FLAG_SCALING_ALWAYS ? "ALWAYS, root site log likelihoods"
-                                                                 : "AUTO, root site log likelihoods",
+                    record(std::string(scaling == BEAGLE_FLAG_SCALING_ALWAYS ? "ALWAYS, " : "AUTO, ") +
+                           (onesEncoding ? "ones and identity, " : "") + "root site log likelihoods",
                            rc == BEAGLE_SUCCESS ? logError(gpuSites, cpuSites) : INFINITY);
                     if (scaled >= 0) beagleFinalizeInstance(scaled);
                 }

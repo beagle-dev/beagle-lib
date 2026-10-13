@@ -3123,6 +3123,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         const int child1TransMatIndex = operations[op * numOps + 4];
         const int child2Index = operations[op * numOps + 5];
         const int child2TransMatIndex = operations[op * numOps + 6];
+        const bool singleChild = (child2Index == BEAGLE_OP_NONE);   // degree 2: op[6] is ignored (beagle.h)
         int currentPartition = 0;
         if (byPartition) {
             currentPartition = operations[op * numOps + 7];
@@ -3135,10 +3136,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
         if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
             int pOffset = currentPartition * kBufferCount;
-            waitIndex = hStreamIndices[child2Index + pOffset];
+            waitIndex = singleChild ? -1 : hStreamIndices[child2Index + pOffset];
             if (hStreamIndices[child1Index + pOffset] != -1) {
                 hStreamIndices[parIndex + pOffset] = hStreamIndices[child1Index + pOffset];
-            } else if (hStreamIndices[child2Index + pOffset] != -1) {
+            } else if (!singleChild && hStreamIndices[child2Index + pOffset] != -1) {
                 hStreamIndices[parIndex + pOffset] = hStreamIndices[child2Index + pOffset];
                 waitIndex = hStreamIndices[child1Index + pOffset];
             } else {
@@ -3148,15 +3149,15 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         }
 
         GPUPtr matrices1 = dMatrices[child1TransMatIndex];
-        GPUPtr matrices2 = dMatrices[child2TransMatIndex];
+        GPUPtr matrices2 = singleChild ? (GPUPtr)NULL : dMatrices[child2TransMatIndex];
 
         GPUPtr partials1 = dPartials[child1Index];
-        GPUPtr partials2 = dPartials[child2Index];
+        GPUPtr partials2 = singleChild ? (GPUPtr)NULL : dPartials[child2Index];
 
         GPUPtr partials3 = dPartials[parIndex];
 
         GPUPtr tipStates1 = dStates[child1Index];
-        GPUPtr tipStates2 = dStates[child2Index];
+        GPUPtr tipStates2 = singleChild ? (GPUPtr)NULL : dStates[child2Index];
 
         int rescale = BEAGLE_OP_NONE;
         GPUPtr scalingFactors = (GPUPtr)NULL;
@@ -3164,7 +3165,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {
             int sIndex = parIndex - kTipCount;
 
-            if (tipStates1 == 0 && tipStates2 == 0) {
+            if (tipStates1 == 0 && tipStates2 == 0 && !singleChild) {   // AUTO leaves a single child unscaled, as the CPU
                 rescale = 2;
                 scalingFactors = dScalingFactors[sIndex];
             }
@@ -3201,7 +3202,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         fprintf(stderr, "child2 = \n");
         if (tipStates2)
             gpu->PrintfDeviceInt(tipStates2, kPaddedPatternCount);
-        else
+        else if (!singleChild)
             gpu->PrintfDeviceVector(partials2, kPartialsSize, r);
         fprintf(stderr, "node index = %d\n", parIndex);
 #endif
@@ -3323,7 +3324,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
             }
 
 
-            if (tipStates1 != 0) {
+            if (singleChild) {
+                dispatchPruneDegree2(tipStates1 != 0 ? tipStates1 : partials1, tipStates1 != 0, partials3,
+                                     child1TransMatIndex, scalingFactors, cumulativeScalingBuffer,
+                                     startPattern, endPattern, rescale, streamIndex, waitIndex);
+            } else if (tipStates1 != 0) {
                 if (tipStates2 != 0 ) {
                     dispatchPruneSS(tipStates1, tipStates2, partials3,
                                     child1TransMatIndex, child2TransMatIndex,
