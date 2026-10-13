@@ -12,10 +12,9 @@
 #   - killed idle: the guard tears the GPU down (NO ERRORS), sending what the plugin's own teardown sends;
 #   - a GSP that never posts INIT_DONE (FAKE_NO_INIT_DONE=1): the boot fails while GSP-RM may run, and the guard holds;
 #   - on the AD107, FWSEC-FRTS leaving WPR2 down (FAKE_FALCON_FAIL=frts): the boot fails before GSP-RM started, the plugin
-#     says so ('N') and the guard closes;
-#   - the RTX 4060's L0 recordings (TG_L0) replay exactly at level boot under the guard: on the card's own replies, the whole
-#     boot in C++ makes the requests tinygrad's boot made (the GB205's, TG_GB20X, are test_b2.sh's). Without the markers: those
-#     recordings hold the daemon's.
+#     says so ('N') and the guard closes.
+# (The RTX 4060's L0 recordings, TG_L0, no longer replay here (STATUS.md R118): since e52d494b and 4135b050 the plugin
+# writes other data than it did, and the daemon they were made through is gone. test_v1.sh still uses them.)
 # Every run is a job of its own (env.sh's pjob), started longest first; the checks then read the runs' files in this order.
 # One PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -47,14 +46,11 @@ case_run() {   # <chip> <case>: that case's fake run (the AD107 is the fake's de
         frts) FAKE_NV_CHIP=$nv FAKE_FALCON_FAIL=frts run $l ;;
     esac
 }
-replay() { "$TG_TESTS/run_replay.sh" "$1" $2 --guard > "$W/replay_$2.txt" 2>&1; }   # <recording dir> <label>
 UNLOAD='"rpc NV_VGPU_MSG_FUNCTION_UNLOADING_GUEST_DRIVER": 1'
 CHIPS="ad107 ga104 gb205"
-RECS=(); for r in $TG_L0; do [ -f "$BEAGLE_TINYGPU_DATA/recordings/$r/events.bin" ] && RECS+=("$BEAGLE_TINYGPU_DATA/recordings/$r"); done
 
-# the runs, longest first: the L0 replays (the plugin's 20 s SEC2 sleep), the 10 s INIT_DONE timeouts, then the full boots
-pjob_init "$W"; export TG_PIDS="$W/pids"   # every fake, replay server and guard the runs start (tracked_alive)
-for R in "${RECS[@]}"; do pjob c11_boot_${R##*_} replay "$R" c11_boot_${R##*_}; done
+# the runs, longest first: the 10 s INIT_DONE timeouts, then the full boots
+pjob_init "$W"; export TG_PIDS="$W/pids"   # every fake and guard the runs start (tracked_alive)
 for k in noinit idle boot built; do for chip in $CHIPS; do pjob c11_${chip}_$k case_run $chip $k; done; done
 pjob c11_ad107_frts case_run ad107 frts
 for k in boot_sw boot_guard warm; do for chip in $CHIPS; do pjob c11_${chip}_$k case_run $chip $k; done; done
@@ -101,19 +97,7 @@ check "AD107: FWSEC-FRTS leaving WPR2 down: the boot fails before GSP-RM started
     "grep -q 'WPR2 is not initialized' '$(out c11_ad107_frts)' && device c11_ad107_frts | grep -q 'NO ERRORS' \
      && glog c11_ad107_frts | grep -q 'closing is safe; exiting'"
 
-# 9. the L0 recordings, replayed at level boot under the guard
-replay_line() { grep -E "^replay session 2" "$TINYGPU_TEST_WORK/replay_$1.log"; }
-if [ ${#RECS[@]} -gt 0 ]; then
-    for R in "${RECS[@]}"; do
-        l=c11_boot_${R##*_}
-        check "${R##*/}: replays exactly at level boot, the whole boot in C++ with no daemon, under the guard" \
-            "replay_line $l | grep -q 'PASS' && grep -q 'built the NVDevice after the C++ boot, with no daemon' '$TINYGPU_TEST_WORK/run_replay_$l.txt'"
-    done
-else
-    echo "(no L0 recordings in $BEAGLE_TINYGPU_DATA/recordings: their checks skipped)"
-fi
-
-left=$(tracked_alive)   # this stage's own fakes, replay servers and guards only: other stages run at the same time
+left=$(tracked_alive)   # this stage's own fakes and guards only: other stages run at the same time
 check "no harness process or guard is left running" "[ -z \"\$left\" ]"
 echo; [ $fails -eq 0 ] && echo "test_c11: PASS" || echo "test_c11: $fails FAILED"
 [ $fails -eq 0 ]

@@ -4,7 +4,8 @@
 # with the plugin's MMU v3 memory manager and its COT teardown (the unload and the RISC-V halt wait). run_l0.sh records in its
 # dry run, plain and through the guard; each recording replays exactly under the guard (MMU v3 walks, the COT start and
 # teardown), and the two are equivalent (tgcanon). The GB205's own recordings (TG_GB20X), made through the daemon, are each
-# equivalent to the L0 (tgcanon), and each replays exactly under the guard to the C++ boot and the plugin's COT teardown. (The
+# equivalent to the L0 (tgcanon). Their replays to the C++ boot were retired (STATUS.md R118): since e52d494b and 4135b050
+# the plugin writes other data than it did, and the daemon they were made through is gone, so they cannot be made again. (The
 # guard refuses a PTE to memory it does not know, and a corrupt RPC, on MMU v3: each put into its inputs alone in the replay.)
 # Every run is a job of its own (env.sh's pjob), started longest first, a run that needs a dry run's recording once that dry run
 # has ended; the checks then read the runs' files in this order.
@@ -40,9 +41,6 @@ pjob dry_plain dry_run plain; DRY_PLAIN=$!   # its recording's guard-defect repl
 pjob dry_guard dry_guard; DRY_GUARD=$!
 wait $DRY_PLAIN
 for m in "${GDS[@]}"; do d=${m%%|*}; pjob gd_$d to "$W/replay_gd_$d.txt" "$TG_TESTS/run_replay.sh" "$(rec plain)" b2_gd_$d --guard --guard-defect $d; done
-if [ ${#GB[@]} -eq 6 ]; then
-    for R in "${GB[@]}"; do l=b2_hw_${R##*_}; pjob $l to "$W/replay_$l.txt" "$TG_TESTS/run_replay.sh" "$R" $l --guard; done
-fi
 pjob rp_plain replay_dry plain
 pjob boot boot
 if [ ${#GB[@]} -eq 6 ]; then
@@ -76,19 +74,11 @@ for m in "${GDS[@]}"; do
 done
 
 # 3. the GB205's own recordings, where $BEAGLE_TINYGPU_DATA has them: H1's to H4's are equivalent to the L0 (the COT boot's GSP
-#    log buffer masked), and each replays exactly to the C++ boot and the plugin's COT teardown under the guard: on the card's
-#    own replies, the boot and the NVDevice make the requests tinygrad's made, the COT message word for word, and the teardown
-#    sends what T's recorded (not marker for marker: the recordings hold the daemon's markers)
+#    log buffer masked)
 if [ ${#GB[@]} -eq 6 ]; then
     for R in "${GB[@]:1}"; do
         check "tgcanon: GB205 ${R##*/} is equivalent to the L0 (the GSP log buffer masked)" \
             "[ $(pjob_rc canon_hw_${R##*_}) -eq 0 ] && grep -q 'GSP log buffer pages differ' '$W/canon_hw_${R##*_}.txt'"
-    done
-    for R in "${GB[@]}"; do
-        l=b2_hw_${R##*_}
-        check "GB205 ${R##*/}: replays exactly at level boot, with the plugin's COT teardown, under the guard" \
-            "replay_line $l | grep -q 'PASS' && grep -q 'built the NVDevice after the C++ boot, with no daemon (level boot: sm_120' '$TINYGPU_TEST_WORK/run_replay_$l.txt' \
-             && grep -q '$COT_TD' '$TINYGPU_TEST_WORK/run_replay_$l.txt' && grep -q 'teardown: done: GSP RISC-V halted after' '$TINYGPU_TEST_WORK/run_replay_$l.txt'"
     done
 else
     echo "(no GB205 recordings in $BEAGLE_TINYGPU_DATA/recordings: their checks skipped)"
