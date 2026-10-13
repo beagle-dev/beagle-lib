@@ -82,8 +82,12 @@ bool AmdSupportsDouble() {
     return false;
 }
 
-// TODO.md plan step S3.3: the spectral variants; none until the build compiles them (plan step S8.2)
+// TODO.md plan steps S3.3, S8.2: the build's SPEC_ HSACOs (BUILD_SPECTRAL with comgr), as AmdSupportsDouble finds DP_ ones
 bool AmdSupportsSpectral() {
+#ifdef TINYGPU_AMD_HSACO
+    for (const TinyGPUAMDHsaco& h : kTinyGPUAMDHsacos)
+        if (strncmp(h.variant, "SPEC_", 5) == 0) return true;
+#endif
     return false;
 }
 
@@ -598,7 +602,10 @@ void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
     // The first instance's boot takes Initialize()'s TinyGPU.app connection (self->tgpuSock, plan step C3: tg_transport()),
     // which the card then keeps until exit; later instances share that boot (AmdAttachShared, plan step A5).
     const bool dp = (flags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
-    const std::string variant = (dp ? "DP_" : "SP_") + std::to_string(paddedStateCount);
+    // a BeagleGPUSpectralImpl's instance (SPECTRAL in its kFlags) loads the SPEC_ variant, the standard kernels plus the
+    // spectral ones (TODO.md plan step S8.2)
+    const bool spectral = (flags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) != 0;
+    const std::string variant = std::string(spectral ? "SPEC_" : "") + (dp ? "DP_" : "SP_") + std::to_string(paddedStateCount);
     AMDInstance* in = (AMDInstance*)self->amdInstance;
     if (!in) {   // the first: it boots the card
         self->amdInstance = in = new AMDInstance;

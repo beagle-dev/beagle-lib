@@ -5,7 +5,8 @@ captured, at a fixed base) and by golden_amd_program.cpp's C++ loader. The reloc
 (rsrc1/2/3, prog_addr, aql_prog_addr, segment and kernarg sizes, wave32) must be identical, and the C++ scratch sizing
 must equal AMDDevice._ensure_has_local_memory for a set of private sizes and each variant's largest. For each card of
 am::kChips (TODO.md plan step N13: the RX 7900 XT, gfx1100, and the RX 9070 XT, gfx1201): compiled for its arch, with its
-props from its captured discovery table as PCIIface._compute_props derives them (fake_am_gpu.props_for)."""
+props from its captured discovery table as PCIIface._compute_props derives them (fake_am_gpu.props_for). With the build's
+spectral variants (TODO.md plan step S8.3), also each SPEC_ variant, from BeagleOpenCLSpectral_kernels.h."""
 import os, sys, types, itertools, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tgpaths
@@ -19,8 +20,11 @@ HERE, WORK = tgpaths.HERE, tgpaths.WORK
 tgpaths.build_cpp(HERE / "golden_amd_program.cpp", WORK / "golden_amd_program")
 LIB_VA = 0x7f_8000_0000
 
-hdr = (tgpaths.GPU_DIR / "kernels/BeagleOpenCL_kernels.h").read_text().split("\n")
-def variant(name):   # as amd_compile_probe.py: the KERNELS_STRING_<name> the plugin sends the daemon
+hdrs = {"": (tgpaths.GPU_DIR / "kernels/BeagleOpenCL_kernels.h").read_text().split("\n")}
+if '"SPEC_' in (tgpaths.GPU_DIR / "kernels/TinyGPUAMDHsaco.h").read_text():   # the build has the spectral variants
+    hdrs["SPEC_"] = (tgpaths.GPU_DIR / "kernels/BeagleOpenCLSpectral_kernels.h").read_text().split("\n")
+def variant(name, prefix=""):   # as amd_compile_probe.py: the KERNELS_STRING_<name> the plugin sends the daemon
+    hdr = hdrs[prefix]
     i = next(k for k, l in enumerate(hdr) if l.startswith(f"#define {name} \""))
     out = []
     for l in hdr[i + 1:]:
@@ -47,10 +51,9 @@ def scratch_ref(private):
 results = []
 for device in (0x744c, 0x7550):
     PROPS = amg.props_for(device)
-    for prec in ("SP", "DP"):
-        for n in (4, 16, 32, 48, 64, 80, 128, 192, 256):
-            name = f"{PROPS['arch']} KERNELS_STRING_{prec}_{n}"
-            hsaco = ach.compile_hip(variant(f"KERNELS_STRING_{prec}_{n}"), PROPS["arch"])
+    for prefix, prec, n in itertools.product(hdrs, ("SP", "DP"), (4, 16, 32, 48, 64, 80, 128, 192, 256)):
+            name = f"{PROPS['arch']} {prefix}KERNELS_STRING_{prec}_{n}"
+            hsaco = ach.compile_hip(variant(f"KERNELS_STRING_{prec}_{n}", prefix), PROPS["arch"])
             _, kernels = ach.parse_kernels(hsaco)
             copies, ref, privates = [], {}, []
             dev = stub_dev(copies)

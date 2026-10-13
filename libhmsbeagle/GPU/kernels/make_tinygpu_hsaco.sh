@@ -6,14 +6,20 @@
 # registers to scratch fails the compiler, and so this script and the build. Outputs:
 #   BeagleTinyGPU_hsaco.S  the HSACOs, embedded with .incbin (Mach-O)
 #   TinyGPUAMDHsaco.h      their table {variant, arch, begin, end} and a stamp
-#   make_tinygpu_hsaco.sh <tinygpu_amd_compile> <libamd_comgr>
+# With a third argument, tinygpu_amd_compile_spectral (BUILD_SPECTRAL; TODO.md plan step S8.1), also the SPEC_ variants of
+# BeagleOpenCLSpectral_kernels.h, in the same table: the standard kernels plus the spectral ones, which a TinyGPU spectral
+# instance loads. That compiler also refuses a variant the plugin's loader would.
+#   make_tinygpu_hsaco.sh <tinygpu_amd_compile> <libamd_comgr> [<tinygpu_amd_compile_spectral>]
 
 set -e
 
 COMPILER="$1"
 COMGR="$2"
+SPEC_COMPILER="$3"
 
 VARIANT_LIST='SP_4 SP_16 SP_32 SP_48 SP_64 SP_80 SP_128 SP_192 SP_256 DP_4 DP_16 DP_32 DP_48 DP_64 DP_80 DP_128 DP_192 DP_256'
+SPEC_VARIANT_LIST=""
+[ -z "${SPEC_COMPILER}" ] || for v in ${VARIANT_LIST}; do SPEC_VARIANT_LIST="${SPEC_VARIANT_LIST} SPEC_$v"; done
 ARCH_LIST='gfx1100 gfx1201'   # am::kChips' arches (TODO.md plan step N13: only the cards' own, decision 11)
 
 srcdir="$(cd "$(dirname "$0")" && pwd)"
@@ -34,7 +40,10 @@ table=""
 for a in $ARCH_LIST; do
 	echo "Making TinyGPU AMD HSACOs for $a"
 	"${COMPILER}" "${COMGR}" "$a" "${hsacodir}" ${VARIANT_LIST} || { rm -f "${outasm}" "${outindex}" "${tmpasm}" "${tmpindex}"; exit 1; }
-	for v in $VARIANT_LIST; do
+	if [ -n "${SPEC_COMPILER}" ]; then
+		"${SPEC_COMPILER}" "${COMGR}" "$a" "${hsacodir}" ${SPEC_VARIANT_LIST} || { rm -f "${outasm}" "${outindex}" "${tmpasm}" "${tmpindex}"; exit 1; }
+	fi
+	for v in $VARIANT_LIST $SPEC_VARIANT_LIST; do
 		hsaco="${hsacodir}/${v}_$a.hsaco"
 		sym="tinygpu_hsaco_${v}_$a"
 		# nothing between .incbin and the end label: end - begin is the HSACO's size

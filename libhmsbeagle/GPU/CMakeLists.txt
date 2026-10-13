@@ -188,9 +188,12 @@ if(BUILD_TINYGPU)
 			target_include_directories(tinygpu_amd_compile_spectral PRIVATE "${CMAKE_SOURCE_DIR}")
 			target_compile_definitions(tinygpu_amd_compile_spectral PRIVATE TINYGPU_AMD_SPECTRAL)
 			add_dependencies(tinygpu_amd_compile_spectral _BeagleOpenCLSpectralKernelsFile)
+			# make_tinygpu_hsaco.sh's third argument and its DEPENDS (TODO.md plan step S8.1); unquoted, so empty drops out
+			set(TINYGPU_AMD_SPECTRAL_COMPILER "$<TARGET_FILE:tinygpu_amd_compile_spectral>")
+			set(TINYGPU_AMD_SPECTRAL_DEPENDS tinygpu_amd_compile_spectral "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLSpectral_kernels.h")
 		endif()
 		foreach(a gfx1100 gfx1201)
-			foreach(p SP DP)
+			foreach(p ${TINYGPU_PREFIXES})
 				foreach(s ${TINYGPU_SP_STATES})
 					list(APPEND TINYGPU_HSACOS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_hsaco/${p}_${s}_${a}.hsaco")
 				endforeach()
@@ -198,9 +201,9 @@ if(BUILD_TINYGPU)
 		endforeach()
 		add_custom_command(
 				OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_hsaco.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUAMDHsaco.h" ${TINYGPU_HSACOS}
-				COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_hsaco.sh" "$<TARGET_FILE:tinygpu_amd_compile>" "${TINYGPU_COMGR}"
+				COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_hsaco.sh" "$<TARGET_FILE:tinygpu_amd_compile>" "${TINYGPU_COMGR}" ${TINYGPU_AMD_SPECTRAL_COMPILER}
 				WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-				DEPENDS tinygpu_amd_compile "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h" "kernels/make_tinygpu_hsaco.sh"
+				DEPENDS tinygpu_amd_compile "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h" "kernels/make_tinygpu_hsaco.sh" ${TINYGPU_AMD_SPECTRAL_DEPENDS}
 				COMMENT "Building TinyGPU ahead-of-time AMD HSACOs (comgr: SP and DP x gfx1100, gfx1201)"
 				VERBATIM)
 		add_custom_target(TinyGPUHsaco DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_hsaco.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUAMDHsaco.h")

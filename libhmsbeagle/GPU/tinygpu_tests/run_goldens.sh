@@ -17,7 +17,7 @@ golden() {   # <log> <golden> [args ...]: $TG_TESTS/<golden>.py's output in $W/<
 # TODO.md plan step N12: the AM boot's goldens on the RX 9070 XT's fake too (gfx12)
 amd_boot_gfx1201() { FAKE_AMD_CHIP=gfx1201 golden golden_amd_boot_gfx1201 golden_amd_boot; }
 MM_PARTS=5   # golden_mm.py's PARTS
-HS_PARTS=3   # golden_amd_hsaco.py's ARCHS
+HS_PARTS=$("$BEAGLE_PYTHON" "$TG_TESTS/golden_amd_hsaco.py" --parts)   # its ARCHS, twice with the spectral variants
 parts() {   # <golden> <K>: its K parts' output, in order, in $W/<golden>.log; prints their failures (a part exits with its count)
     local n=0 p
     for p in $(seq 1 $2); do cat "$W/$1.$p.log"; n=$((n + $(pjob_rc $1_$p))); done > "$W/$1.log"
