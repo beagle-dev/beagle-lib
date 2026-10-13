@@ -95,6 +95,20 @@ amd_d1_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>"
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }
 
+# TODO.md plan step S4.5: a run of an s1_runs.txt line, as d1_verdict: one boot, the spectral modules only (an embedded SPEC_
+# cubin and no standard one), no launch rejected, no kernel missing and no failed step, gpuspectraltest's instances
+# TinyGPU's spectral ones, and exactly the line's kernels launched (BEAGLE_NV_PROFILE). Reads files and runs nothing (on
+# the fakes stdout and stderr share one file). Prints the first failed check.
+spectral_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>" <program>
+    local got; got=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | xargs)
+    [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
+    grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin SPEC_[SD]P_" "$2" || { echo "no spectral module loaded"; return 1; }
+    ! grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin [SD]P_" "$2" || { echo "a standard module loaded"; return 1; }
+    ! grep -qE "not launched|kernel not found|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected, a kernel missing or a step failed"; return 1; }
+    [ "$4" != gpuspectraltest ] || grep -qE "TinyGPU-(Single|Double)-Spectral against" "$1" || { echo "not TinyGPU's spectral instances"; return 1; }
+    [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
+}
+
 # The hardware scripts' shared protections (run_point.sh, run_d1.sh, run_l0.sh; plan steps P3, D1). hw_begin: nothing else
 # changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
 # exit; it is in $TMPDIR, next to tinygrad's nv_usb4.lock, so a computer sharing $BEAGLE_TINYGPU_DATA runs its own eGPU freely).

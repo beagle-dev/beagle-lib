@@ -1,8 +1,8 @@
 #!/bin/bash
 # TODO.md plan step S3.4 (PLAN-spectral-tinygpu-degree2.md), offline: test_s1.sh's checks on the AMD card, through
 # spectral_probe.cpp on fake_amd_device.py's card (FAKE_AMD_CHIP, gfx1100 by default), through the crash guard:
-#   - the refusal: a standard request (single precision, GPU, TinyGPU required) that prefers SPECTRAL is refused by the
-#     standard factory: BEAGLE_ERROR_NO_RESOURCE (-6), no boot, and no spectral kernel looked up in a standard variant;
+#   - the refusal: a standard request (single precision, GPU, TinyGPU and DYNAMIC scaling required, which no spectral
+#     factory offers) that prefers SPECTRAL is refused by the standard factory: BEAGLE_ERROR_NO_RESOURCE (-6), no boot, and no spectral kernel looked up in a standard variant;
 #   - the routing (plan step S8's baseline): BEAST's pre-order requests at 61 states with no resource list, preferring
 #     GPU and DOUBLE and requiring PREORDER_TRANSPOSE_AUTO, then the same also requiring SPECTRAL: neither picks TinyGPU
 #     while the plugin has no spectral variants (GetSupportsSpectral).
@@ -53,7 +53,7 @@ run() {   # <label> <variant> [probe args ...]
 }
 booted() { cat "$W/$1.err" "$W/$1.tglog" | grep -qE "C\+\+ boot|programs loaded"; }
 
-pjob s2_refusal run s2_refusal SP_4 --resource 1 --req 'GPU|TINYGPU|SINGLE' --pref SPECTRAL 4:s:std
+pjob s2_refusal run s2_refusal SP_4 --resource 1 --req 'GPU|TINYGPU|SINGLE|DYNAMIC' --pref SPECTRAL 4:s:std
 pjob s2_route run s2_route DP_64 --pref 'GPU|DOUBLE' --req TRANSPOSE_AUTO 61:d:std 61:d:spec
 pwait
 

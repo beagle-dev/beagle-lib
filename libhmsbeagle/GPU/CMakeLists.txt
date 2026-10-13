@@ -81,20 +81,29 @@ if(BUILD_TINYGPU)
 	endif()
 	message(STATUS "TinyGPU kernels: using nvcc at ${TINYGPU_NVCC}")
 	set(TINYGPU_NVCCFLAGS "-O3 -Wno-deprecated-gpu-targets")
+	# The module prefixes; SPEC_: the spectral modules (BUILD_SPECTRAL; TODO.md plan step S4.2), the standard kernels plus
+	# kernelsSpectralIfDef*.cu, which a TinyGPU spectral instance loads; each goes through the NV launch and shared-memory
+	# gate (make_tinygpu_cubins.sh)
+	set(TINYGPU_PREFIXES SP DP)
+	if(BUILD_SPECTRAL)
+		list(APPEND TINYGPU_PREFIXES SPEC_SP SPEC_DP)
+		set(TINYGPU_SPECTRAL spectral)   # the scripts' switch; unquoted below, so empty drops out
+		set(TINYGPU_SPECTRAL_SOURCES "kernels/kernelsSpectralIfDef.cu" "kernels/kernelsSpectralIfDef4.cu")
+	endif()
 	# The script also keeps the SP and DP modules for the TinyGPU cubins
-	# (TODO.md plan steps C1, C16). Declared as outputs, so a missing one reruns
-	# the script.
+	# (TODO.md plan steps C1, C16), and the SPEC_ ones. Declared as outputs, so a
+	# missing one reruns the script.
 	set(TINYGPU_SP_STATES 4 16 32 48 64 80 128 192 256)   # as in make_tinygpu_kernels.sh and make_tinygpu_cubins.sh
-	foreach(p SP DP)
+	foreach(p ${TINYGPU_PREFIXES})
 		foreach(s ${TINYGPU_SP_STATES})
 			list(APPEND TINYGPU_PTX "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/${p}_${s}.ptx")
 		endforeach()
 	endforeach()
 	add_custom_command(
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h" ${TINYGPU_PTX}
-			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}"
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}" ${TINYGPU_SPECTRAL}
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh" ${TINYGPU_SPECTRAL_SOURCES}
 			COMMENT "Building TinyGPU-specific kernel PTX (-DCUDA -DFW_TINYGPU)"
 			VERBATIM)
 	add_custom_command(
@@ -127,7 +136,7 @@ if(BUILD_TINYGPU)
 	# The cubins are outputs too (a missing one reruns the script) and, in
 	# CMake_TinyGPU, dependencies of the .S's object (.incbin is not
 	# scanned, so a changed cubin would not be re-embedded otherwise).
-	foreach(p SP DP)
+	foreach(p ${TINYGPU_PREFIXES})
 		foreach(s ${TINYGPU_SP_STATES})
 			foreach(a sm_86 sm_89 sm_120)   # as in make_tinygpu_cubins.sh
 				list(APPEND TINYGPU_CUBINS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/tinygpu_cubins/${p}_${s}_${a}.cubin")
@@ -136,7 +145,7 @@ if(BUILD_TINYGPU)
 	endforeach()
 	add_custom_command(
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_cubins.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUNVCubins.h" ${TINYGPU_CUBINS}
-			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_cubins.sh" "${TINYGPU_PTXAS}"
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_cubins.sh" "${TINYGPU_PTXAS}" ${TINYGPU_SPECTRAL}
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
 			DEPENDS ${TINYGPU_PTX} "kernels/make_tinygpu_cubins.sh"
 			COMMENT "Building TinyGPU ahead-of-time cubins (ptxas: SP and DP x sm_86, sm_89, sm_120)"

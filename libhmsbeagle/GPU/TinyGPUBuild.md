@@ -9,7 +9,10 @@ The build makes two files that are installed side by side: the plugin, `hmsbeagl
 when BEAGLE runs:
 
 - **NVIDIA:** `nvcc` and `ptxas` from CUDA 12.8 build the PTX and 54 cubins (single and double precision, 9 state counts,
-  for sm_86, sm_89 and sm_120). NVIDIA ships no CUDA for macOS, so both run in a Linux container under Docker.
+  for sm_86, sm_89 and sm_120). With `BUILD_SPECTRAL` (the default) they also build the 54 cubins of the spectral
+  representation (`SPEC_`), 108 in all; the build fails if a spectral kernel's registers cannot launch its thread block or
+  its shared memory exceeds the loader's 100 KiB. NVIDIA ships no CUDA for macOS, so both run in a Linux container under
+  Docker.
 - **AMD:** tinygrad's build of AMD's Code Object Manager (comgr) compiles 36 HSACOs: 18 for gfx1100 (the RX 7900 series) and
   18 for gfx1201 (the RX 9070 series).
   The build fails if any of their kernels spills registers to scratch. Without comgr the build still succeeds, but the
@@ -185,7 +188,7 @@ cmake --build ~/src/beagle-build -j 8
 ```
 
 The first build writes the generated kernels into the source tree, under `libhmsbeagle/GPU/kernels/`: the PTX header,
-the 54 cubins and the 36 HSACOs. It then embeds them in the plugin. On Apple silicon the libraries are universal (arm64 and
+the 54 cubins (108 with `BUILD_SPECTRAL`) and the 36 HSACOs. It then embeds them in the plugin. On Apple silicon the libraries are universal (arm64 and
 x86_64). To build only the backend and its test program:
 
 ```bash

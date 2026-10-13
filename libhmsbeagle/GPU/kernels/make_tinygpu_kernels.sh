@@ -18,6 +18,7 @@ set -e
 NVCC="$1"
 NVCCFLAGS="$2"
 INCLUDE_DIRS="$3"
+SPECTRAL="$4"   # "spectral": also the SPEC_ modules (BUILD_SPECTRAL; TODO.md plan step S4.2)
 
 echo "NVCC=${NVCC}"
 echo "NVCCFLAGS=${NVCCFLAGS}"
@@ -82,5 +83,24 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 		echo "\"" >> "${outheader}"
 		{ echo; cat "${outptx}"; } > "${cubindir}/DP_$s.ptx"
 	done
+
+#
+# Spectral modules (TODO.md plan step S4.2): -DCUDA_SPECTRAL makes kernels4.cu and kernelsX.cu include
+# kernelsSpectralIfDef4.cu and kernelsSpectralIfDef.cu: the standard kernels plus the spectral ones, which a spectral
+# instance's KernelLauncher binds together. Kept only as tinygpu_cubins/SPEC_<P>_<N>.ptx (not in the header); the stamp
+# above covers them, since they come from this run.
+#
+if [ "${SPECTRAL}" = spectral ]; then
+	for p in SP DP; do
+		if [ $p = DP ]; then pflag=-DDOUBLE_PRECISION; else pflag=; fi
+		for s in 4 $STATE_COUNT_LIST; do
+			if [ $s = 4 ]; then src=kernels4.cu; else src=kernelsX.cu; fi
+			echo "Making TinyGPU spectral $p state count = $s"
+			${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DCUDA_SPECTRAL -DSTATE_COUNT=$s ${pflag} \
+				"${srcdir}/${src}" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
+			{ echo; cat "${outptx}"; } > "${cubindir}/SPEC_${p}_$s.ptx"
+		done
+	done
+fi
 
 rm -f "${outptx}"

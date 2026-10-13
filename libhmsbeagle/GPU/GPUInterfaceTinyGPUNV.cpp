@@ -968,18 +968,25 @@ static bool nvdLoadPrograms(const NVDElf& elf, const std::vector<std::string>& n
 
 // The C++ runtime's embedded cubin for an instance's state count and the booted GPU (plan step C1), and a handle per
 // kernel in it. Its programs load after the handoff (nvRuntimePrograms). False: none serves them (the instance fails).
-static bool nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, const std::string& arch, NVDElf& cubin) {
+// spectral: a BeagleGPUSpectralImpl's instance (SPECTRAL in its kFlags), which loads the SPEC_ modules, the standard kernels
+// plus the spectral ones (TODO.md plan step S4.3)
+static bool nvRuntimeCubin(NVInstance& in, int paddedStateCount, bool dp, bool spectral, const std::string& arch,
+                           NVDElf& cubin) {
+    const TinyGPUNVCubin* table = kTinyGPUNVCubins;
+    size_t n = sizeof(kTinyGPUNVCubins) / sizeof(kTinyGPUNVCubins[0]);
+#ifdef BEAGLE_TINYGPU_SPECTRAL
+    if (spectral) { table = kTinyGPUNVSpectralCubins; n = sizeof(kTinyGPUNVSpectralCubins) / sizeof(kTinyGPUNVSpectralCubins[0]); }
+#endif
     const TinyGPUNVCubin* c = nullptr;
-    std::string err = nvd_find_cubin(kTinyGPUNVCubins, sizeof(kTinyGPUNVCubins) / sizeof(kTinyGPUNVCubins[0]),
-                                     paddedStateCount, dp, arch, c);
+    std::string err = nvd_find_cubin(table, n, paddedStateCount, dp, arch, c);
     if (err.empty()) err = nvd_elf_load(c->begin, (size_t)(c->end - c->begin), 128, cubin);  // NVProgram's force_section_align
     if (!err.empty()) {
         fprintf(stderr, "TinyGPU/NV: C++ runtime: %s\n", err.c_str());
         return false;
     }
     for (const std::string& kname : nvd_kernel_names(cubin)) in.kernels[kname] = new NVKernelHandle{kname};
-    TG_STATUS("TinyGPU/NV: C++ runtime: embedded cubin %s_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", dp ? "DP" : "SP",
-            paddedStateCount, arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
+    TG_STATUS("TinyGPU/NV: C++ runtime: embedded cubin %s%s_%d %s (%zu bytes, %zu kernels; ptxas %s)\n", spectral ? "SPEC_" : "",
+            dp ? "DP" : "SP", paddedStateCount, arch.c_str(), (size_t)(c->end - c->begin), in.kernels.size(), TINYGPU_CUBINS_STAMP);
     return true;
 }
 
@@ -991,9 +998,13 @@ bool NvSupportsDouble() {
     return false;
 }
 
-// TODO.md plan step S3.3: the spectral modules; none until the build embeds them (plan step S4.3)
+// TODO.md plan steps S3.3, S4.3: the build's spectral modules (SPEC_, with BUILD_SPECTRAL)
 bool NvSupportsSpectral() {
+#ifdef BEAGLE_TINYGPU_SPECTRAL
+    return true;
+#else
     return false;
+#endif
 }
 
 // Each handle's launch template: the instance's own programs.
@@ -1149,7 +1160,9 @@ void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
         }
         NVDElf cubin;   // the programs of an instance that shares the boot, or of the boot's first
         if (!nv_failed(*in) &&
-            (!nvRuntimeCubin(*in, paddedStateCount, self->supportDoublePrecision, g_nv->arch, cubin) || !nvRuntimePrograms(*in, cubin)))
+            (!nvRuntimeCubin(*in, paddedStateCount, self->supportDoublePrecision,
+                             (flags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) != 0, g_nv->arch, cubin) ||
+             !nvRuntimePrograms(*in, cubin)))
             in->failed = true;
     } catch (const NVGpuLost& e) {   // a hang or a broken stream in the setup's GPU work
         nv_gpu_lost(e.hung);

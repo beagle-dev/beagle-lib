@@ -9,7 +9,7 @@
  *   item    S:{s|d}:{std|spec}: S states; single or double precision preferred; spec also requires SPECTRAL and
  *           PREORDER_TRANSPOSE_AUTO, as every spectral caller does
  *   F       flags added to every item's preference (--pref) or requirement (--req): a hex number, or '|'-separated names
- *           (GPU CPU TINYGPU SINGLE DOUBLE SPECTRAL TRANSPOSE_AUTO TRANSPOSE_MANUAL)
+ *           (GPU CPU TINYGPU SINGLE DOUBLE SPECTRAL TRANSPOSE_AUTO TRANSPOSE_MANUAL DYNAMIC)
  *   --resource r       the resource list {r}; without it, none (BEAGLE chooses)
  *   --eigen E          eigen buffers in each instance (1); a spectral instance's pools grow with them
  *   --adjoint-reps R   then, on each spectral instance, a 3-tip adjoint gradient R times, printing each change of its rc
@@ -33,7 +33,8 @@ long parseFlags(const char* s) {
         {"GPU", BEAGLE_FLAG_PROCESSOR_GPU}, {"CPU", BEAGLE_FLAG_PROCESSOR_CPU},
         {"TINYGPU", BEAGLE_FLAG_FRAMEWORK_TINYGPU}, {"SINGLE", BEAGLE_FLAG_PRECISION_SINGLE},
         {"DOUBLE", BEAGLE_FLAG_PRECISION_DOUBLE}, {"SPECTRAL", BEAGLE_FLAG_SPECTRAL_REPRESENTATION},
-        {"TRANSPOSE_AUTO", BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}, {"TRANSPOSE_MANUAL", BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL}};
+        {"TRANSPOSE_AUTO", BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}, {"TRANSPOSE_MANUAL", BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL},
+        {"DYNAMIC", BEAGLE_FLAG_SCALING_DYNAMIC}};
     long flags = 0;
     std::string rest(s);
     while (!rest.empty()) {
