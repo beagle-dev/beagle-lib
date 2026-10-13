@@ -188,7 +188,8 @@ enum BeagleDeviceImplementationCodes {
     static inline __attribute__((device)) unsigned long get_local_size(unsigned int d) { return __ockl_get_local_size(d); }
     static inline __attribute__((device)) unsigned long get_num_groups(unsigned int d) { return __ockl_get_num_groups(d); }
     // Math functions kernels/*.cu calls as plain exp/cos/sin/log/pow/round
-    // (the complete set used anywhere in the kernel sources -- checked).
+    // (the complete set used anywhere in the kernel sources -- checked), and
+    // fabs and sincos (kernelsSpectralIfDef*.cu).
     // OpenCL-C and CUDA both provide these as language builtins; HIP under
     // -nogpuinc has neither, so route to comgr's bundled OCML device-library
     // functions directly (the same functions HIPRenderer's own _ocml()
@@ -224,9 +225,14 @@ enum BeagleDeviceImplementationCodes {
     static inline __attribute__((device)) double frexp(double x, int* e) { return __builtin_frexp(x, e); }
     static inline __attribute__((device)) float  ldexp(float x, int e) { return __builtin_ldexpf(x, e); }
     static inline __attribute__((device)) double ldexp(double x, int e) { return __builtin_ldexp(x, e); }
+    static inline __attribute__((device)) float  fabs(float x) { return __builtin_fabsf(x); }
+    static inline __attribute__((device)) double fabs(double x) { return __builtin_fabs(x); }
+    // OpenCL's sincos(x, &cos), which returns the sine: SPECTRAL_SINCOS's non-CUDA form
+    static inline __attribute__((device)) float  sincos(float x, float* c) { *c = __ocml_cos_f32(x); return __ocml_sin_f32(x); }
+    static inline __attribute__((device)) double sincos(double x, double* c) { *c = __ocml_cos_f64(x); return __ocml_sin_f64(x); }
     // Bit-reinterpretation and atomicAdd: real CUDA/HIP builtins normally
     // declared in device_functions.h/hip_runtime.h, unavailable under
-    // -nogpuinc. atomicAdd(REAL*, REAL) (kernels4.cu/kernelsX.cu) is called
+    // -nogpuinc. atomicAdd(REAL*, REAL) (kernels4.cu/kernelsX.cu, and the spectral adjoints) is called
     // unconditionally, not just inside kernelsAll.cu's own CUDA-gated
     // double-precision CAS-loop fallback (that block never fires here,
     // guarded on `defined CUDA`), so both float and double overloads are

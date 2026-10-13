@@ -206,6 +206,7 @@
 #define SPECTRAL_TO_EIGEN_GPU(DIRECTION, N, X) \
     { \
         REAL q_loc = (REAL)0; \
+        KW_NO_UNROLL \
         for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
             if (patIdx < BLOCK_PEELING_SIZE) \
                 sBuf##N[patIdx][state] = SPECTRAL_TO_EIGEN_MATRIX_##DIRECTION(N)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
@@ -242,6 +243,7 @@
 #define SPECTRAL_TO_EIGEN_BOTH_GPU(DIRECTION1, X1, DIRECTION2, X2) \
     { \
         REAL q_loc1 = (REAL)0, q_loc2 = (REAL)0; \
+        KW_NO_UNROLL \
         for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
             if (patIdx < BLOCK_PEELING_SIZE) { \
                 sBuf1[patIdx][state] = SPECTRAL_TO_EIGEN_MATRIX_##DIRECTION1(1)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
@@ -290,6 +292,7 @@
  * caller's accumulator. Ends with a fence, so the caller may then overwrite
  * sQN. */
 #define SPECTRAL_FROM_EIGEN_GPU(DIRECTION, N, SUM) \
+    KW_NO_UNROLL \
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
         if (patIdx < BLOCK_PEELING_SIZE) \
             sBuf##N[patIdx][state] = SPECTRAL_FROM_EIGEN_MATRIX_##DIRECTION(N)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
@@ -303,6 +306,7 @@
  * SPECTRAL_WRITE_*_GPU can use them. */
 #define SPECTRAL_FROM_EIGEN_BOTH_GPU(DIRECTION1, DIRECTION2) \
     REAL sum1 = (REAL)0, sum2 = (REAL)0; \
+    KW_NO_UNROLL \
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) { \
         if (patIdx < BLOCK_PEELING_SIZE) { \
             sBuf1[patIdx][state] = SPECTRAL_FROM_EIGEN_MATRIX_##DIRECTION1(1)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
@@ -999,6 +1003,9 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
 #ifndef ADJOINT_ATOMIC_ADD_GPU  /* may already be defined if both IfDef files merged */
 #ifdef CUDA
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  atomicAdd((ptr), (REAL)(val))
+#elif defined(FW_TINYGPU_AMD)   /* HIP: GPUImplDefs.h's CAS atomicAdd, kept out of line as the OpenCL helpers below are */
+KW_DEVICE_FUNC __attribute__((noinline)) void adjointAtomicAddTinyGPUAMD(REAL* p, REAL v) { atomicAdd(p, v); }
+#define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  adjointAtomicAddTinyGPUAMD((ptr), (REAL)(val))
 #elif defined(DOUBLE_PRECISION)
 __attribute__((noinline)) void adjointAtomicAddGpuDPHelper(__global long* _anp, double val) {
     long _ano, _ann;

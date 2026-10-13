@@ -986,7 +986,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
 #define ADJOINT_BLOCK_SP4  128
 #define ADJOINT_SS4        (PADDED_STATE_COUNT * PADDED_STATE_COUNT)
 
-#ifdef CUDA
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)   /* TinyGPU AMD (HIP): GPUImplDefs.h's atomicAdd */
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  atomicAdd((ptr), (REAL)(val))
 #elif defined(DOUBLE_PRECISION)
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val) \
@@ -1278,7 +1278,13 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
 
 #define ADJOINT_QUEUE_STRIDE 9
 
-KW_GLOBAL_KERNEL void kernelAdjointMerged4(
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size (ADJOINT_BLOCK_SP4): comgr otherwise assumes 1024 threads and caps the registers, where this
+// kernel spills in double (TODO.md plan step S7.5, fallback (b))
+__attribute__((amdgpu_flat_work_group_size(1, ADJOINT_BLOCK_SP4)))
+#endif
+kernelAdjointMerged4(
         KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
         KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,

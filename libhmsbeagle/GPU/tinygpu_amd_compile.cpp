@@ -9,6 +9,8 @@
  * (golden_amd_hsaco.py); the plugin embeds them (kernels/BeagleTinyGPU_hsaco.S) and the daemon no longer compiles.
  * A variant fails, and so the build, if any of its kernels spills registers to scratch (the code object's metadata).
  *   tinygpu_amd_compile <libamd_comgr path> <arch> <out dir> <variant (SP_4 ... DP_256)>...
+ * Built with TINYGPU_AMD_SPECTRAL it is tinygpu_amd_compile_spectral (BUILD_SPECTRAL; TODO.md plan step S7.2): the variants
+ * SPEC_SP_4 ... SPEC_DP_256 from BeagleOpenCLSpectral_kernels.h, each of which must also load as the plugin loads it.
  */
 
 #include <cstdint>
@@ -18,7 +20,15 @@
 #include <string>
 #include <vector>
 
+#ifdef TINYGPU_AMD_SPECTRAL   // tinygpu_amd_compile_spectral: the spectral source, variants SPEC_SP_4 ... SPEC_DP_256
+#include <map>
+#include "libhmsbeagle/GPU/kernels/BeagleOpenCLSpectral_kernels.h"
+#include "libhmsbeagle/GPU/TinyGPUAMDProgram.h"
+#define TG_VARIANT_PREFIX "SPEC_"
+#else
 #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
+#define TG_VARIANT_PREFIX ""
+#endif
 
 namespace {
 
@@ -180,7 +190,7 @@ std::string spills(const std::string& hsaco) {
 }
 
 const char* variant_source(const std::string& v) {   // GPUInterfaceTinyGPUAMD.cpp amd_opencl_kernel_source
-#define TG_V(P, N) if (v == #P "_" #N) return KERNELS_STRING_##P##_##N;
+#define TG_V(P, N) if (v == TG_VARIANT_PREFIX #P "_" #N) return KERNELS_STRING_##P##_##N;
     TG_V(SP, 4) TG_V(SP, 16) TG_V(SP, 32) TG_V(SP, 48) TG_V(SP, 64) TG_V(SP, 80) TG_V(SP, 128) TG_V(SP, 192) TG_V(SP, 256)
     TG_V(DP, 4) TG_V(DP, 16) TG_V(DP, 32) TG_V(DP, 48) TG_V(DP, 64) TG_V(DP, 80) TG_V(DP, 128) TG_V(DP, 192) TG_V(DP, 256)
 #undef TG_V
@@ -203,6 +213,22 @@ int main(int argc, char** argv) {
             const std::string hsaco = compile_hip(std::string("#define FW_TINYGPU_AMD 1\n#define FW_OPENCL 1\n#define OPENCL_KERNEL_BUILD 1\n") + src, arch);
             const std::string spilled = spills(hsaco);
             if (!spilled.empty()) { fprintf(stderr, "tinygpu_amd_compile: %s: kernels spill registers to scratch:%s\n", argv[i], spilled.c_str()); return 1; }
+#ifdef TINYGPU_AMD_SPECTRAL
+            // what the plugin's loader refuses (amd_load_hsaco), and any kernel_code_properties bit but the kernarg pointer
+            // and wave32: exec sets up only the kernarg pointer (TinyGPUAMDDispatch.h) and sizes scratch from the fixed
+            // private segment, so FLAT_SCRATCH_INIT, PRIVATE_SEGMENT_SIZE or a dynamic stack (0x800) would run wrong
+            tinygpu_device::AMDProps props;
+            props.lds_size_in_kb = 64;
+            std::vector<uint8_t> image;
+            std::map<std::string, tinygpu_device::AMDProgramRecord> kernels;
+            std::string refused = tinygpu_device::amd_load_hsaco((const uint8_t*)hsaco.data(), hsaco.size(), 0, props, image, kernels);
+            const uint32_t allowed = tinygpu_device::amdt::AMD_KERNEL_CODE_PROPERTIES_ENABLE_SGPR_KERNARG_SEGMENT_PTR |
+                                     tinygpu_device::amdt::KERNEL_CODE_PROPERTIES_WAVE32;
+            for (const auto& [name, r] : kernels)
+                if (refused.empty() && (r.kernel_code_properties & ~allowed))
+                    refused = name + "'s kernel_code_properties " + std::to_string(r.kernel_code_properties);
+            if (!refused.empty()) { fprintf(stderr, "tinygpu_amd_compile: %s: the plugin would refuse it: %s\n", argv[i], refused.c_str()); return 1; }
+#endif
             const std::string path = dir + "/" + argv[i] + "_" + arch + ".hsaco";
             FILE* f = fopen(path.c_str(), "wb");
             if (!f || fwrite(hsaco.data(), 1, hsaco.size(), f) != hsaco.size() || fclose(f) != 0) { fprintf(stderr, "tinygpu_amd_compile: cannot write %s\n", path.c_str()); return 1; }

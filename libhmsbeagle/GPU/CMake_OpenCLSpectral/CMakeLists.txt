@@ -5,29 +5,10 @@ include_directories(
 
 add_definitions(-DFW_OPENCL)
 
-if(WIN32)
-    set(CMD_NAME createOpenCLSpectralHeader.bat)
-else(WIN32)
-    set(CMD_NAME make_opencl_spectral_kernels.sh)
-endif(WIN32)
-
-add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCLSpectral_kernels.h
-        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
-        DEPENDS
-            "../kernels/kernels4.cu"
-            "../kernels/kernels4Derivatives.cu"
-            "../kernels/kernelsX.cu"
-            "../kernels/kernelsXDerivatives.cu"
-            "../kernels/kernelsAll.cu"
-            "../kernels/kernelsSpectralIfDef.cu"
-            "../kernels/kernelsSpectralIfDef4.cu"
-            "../GPUImplDefs.h"
-        COMMENT "Building OpenCL spectral kernels"
-        VERBATIM)
-
-add_custom_target(OpenCLSpectralKernels DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleOpenCLSpectral_kernels.h)
+# BeagleOpenCLSpectral_kernels.h's generation rule lives in the parent libhmsbeagle/GPU/CMakeLists.txt, shared with
+# TinyGPU's AMD spectral variants (TODO.md plan step S7.1), as CMake_OpenCL's OpenCLKernels wraps BeagleOpenCL_kernels.h's
+add_custom_target(OpenCLSpectralKernels)
+add_dependencies(OpenCLSpectralKernels _BeagleOpenCLSpectralKernelsFile)
 
 add_library(hmsbeagle-opencl-spectral SHARED
         ../BeagleGPUImpl.h

@@ -38,6 +38,26 @@ if(BUILD_OPENCL OR BUILD_TINYGPU)
 	add_custom_target(_BeagleOpenCLKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h")
 endif()
 
+if(BUILD_SPECTRAL AND (BUILD_OPENCL OR BUILD_TINYGPU))
+	# BeagleOpenCLSpectral_kernels.h (TODO.md plan step S7.1): OpenCL-Spectral compiles it as OpenCL C, TinyGPU's AMD
+	# spectral variants as HIP (tinygpu_amd_compile_spectral); one rule per output, wrapped in a same-directory target for
+	# the reason given above (_BeagleOpenCLKernelsFile)
+	if(WIN32)
+		set(OPENCL_SPECTRAL_KERNELS_CMD_NAME createOpenCLSpectralHeader.bat)
+	else(WIN32)
+		set(OPENCL_SPECTRAL_KERNELS_CMD_NAME make_opencl_spectral_kernels.sh)
+	endif(WIN32)
+	add_custom_command(
+			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLSpectral_kernels.h"
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/${OPENCL_SPECTRAL_KERNELS_CMD_NAME}"
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsX.cu" "kernels/kernelsXDerivatives.cu"
+			        "kernels/kernelsAll.cu" "kernels/kernelsSpectralIfDef.cu" "kernels/kernelsSpectralIfDef4.cu" "GPUImplDefs.h"
+			COMMENT "Building OpenCL spectral kernels"
+			VERBATIM)
+	add_custom_target(_BeagleOpenCLSpectralKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLSpectral_kernels.h")
+endif()
+
 if(BUILD_OPENCL)
 	find_package(OpenCL)
 	if(OpenCL_FOUND)
@@ -163,6 +183,12 @@ if(BUILD_TINYGPU)
 		add_executable(tinygpu_amd_compile tinygpu_amd_compile.cpp)
 		target_include_directories(tinygpu_amd_compile PRIVATE "${CMAKE_SOURCE_DIR}")
 		add_dependencies(tinygpu_amd_compile _BeagleOpenCLKernelsFile)
+		if(BUILD_SPECTRAL)   # the spectral variants' compiler, with the plugin's loader as a gate (TODO.md plan step S7.2)
+			add_executable(tinygpu_amd_compile_spectral tinygpu_amd_compile.cpp)
+			target_include_directories(tinygpu_amd_compile_spectral PRIVATE "${CMAKE_SOURCE_DIR}")
+			target_compile_definitions(tinygpu_amd_compile_spectral PRIVATE TINYGPU_AMD_SPECTRAL)
+			add_dependencies(tinygpu_amd_compile_spectral _BeagleOpenCLSpectralKernelsFile)
+		endif()
 		foreach(a gfx1100 gfx1201)
 			foreach(p SP DP)
 				foreach(s ${TINYGPU_SP_STATES})
