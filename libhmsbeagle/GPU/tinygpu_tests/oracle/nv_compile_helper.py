@@ -87,6 +87,18 @@ def _ptxas_path() -> str:
 # enabled, never silently substituted.
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _ptxas_tmpdir():
+    # Python's tempfile dir, unless TMPDIR puts it under /tmp, which ptxas cannot open (compile_ptx) and the nvcc/ptxas
+    # Docker shim does not mount: run_offline.sh gives each stage a TMPDIR there (short AF_UNIX paths). Then the per-user
+    # temp dir (/var/folders/...), which both can see.
+    d = tempfile.gettempdir()
+    if not os.path.realpath(d).startswith("/private/tmp"):
+        return d
+    try:
+        return subprocess.check_output(["getconf", "DARWIN_USER_TEMP_DIR"], text=True).strip() or None
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
 def _use_nvjitlink() -> bool:
     return os.environ.get("BEAGLE_NV_USE_NVJITLINK", "") not in ("", "0")
 
@@ -126,10 +138,11 @@ def compile_ptx(ptx_path: str, arch: str, kernel_name: str = "", force_tool: str
 
     ptx_tmp = out = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=".ptx", delete=False) as pf:
+        tmpdir = _ptxas_tmpdir()
+        with tempfile.NamedTemporaryFile(suffix=".ptx", delete=False, dir=tmpdir) as pf:
             pf.write(ptx_data)
             ptx_tmp = pf.name
-        with tempfile.NamedTemporaryFile(suffix=".cubin", delete=False) as cf:
+        with tempfile.NamedTemporaryFile(suffix=".cubin", delete=False, dir=tmpdir) as cf:
             out = cf.name
 
         use_nvjitlink = (force_tool == "nvjitlink") if force_tool else _use_nvjitlink()

@@ -145,7 +145,7 @@ check "a 1 MiB VRAM pool: beagleCreateInstance returns BEAGLE_ERROR_OUT_OF_MEMOR
 
 # 3. a pool the programs fill: the instance's allocation fails instead of handing address 0 to the GPU
 check "a pool the programs fill ($FILL MiB at 64 states): the instance's allocation fails, BEAGLE_ERROR_OUT_OF_MEMORY from beagleCreateInstance, the card finalized" \
-    "normal pool26 && grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with 0.0 MiB left of the $FILL MiB VRAM pool .*; this instance fails' $W/pool26.txt \
+    "normal pool26 && grep -q 'out of GPU memory: an allocation of [0-9.]* MiB, with 0.0 MiB left of the $FILL MiB VRAM pool (BEAGLE_AMD_DATA_MB sets it' $W/pool26.txt \
      && grep -q 'beagleCreateInstance failed (error -2)' $W/pool26.txt && glog pool26 | grep -q '$CLEAN' && verdict pool26 | grep -q 'NO ERRORS'"
 
 # 3b. a pool larger than the VRAM (plan step M1)
