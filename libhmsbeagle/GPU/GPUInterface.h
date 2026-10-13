@@ -219,6 +219,8 @@ public:
     // For growPool: the diagnostic AllocateMemory prints when an allocation does not fit, for a TryAllocateMemory that
     // returned 0; it neither fails the instance nor sets GetOutOfMemory
     void ReportOutOfMemory(size_t memSize);
+    // The build embeds this vendor's spectral modules (SPEC_), which a BeagleGPUSpectralImpl loads
+    bool GetSupportsSpectral(int deviceNumber);
 #endif
 
 #ifdef FW_OPENCL

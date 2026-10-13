@@ -28,6 +28,8 @@ namespace gpu {
 
 #ifdef CUDA
     namespace cuda {
+#elif defined(FW_TINYGPU)
+    namespace tinygpu {
 #else
     namespace opencl {
 #endif
@@ -280,7 +282,7 @@ public:
     virtual const long getFlags();
 };
 
-} // namespace cuda/opencl
+} // namespace cuda/tinygpu/opencl
 } // namespace gpu
 } // namespace beagle
 

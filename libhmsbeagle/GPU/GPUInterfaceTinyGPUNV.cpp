@@ -991,6 +991,11 @@ bool NvSupportsDouble() {
     return false;
 }
 
+// TODO.md plan step S3.3: the spectral modules; none until the build embeds them (plan step S4.3)
+bool NvSupportsSpectral() {
+    return false;
+}
+
 // Each handle's launch template: the instance's own programs.
 static void nvLinkTemplates(NVInstance& in, const std::map<std::string, NVDKernel>& templates) {
     for (auto& kv : in.kernels) {

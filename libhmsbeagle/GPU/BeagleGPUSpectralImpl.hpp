@@ -24,6 +24,8 @@ namespace gpu {
 
 #ifdef CUDA
     namespace cuda {
+#elif defined(FW_TINYGPU)
+    namespace tinygpu {
 #else
     namespace opencl {
 #endif
@@ -131,6 +133,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
 
     gpuIf->ReportMemory("create spectral"); // BEAGLE_DEBUG_MEMORY only
 
+    BEAGLE_GPU_RETURN_IF_LOST();   // TinyGPU: a spectral pool did not fit, or the GPU was lost
     return BEAGLE_SUCCESS;
 }
 
@@ -620,6 +623,16 @@ template<>
 const char* BeagleGPUSpectralImplFactory<float>::getName() {
     return "GPU-SP-CUDA-Spectral";
 }
+#elif defined(FW_TINYGPU)
+template<>
+const char* BeagleGPUSpectralImplFactory<double>::getName() {
+    return "GPU-DP-TinyGPU-Spectral";
+}
+
+template<>
+const char* BeagleGPUSpectralImplFactory<float>::getName() {
+    return "GPU-SP-TinyGPU-Spectral";
+}
 #else
 template<>
 const char* BeagleGPUSpectralImplFactory<double>::getName() {
@@ -649,6 +662,9 @@ const long BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
 #ifdef CUDA
     flags |= BEAGLE_FLAG_FRAMEWORK_CUDA |
              BEAGLE_FLAG_PROCESSOR_GPU;
+#elif defined(FW_TINYGPU)
+    flags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU |
+             BEAGLE_FLAG_PROCESSOR_GPU;
 #else
     flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
              BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
@@ -668,6 +684,16 @@ char* BeagleGPUSpectralImpl<double>::getInstanceName() {
 template<>
 char* BeagleGPUSpectralImpl<float>::getInstanceName() {
     return (char*) "CUDA-Single-Spectral";
+}
+#elif defined(FW_TINYGPU)
+template<>
+char* BeagleGPUSpectralImpl<double>::getInstanceName() {
+    return (char*) "TinyGPU-Double-Spectral";
+}
+
+template<>
+char* BeagleGPUSpectralImpl<float>::getInstanceName() {
+    return (char*) "TinyGPU-Single-Spectral";
 }
 #else
 template<>
@@ -836,10 +862,11 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         gpuIf->FreeHostMemory(hGrad);
     }
 
+    BEAGLE_GPU_RETURN_IF_LOST();   // TinyGPU: the gradient read back is not the GPU's
     return BEAGLE_SUCCESS;
 }
 
-} // namespace cuda/opencl
+} // namespace cuda/tinygpu/opencl
 } // namespace gpu
 } // namespace beagle
 

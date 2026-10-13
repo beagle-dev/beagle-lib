@@ -41,6 +41,7 @@ void       NvFini(GPUInterface* self);   // called from the destructor: releases
 bool       NvDeviceLost(GPUInterface* self);
 bool       NvOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... for lack of GPU memory
 bool       NvSupportsDouble();   // TODO.md plan step C16: the build's cubins include double precision's
+bool       NvSupportsSpectral();   // TODO.md plan step S3.3: the build's cubins include the spectral modules (SPEC_)
 
 // Implemented in GPUInterfaceTinyGPU.cpp: the PCI device ID Initialize's probe read (TODO.md plan decision 16).
 uint16_t   tg_pci_device_id();

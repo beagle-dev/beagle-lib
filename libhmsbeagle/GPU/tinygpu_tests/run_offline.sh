@@ -4,7 +4,8 @@
 # itself as it boots the eGPU (plan steps C11-C13): plan step V1's record/replay tools and the hardware recordings, the fake GB205,
 # the crash guard, the library's error returns, the uploads, D1's kernels, several instances in one process, the routing, the
 # failures and the kills; the AMD runtime, boot, V1 tools and crash guard on fake_amd_device.py; then the no-launch guard
-# (nothing listening => the plugin errors out and no TinyGPU.app is spawned). Build hmsbeagle-tinygpu, beagle-tinygpu-guard, tinygputest, synthetictest and hmctest first.
+# (nothing listening => the plugin errors out and no TinyGPU.app is spawned); the spectral implementation's requests (S1, S2).
+# Build hmsbeagle-tinygpu, beagle-tinygpu-guard, tinygputest, synthetictest, hmctest, gpuspectraltest and adjointtest4 first.
 #
 # The stages run at the same time, each in its own work directory ($TINYGPU_TEST_WORK/s/<key>) and TMPDIR, sharing one build
 # cache (TINYGPU_TEST_CACHE); their runs share this computer's TINYGPU_TEST_JOBS slots (env.sh pjob), so together they keep
@@ -81,6 +82,11 @@ run_stage c14 test_c14.log "$TG_TESTS/test_c14.sh" &
 run_stage n9 test_n9.log "$BEAGLE_PYTHON" "$TG_TESTS/test_n9.py" $TG_AMD_L0_RDNA4 &   # its parts take slots
 run_stage p4 test_p4.log "$TG_TESTS/test_p4.sh" &
 run_stage n3 test_n3.log "$TG_TESTS/test_n3.sh" &
+run_stage s1 test_s1.log "$TG_TESTS/test_s1.sh" &
+for chip in gfx1100 gfx1201; do
+    c=${chip#gfx}; c=${c%0?}
+    run_stage s2-$c test_s2_$chip.log env FAKE_AMD_CHIP=$chip "$TG_TESTS/test_s2.sh" &
+done
 wait
 
 # the results, in the order they always had
@@ -116,6 +122,11 @@ result p4 "warm-GPU recovery at boot (P4)" test_p4.log
 result n3 "AMD discovery capture, no boot (N3)" test_n3.log
 result n6 "AMD boot prediction and safety tools on gfx11 and gfx12 (N6)" test_n6.log
 result n9 "the oracle's rehearsal on the RDNA 4 fake (N9)" test_n9.log
+result s1 "spectral requests on NV (S1)" test_s1.log
+for chip in gfx1100 gfx1201; do
+    c=${chip#gfx}; c=${c%0?}
+    result s2-$c "spectral requests on the AMD card (S2) on $chip" test_s2_$chip.log
+done
 
 # every stage checked its own processes; across the suite, nothing it started is left (a process that ran before it is not
 # counted)

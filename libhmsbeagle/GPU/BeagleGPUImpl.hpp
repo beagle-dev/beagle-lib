@@ -43,7 +43,8 @@
 // createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost):
 // BEAGLE_ERROR_OUT_OF_MEMORY when the GPU's memory did not suffice (plan step M1: GetOutOfMemory), else BEAGLE_ERROR_GENERAL
 #ifdef FW_TINYGPU
-#define BEAGLE_GPU_RETURN_IF_LOST() do { if (gpu->GetDeviceLost()) return gpu->GetOutOfMemory() ? BEAGLE_ERROR_OUT_OF_MEMORY : BEAGLE_ERROR_GENERAL; } while (0)
+// this->gpu: from BeagleGPUSpectralImpl<Real> the dependent base's member is not found unqualified
+#define BEAGLE_GPU_RETURN_IF_LOST() do { if (this->gpu->GetDeviceLost()) return this->gpu->GetOutOfMemory() ? BEAGLE_ERROR_OUT_OF_MEMORY : BEAGLE_ERROR_GENERAL; } while (0)
 #else
 #define BEAGLE_GPU_RETURN_IF_LOST() do {} while (0)
 #endif

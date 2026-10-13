@@ -82,6 +82,11 @@ bool AmdSupportsDouble() {
     return false;
 }
 
+// TODO.md plan step S3.3: the spectral variants; none until the build compiles them (plan step S8.2)
+bool AmdSupportsSpectral() {
+    return false;
+}
+
 // ── Opt-in profiling (BEAGLE_AMD_PROFILE=1): each operation's host time, the GPU's work included where it waits ─────
 static bool amd_profile_enabled() {
     static const bool enabled = (getenv("BEAGLE_AMD_PROFILE") != nullptr);
