@@ -27,6 +27,15 @@
 
 /**************CODE***********/
 
+// A sync after a launch that only orders it before the next one. TinyGPU runs a process's launches in order on one queue
+// and flushes and waits for them before every copy, so there it would only add a round trip to the eGPU per launch
+// (STATUS.md R120); the other frameworks keep it.
+#ifdef FW_TINYGPU
+#define SYNCHRONIZE_FOR_ORDER()
+#else
+#define SYNCHRONIZE_FOR_ORDER() gpu->SynchronizeDevice()
+#endif
+
 #ifdef CUDA
 namespace cuda_device {
 #elif defined(FW_TINYGPU)
@@ -642,7 +651,7 @@ void KernelLauncher::TransposeTransitionMatrices(GPUPtr dMatrices,
 			bgTransitionProbabilitiesGrid, parameterCountV,
 			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 	bgTransitionProbabilitiesGrid.x /= totalMatrixCount; // Reset value
 
@@ -799,7 +808,7 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
                       instructionOffset, patternCount, categoryCount);
 
     if (synchronize) {
-        gpu->SynchronizeDevice();
+        SYNCHRONIZE_FOR_ORDER();
     }
 
     bgDerivativeGrid.y = saved;
@@ -837,7 +846,7 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
                       instructionOffset, patternCount, categoryCount);
 
     if (synchronize) {
-        gpu->SynchronizeDevice();
+        SYNCHRONIZE_FOR_ORDER();
     }
 
     bgDerivativeGrid.y = saved;
@@ -884,7 +893,7 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
                       instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate, missingState);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesCrossProducts\n");
@@ -927,7 +936,7 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
                       instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsCrossProducts\n");
@@ -956,7 +965,7 @@ void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,
                       3, 5,
                       outSiteValues, inSiteValues, weights, outputOffset, stride);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
     bgMultiNodeSumGrid.x = saved;
 
@@ -987,7 +996,7 @@ void KernelLauncher::MultipleNodeSiteSquaredReduction(GPUPtr outSiteValues,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,
                       3, 5,
                       outSiteValues, inSiteValues, weights, outputOffset, stride);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
     bgMultiNodeSumGrid.x = saved;
 
@@ -1013,7 +1022,7 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
                       5, 6,
                       partials1, states2, partials3, matrices1, matrices2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
@@ -1037,7 +1046,7 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
@@ -1060,7 +1069,7 @@ void KernelLauncher::PartialsPartialsGrowingSpectral(GPUPtr partials1,
                       evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
@@ -1079,7 +1088,7 @@ void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
                       evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsPartialsGrowingSpectralTop(GPUPtr partials1,
@@ -1098,7 +1107,7 @@ void KernelLauncher::PartialsPartialsGrowingSpectralTop(GPUPtr partials1,
                       evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsStatesGrowingSpectralTop(GPUPtr partials1,
@@ -1117,7 +1126,7 @@ void KernelLauncher::PartialsStatesGrowingSpectralTop(GPUPtr partials1,
                       evecT1, ievcT1, eigenValues1, distances1,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
@@ -1133,7 +1142,7 @@ void KernelLauncher::PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
                       partials1, partials2, partials3,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
@@ -1149,7 +1158,7 @@ void KernelLauncher::PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
                       partials1, states2, partials3,
                       ievc2, evec2, eigenValues2, distances2,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
@@ -1164,7 +1173,7 @@ void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
                       partials1, partials3,
                       evecT1, ievcT1, eigenValues1, distances1,
                       patternCount);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 
@@ -1189,7 +1198,7 @@ void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
         (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
@@ -1213,7 +1222,7 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
         (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 
