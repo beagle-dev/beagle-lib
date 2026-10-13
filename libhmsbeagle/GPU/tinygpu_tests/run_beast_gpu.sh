@@ -3,8 +3,9 @@
 # precision per run (one boot), with run_point.sh's protections (env.sh): hw_begin, the eGPU enumerated, log stream, the crash
 # guard's exit, fini_verdict. Never Ctrl-C or kill it; a hung or holding GPU must be unplugged before anything is killed.
 #   run_beast_gpu.sh double|single <xml>
-# -beagle_GPU -beagle_order 1 (TinyGPU is resource 1 under $TEST_LIBS) and -seed 666, as run_beast_cpu.sh. BEAST falls back to
-# the CPU if the TinyGPU instance fails, so the run must say it used resource 1. BEAST_JAVA and BEAST_JAR as run_beast_cpu.sh.
+# -beagle_GPU -beagle_order 1 (TinyGPU is resource 1 under $TEST_LIBS) and -seed 666 -overwrite, as run_beast_cpu.sh. BEAST
+# falls back to the CPU if the TinyGPU instance fails, so the run must say it used resource 1. BEAST_JAVA and BEAST_JAR as
+# run_beast_cpu.sh.
 # Exits 0 if BEAST ran on resource 1, the fini report says the next boot needs no power cycle, the guard exited and log stream
 # saw nothing from the eGPU; 1 stops all hardware work; 2 means nothing was started; 3 is a clean teardown without that run
 # (another resource, a failed run, or the crash guard's teardown instead of the plugin's).
@@ -27,7 +28,7 @@ hw_logstream "$LS"
 TGLOG="$HOME/Library/Logs/beagle_tinygpu.log"; TGLOG_N=$(cat "$TGLOG" 2>/dev/null | wc -l)   # this run's TinyGPULog lines follow
 cd "$TINYGPU_TEST_WORK/beast"
 env DYLD_LIBRARY_PATH="$TEST_LIBS" "$BEAST_JAVA" -Djava.library.path="$BEAGLE_BUILD/libhmsbeagle/JNI" -jar "$BEAST_JAR" \
-    -beagle_GPU -beagle_order 1 $FLAG -seed 666 "$XML" > "$OUT" 2>&1
+    -beagle_GPU -beagle_order 1 $FLAG -seed 666 -overwrite "$XML" > "$OUT" 2>&1
 rc=$?
 for i in $(seq 60); do pgrep -f "$GUARD_RE" > /dev/null || break; sleep 1; done   # it exits at the plugin's clean, or decides at EOF
 hw_logstream_stop; ls_ok=$?

@@ -2,7 +2,8 @@
 # BEAST's post-order likelihood benchmark on BeagleCPUImpl, double then single precision (STATUS.md R95): an XML that times
 # its likelihood with <benchmarker>s (BEAST/benchmark/rabies_phylogeo_mat_exp_timing.xml, 1 site, and
 # rabies_phylogeo_mat_exp_1000sites_timing.xml, 1000 simulated sites), under -beagle_CPU -beagle_SSE_off (VECTOR_NONE:
-# BeagleCPUImpl) and -seed 666, so an XML that simulates its sites gets the same ones in every run. One thread by default
+# BeagleCPUImpl) and -seed 666, so an XML that simulates its sites gets the same ones in every run; -overwrite, since the runs
+# share a working directory and an XML's own log files would otherwise end the next run (STATUS.md R120). One thread by default
 # (-beagle_threads 0: THREADING_NONE); --threads N passes -beagle_threads N instead (BEAST's own default: a thread per core).
 #   run_beast_cpu.sh <xml> [--threads N]
 # The build's JNI library comes through -Djava.library.path, its plugins through DYLD_LIBRARY_PATH: libhmsbeagle opens them by
@@ -26,7 +27,7 @@ for prec in double single; do
     OUT="$RUNS/$(date +%Y%m%d-%H%M%S)_${HW_HOST}_beast_$(basename "$XML" .xml)_cpu_$prec$TAG.txt"
     /usr/bin/env DYLD_LIBRARY_PATH="$BEAGLE_BUILD/libhmsbeagle:$BEAGLE_BUILD/libhmsbeagle/CPU" \
         "$BEAST_JAVA" -Djava.library.path="$BEAGLE_BUILD/libhmsbeagle/JNI" -jar "$BEAST_JAR" \
-        -beagle_CPU -beagle_SSE_off "${THREADS[@]}" $FLAG -seed 666 "$XML" > "$OUT" 2>&1
+        -beagle_CPU -beagle_SSE_off "${THREADS[@]}" $FLAG -seed 666 -overwrite "$XML" > "$OUT" 2>&1
     echo "BEAST cpu $prec${TAG:+ ${THREADS[*]}} exit=$? output=$OUT"
     grep -E "Using BEAGLE resource|with instance flags|for CPU|unique site patterns|rescaling|Underflow|TreeDataLikelihood\(|^Benchmark " "$OUT"
 done
