@@ -3110,7 +3110,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     int streamIndex = -1;
     int waitIndex = -1;
     if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
+#ifndef FW_TINYGPU // the streams' syncs: TinyGPU has one in-order queue (LaunchKernelConcurrent drops the stream indices)
         gpu->SynchronizeDevice();
+#endif
         for (int i = 0; i < kBufferCount * kPartitionCount; i++) {
             hStreamIndices[i] = -1;
         }
@@ -3494,9 +3496,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
 
     }
 
+#ifndef FW_TINYGPU
     if (!kUsingMultiGrid || (anyRescale == 1 && kPartitionsInitialised)) {
         gpu->SynchronizeDevice();
     }
+#endif
 
     if (kUsingMultiGrid) {
         free(gridStartOp);
