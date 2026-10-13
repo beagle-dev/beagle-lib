@@ -6,7 +6,9 @@
  * https://opensource.org/licenses/MIT.
  *
  * spectralbench: times a log likelihood and its adjoint gradient with one BEAGLE CPU implementation, the way an
- * MCMC step after a change of the substitution model computes them, and prints one CSV line.
+ * MCMC step after a change of the substitution model computes them, and prints one CSV line. With --gpu R, the
+ * implementation is a double-precision GPU one on resource R; there calls return before the GPU finishes, so the
+ * phases' times move to the next call that waits (root, adjoint), and only likelihood and gradient compare.
  *
  * Phases of one evaluation:
  *   eigen     beagleSetEigenDecomposition
@@ -20,7 +22,7 @@
  * Usage:
  *   spectralbench --impl standard|spectral --states S --patterns C --categories K
  *                 [--vector sse|none] [--tips N] [--budget seconds] [--minreps n] [--seed n]
- *                 [--complex] [--tippartials] [--nogradient] [--header]
+ *                 [--complex] [--tippartials] [--nogradient] [--header] [--gpu R]
  *
  * The model is a random reversible (GTR-like) rate matrix, or with --complex a random asymmetric circulant rate
  * matrix, whose eigenvalues are complex conjugate pairs. Tips are random states (compact buffers), or random partials with --tippartials. The tree
@@ -46,7 +48,7 @@ namespace {
 struct Options {
     std::string impl;              // standard | spectral
     std::string vector = "sse";    // sse | none
-    int states = 0, patterns = 0, categories = 1, tips = 64, minReps = 3, seed = 1;
+    int states = 0, patterns = 0, categories = 1, tips = 64, minReps = 3, seed = 1, gpu = -1;
     double budget = 0.5;
     bool complexModel = false, tipPartials = false, gradient = true, header = false;
 };
@@ -54,7 +56,7 @@ struct Options {
 void usage() {
     fprintf(stderr, "usage: spectralbench --impl standard|spectral --states S --patterns C --categories K\n"
                     "                     [--vector sse|none] [--tips N] [--budget seconds] [--minreps n]\n"
-                    "                     [--seed n] [--complex] [--tippartials] [--nogradient] [--header]\n");
+                    "                     [--seed n] [--complex] [--tippartials] [--nogradient] [--header] [--gpu R]\n");
     exit(2);
 }
 
@@ -220,6 +222,7 @@ int main(int argc, char** argv) {
         else if (a == "--tippartials") o.tipPartials = true;
         else if (a == "--nogradient") o.gradient = false;
         else if (a == "--header") o.header = true;
+        else if (a == "--gpu") o.gpu = atoi(next());
         else usage();
     }
     if (o.header) {
@@ -236,15 +239,18 @@ int main(int argc, char** argv) {
     const int nodes = 2 * N - 1;
     auto pre = [N](int node) { return 2 * N - 1 + node; }; // pre-order buffers follow the post-order ones
 
-    long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
-                        (o.vector == "sse" ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
+    long requirements = (o.gpu >= 0) ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_DOUBLE
+                                     : BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
+                                       (o.vector == "sse" ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
+    if (o.gpu >= 0) o.vector = "gpu";
     if (o.gradient) requirements |= BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     if (o.impl == "spectral") requirements |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
     if (o.complexModel) requirements |= BEAGLE_FLAG_EIGEN_COMPLEX;
     const long preferences = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_SCALING_MANUAL;
 
     BeagleInstanceDetails details;
-    const int instance = beagleCreateInstance(N, 4 * N - 2, o.tipPartials ? 0 : N, S, C, 1, nodes, K, 0, NULL, 0,
+    const int instance = beagleCreateInstance(N, 4 * N - 2, o.tipPartials ? 0 : N, S, C, 1, nodes, K, 0,
+                                              (o.gpu >= 0) ? &o.gpu : NULL, (o.gpu >= 0) ? 1 : 0,
                                               preferences, requirements, &details);
     if (instance < 0) {
         fprintf(stderr, "spectralbench: no implementation for these flags (error %d)\n", instance);
