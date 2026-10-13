@@ -1327,9 +1327,6 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 //    int patternCount = KW_NUM_GROUPS_0;
 
     KW_LOCAL_MEM REAL stateFreq[PADDED_STATE_COUNT];
-    // TODO: Currently assumes MATRIX_BLOCK_SIZE >> matrixCount
-    KW_LOCAL_MEM REAL matrixProp[MATRIX_BLOCK_SIZE];
-    KW_LOCAL_MEM REAL matrixScalers[MATRIX_BLOCK_SIZE];
     KW_LOCAL_MEM REAL sum[PADDED_STATE_COUNT];
 
     // Load shared memory
@@ -1337,33 +1334,25 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
     stateFreq[state] = dFrequencies[state];
     sum[state] = 0;
 
-    for(int matrixEdge = 0; matrixEdge < matrixCount; matrixEdge += PADDED_STATE_COUNT) {
-        int x = matrixEdge + state;
-        if (x < matrixCount) {
-            matrixProp[x] = dWeights[x];
-            matrixScalers[x] = dRootScalingFactors[pattern + (x * patternCount)];
-        }
-    }
-
-    KW_LOCAL_FENCE;
-
     int u = state + pattern * PADDED_STATE_COUNT;
     int delta = patternCount * PADDED_STATE_COUNT;
 
-    short maxScaleFactor = matrixScalers[0];
+    // weights and scale factors from global memory: MATRIX_BLOCK_SIZE local copies overflowed when
+    // matrixCount > MATRIX_BLOCK_SIZE (e.g. the AMD/Apple GPU table's 1 at 192/256 states)
+    short maxScaleFactor = dRootScalingFactors[pattern];
     for(int r = 1; r < matrixCount; r++) {
-        int tmpFactor = matrixScalers[r];
+        int tmpFactor = dRootScalingFactors[pattern + r * patternCount];
         if (tmpFactor > maxScaleFactor)
             maxScaleFactor = tmpFactor;
     }
 
     for(int r = 0; r < matrixCount; r++) {
-        int tmpFactor = matrixScalers[r];
+        int tmpFactor = dRootScalingFactors[pattern + r * patternCount];
         if (tmpFactor != maxScaleFactor) {
             int expTmp;
-            sum[state] += ldexp(frexp(dRootPartials[u + delta * r], &expTmp), expTmp + (tmpFactor - maxScaleFactor)) * matrixProp[r];
+            sum[state] += ldexp(frexp(dRootPartials[u + delta * r], &expTmp), expTmp + (tmpFactor - maxScaleFactor)) * dWeights[r];
         } else {
-            sum[state] += dRootPartials[u + delta * r] * matrixProp[r];
+            sum[state] += dRootPartials[u + delta * r] * dWeights[r];
         }
     }
 
