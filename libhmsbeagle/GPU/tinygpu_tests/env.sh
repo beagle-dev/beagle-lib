@@ -109,6 +109,20 @@ spectral_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>" <progra
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }
 
+# TODO.md plan step S5: spectral_verdict on the AMD card, from the AMD plugin's lines (as amd_d1_verdict): one C++ boot, the
+# SPEC_ variants' programs only, nothing missing in the build's HSACOs, no failed step and no lost GPU, gpuspectraltest's
+# instances TinyGPU's spectral ones, and exactly the line's kernels launched (BEAGLE_AMD_PROFILE). Reads files and runs nothing.
+amd_spectral_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>" <program>
+    local got; got=$(sed -nE 's/^TinyGPU\/AMD: \[profile\]   kernel ([A-Za-z0-9_]+) n=.*/\1/p' "$2" | LC_ALL=C sort -u | xargs)
+    [ "$(grep -c "TinyGPU/AMD: C++ boot done" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
+    grep -qE "TinyGPU/AMD: C\+\+ runtime: SPEC_[SD]P_[0-9]+'s programs loaded" "$2" || { echo "no spectral variant loaded"; return 1; }
+    ! grep -qE "TinyGPU/AMD: C\+\+ runtime: [SD]P_[0-9]+'s programs loaded" "$2" || { echo "a standard variant loaded"; return 1; }
+    ! grep -qE "not found in the build's HSACO|TinyGPU/AMD: .*(failed|this instance fails|the GPU is lost)" "$2" \
+        || { echo "a kernel missing, a step failed or the GPU was lost"; return 1; }
+    [ "$4" != gpuspectraltest ] || grep -qE "TinyGPU-(Single|Double)-Spectral against" "$1" || { echo "not TinyGPU's spectral instances"; return 1; }
+    [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
+}
+
 # The hardware scripts' shared protections (run_point.sh, run_d1.sh, run_l0.sh; plan steps P3, D1). hw_begin: nothing else
 # changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
 # exit; it is in $TMPDIR, next to tinygrad's nv_usb4.lock, so a computer sharing $BEAGLE_TINYGPU_DATA runs its own eGPU freely).
@@ -174,7 +188,7 @@ amd_hw_begin() {
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     require_status_build
-    pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|amd_dispatch_daemon|nv_dispatch_daemon" \
+    pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|gpuspectraltest|adjointtest4|amd_dispatch_daemon|nv_dispatch_daemon" \
         && { echo "a BEAGLE process is running; not running"; exit 2; }
     n=$(pgrep -f "TinyGPU.app/Contents/MacOS/TinyGPU server" | wc -l | tr -d ' ')
     [ "$n" -le 1 ] || { echo "$n TinyGPU.app servers are running (a duplicate); not running"; exit 2; }

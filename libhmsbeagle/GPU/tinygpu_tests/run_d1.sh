@@ -31,7 +31,7 @@ prev=$(ls -t "$RUNS"/*_${HW_HOST}_d1${DP}_$LABEL.out 2>/dev/null | head -1)
 [ -z "$prev" ] || [ "$D1_REPLUGGED" = 1 ] || { echo "$LABEL already ran on this card ($prev): its results may still be in VRAM; power-cycle the eGPU, then rerun with D1_REPLUGGED=1; not running"; exit 2; }
 pgrep -f "$GUARD_RE" > /dev/null && { echo "a crash guard is still running (it may hold the GPU); not running"; exit 2; }
 # TinyGPU.app serves one client: a second BEAGLE example would hang in tg_cfg_read (plan decision 8's ps check)
-pgrep -f "^[^ ]*/examples/(tinygputest|synthetictest|hmctest)( |$)" > /dev/null && { echo "another BEAGLE example is running; not running"; exit 2; }
+pgrep -f "^[^ ]*/examples/(tinygputest|synthetictest|hmctest|gpuspectraltest|adjointtest4)( |$)" > /dev/null && { echo "another BEAGLE example is running; not running"; exit 2; }
 hw_begin
 for i in $(seq 1 30); do [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -gt 0 ] && break; sleep 2; done
 if [ "$(ioreg -l -w0 2>/dev/null | grep -c de100000)" -eq 0 ]; then echo "eGPU not enumerated; not running"; exit 2; fi
