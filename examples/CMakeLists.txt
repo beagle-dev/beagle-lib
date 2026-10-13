@@ -130,7 +130,7 @@ if(BUILD_SPECTRAL)
             ${CMAKE_DL_LIBS})
     add_test(spectralcomplextest spectralcomplextest)
 
-    # every GPU spectral kernel against CPU spectral; skipped without a GPU
+    # every GPU spectral kernel against CPU spectral; skipped (77) without a GPU resource that offers spectral
     add_executable(gpuspectraltest
             spectraltest/gpuspectraltest.cpp)
     target_link_libraries(gpuspectraltest
@@ -139,6 +139,7 @@ if(BUILD_SPECTRAL)
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
     add_test(gpuspectraltest gpuspectraltest)
+    set_tests_properties(gpuspectraltest PROPERTIES SKIP_RETURN_CODE 77)
 
     # spectral adjoint gradients against finite differences on the CPU (17 and 56 states), and on a GPU against the CPU
     target_link_libraries(adjointtest4 hmsbeagle-cpu-spectral)

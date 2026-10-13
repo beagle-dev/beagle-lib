@@ -4,14 +4,17 @@
  * adjoint gradient from the CPU's partials, so a wrong kernel is reported as such rather than through the errors it
  * propagates. Each post-order operation also runs with fixed scaling, reading the scale factors it wrote. The
  * adjoint gradient also runs with padded patterns of zero site likelihood, and must not change the site log likelihoods.
+ * Each tested partials buffer is filled with NaN before its operation, and a call that fails counts as an infinite
+ * error. For the first model the whole post-order also runs under ALWAYS and AUTO scaling, each in one call.
  *
  * The models are a random reversible one (real eigenvalues) and a random asymmetric circulant one (complex
  * conjugate pairs; the first eigenvalue of a pair is a + bi or a - bi), the latter also with the sign of every
  * pair's first imaginary part reversed (with the matching eigenvectors) and under a diagonal similarity, so that
  * P^T x differs from P x.
  *
- * usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t]
- * Prints SKIP and succeeds when no GPU resource offers the spectral representation.
+ * usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t] [--single]
+ * --single: single precision on a resource that offers double. Prints SKIP and exits 77 when no GPU resource offers the
+ * spectral representation (or --resource names one that does not); a failed GPU instance on such a resource is a FAIL.
  */
 
 #include <algorithm>
@@ -213,26 +216,29 @@ int main(int argc, char** argv) {
     std::vector<int> stateCounts;
     double scale = 10.0, tolerance = -1.0;
     int gpuResource = -1;
+    bool single = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--states")) { while (i + 1 < argc && argv[i + 1][0] != '-') stateCounts.push_back(atoi(argv[++i])); }
         else if (!strcmp(argv[i], "--scale") && i + 1 < argc) scale = atof(argv[++i]);
         else if (!strcmp(argv[i], "--resource") && i + 1 < argc) gpuResource = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--tolerance") && i + 1 < argc) tolerance = atof(argv[++i]);
-        else { fprintf(stderr, "usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t]\n"); return 2; }
+        else if (!strcmp(argv[i], "--single")) single = true;
+        else { fprintf(stderr, "usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t] [--single]\n"); return 2; }
     }
     // padded 4, 16, 64, 80, 192 and 256: the last two above the adjoint kernel's 128 threads
     if (stateCounts.empty()) stateCounts = {4, 17, 61, 70, 150, 256};
 
     BeagleResourceList* resources = beagleGetResourceList();
-    if (gpuResource < 0) {
+    const long gpuSpectral = BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+    if (gpuResource < 0)   // the first GPU resource that offers the spectral representation
         for (int r = 0; r < resources->length && gpuResource < 0; r++)
-            if (resources->list[r].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU) gpuResource = r;
+            if ((resources->list[r].supportFlags & gpuSpectral) == gpuSpectral) gpuResource = r;
+    if (gpuResource < 0 || gpuResource >= resources->length ||
+        (resources->list[gpuResource].supportFlags & gpuSpectral) != gpuSpectral) {
+        printf("SKIP: no GPU resource with the spectral representation\n");
+        return 77;
     }
-    if (gpuResource < 0 || gpuResource >= resources->length) {
-        printf("SKIP: no GPU resource\n");
-        return 0;
-    }
-    const bool gpuDouble = (resources->list[gpuResource].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
+    const bool gpuDouble = !single && (resources->list[gpuResource].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE);
     if (tolerance < 0.0) tolerance = gpuDouble ? 1e-9 : 1e-3;
 
     const int N = 8, C = 37, K = 2;
@@ -269,8 +275,12 @@ int main(int argc, char** argv) {
         std::vector<double> lengths;
         for (int n = 0; n < M; n++) if (n != root) { matrices.push_back(n); lengths.push_back(tree.lengths[n]); }
 
+        // the post-order destinations whose factors AUTO accumulates (buffergrowthtest.cpp's internalNodes)
+        std::vector<int> internal;
+        for (const BeagleOperation& op : post) internal.push_back(op.destinationPartials);
+
         for (const Model& model : models) {
-            auto create = [&](bool gpu, std::string& name) {
+            auto create = [&](bool gpu, std::string& name, long scaling = BEAGLE_FLAG_SCALING_MANUAL) -> int {
                 const long flags = (model.complex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
                                    BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                    (gpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU) |
@@ -278,9 +288,12 @@ int main(int argc, char** argv) {
                 int resource = gpu ? gpuResource : 0;
                 BeagleInstanceDetails details;
                 const int instance = beagleCreateInstance(N, 3 * M, N, S, C, 1, M, K, (int) post.size() + 1, &resource, 1,
-                                                          BEAGLE_FLAG_SCALERS_RAW | BEAGLE_FLAG_SCALING_MANUAL, flags,
-                                                          &details);
+                                                          BEAGLE_FLAG_SCALERS_RAW | scaling, flags, &details);
                 if (instance < 0) return instance;
+                if (scaling != BEAGLE_FLAG_SCALING_MANUAL && !(details.flags & scaling)) {   // not the scaling asked for
+                    beagleFinalizeInstance(instance);
+                    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+                }
                 name = details.implName;
                 for (int t = 0; t < N; t++) beagleSetTipStates(instance, t, states[t].data());
                 std::vector<double> patternWeights(C, 1.0);
@@ -320,10 +333,13 @@ int main(int argc, char** argv) {
             beagleFinalizeInstance(cpu);
 
             const int gpu = create(true, gpuName);
-            if (gpu < 0) {
-                printf("SKIP: no GPU spectral instance on resource %d (%d)\n", gpuResource, gpu);
-                return 0;
+            if (gpu < 0) {   // the resource offers spectral, so this is a failure, not a skip
+                printf("FAIL: no spectral instance on resource %d (%d)\n", gpuResource, gpu);
+                return 1;
             }
+            // a NaN fill of each tested destination: an operation that did not run then reads as an infinite error
+            const std::vector<double> nan((size_t) K * C * S, NAN);
+            auto poison = [&](int instance, int b) { beagleSetPartials(instance, b, nan.data()); };
             // the worst error of each kind of operation
             std::vector<std::pair<std::string, double>> worst;
             auto record = [&](const std::string& kind, double error) {
@@ -332,33 +348,39 @@ int main(int argc, char** argv) {
             };
             for (auto& op : post) {
                 for (int c : {op.child1Partials, op.child2Partials}) if (c >= N) beagleSetPartials(gpu, c, ref[c].data());
-                beagleUpdatePartials(gpu, &op, 1, BEAGLE_OP_NONE);
+                poison(gpu, op.destinationPartials);
+                const int rc = beagleUpdatePartials(gpu, &op, 1, BEAGLE_OP_NONE);
                 const int tipChildren = (op.child1Partials < N) + (op.child2Partials < N);
                 record(tipChildren == 2 ? "post-order, states x states" :
                        tipChildren == 1 ? "post-order, states x partials" : "post-order, partials x partials",
-                       relativeError(partials(gpu, op.destinationPartials), ref[op.destinationPartials], S));
+                       rc == BEAGLE_SUCCESS ? relativeError(partials(gpu, op.destinationPartials), ref[op.destinationPartials], S)
+                                            : INFINITY);
             }
             for (int n = N; n < M; n++) beagleSetPartials(gpu, n, ref[n].data());
             // the root integration, which the adjoint gradient divides by
-            beagleCalculateRootLogLikelihoods(gpu, &root, &zero, &zero, &noScaling, 1, &lnL);
-            beagleGetSiteLogLikelihoods(gpu, gpuSites.data());
-            record("root, site log likelihoods", logError(gpuSites, cpuSites));
+            std::fill(gpuSites.begin(), gpuSites.end(), NAN);
+            int rc = beagleCalculateRootLogLikelihoods(gpu, &root, &zero, &zero, &noScaling, 1, &lnL);
+            if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(gpu, gpuSites.data());
+            record("root, site log likelihoods", rc == BEAGLE_SUCCESS ? logError(gpuSites, cpuSites) : INFINITY);
             for (const bool isTop : {false, true}) {
                 for (auto& op : isTop ? top : bottom) {
                     const int parent = op.child1Partials;
                     const bool atRoot = (parent == M + root || parent == 2 * M + root);
                     beagleSetPartials(gpu, parent, atRoot ? prior.data() : ref[parent].data());
-                    beagleUpdatePrePartials_v5(gpu, &op, 1, BEAGLE_OP_NONE,
-                                               isTop ? BEAGLE_PARTIALS_TOP : BEAGLE_PARTIALS_BOTTOM);
+                    poison(gpu, op.destinationPartials);
+                    const int rc = beagleUpdatePrePartials_v5(gpu, &op, 1, BEAGLE_OP_NONE,
+                                                              isTop ? BEAGLE_PARTIALS_TOP : BEAGLE_PARTIALS_BOTTOM);
                     const std::string sibling = op.child2Partials < N ? "states sibling" : "partials sibling";
                     record(isTop ? (atRoot ? "TOP at the root, " : "TOP, ") + sibling : "BOTTOM, " + sibling,
-                           relativeError(partials(gpu, op.destinationPartials), ref[op.destinationPartials], S));
+                           rc == BEAGLE_SUCCESS ? relativeError(partials(gpu, op.destinationPartials),
+                                                                ref[op.destinationPartials], S) : INFINITY);
                 }
             }
             for (int b = 2 * M; b < 3 * M; b++) beagleSetPartials(gpu, b, b == 2 * M + root ? prior.data() : ref[b].data());
-            beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, root, 0, (int) branches.size(),
-                                             gpuGradient.data(), NULL);
-            record("adjoint gradient", relativeError(gpuGradient, cpuGradient, 0));
+            std::fill(gpuGradient.begin(), gpuGradient.end(), NAN);
+            rc = beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, root, 0, (int) branches.size(),
+                                                  gpuGradient.data(), NULL);
+            record("adjoint gradient", rc == BEAGLE_SUCCESS ? relativeError(gpuGradient, cpuGradient, 0) : INFINITY);
             // the same on a new instance, whose padded patterns (at 4 states, C = 37 is padded to 40) beagleSetPartials
             // copies from a partials cache: zero at the root, before any beagleGetPartials, so its padded site
             // likelihoods are 0, and not zero in the TOP buffers, after reading a post-order operation's output.
@@ -366,15 +388,22 @@ int main(int argc, char** argv) {
             {
                 std::string name;
                 const int padded = create(true, name);
-                for (int n = N; n < M; n++) beagleSetPartials(padded, n, ref[n].data());
-                beagleUpdatePartials(padded, &post[0], 1, BEAGLE_OP_NONE);
-                partials(padded, post[0].destinationPartials);
-                for (int b = 2 * M; b < 3 * M; b++)
-                    beagleSetPartials(padded, b, b == 2 * M + root ? prior.data() : ref[b].data());
-                beagleCalculateAdjointDerivative(padded, branches.data(), 0, 0, root, 0, (int) branches.size(),
-                                                 gpuGradient.data(), NULL);
-                record("adjoint gradient, padded patterns", relativeError(gpuGradient, cpuGradient, 0));
-                beagleFinalizeInstance(padded);
+                int rc = padded < 0 ? padded : BEAGLE_SUCCESS;
+                if (rc == BEAGLE_SUCCESS) {
+                    for (int n = N; n < M; n++) beagleSetPartials(padded, n, ref[n].data());
+                    poison(padded, post[0].destinationPartials);
+                    rc = beagleUpdatePartials(padded, &post[0], 1, BEAGLE_OP_NONE);
+                    partials(padded, post[0].destinationPartials);
+                    for (int b = 2 * M; b < 3 * M; b++)
+                        beagleSetPartials(padded, b, b == 2 * M + root ? prior.data() : ref[b].data());
+                    std::fill(gpuGradient.begin(), gpuGradient.end(), NAN);
+                }
+                if (rc == BEAGLE_SUCCESS)
+                    rc = beagleCalculateAdjointDerivative(padded, branches.data(), 0, 0, root, 0, (int) branches.size(),
+                                                          gpuGradient.data(), NULL);
+                record("adjoint gradient, padded patterns",
+                       rc == BEAGLE_SUCCESS ? relativeError(gpuGradient, cpuGradient, 0) : INFINITY);
+                if (padded >= 0) beagleFinalizeInstance(padded);
             }
             // fixed scaling: each post-order operation writing its scale factors (into buffer M + n), then reading
             // them back (the fixed-scale kernels, into buffer 2M + n); the children are still the CPU's
@@ -385,23 +414,47 @@ int main(int argc, char** argv) {
                 writing.destinationScaleWrite = (int) i;
                 reading.destinationPartials = 2 * M + n;
                 reading.destinationScaleRead = (int) i;
-                beagleUpdatePartials(gpu, &writing, 1, BEAGLE_OP_NONE);
-                beagleUpdatePartials(gpu, &reading, 1, BEAGLE_OP_NONE);
-                record("post-order, fixed scaling", relativeError(partials(gpu, 2 * M + n), partials(gpu, M + n), S));
+                poison(gpu, M + n);
+                poison(gpu, 2 * M + n);
+                int rc = beagleUpdatePartials(gpu, &writing, 1, BEAGLE_OP_NONE);
+                if (rc == BEAGLE_SUCCESS) rc = beagleUpdatePartials(gpu, &reading, 1, BEAGLE_OP_NONE);
+                record("post-order, fixed scaling",
+                       rc == BEAGLE_SUCCESS ? relativeError(partials(gpu, 2 * M + n), partials(gpu, M + n), S) : INFINITY);
             }
             // the site log likelihoods of the root's scaled partials (M + root, the last operation above) with its
             // factors (accumulated into the last scale buffer), which an adjoint gradient from that root must not change
             const int rootScale = (int) post.size() - 1, cumulative = (int) post.size(), scaledRoot = M + root;
-            beagleResetScaleFactors(gpu, cumulative);
-            beagleAccumulateScaleFactors(gpu, &rootScale, 1, cumulative);
-            beagleCalculateRootLogLikelihoods(gpu, &scaledRoot, &zero, &zero, &cumulative, 1, &lnL);
-            std::vector<double> scaledSites(C), sitesAfterAdjoint(C);
-            beagleGetSiteLogLikelihoods(gpu, scaledSites.data());
-            beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, scaledRoot, 0, (int) branches.size(),
-                                             gpuGradient.data(), NULL);
-            beagleGetSiteLogLikelihoods(gpu, sitesAfterAdjoint.data());
-            record("site log likelihoods after the adjoint", logError(sitesAfterAdjoint, scaledSites));
+            std::vector<double> scaledSites(C, NAN), sitesAfterAdjoint(C, NAN);
+            rc = beagleResetScaleFactors(gpu, cumulative);
+            if (rc == BEAGLE_SUCCESS) rc = beagleAccumulateScaleFactors(gpu, &rootScale, 1, cumulative);
+            if (rc == BEAGLE_SUCCESS) rc = beagleCalculateRootLogLikelihoods(gpu, &scaledRoot, &zero, &zero, &cumulative, 1, &lnL);
+            if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(gpu, scaledSites.data());
+            if (rc == BEAGLE_SUCCESS)
+                rc = beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, scaledRoot, 0, (int) branches.size(),
+                                                      gpuGradient.data(), NULL);
+            if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(gpu, sitesAfterAdjoint.data());
+            record("site log likelihoods after the adjoint",
+                   rc == BEAGLE_SUCCESS ? logError(sitesAfterAdjoint, scaledSites) : INFINITY);
             beagleFinalizeInstance(gpu);
+            // today's GPU spectral scaling (first model): the post-order in one call, then the root, against the CPU's
+            // unscaled site log likelihoods (CPU-Spectral AUTO exits at a partials x partials node,
+            // BeagleCPUSpectralImpl.hpp:337-343)
+            if (&model == &models.front())
+                for (const long scaling : {BEAGLE_FLAG_SCALING_ALWAYS, BEAGLE_FLAG_SCALING_AUTO}) {
+                    std::string name;
+                    const int scaled = create(true, name, scaling);
+                    std::fill(gpuSites.begin(), gpuSites.end(), NAN);
+                    rc = scaled < 0 ? scaled : beagleUpdatePartials(scaled, post.data(), (int) post.size(), BEAGLE_OP_NONE);
+                    if (rc == BEAGLE_SUCCESS && scaling == BEAGLE_FLAG_SCALING_AUTO)   // as buffergrowthtest.cpp
+                        rc = beagleAccumulateScaleFactors(scaled, internal.data(), (int) internal.size(), BEAGLE_OP_NONE);
+                    if (rc == BEAGLE_SUCCESS)   // the GPU picks the scale buffer itself (BeagleGPUImpl.hpp:4145-4151)
+                        rc = beagleCalculateRootLogLikelihoods(scaled, &root, &zero, &zero, &noScaling, 1, &lnL);
+                    if (rc == BEAGLE_SUCCESS) rc = beagleGetSiteLogLikelihoods(scaled, gpuSites.data());
+                    record(scaling == BEAGLE_FLAG_SCALING_ALWAYS ? "ALWAYS, root site log likelihoods"
+                                                                 : "AUTO, root site log likelihoods",
+                           rc == BEAGLE_SUCCESS ? logError(gpuSites, cpuSites) : INFINITY);
+                    if (scaled >= 0) beagleFinalizeInstance(scaled);
+                }
 
             printf("%d states, %s, branch scale %g: %s against %s\n", S, model.name.c_str(), scale,
                    gpuName.c_str(), cpuName.c_str());
