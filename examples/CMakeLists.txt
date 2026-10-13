@@ -143,9 +143,11 @@ if(BUILD_SPECTRAL)
     # spectral adjoint gradients against finite differences on the CPU (17 and 56 states), and on a GPU against the CPU
     target_link_libraries(adjointtest4 hmsbeagle-cpu-spectral)
     add_test(adjointtest4 adjointtest4 --all)
-    if(BUILD_OPENCL)
+    if(BUILD_OPENCL OR BUILD_CUDA)
         add_test(adjointtest4-gpu adjointtest4 --gpu 1 --all)
         set_tests_properties(adjointtest4-gpu PROPERTIES SKIP_RETURN_CODE 77)
+    endif(BUILD_OPENCL OR BUILD_CUDA)
+    if(BUILD_OPENCL)
         # the model at eigen index 1, so the adjoint reaches the eigen-indexed offsets of its pools; a
         # BEAGLE_DEBUG_MEMORY build also pads every sub-buffer, as AMD and Intel OpenCL do
         add_test(adjointtest4-gpu-eigenindex adjointtest4 --gpu 1 --all --eigenindex 1)
@@ -167,10 +169,10 @@ if(BUILD_SPECTRAL)
             hmsbeagle-cpu
             hmsbeagle-cpu-spectral
             ${CMAKE_DL_LIBS})
-    if(BUILD_OPENCL)
+    if(BUILD_OPENCL OR BUILD_CUDA)
         add_test(gpuspectraldensetest gpuspectraldensetest)
         set_tests_properties(gpuspectraldensetest PROPERTIES SKIP_RETURN_CODE 77)
-    endif(BUILD_OPENCL)
+    endif(BUILD_OPENCL OR BUILD_CUDA)
 
     # standard vs spectral timings; see spectraltest/spectral_benchmark.py
     add_executable(spectralbench
@@ -280,23 +282,28 @@ if(TARGET hmsbeagle-opencl)
 		get_target_property(GPU_SPECTRAL_PLUGIN_DIR hmsbeagle-opencl-spectral BINARY_DIR)
 		string(APPEND GPU_PLUGIN_DIRS ":${GPU_SPECTRAL_PLUGIN_DIR}")
 	endif()
-	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu adjointtest4-gpu-eigenindex hmctest5-gpu gpuspectraltest openclspectraltest gpuspectraldensetest)
+	foreach(GPU_TEST gpumatrixtest adjointtest4-gpu-eigenindex hmctest5-gpu openclspectraltest)
 		if(TEST ${GPU_TEST})
 			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
 				"DYLD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GPU_PLUGIN_DIRS}")
 		endif()
 	endforeach()
 endif()
-# buffergrowthtest-gpu gets the CUDA plugin directories as well, so that its GPU cases do not skip on a CUDA build
-if(TEST buffergrowthtest-gpu)
-	set(GROWTH_PLUGIN_DIRS "")
-	foreach(GPU_PLUGIN hmsbeagle-opencl hmsbeagle-opencl-spectral hmsbeagle-cuda hmsbeagle-cuda-spectral)
-		if(TARGET ${GPU_PLUGIN})
-			get_target_property(GPU_PLUGIN_DIR ${GPU_PLUGIN} BINARY_DIR)
-			list(APPEND GROWTH_PLUGIN_DIRS ${GPU_PLUGIN_DIR})
+# These tests get the CUDA plugin directories as well, so that their GPU cases do not skip on a CUDA build. The CUDA
+# plugins are loaded first (beagle.cpp), so with both frameworks built their GPU resource is a CUDA device
+set(ALL_GPU_PLUGIN_DIRS "")
+foreach(GPU_PLUGIN hmsbeagle-opencl hmsbeagle-opencl-spectral hmsbeagle-cuda hmsbeagle-cuda-spectral)
+	if(TARGET ${GPU_PLUGIN})
+		get_target_property(GPU_PLUGIN_DIR ${GPU_PLUGIN} BINARY_DIR)
+		list(APPEND ALL_GPU_PLUGIN_DIRS ${GPU_PLUGIN_DIR})
+	endif()
+endforeach()
+if(ALL_GPU_PLUGIN_DIRS)
+	string(REPLACE ";" ":" ALL_GPU_PLUGIN_DIRS "${ALL_GPU_PLUGIN_DIRS}")
+	foreach(GPU_TEST buffergrowthtest-gpu gpuspectraltest gpuspectraldensetest adjointtest4-gpu)
+		if(TEST ${GPU_TEST})
+			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
+				"DYLD_LIBRARY_PATH=${ALL_GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${ALL_GPU_PLUGIN_DIRS}")
 		endif()
 	endforeach()
-	string(REPLACE ";" ":" GROWTH_PLUGIN_DIRS "${GROWTH_PLUGIN_DIRS}")
-	set_property(TEST buffergrowthtest-gpu APPEND PROPERTY ENVIRONMENT
-		"DYLD_LIBRARY_PATH=${GROWTH_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${GROWTH_PLUGIN_DIRS}")
 endif()

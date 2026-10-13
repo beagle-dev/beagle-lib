@@ -32,6 +32,8 @@
     #include <cuda.h>
 #   ifdef BEAGLE_XCODE
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels_xcode.h"
+#   elif defined(BEAGLE_SPECTRAL_KERNELS)
+        #include "libhmsbeagle/GPU/kernels/BeagleCUDASpectral_kernels.h"
 #   else
         #include "libhmsbeagle/GPU/kernels/BeagleCUDA_kernels.h"
 #   endif

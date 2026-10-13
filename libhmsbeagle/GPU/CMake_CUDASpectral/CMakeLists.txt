@@ -27,6 +27,7 @@ add_custom_command(
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../kernels/${CMD_NAME} ${NVCC} "${NVCCFLAGS}" "${NVCC_INC}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../kernels
         DEPENDS
+            "../kernels/${CMD_NAME}"
             "../kernels/kernels4.cu"
             "../kernels/kernels4Derivatives.cu"
             "../kernels/kernelsX.cu"
@@ -59,6 +60,8 @@ add_library(hmsbeagle-cuda-spectral SHARED
         )
 
 add_dependencies(hmsbeagle-cuda-spectral CudaSpectralKernels)
+
+target_compile_definitions(hmsbeagle-cuda-spectral PRIVATE BEAGLE_SPECTRAL_KERNELS)
 
 target_link_libraries(hmsbeagle-cuda-spectral cuda ${CUDA_LIBRARIES})
 
