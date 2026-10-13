@@ -734,7 +734,7 @@ static int runTest16(int gpuDevice) {
     fprintf(stdout, "GPU log-likelihood: %.6f\n", gpuLogL16);
 
     /* Gradient comparison (print first 4x4 sub-block for brevity) */
-    fprintf(stdout, "\nGradient comparison 16-state (tol=%.0e):\n", tol);
+    fprintf(stdout, "\nGradient comparison 16-state (tol=%.0e relative to max(1, max|CPU|)):\n", tol);
     fprintf(stdout, "Differences CPU-GPU (first 8x8 block):\n");
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++)
@@ -742,14 +742,18 @@ static int runTest16(int gpuDevice) {
         fprintf(stdout, "\n");
     }
 
+    /* single precision against double: the error scales with the gradient's magnitude (as compareDynamic's threshold) */
+    double maxMagnitude = 1.0;
+    for (int k = 0; k < S*S; k++) maxMagnitude = std::max(maxMagnitude, fabs(cpuGrad16[k]));
+    const double threshold = tol * maxMagnitude;
     bool gradOk = true;
     double maxDiff = 0.0;
     for (int k = 0; k < S*S; k++) {
         double d = fabs(cpuGrad16[k] - gpuGrad16[k]);
         if (d > maxDiff || std::isnan(d)) maxDiff = d;
-        if (d > tol || std::isnan(d)) gradOk = false;
+        if (d > threshold || std::isnan(d)) gradOk = false;
     }
-    fprintf(stdout, "16-state gradient max|diff|=%.3e  %s\n", maxDiff, gradOk ? "PASS" : "FAIL");
+    fprintf(stdout, "16-state gradient max|diff|=%.3e  threshold=%.3e  %s\n", maxDiff, threshold, gradOk ? "PASS" : "FAIL");
     return gradOk ? 0 : 1;
 }
 
@@ -1177,7 +1181,7 @@ static int runTest56(int gpuDevice) {
     if (gpuGrad56.empty()) return 1;
     fprintf(stdout, "GPU log-likelihood: %.6f\n", gpuLogL56);
 
-    fprintf(stdout, "\nGradient comparison 56-state (tol=%.0e):\n", tol);
+    fprintf(stdout, "\nGradient comparison 56-state (tol=%.0e relative to max(1, max|CPU|)):\n", tol);
     fprintf(stdout, "Differences CPU-GPU (first 8x8 block):\n");
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 8; j++)
@@ -1185,14 +1189,18 @@ static int runTest56(int gpuDevice) {
         fprintf(stdout, "\n");
     }
 
+    /* single precision against double: the error scales with the gradient's magnitude (as compareDynamic's threshold) */
+    double maxMagnitude = 1.0;
+    for (int k = 0; k < S*S; k++) maxMagnitude = std::max(maxMagnitude, fabs(cpuGrad56[k]));
+    const double threshold = tol * maxMagnitude;
     bool gradOk = true;
     double maxDiff = 0.0;
     for (int k = 0; k < S*S; k++) {
         double d = fabs(cpuGrad56[k] - gpuGrad56[k]);
         if (d > maxDiff || std::isnan(d)) maxDiff = d;
-        if (d > tol || std::isnan(d)) gradOk = false;
+        if (d > threshold || std::isnan(d)) gradOk = false;
     }
-    fprintf(stdout, "56-state gradient max|diff|=%.3e  %s\n", maxDiff, gradOk ? "PASS" : "FAIL");
+    fprintf(stdout, "56-state gradient max|diff|=%.3e  threshold=%.3e  %s\n", maxDiff, threshold, gradOk ? "PASS" : "FAIL");
 
     return (fdOk && gradOk) ? 0 : 1;
 }
