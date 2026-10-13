@@ -67,6 +67,7 @@ protected:
     GPUPtr* dPartials;
 
     GPUPtr  dIntegrationTmp;
+    int     kResultPaddedPatterns; // dIntegrationTmp holds kPaddedPatternCount + kResultPaddedPatterns
     GPUPtr  dPatternWeights;
     GPUPtr* dWeights;
     GPUPtr* dFrequencies;
@@ -94,8 +95,6 @@ private:
 
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
-
-    int kResultPaddedPatterns;
 
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;

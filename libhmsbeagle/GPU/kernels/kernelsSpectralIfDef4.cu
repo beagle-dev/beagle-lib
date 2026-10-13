@@ -1161,7 +1161,8 @@ KW_GLOBAL_KERNEL void kernelAdjointMerged4(
         KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
         KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
         KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
-        int totalPatterns) {
+        int totalPatterns,
+        int patternCount) { /* the padded rows' stride; the patterns summed (the padding has no weights) */
 
     const int tid    = KW_LOCAL_ID_0;
     const int cat    = KW_GROUP_ID_0;
@@ -1188,14 +1189,14 @@ KW_GLOBAL_KERNEL void kernelAdjointMerged4(
 
     if (isAllReal) {
         ADJOINT4_LOAD_ALLREAL(evecT, ievc, eigenValues, distances, categoryWeights)
-        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff) }
-        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff) }
+        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, patternCount, catOff) }
+        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, patternCount, catOff) }
         ADJOINT4_REDUCE()
         ADJOINT4_APPLY_ALLREAL(dGradient)
     } else {
         ADJOINT4_LOAD_COMPLEX(evecT, ievc, eigenValues, distances, categoryWeights)
-        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, totalPatterns, catOff) }
-        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, totalPatterns, catOff) }
+        if (isStates) { ADJOINT4_ACCUM_STATES(prePartials, tipStates, patternCount, catOff) }
+        else          { ADJOINT4_ACCUM_PARTIALS(prePartials, postPartials, patternCount, catOff) }
         ADJOINT4_REDUCE()
         ADJOINT4_APPLY_COMPLEX(dGradient)
     }

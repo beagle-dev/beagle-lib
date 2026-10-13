@@ -2,7 +2,8 @@
  * gpuspectraltest: every GPU spectral kernel against CPU spectral (double), in isolation. Each post-order and
  * pre-order (BOTTOM and TOP) operation runs on its own from the CPU's inputs, and the root integration and the
  * adjoint gradient from the CPU's partials, so a wrong kernel is reported as such rather than through the errors it
- * propagates. Each post-order operation also runs with fixed scaling, reading the scale factors it wrote.
+ * propagates. Each post-order operation also runs with fixed scaling, reading the scale factors it wrote. The
+ * adjoint gradient also runs with padded patterns of zero site likelihood, and must not change the site log likelihoods.
  *
  * The models are a random reversible one (real eigenvalues) and a random asymmetric circulant one (complex
  * conjugate pairs; the first eigenvalue of a pair is a + bi or a - bi), the latter also with the sign of every
@@ -276,7 +277,7 @@ int main(int argc, char** argv) {
                                    (gpu && !gpuDouble ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
                 int resource = gpu ? gpuResource : 0;
                 BeagleInstanceDetails details;
-                const int instance = beagleCreateInstance(N, 3 * M, N, S, C, 1, M, K, (int) post.size(), &resource, 1,
+                const int instance = beagleCreateInstance(N, 3 * M, N, S, C, 1, M, K, (int) post.size() + 1, &resource, 1,
                                                           BEAGLE_FLAG_SCALERS_RAW | BEAGLE_FLAG_SCALING_MANUAL, flags,
                                                           &details);
                 if (instance < 0) return instance;
@@ -358,6 +359,23 @@ int main(int argc, char** argv) {
             beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, root, 0, (int) branches.size(),
                                              gpuGradient.data(), NULL);
             record("adjoint gradient", relativeError(gpuGradient, cpuGradient, 0));
+            // the same on a new instance, whose padded patterns (at 4 states, C = 37 is padded to 40) beagleSetPartials
+            // copies from a partials cache: zero at the root, before any beagleGetPartials, so its padded site
+            // likelihoods are 0, and not zero in the TOP buffers, after reading a post-order operation's output.
+            // The adjoint must leave the padded patterns out.
+            {
+                std::string name;
+                const int padded = create(true, name);
+                for (int n = N; n < M; n++) beagleSetPartials(padded, n, ref[n].data());
+                beagleUpdatePartials(padded, &post[0], 1, BEAGLE_OP_NONE);
+                partials(padded, post[0].destinationPartials);
+                for (int b = 2 * M; b < 3 * M; b++)
+                    beagleSetPartials(padded, b, b == 2 * M + root ? prior.data() : ref[b].data());
+                beagleCalculateAdjointDerivative(padded, branches.data(), 0, 0, root, 0, (int) branches.size(),
+                                                 gpuGradient.data(), NULL);
+                record("adjoint gradient, padded patterns", relativeError(gpuGradient, cpuGradient, 0));
+                beagleFinalizeInstance(padded);
+            }
             // fixed scaling: each post-order operation writing its scale factors (into buffer M + n), then reading
             // them back (the fixed-scale kernels, into buffer 2M + n); the children are still the CPU's
             for (size_t i = 0; i < post.size(); i++) {
@@ -371,6 +389,18 @@ int main(int argc, char** argv) {
                 beagleUpdatePartials(gpu, &reading, 1, BEAGLE_OP_NONE);
                 record("post-order, fixed scaling", relativeError(partials(gpu, 2 * M + n), partials(gpu, M + n), S));
             }
+            // the site log likelihoods of the root's scaled partials (M + root, the last operation above) with its
+            // factors (accumulated into the last scale buffer), which an adjoint gradient from that root must not change
+            const int rootScale = (int) post.size() - 1, cumulative = (int) post.size(), scaledRoot = M + root;
+            beagleResetScaleFactors(gpu, cumulative);
+            beagleAccumulateScaleFactors(gpu, &rootScale, 1, cumulative);
+            beagleCalculateRootLogLikelihoods(gpu, &scaledRoot, &zero, &zero, &cumulative, 1, &lnL);
+            std::vector<double> scaledSites(C), sitesAfterAdjoint(C);
+            beagleGetSiteLogLikelihoods(gpu, scaledSites.data());
+            beagleCalculateAdjointDerivative(gpu, branches.data(), 0, 0, scaledRoot, 0, (int) branches.size(),
+                                             gpuGradient.data(), NULL);
+            beagleGetSiteLogLikelihoods(gpu, sitesAfterAdjoint.data());
+            record("site log likelihoods after the adjoint", logError(sitesAfterAdjoint, scaledSites));
             beagleFinalizeInstance(gpu);
 
             printf("%d states, %s, branch scale %g: %s against %s\n", S, model.name.c_str(), scale,

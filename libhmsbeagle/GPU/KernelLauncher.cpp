@@ -1164,11 +1164,11 @@ void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
                                                          int branchCount) {
     Dim3Int block(128);
     Dim3Int grid(categoryCount, branchCount);
-    gpu->LaunchKernel(fAdjointMerged4, block, grid, 11, 12,
+    gpu->LaunchKernel(fAdjointMerged4, block, grid, 11, 13,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
-        (int)patternCount);
+        (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
     gpu->SynchronizeDevice();
 }
 
@@ -1188,11 +1188,11 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
                                                          int branchCount) {
     Dim3Int block(kAdjointBlockSizeN);
     Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
-    gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 12,
+    gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 13,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
-        (int)patternCount);
+        (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
     gpu->SynchronizeDevice();
 }
 

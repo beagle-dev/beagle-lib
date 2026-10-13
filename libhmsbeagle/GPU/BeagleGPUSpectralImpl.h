@@ -77,6 +77,11 @@ private:
     GPUPtr* dGradient;
     bool*   hEigenDecompIsAllReal;
 
+    /* The adjoint's per-site log likelihoods (unscaled), sized like
+     * dIntegrationTmp but apart from it: getSiteLogLikelihoods reads
+     * dIntegrationTmp, the last likelihood calculation's (scaled) values. */
+    GPUPtr  dAdjointSiteLogLk;
+
     /* Offset-queue for the batched adjoint kernel: one 9-unsigned-int record
      * per branch (see STATUS.md for the field layout), addressed via
      * integer offsets into the pooled partials/states/evec/ievc/eigenvalue/

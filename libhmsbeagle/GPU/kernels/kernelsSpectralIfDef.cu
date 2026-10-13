@@ -936,9 +936,9 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointAccumRowRaw(
         KW_GLOBAL_VAR REAL* prePartials, KW_GLOBAL_VAR REAL* postPartials,
         KW_GLOBAL_VAR int* tipStates, KW_GLOBAL_VAR REAL* patternWeights, REAL sCatW,
         KW_GLOBAL_VAR REAL* perSiteLikelihoods, KW_LOCAL_VAR REAL* sRedBuf,
-        int totalPatterns, int catOff) {
+        int patternCount, int catOff) {
     for (int _rs_a = 0; _rs_a < PADDED_STATE_COUNT; _rs_a++) regOp[_rs_a] = (REAL)0;
-    for (int _k_a = tid; _k_a < totalPatterns; _k_a += ADJOINT_BLOCK_SP_N) {
+    for (int _k_a = tid; _k_a < patternCount; _k_a += ADJOINT_BLOCK_SP_N) {
         REAL _lhs_a = (REAL)0;
         for (int _j_a = 0; _j_a < PADDED_STATE_COUNT; _j_a++)
             SPECTRAL_FMA(evectCol[_j_a], prePartials[catOff + _k_a*PADDED_STATE_COUNT + _j_a], _lhs_a);
@@ -970,7 +970,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointAccumRowRaw(
 #define ADJOINTN_ACCUM_ROW_RAW(EVECT_COL, IS_STATES, REGOP, RAWROW) \
     adjointAccumRowRaw(tid, EVECT_COL, IS_STATES, REGOP, RAWROW, \
         prePartials, postPartials, tipStates, patternWeights, sCatW, \
-        perSiteLikelihoods, sRedBuf, totalPatterns, catOff);
+        perSiteLikelihoods, sRedBuf, patternCount, catOff);
 
 /* Rotate a raw (un-projected) row RAWROW[PADDED_STATE_COUNT] through `ievc`
  * once: ROTATED[rs'] = sum_rs RAWROW[rs] * ievc[rs*S + rs']. Valid for every
@@ -1196,7 +1196,8 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
         KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
         KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
         KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
-        int totalPatterns) {
+        int totalPatterns,
+        int patternCount) { /* the padded rows' stride; the patterns summed (the padding has no weights) */
 
     const int tid    = KW_LOCAL_ID_0;
     const int ls     = KW_GROUP_ID_0;

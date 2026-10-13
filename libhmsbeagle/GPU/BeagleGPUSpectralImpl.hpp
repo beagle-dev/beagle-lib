@@ -36,7 +36,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
     : dSpectralDistancesOrigin(0), kSpectralDistancePoolCapacity(0), dSpectralDistances(NULL),
       hEigenIndexForMatrix(NULL), hSpectralDistances(NULL), hSpectralDistancesDirty(false),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
-      dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL),
+      dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL), dAdjointSiteLogLk(0),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
       kSpectralEigenDecompCount(0) {
 }
@@ -50,6 +50,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
         if (dEvecTOrigin)             this->freeWithSubPointers(dEvecTOrigin);
         if (dIevcTOrigin)             this->freeWithSubPointers(dIevcTOrigin);
         if (dGradientOrigin)          this->freeWithSubPointers(dGradientOrigin);
+        if (dAdjointSiteLogLk)        gpuIf->FreeMemory(dAdjointSiteLogLk);
         if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
         if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
         if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
@@ -125,6 +126,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
     }
 
     hEigenDecompIsAllReal = (bool*) calloc(eigenDecompositionCount, sizeof(bool));
+
+    dAdjointSiteLogLk = gpuIf->AllocateMemory((this->kPaddedPatternCount + this->kResultPaddedPatterns) * sizeof(Real));
 
     gpuIf->ReportMemory("create spectral"); // BEAGLE_DEBUG_MEMORY only
 
@@ -683,9 +686,10 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
 
     flushSpectralDistances();
 
-    /* Compute per-site marginal likelihoods into dIntegrationTmp. */
+    /* Compute per-site marginal likelihoods into dAdjointSiteLogLk (not
+     * dIntegrationTmp, which holds what getSiteLogLikelihoods returns). */
     this->kernels->IntegrateLikelihoods(
-        this->dIntegrationTmp,
+        dAdjointSiteLogLk,
         this->dPartials[rootPostOrderIndex],
         this->dWeights[cwIdx],
         this->dFrequencies[stateFrequenciesIndex],
@@ -759,14 +763,14 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
                 this->dIevcOrigin, this->dEigenValuesOrigin,
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
-                this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
+                dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
         } else {
             this->kernels->AdjointCrossProductMergedSpectralN(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
                 this->dIevcOrigin, this->dEigenValuesOrigin,
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
-                this->dIntegrationTmp, dGradientOrigin, dAdjointQueue,
+                dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
         }
     }
