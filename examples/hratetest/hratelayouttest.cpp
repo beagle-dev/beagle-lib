@@ -222,6 +222,10 @@ static void scalingCase(const char* label, int S, int C, int P, bool logScalers,
     base.setPartials(3, data.data());
     hier.resetScaleFactors(2);
     base.resetScaleFactors(2);
+    // Scale buffer 1 is written only for partition 1's patterns; clear it in both
+    // instances so the untouched entries compare equal instead of uninitialized memory.
+    hier.resetScaleFactors(1);
+    base.resetScaleFactors(1);
     hier.rescaleByPartition(3, 1, 2, 1);
     base.rescaleByPartition(3, 1, 2, 1);
     hier.getPartials(3, BEAGLE_OP_NONE, got.data());
