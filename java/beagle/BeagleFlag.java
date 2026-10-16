@@ -46,7 +46,8 @@ public enum BeagleFlag {
     PREORDER_TRANSPOSE_AUTO(1L << 32, "Automatically transpose pre-order transition matrices"),
     PREORDER_TRANSPOSE_LOW_MEMORY(1L << 32, "Use low-memory automatic transposition of pre-order transition matrices"),
 
-    SPECTRAL_REPRESENTATION(1L << 40, "Use spectral representation for transition probability calculations");
+    SPECTRAL_REPRESENTATION(1L << 40, "Use spectral representation for transition probability calculations"),
+    HIERARCHICAL_REPRESENTATION(1L << 41, "Use hierarchical state-tree representation for transition probability calculations");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;

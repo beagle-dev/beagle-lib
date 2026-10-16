@@ -115,3 +115,29 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-spectral
 
 target_compile_options(hmsbeagle-cpu-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
 endif(BUILD_SPECTRAL)
+
+if(BUILD_HIERARCHICAL)
+add_library(hmsbeagle-cpu-hierarchical SHARED
+        BeagleCPUHierarchicalImpl.h
+        BeagleCPUHierarchicalImpl.hpp
+        BeagleCPUHierarchicalPlugin.cpp
+        BeagleCPUHierarchicalPlugin.h
+        HierarchicalMethods.h
+        HierarchicalMethods.hpp
+        EigenDecomposition.h
+        Precision.h
+        )
+
+install(TARGETS hmsbeagle-cpu-hierarchical
+	DESTINATION ${BEAGLE_INSTALL_DIR}
+	COMPONENT cpu_hierarchical
+    )
+
+SET_TARGET_PROPERTIES(hmsbeagle-cpu-hierarchical
+    PROPERTIES
+    SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
+	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
+    )
+
+target_compile_options(hmsbeagle-cpu-hierarchical PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+endif(BUILD_HIERARCHICAL)

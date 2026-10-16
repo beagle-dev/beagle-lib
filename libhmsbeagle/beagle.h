@@ -193,7 +193,43 @@ enum BeagleFlags {
      * partitions (beagleSetPatternPartitions and the ...ByPartition updates) return BEAGLE_ERROR_NO_IMPLEMENTATION,
      * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
      */
-    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40
+    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40,
+
+    /**
+     * Use hierarchical state-tree representation for transition probability calculation.
+     *
+     * The application evaluates the hierarchical rate model and, for each branch, passes a self-contained bundle to
+     * beagleSetTransitionMatrix (or one bundle per index to beagleSetTransitionMatrices) in place of a dense matrix;
+     * paddedValue is ignored. BEAGLE stores no state tree between uploads. The stationary frequencies pi are not in
+     * the bundle: they are state frequencies buffer 0, set with beagleSetStateFrequencies, and must be the pi from which
+     * the application computed H. The bundle is an array of doubles; S is the state count, C the category count and N = S - 1 the number of internal state-tree
+     * nodes. Nodes 0 .. S-1 are the tips in state order and nodes S .. 2S-2 are the internal nodes; the state tree is
+     * binary. Node indices are stored as exactly representable doubles.
+     *
+     *   offset 0                 length 1      version * 65536 + N (version 1)
+     *   offset 1                 length 3N     post-order triples (parent, left child, right child), children
+     *                                          before parents; the last triple is the root's
+     *   offset 1 + 3N            length 3N     pre-order triples, the same set, parents before children; the
+     *                                          first triple is the root's
+     *   offset 1 + 6N            C blocks of N + S, one per rate category l:
+     *                                          H for the internal nodes S .. 2S-2 at time edgeLength * rate[l],
+     *                                          then Pr(Z = 0) for the tips in state order
+     *
+     * The header is the same for every branch and is resent in every bundle. A bundle with an unknown version,
+     * N != S - 1, an out-of-range node, a node appearing twice as a parent or twice as a child, a post-order list
+     * with a parent before its child, a pre-order list with a child before its parent, two lists that are not the
+     * same set of triples, a negative or non-finite H, or a Pr(Z = 0) outside [0, 1] is rejected with
+     * BEAGLE_ERROR_OUT_OF_RANGE and leaves the index unchanged. beagleGetTransitionMatrix returns the dense matrix
+     * P[x][y] = pi[y] * C(MRCA(x, y)) for x != y and P[x][x] = Pr(Z_x = 0) + pi[x] * C(parent(x)), where C(m) is the
+     * sum of H along the path from the root to m, built from the stored bundle and state frequencies buffer 0; it
+     * returns BEAGLE_ERROR_OUT_OF_RANGE for an index without a bundle or before the frequencies are set.
+     *
+     * beagleSetEigenDecomposition, beagleUpdateTransitionMatrices, beagleUpdateTransitionMatricesWithModelCategories
+     * and beagleUpdateTransitionMatricesWithMultipleModels return BEAGLE_ERROR_NO_IMPLEMENTATION. Category rates are
+     * not applied to the bundle, which is already per category; beagleSetCategoryWeights is still required for the
+     * root likelihood.
+     */
+    BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41
 };
 
 
@@ -886,11 +922,12 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesWithMultipleModels(int instan
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
  * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the index dense storage (see that flag).
+ * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION inMatrix is a hierarchical bundle (see that flag for its layout).
  *
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
  * @param inMatrix      Pointer to source transition probability matrix (input)
- * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
+ * @param paddedValue  Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
  *
  * @return error code
  */
@@ -922,7 +959,8 @@ BEAGLE_DLLEXPORT int beagleSetDifferentialMatrix(int instance,
  * This function copies a finite-time transition matrix buffer into the array outMatrix. The
  * outMatrix array should be of size stateCount * stateCount * categoryCount and will be filled
  * with one matrix for each rate category. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION, see that flag for which
- * contents are returned.
+ * contents are returned. With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION the matrix is built from the stored bundle
+ * (see that flag).
  *
  * @param instance     Instance number (input)
  * @param matrixIndex  Index of matrix buffer (input)
@@ -941,7 +979,8 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * is used when the application wishes to explicitly set the transition matrices rather than
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrices array should be
  * of size stateCount * stateCount * categoryCount * count. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the
- * indices dense storage (see that flag).
+ * indices dense storage (see that flag). With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION inMatrices holds count
+ * hierarchical bundles back to back (see that flag for the layout of each).
  *
  * @param instance      Instance number (input)
  * @param matrixIndices Indices of matrix buffers (input)

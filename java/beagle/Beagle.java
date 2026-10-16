@@ -449,6 +449,21 @@ public interface Beagle extends Serializable {
      * using the setEigenDecomposition and updateTransitionMatrices functions. The inMatrix array should be
      * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
      *
+     * With {@link BeagleFlag#HIERARCHICAL_REPRESENTATION}, inMatrix is instead one branch's hierarchical bundle and
+     * paddedValue is ignored. With S states, C rate categories and N = S - 1 internal state-tree nodes (tips are
+     * nodes 0 .. S-1 in state order, internal nodes S .. 2S-2, binary tree, indices stored as doubles):
+     * <pre>
+     *   [0]                   version * 65536 + N (version 1)
+     *   [1, 1 + 3N)           post-order triples (parent, left, right), children before parents, root last
+     *   [1 + 3N, 1 + 6N)      pre-order triples, the same set, parents before children, root first
+     *   then C blocks of N + S, one per category l:
+     *                         H for internal nodes S .. 2S-2 at time edgeLength * rate[l],
+     *                         then Pr(Z = 0) for the tips in state order
+     * </pre>
+     * The header is resent in every bundle; BEAGLE keeps no state tree between uploads. pi is not in the bundle: it is
+     * state frequencies buffer 0 ({@link #setStateFrequencies}), which must hold the pi used to compute H. See
+     * BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION in beagle.h for validation and the matrix getTransitionMatrix returns.
+     *
      * This function copies a finite-time transition probability matrix into a matrix buffer.
      * @param matrixIndex   Index of matrix buffer (input)
      * @param inMatrix      Pointer to source transition probability matrix (input)

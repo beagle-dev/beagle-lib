@@ -178,6 +178,47 @@ if(BUILD_SPECTRAL)
     endif(BUILD_SSE)
 endif(BUILD_SPECTRAL)
 
+if(BUILD_HIERARCHICAL)
+    add_executable(hratetest
+            hratetest/hratetest.cpp)
+    target_link_libraries(hratetest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    add_test(hratetest hratetest)
+    add_test(hratetest-double hratetest --double)
+    add_test(hratetest-states hratetest --states)
+    add_test(hratetest-threads hratetest --threads 8)
+    add_test(hratetest-scaling hratetest --scaling manual)
+    add_test(hratetest-highstates hratetest --highstates)
+    add_test(hratetest-kappa hratetest --kappa 2 --double)
+    add_executable(hratelayouttest
+            hratetest/hratelayouttest.cpp)
+    target_link_libraries(hratelayouttest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    add_test(hratelayouttest hratelayouttest)
+    add_executable(hratebundletest
+            hratetest/hratebundletest.cpp)
+    target_link_libraries(hratebundletest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    add_test(hratebundletest hratebundletest)
+    add_executable(hratepruningtest
+            hratetest/hratepruningtest.cpp)
+    target_link_libraries(hratepruningtest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    add_test(hratepruningtest hratepruningtest)
+endif(BUILD_HIERARCHICAL)
+
 if(BUILD_SSE)
     # SIMD CPU implementations against their scalar counterparts
     add_executable(simdtest
