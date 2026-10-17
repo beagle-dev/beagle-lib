@@ -372,20 +372,26 @@
     int x2 = multBy16(matrix);\
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
 
-#define DETERMINE_INDICES_4_MULTI_1_GPU()\
+#define DETERMINE_INDICES_4_MULTI_1_OP_GPU()\
     int opIndexPtr = (gridStartOp + KW_GROUP_ID_0) * 8;\
     int startPat   = ptrOffsets[opIndexPtr    ];\
-    int endPattern = ptrOffsets[opIndexPtr + 1];\
+    int endPattern = ptrOffsets[opIndexPtr + 1];
+
+#define DETERMINE_INDICES_4_MULTI_1_THREAD_GPU(CAT)\
     int tx = KW_LOCAL_ID_0;\
     int state = tx & 0x3;\
     int pat = tx >> 2;\
     int patIdx = KW_LOCAL_ID_1;\
-    int matrix = KW_GROUP_ID_1;\
+    int matrix = CAT;\
     int pattern = startPat + multBy4(patIdx) + pat;\
     int deltaPartialsByState = multBy4(startPat) + multBy16(patIdx);\
     int deltaPartialsByMatrix = __umul24(matrix, multBy4(totalPatterns));\
     int x2 = multBy16(matrix);\
     int u = tx + deltaPartialsByState + deltaPartialsByMatrix;
+
+#define DETERMINE_INDICES_4_MULTI_1_GPU()\
+    DETERMINE_INDICES_4_MULTI_1_OP_GPU()\
+    DETERMINE_INDICES_4_MULTI_1_THREAD_GPU(KW_GROUP_ID_1)
 
 #define DETERMINE_INDICES_4_MULTI_2_GPU()\
           KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 =  partials + ptrOffsets[opIndexPtr + 4];\
@@ -432,9 +438,11 @@
         sPartials2[multBy16(patIdx) | tx] = 0;\
     }
 
-#define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU()\
+#define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_DECLARE_GPU()\
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE * 4 * 4];\
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+#define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_BODY_GPU()\
     /* copy PADDED_STATE_COUNT * PATTERN_BLOCK_SIZE lengthed partials*/\
     if (pattern < endPattern) {\
         sPartials1[multBy16(patIdx) | tx] = partials1[u]; /*All coalesced memory*/\
@@ -443,6 +451,10 @@
         sPartials1[multBy16(patIdx) | tx] = 0;\
         sPartials2[multBy16(patIdx) | tx] = 0;\
     }
+
+#define LOAD_PARTIALS_PARTIALS_4_MULTI_PART_GPU()\
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_DECLARE_GPU()\
+    LOAD_PARTIALS_PARTIALS_4_MULTI_PART_BODY_GPU()
 
 #define LOAD_PARTIALS_SINGLE_4_GPU()\
     int y = deltaPartialsByState + deltaPartialsByMatrix;\
@@ -453,13 +465,19 @@
         sPartials2[multBy16(patIdx) | tx] = 0;\
     }
 
-#define LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU()\
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];\
+#define LOAD_PARTIALS_SINGLE_4_MULTI_PART_DECLARE_GPU()\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE * 4 * 4];
+
+#define LOAD_PARTIALS_SINGLE_4_MULTI_PART_BODY_GPU()\
     if (pattern < endPattern) {\
         sPartials2[multBy16(patIdx) | tx] = partials2[u];\
     } else {\
         sPartials2[multBy16(patIdx) | tx] = 0;\
     }
+
+#define LOAD_PARTIALS_SINGLE_4_MULTI_PART_GPU()\
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_DECLARE_GPU()\
+    LOAD_PARTIALS_SINGLE_4_MULTI_PART_BODY_GPU()
 
 #define LOAD_SCALING_4_GPU()\
     KW_LOCAL_MEM REAL fixedScalingFactors[PATTERN_BLOCK_SIZE * 4];\
@@ -494,16 +512,25 @@
     }\
     KW_LOCAL_FENCE;
 
-#define LOAD_MATRIX_4_MULTI_GPU()\
+#define LOAD_MATRIX_4_MULTI_ADVANCE_GPU()\
     matrix1 += x2;\
-    matrix2 += x2;\
+    matrix2 += x2;
+
+#define LOAD_MATRIX_4_MULTI_DECLARE_GPU()\
     KW_LOCAL_MEM REAL sMatrix1[16];\
-    KW_LOCAL_MEM REAL sMatrix2[16];\
+    KW_LOCAL_MEM REAL sMatrix2[16];
+
+#define LOAD_MATRIX_4_MULTI_BODY_GPU()\
     if (patIdx == 0 ) {\
         sMatrix1[tx] = matrix1[tx];\
         sMatrix2[tx] = matrix2[tx];\
     }\
     KW_LOCAL_FENCE;
+
+#define LOAD_MATRIX_4_MULTI_GPU()\
+    LOAD_MATRIX_4_MULTI_ADVANCE_GPU()\
+    LOAD_MATRIX_4_MULTI_DECLARE_GPU()\
+    LOAD_MATRIX_4_MULTI_BODY_GPU()
 
 #define LOAD_MATRIX_SINGLE_4_GPU()\
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + x2;\
@@ -558,18 +585,21 @@
     i = (i + 1) & 0x3;\
     FMA(    sMatrix2[multBy4(i) | state],  sPartials2[patIdx16pat4 | i], sum2);
 
-#define SUM_STATES_STATES_4_GPU()\
+#define SUM_STATES_STATES_4_P_GPU(DEST)\
     int state1 = states1[pattern];\
     int state2 = states2[pattern];\
     if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {\
-        partials3[u] = sMatrix1[state1 * 4 + state] * sMatrix2[state2 * 4 + state];\
+        DEST = sMatrix1[state1 * 4 + state] * sMatrix2[state2 * 4 + state];\
     } else if (state1 < PADDED_STATE_COUNT) {\
-        partials3[u] = sMatrix1[state1 * 4 + state];\
+        DEST = sMatrix1[state1 * 4 + state];\
     } else if (state2 < PADDED_STATE_COUNT) {\
-        partials3[u] = sMatrix2[state2 * 4 + state];\
+        DEST = sMatrix2[state2 * 4 + state];\
     } else {\
-        partials3[u] = 1.0;\
+        DEST = 1.0;\
     }
+
+#define SUM_STATES_STATES_4_GPU()\
+    SUM_STATES_STATES_4_P_GPU(partials3[u])
 
 #define SUM_STATES_STATES_4_SCALE_GPU()\
     int state1 = states1[pattern];\
@@ -664,33 +694,42 @@
     KW_LOCAL_MEM REAL storedPartials[MATRIX_BLOCK_SIZE][16];\
     KW_LOCAL_MEM REAL matrixMax[4];
 
-#define FIND_MAX_PARTIALS_STATE_4_GPU()\
+#define FIND_MAX_PARTIALS_STATE_4_LOAD_GPU()\
     if (matrix < matrixCount)\
         partials[matrix][tx] = allPartials[partialsOffset + tx];          \
     storedPartials[matrix][tx] = partials[matrix][tx];\
-    KW_LOCAL_FENCE;\
+    KW_LOCAL_FENCE;
+
+#define FIND_MAX_PARTIALS_STATE_4_REDUCE_GPU(ROW)\
     /* Unrolled parallel max-reduction*/\
     if (state < 2) {\
-        REAL compare1 = partials[matrix][tx];\
-        REAL compare2 = partials[matrix][tx + 2];\
+        REAL compare1 = ROW[tx];\
+        REAL compare2 = ROW[tx + 2];\
         if (compare2 > compare1)\
-            partials[matrix][tx] = compare2;\
+            ROW[tx] = compare2;\
     }\
     KW_LOCAL_FENCE;\
     if (state < 1) {\
-        REAL compare1 = partials[matrix][tx];\
-        REAL compare2 = partials[matrix][tx + 1];\
+        REAL compare1 = ROW[tx];\
+        REAL compare2 = ROW[tx + 1];\
         if (compare2 > compare1)\
-            partials[matrix][tx] = compare2;\
+            ROW[tx] = compare2;\
     }\
     KW_LOCAL_FENCE;
 
-#define FIND_MAX_PARTIALS_MATRIX_4_GPU()\
-    matrixMax[pat] = 0;\
+#define FIND_MAX_PARTIALS_STATE_4_GPU()\
+    FIND_MAX_PARTIALS_STATE_4_LOAD_GPU()\
+    FIND_MAX_PARTIALS_STATE_4_REDUCE_GPU(partials[matrix])
+
+#define FIND_MAX_PARTIALS_MATRIX_4_P_GPU(ELEM, MAXV)\
+    MAXV = 0;\
     for(int m = 0; m < matrixCount; m++) {\
-        if (partials[m][tx] > matrixMax[pat])\
-            matrixMax[pat] = partials[m][tx];\
+        if (ELEM > MAXV)\
+            MAXV = ELEM;\
     }
+
+#define FIND_MAX_PARTIALS_MATRIX_4_GPU()\
+    FIND_MAX_PARTIALS_MATRIX_4_P_GPU(partials[m][tx], matrixMax[pat])
 
 #define SCALE_PARTIALS_4_GPU()\
     KW_LOCAL_FENCE;\
@@ -2601,6 +2640,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 #ifdef CUDA_SPECTRAL
     #include "kernelsSpectralIfDef4.cu"
 #endif // CUDA_SPECTRAL
+
+#ifdef CUDA_FUSED
+    #include "kernelsFused.cu"
+#endif // CUDA_FUSED
 
 #ifdef CUDA
 } // extern "C"
