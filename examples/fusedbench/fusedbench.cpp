@@ -844,7 +844,7 @@ void checkConfig(const Config& c, int index) {
     const int deep = deepestTip(p), random = branchSequence(p.n, gOpt.seed + index)[0];
     int passed = 0, total = 0;
     for (const char* sc : {"none", "read", "write", "writecum", "writeread"}) {
-        if (!strcmp(sc, "none") && !gOpt.dbl && c.taxa > 17) continue;    // single precision underflows
+        if (!strcmp(sc, "none") && !gOpt.dbl && c.taxa > (c.states > 4 ? 5 : 17)) continue;    // single precision underflows
         for (const char* up : {"full", "branch-deep", "branch-random"}) {
             const int v = strcmp(up, "branch-deep") ? random : deep;
             auto script = [&](const Inst& in) {
