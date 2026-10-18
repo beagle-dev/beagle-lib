@@ -8,6 +8,11 @@ are taken within the process (> 1: fused faster), and only between rows in the s
 --mode; process_mode column; rows whose mode changed during their timed blocks, "changed", are skipped). Each regime then lists the median and range of its per-process ratios, fast and slow
 modes in separate tables, followed by the crossovers C1-C4 (where the median T_up ratio A/B crosses 1, interpolated
 in log x). Failed checks (ok = 0) are listed first. The output defaults to summary.md next to the first CSV.
+A branch-random block of K calls (or E evaluations) replays the first K branches of fusedbench's 64-branch sequence,
+so a branch-random ratio is taken only when both instances' K (T_up) or E (T_eval) is a multiple of 64: otherwise
+they timed different subsets of the paths (fused plan F5; run the BR10 and BR1000 groups with --k 1024 and --k 64).
+On the M1 Max, slow mode has two levels (t_sync about 1.8 ms or about 7 ms), so slow pairs are taken only when the two
+instances' t_sync are within a factor of 2.
 """
 import csv
 import math
@@ -17,6 +22,7 @@ import sys
 
 KEY = ("backend", "device", "precision", "states", "patterns", "categories", "taxa", "tree", "update", "scaling",
        "scalers")
+SEQUENCE = 64   # fusedbench branchSequence: branch-random call k and evaluation j use branch k (j) mod 64
 
 
 def read_rows(path):
@@ -35,8 +41,8 @@ def csv_paths(args):
 
 
 def collect(paths):
-    """{(mode, key): {"A/B": {"T_up": [...], "T_eval": [...]}, "A2/B": ..., "B_up": [...]}}, failures"""
-    ratios, failures = {}, []
+    """{(mode, key): {"A/B": {"T_up": [...], "T_eval": [...]}, "A2/B": ..., "B_up": [...]}}, failures, skipped"""
+    ratios, failures, skipped = {}, [], {"T_up": 0, "T_eval": 0, "slow": 0}
     for path in paths:
         configs = {}
         for r in read_rows(path):
@@ -54,9 +60,16 @@ def collect(paths):
                 a = impls.get(base)
                 if a is None or a["process_mode"] != b["process_mode"]:
                     continue
-                for t in ("T_up", "T_eval"):
+                ta, tb = float(a["t_sync_us"]), float(b["t_sync_us"])
+                if b["process_mode"] == "slow" and max(ta, tb) > 2 * min(ta, tb):
+                    skipped["slow"] += 1
+                    continue
+                for t, n in (("T_up", "K"), ("T_eval", "E")):
+                    if b["update"] == "branch-random" and (int(a[n]) % SEQUENCE or int(b[n]) % SEQUENCE):
+                        skipped[t] += 1
+                        continue
                     entry[base + "/B"][t].append(float(a[t + "_min_us"]) / float(b[t + "_min_us"]))
-    return ratios, failures
+    return ratios, failures, skipped
 
 
 def cell(values):
@@ -97,10 +110,16 @@ def main(argv):
     if not paths:
         sys.exit(__doc__)
     out = out or os.path.join(os.path.dirname(paths[0]), "summary.md")
-    ratios, failures = collect(paths)
+    ratios, failures, skipped = collect(paths)
     lines = ["# fusedbench summary", "", f"{len(paths)} CSV files: " + ", ".join(os.path.basename(p) for p in paths),
              "", "Ratios of minimum times within one process, A/B and A2/B (> 1: fused faster); median (range) over "
              "processes.", ""]
+    if skipped["T_up"] or skipped["T_eval"]:
+        lines += [f"Branch-random pairs skipped because K or E is not a multiple of {SEQUENCE} (different subsets of "
+                  f"the branch sequence): {skipped['T_up']} T_up, {skipped['T_eval']} T_eval.", ""]
+    if skipped["slow"]:
+        lines += [f"Slow-mode pairs skipped because their t_sync differ by more than 2x (different slow levels): "
+                  f"{skipped['slow']}.", ""]
     if failures:
         lines += ["## Failed checks", "", "| file | impl | configuration | logL | logL_ref | max_ulp_vs_A |",
                   "|---|---|---|---|---|---|"]
