@@ -1,0 +1,25 @@
+# G4 (PLAN-fused-uppartials.md section 7.2): codon, P 100 and 1000, n 1000; impls A, B (REF only where P < 250)
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update full --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update full --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update branch-random --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree balanced --update branch-random --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update full --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update full --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update branch-random --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 1000 --tree pectinate --update branch-random --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update full --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-random --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-random --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update full --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-random --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-random --scaling write

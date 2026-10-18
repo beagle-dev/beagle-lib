@@ -1,0 +1,19 @@
+# G1 (PLAN-fused-uppartials.md section 7.2): 4 states, P 1000, n 10; impls REF, A, A2, B
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update full --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update full --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-deep --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-deep --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update full --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update full --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-deep --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-deep --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling write
