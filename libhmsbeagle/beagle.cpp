@@ -201,6 +201,18 @@ void beagleLoadPlugins(void) {
 
     try{
 #ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-opencl-fused" << std::endl;
+#endif
+        beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl-fused");
+        plugins->push_back(openclplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-opencl-fused: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-tinygpu" << std::endl;
 #endif
         beagle::plugin::Plugin* tinygpuplug = pm.findPlugin("hmsbeagle-tinygpu");

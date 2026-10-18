@@ -1144,6 +1144,21 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
 #endif
 }
 
+void GPUInterface::MemcpyHostToDeviceNoWait(GPUPtr dest,
+                                            const void* src,
+                                            size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDeviceNoWait\n");
+#endif
+
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_FALSE, 0, memSize, src, 0,
+                                 NULL, NULL));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDeviceNoWait\n");
+#endif
+}
+
 void GPUInterface::MemcpyDeviceToHost(void* dest,
                                       const GPUPtr src,
                                       size_t memSize) {

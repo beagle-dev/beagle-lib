@@ -58,6 +58,20 @@ if(BUILD_SPECTRAL AND (BUILD_OPENCL OR BUILD_TINYGPU))
 	add_custom_target(_BeagleOpenCLSpectralKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLSpectral_kernels.h")
 endif()
 
+if(BUILD_FUSED AND BUILD_OPENCL AND NOT WIN32)
+	# BeagleOpenCLFused_kernels.h (TEST: the fused upPartials plugin, hmsbeagle-opencl-fused): the standard text with
+	# kernelsFused.cu appended to every string; wrapped in a same-directory target for the reason given above
+	add_custom_command(
+			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLFused_kernels.h"
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_opencl_fused_kernels.sh"
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsX.cu" "kernels/kernelsXDerivatives.cu"
+			        "kernels/kernelsAll.cu" "kernels/kernelsFused.cu" "GPUImplDefs.h" "kernels/make_opencl_fused_kernels.sh"
+			COMMENT "Building OpenCL fused kernels"
+			VERBATIM)
+	add_custom_target(_BeagleOpenCLFusedKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCLFused_kernels.h")
+endif()
+
 if(BUILD_OPENCL)
 	find_package(OpenCL)
 	if(OpenCL_FOUND)
@@ -67,6 +81,9 @@ if(BUILD_OPENCL)
 		if(BUILD_SPECTRAL)
 			add_subdirectory("CMake_OpenCLSpectral")
 		endif(BUILD_SPECTRAL)
+		if(BUILD_FUSED AND NOT WIN32)
+			add_subdirectory("CMake_OpenCLFused")
+		endif()
 	endif(OpenCL_FOUND)
 endif(BUILD_OPENCL)
 

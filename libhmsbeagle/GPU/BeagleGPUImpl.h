@@ -291,6 +291,12 @@ protected:
     unsigned int getStatesOffsetElements(int index) const { return hStatesOffsets[index]; }
     unsigned int getEvecStrideElements() const { return kEvecOffset; }
     unsigned int getEvalStrideElements() const { return kEvalOffset; }
+    // For BeagleGPUFusedImpl's op table: the matrix pool and its per-index stride, and the scale pool (0 without scale
+    // buffers; scalingFactorsOrigin() would dereference dScalingFactors[0]) and its per-index offset (as upPartials)
+    GPUPtr getMatricesOrigin() const { return dMatricesOrigin; }
+    unsigned int getMatrixStrideElements() const { return kIndexOffsetMat; }
+    GPUPtr getScalingFactorsOriginRaw() const { return dScalingFactorsOrigin; }
+    unsigned int getScaleBufferSizeElements() const { return (unsigned int) kScaleBufferSize; }
 
     virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                                   int c1MatIdx, int c2MatIdx,
