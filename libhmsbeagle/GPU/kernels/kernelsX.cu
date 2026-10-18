@@ -123,16 +123,22 @@
 ///////////////////////////////////////////////////////////////////////////////
 // kernel macros GPU
 
-#define DETERMINE_INDICES_X_GPU()\
+#define DETERMINE_INDICES_X_PATTERN_GPU()\
     int state = KW_LOCAL_ID_0;\
     int patIdx = KW_LOCAL_ID_1;\
-    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;\
-    int matrix = KW_GROUP_ID_1;\
+    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE) + patIdx;
+
+#define DETERMINE_INDICES_X_CATEGORY_GPU(CAT)\
+    int matrix = CAT;\
     int patternCount = totalPatterns;\
     int deltaPartialsByState = pattern * PADDED_STATE_COUNT;\
     int deltaPartialsByMatrix = matrix * PADDED_STATE_COUNT * patternCount;\
     int deltaMatrix = matrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT;\
     int u = state + deltaPartialsByState + deltaPartialsByMatrix;
+
+#define DETERMINE_INDICES_X_GPU()\
+    DETERMINE_INDICES_X_PATTERN_GPU()\
+    DETERMINE_INDICES_X_CATEGORY_GPU(KW_GROUP_ID_1)
 
 #define LOAD_SCALING_X_GPU()\
     KW_LOCAL_MEM REAL fixedScalingFactors[PATTERN_BLOCK_SIZE];\
@@ -141,14 +147,18 @@
         fixedScalingFactors[state] = scalingFactors[KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + state];\
     }
 
-#define SUM_PARTIALS_PARTIALS_X_GPU()\
+#define SUM_PARTIALS_PARTIALS_X_PTRS_GPU()\
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix; /* Points to *this* matrix */\
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix;
+
+#define SUM_PARTIALS_PARTIALS_X_DECLARE_GPU()\
     /* Load values into shared memory */\
     KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];\
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];\
     KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];\
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+#define SUM_PARTIALS_PARTIALS_X_BODY_GPU()\
     int y = deltaPartialsByState + deltaPartialsByMatrix;\
     /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */\
     /* These are all coherent global memory reads; checked in Profiler */\
@@ -179,9 +189,16 @@
         KW_LOCAL_FENCE;\
     }
 
-#define SUM_STATES_PARTIALS_X_GPU()\
+#define SUM_PARTIALS_PARTIALS_X_GPU()\
+    SUM_PARTIALS_PARTIALS_X_PTRS_GPU()\
+    SUM_PARTIALS_PARTIALS_X_DECLARE_GPU()\
+    SUM_PARTIALS_PARTIALS_X_BODY_GPU()
+
+#define SUM_STATES_PARTIALS_X_DECLARE_GPU()\
     KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];\
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];\
+    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+#define SUM_STATES_PARTIALS_X_BODY_GPU()\
     int y = deltaPartialsByState + deltaPartialsByMatrix;\
     if (pattern < totalPatterns) {\
         sPartials2[patIdx][state] = partials2[y + state];\
@@ -211,6 +228,27 @@
         KW_LOCAL_FENCE;\
     }
 
+#define SUM_STATES_PARTIALS_X_GPU()\
+    SUM_STATES_PARTIALS_X_DECLARE_GPU()\
+    SUM_STATES_PARTIALS_X_BODY_GPU()
+
+#define SUM_STATES_STATES_X_GPU(DEST)\
+    int state1 = states1[pattern];\
+    int state2 = states2[pattern];\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;\
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;\
+    if (pattern < totalPatterns) {\
+        if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {\
+            DEST = matrix1[state] * matrix2[state];\
+        } else if (state1 < PADDED_STATE_COUNT) {\
+            DEST = matrix1[state];\
+        } else if (state2 < PADDED_STATE_COUNT) {\
+            DEST = matrix2[state];\
+        } else {\
+            DEST = 1.0;\
+        }\
+    }
+
 #define LOAD_PARTIALS_SCALING_X_GPU()\
     int state = KW_LOCAL_ID_0;\
     int matrix = KW_LOCAL_ID_1;\
@@ -229,29 +267,35 @@
     storedPartials[matrix][state] = partials[matrix][state];\
     KW_LOCAL_FENCE;
 
-#define FIND_MAX_PARTIALS_STATE_POWER_OF_TWO_X_GPU()\
+#define FIND_MAX_PARTIALS_STATE_POWER_OF_TWO_X_ROW_GPU(ROW)\
     /* parallelized reduction, only works for powers-of-2 */\
     for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {\
         if (state < i) {\
-            REAL compare1 = partials[matrix][state];\
-            REAL compare2 = partials[matrix][state + i];\
+            REAL compare1 = ROW[state];\
+            REAL compare2 = ROW[state + i];\
             if (compare2 > compare1)\
-                partials[matrix][state] = compare2;\
+                ROW[state] = compare2;\
+        }\
+        KW_LOCAL_FENCE;\
+    }
+
+#define FIND_MAX_PARTIALS_STATE_POWER_OF_TWO_X_GPU()\
+    FIND_MAX_PARTIALS_STATE_POWER_OF_TWO_X_ROW_GPU(partials[matrix])
+
+#define FIND_MAX_PARTIALS_STATE_X_ROW_GPU(ROW)\
+    /* not power-of-2 */\
+    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {\
+        if (state < i && state + i < PADDED_STATE_COUNT ) {\
+            REAL compare1 = ROW[state];\
+            REAL compare2 = ROW[state + i];\
+            if (compare2 > compare1)\
+               ROW[state] = compare2;\
         }\
         KW_LOCAL_FENCE;\
     }
 
 #define FIND_MAX_PARTIALS_STATE_X_GPU()\
-    /* not power-of-2 */\
-    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {\
-        if (state < i && state + i < PADDED_STATE_COUNT ) {\
-            REAL compare1 = partials[matrix][state];\
-            REAL compare2 = partials[matrix][state + i];\
-            if (compare2 > compare1)\
-               partials[matrix][state] = compare2;\
-        }\
-        KW_LOCAL_FENCE;\
-    }
+    FIND_MAX_PARTIALS_STATE_X_ROW_GPU(partials[matrix])
 
 #define FIND_MAX_PARTIALS_MATRIX_X_GPU()\
     max = 0;\
@@ -533,21 +577,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesNoScale(KW_GLOBAL_VAR int* KW_RESTRICT s
     }
 #else // GPU implementation
     DETERMINE_INDICES_X_GPU();
-    int state1 = states1[pattern];
-    int state2 = states2[pattern];
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices1 + deltaMatrix + state1 * PADDED_STATE_COUNT;
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices2 + deltaMatrix + state2 * PADDED_STATE_COUNT;
-    if (pattern < totalPatterns) {
-        if (state1 < PADDED_STATE_COUNT && state2 < PADDED_STATE_COUNT) {
-            partials3[u] = matrix1[state] * matrix2[state];
-        } else if (state1 < PADDED_STATE_COUNT) {
-            partials3[u] = matrix1[state];
-        } else if (state2 < PADDED_STATE_COUNT) {
-            partials3[u] = matrix2[state];
-        } else {
-            partials3[u] = 1.0;
-        }
-    }
+    SUM_STATES_STATES_X_GPU(partials3[u])
 #endif // FW_OPENCL_CPU
 }
 
@@ -1383,6 +1413,10 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 #ifdef CUDA_SPECTRAL
     #include "kernelsSpectralIfDef.cu"
 #endif // CUDA_SPECTRAL
+
+#ifdef CUDA_FUSED
+    #include "kernelsFused.cu"
+#endif // CUDA_FUSED
 
 #ifdef CUDA
 } // extern "C"

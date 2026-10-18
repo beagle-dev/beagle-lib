@@ -1,0 +1,48 @@
+# fused-handoff/PLAN-fused-uppartials.md sections 6 and 7.2 (session F6): the fused implementation's runs on the TinyGPU
+# resource (BUILD_FUSED), one per line:
+#   <label>|<fusedbench arguments; $REPO is the repository>|<where: fake, hw or both>
+# fake and both: test_f1.sh runs the line on the fake AD107, GA104 and GB205 with --k 1 --reps 1 appended. The fakes compute
+# nothing, so fusedbench's own checks fail there and its exit status is ignored; what is checked is the routing: a B-only
+# line (--impls B) must pass fused_verdict (env.sh: one boot, the standard modules only, no launch rejected, B TinyGPU's
+# fused instance, one kernelUpPartialsFused launch per B updatePartials call, no standard pruning or scaling kernel), any
+# other fused_run_verdict. The fake lines reach every SP_ and DP_ module (S 20 pads to 32, 40 to 48, 61 to 64), the 4-state
+# blocks (16, 16 / C, C) at C 1, 2, 3, 4 and 8, and the generic grid with one row (write) and C rows (none, read).
+# hw and both: run_fused.sh <label> on the eGPU (F7 on the RTX 4060, F8 on the GB205), with --csv next to the run's output;
+# it passes when fusedbench exits 0 with PASS, every CSV row is ok, and the verdict above holds. The first configurations
+# of chk_sp and chk_dp are 4 states at C 2, 4 and 8, the first 3-D blocks launched on NV.
+f4_c4|--framework tinygpu --impls B --states 4 --patterns 65 --categories 4 --taxa 17 --tree pectinate --tips mixed --scaling write|fake
+f4_c1|--framework tinygpu --impls B --states 4 --patterns 65 --categories 1 --taxa 17 --update branch-deep --scaling read --logscalers|fake
+f4_c2|--framework tinygpu --impls B --states 4 --patterns 3 --categories 2 --taxa 5 --tips partials --scaling none|fake
+f4_c3|--framework tinygpu --impls B --states 4 --patterns 65 --categories 3 --taxa 17 --update branch-random --scaling write|fake
+f4_c8|--framework tinygpu --impls B --states 4 --patterns 65 --categories 8 --taxa 17 --tips mixed --scaling read|fake
+f4_dp|--framework tinygpu --impls B --double --states 4 --patterns 65 --categories 4 --taxa 17 --tips mixed --scaling write|fake
+fx_sp16|--framework tinygpu --impls B --states 16 --patterns 9 --categories 4 --taxa 5 --tips mixed --scaling write|fake
+fx_sp20|--framework tinygpu --impls B --states 20 --patterns 9 --categories 3 --taxa 5 --scaling none|fake
+fx_sp40|--framework tinygpu --impls B --states 40 --patterns 9 --categories 2 --taxa 5 --tips mixed --scaling read|fake
+fx_sp61|--framework tinygpu --impls B --states 61 --patterns 9 --categories 4 --taxa 5 --tips mixed --scaling write|fake
+fx_sp80|--framework tinygpu --impls B --states 80 --patterns 9 --categories 2 --taxa 5 --scaling write|fake
+fx_sp128|--framework tinygpu --impls B --states 128 --patterns 9 --categories 2 --taxa 5 --scaling none|fake
+fx_sp192|--framework tinygpu --impls B --states 192 --patterns 9 --categories 2 --taxa 5 --scaling write|fake
+fx_sp256|--framework tinygpu --impls B --states 256 --patterns 9 --categories 2 --taxa 5 --tips mixed --scaling read|fake
+fx_dp16|--framework tinygpu --impls B --double --states 16 --patterns 9 --categories 4 --taxa 5 --scaling none|fake
+fx_dp20|--framework tinygpu --impls B --double --states 20 --patterns 9 --categories 3 --taxa 5 --tips mixed --scaling write|fake
+fx_dp40|--framework tinygpu --impls B --double --states 40 --patterns 9 --categories 2 --taxa 5 --scaling write|fake
+fx_dp61|--framework tinygpu --impls B --double --states 61 --patterns 9 --categories 4 --taxa 5 --tips mixed --scaling read|fake
+fx_dp80|--framework tinygpu --impls B --double --states 80 --patterns 9 --categories 2 --taxa 5 --scaling none|fake
+fx_dp128|--framework tinygpu --impls B --double --states 128 --patterns 9 --categories 2 --taxa 5 --tips mixed --scaling write|fake
+fx_dp192|--framework tinygpu --impls B --double --states 192 --patterns 9 --categories 2 --taxa 5 --scaling read|fake
+fx_dp256|--framework tinygpu --impls B --double --states 256 --patterns 9 --categories 2 --taxa 5 --scaling write|fake
+mixed|--framework tinygpu --impls A,B --states 4 --patterns 65 --categories 4 --taxa 10 --scaling write|fake
+# wrap (F7): one updatePartials call of the standard instance launches about 10,000 kernels (4999 ops, each a pruning and a
+# scaling kernel), more than NV's kargs ring holds, so its batch must be split before the ring wraps
+wrap|--framework tinygpu --impls A --states 4 --patterns 9 --categories 4 --taxa 5000 --tree pectinate --scaling write|fake
+route|--framework tinygpu --impls B --configs $REPO/examples/fusedbench/groups/ROUTE.txt|both
+chk_sp|--framework tinygpu --check --stop-on-fail|hw
+chk_dp|--framework tinygpu --double --check --stop-on-fail|hw
+G1|--framework tinygpu --configs $REPO/examples/fusedbench/groups/G1.txt|hw
+G2|--framework tinygpu --configs $REPO/examples/fusedbench/groups/G2.txt|hw
+G3|--framework tinygpu --configs $REPO/examples/fusedbench/groups/G3.txt|hw
+G4|--framework tinygpu --configs $REPO/examples/fusedbench/groups/G4.txt|hw
+SW|--framework tinygpu --configs $REPO/examples/fusedbench/groups/SW.txt|hw
+NVDP|--framework tinygpu --double --configs $REPO/examples/fusedbench/groups/NVDP.txt|hw
+GB205|--framework tinygpu --configs $REPO/examples/fusedbench/groups/GB205.txt|hw

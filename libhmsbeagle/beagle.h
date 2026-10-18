@@ -172,6 +172,7 @@ enum BeagleFlags {
 
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    BEAGLE_FLAG_PARALLELOPS_FUSED   = 1L << 46,   /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
 
     BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1L << 31, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
     BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1L << 32, /**< Automatically transpose pre-order transition matrices */

@@ -123,6 +123,32 @@ amd_spectral_verdict() {   # <stdout file> <stderr file> "<kernels, sorted>" <pr
     [ "$got" = "$3" ] || { echo "launched: $got"; return 1; }
 }
 
+# fused-handoff/PLAN-fused-uppartials.md section 6 (F6): a run of an f1_runs.txt line, as d1_verdict: one boot, the standard
+# modules only (an embedded [SD]P_ cubin and no SPEC_ one: the fused implementation loads the standard modules), no launch
+# rejected, no kernel missing and no failed step, and kernelUpPartialsFused launched (BEAGLE_NV_PROFILE). fusedbench itself
+# fails a B that is not a fused instance. Reads files and runs nothing (on the fakes stdout and stderr share one file).
+# Prints the first failed check.
+fused_run_verdict() {   # <stdout file> <stderr file>
+    [ "$(grep -c "TinyGPU/NV: level boot: the C++ boot, with no daemon" "$2")" -eq 1 ] || { echo "not exactly one boot"; return 1; }
+    grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin [SD]P_" "$2" || { echo "no standard module loaded"; return 1; }
+    ! grep -qE "TinyGPU/NV: C\+\+ runtime: embedded cubin SPEC_" "$2" || { echo "a spectral module loaded"; return 1; }
+    ! grep -qE "not launched|kernel not found|TinyGPU/NV: .*failed" "$2" || { echo "a launch was rejected, a kernel missing or a step failed"; return 1; }
+    grep -qE "^TinyGPU/NV: \[profile\]   kernel kernelUpPartialsFused n=[1-9]" "$2" || { echo "kernelUpPartialsFused never launched"; return 1; }
+}
+# ... and the routing, on a B-only process (fusedbench --impls B: NV launch counts are per-process totals): B is TinyGPU's
+# fused instance, kernelUpPartialsFused launched once per B updatePartials call (fusedbench's count, every call it made on
+# B), and no standard pruning or scaling kernel launched
+fused_verdict() {   # <stdout file> <stderr file>
+    local calls n
+    fused_run_verdict "$1" "$2" || return 1
+    grep -qE "^  B +TinyGPU-(Single|Double)-Fused " "$1" || { echo "B is not TinyGPU's fused instance"; return 1; }
+    ! grep -qE "^TinyGPU/NV: \[profile\]   kernel kernel(PartialsPartials|StatesPartials|StatesStates|PartialsDynamicScaling)" "$2" \
+        || { echo "a standard pruning or scaling kernel launched"; return 1; }
+    calls=$(sed -nE 's/^B updatePartials calls: ([0-9]+)$/\1/p' "$1")
+    n=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   kernel kernelUpPartialsFused n=([0-9]+).*/\1/p' "$2")
+    [ -n "$calls" ] && [ "$n" = "$calls" ] || { echo "kernelUpPartialsFused n=${n:-0}, B updatePartials calls: ${calls:-none}"; return 1; }
+}
+
 # The hardware scripts' shared protections (run_point.sh, run_d1.sh, run_l0.sh; plan steps P3, D1). hw_begin: nothing else
 # changes what the plugin does to the GPU, and one hardware script runs at a time on this computer (the lock is removed at
 # exit; it is in $TMPDIR, next to tinygrad's nv_usb4.lock, so a computer sharing $BEAGLE_TINYGPU_DATA runs its own eGPU freely).
@@ -192,7 +218,7 @@ amd_hw_begin() {
         [ -n "${!v+x}" ] && { echo "$v is set; unset it first; not running"; exit 2; }
     done
     require_status_build
-    pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|gpuspectraltest|adjointtest4|amd_dispatch_daemon|nv_dispatch_daemon" \
+    pgrep -fl "beagle-tinygpu-guard|tinygputest|synthetictest|hmctest|gpuspectraltest|adjointtest4|fusedbench|amd_dispatch_daemon|nv_dispatch_daemon" \
         && { echo "a BEAGLE process is running; not running"; exit 2; }
     n=$(pgrep -f "TinyGPU.app/Contents/MacOS/TinyGPU server" | wc -l | tr -d ' ')
     [ "$n" -le 1 ] || { echo "$n TinyGPU.app servers are running (a duplicate); not running"; exit 2; }

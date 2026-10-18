@@ -37,6 +37,7 @@ bool       AmdOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... fo
 bool       AmdGpuHeld();      // ... and a crash guard of this process holds the card: Initialize must not connect
 bool       AmdSupportsDouble();   // TODO.md plan step A7: the build's HSACOs include double precision's
 bool       AmdSupportsSpectral();   // TODO.md plan step S3.3: the build's HSACOs include the spectral variants (SPEC_)
+bool       AmdSupportsFused();      // fused-handoff F6: false; the fused implementation is NV only (the HSACOs lack its kernel)
 void       AmdFini(GPUInterface* self);   // called from the destructor: releases the instance (the card stays until exit, plan step A5)
 
 uint16_t   tg_pci_device_id();   // Initialize's probe (GPUInterfaceTinyGPU.cpp): the card's PCI device ID

@@ -18,7 +18,18 @@ set -e
 NVCC="$1"
 NVCCFLAGS="$2"
 INCLUDE_DIRS="$3"
-SPECTRAL="$4"   # "spectral": also the SPEC_ modules (BUILD_SPECTRAL; TODO.md plan step S4.2)
+shift 3
+# Optional words, in any order (CMake drops an empty unquoted argument, so they are not positional):
+#   spectral  also the SPEC_ modules (BUILD_SPECTRAL; TODO.md plan step S4.2)
+#   fused     -DCUDA_FUSED in every module, standard and SPEC_: kernelsFused.cu's kernelUpPartialsFused
+#             (BUILD_FUSED; fused-handoff/PLAN-fused-uppartials.md section 6)
+SPECTRAL=; FUSED=
+for w in "$@"; do
+	case "$w" in
+		spectral) SPECTRAL=spectral ;;
+		fused) FUSED=-DCUDA_FUSED ;;
+	esac
+done
 
 echo "NVCC=${NVCC}"
 echo "NVCCFLAGS=${NVCCFLAGS}"
@@ -42,7 +53,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 # Compile single-precision kernels
 #
 # 	Compile 4-state model
-	${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DSTATE_COUNT=4 \
+	${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU ${FUSED} -DSTATE_COUNT=4 \
 		"${srcdir}/kernels4.cu" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
 	echo "#define KERNELS_STRING_SP_4 \"" | sed 's/$/\\n\\/' >> "${outheader}"
 	cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
@@ -53,7 +64,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 #
 	for s in $STATE_COUNT_LIST; do
 		echo "Making TinyGPU SP state count = $s"
-		${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DSTATE_COUNT=$s \
+		${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU ${FUSED} -DSTATE_COUNT=$s \
 			"${srcdir}/kernelsX.cu" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
 		echo "#define KERNELS_STRING_SP_$s \"" | sed 's/$/\\n\\/' >> "${outheader}"
 		cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
@@ -65,7 +76,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 # Compile double-precision kernels
 #
 # 	Compile 4-state model
-	${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
+	${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU ${FUSED} -DSTATE_COUNT=4 -DDOUBLE_PRECISION \
 		"${srcdir}/kernels4.cu" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
 	echo "#define KERNELS_STRING_DP_4 \"" | sed 's/$/\\n\\/' >> "${outheader}"
 	cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
@@ -76,7 +87,7 @@ echo "#define TINYGPU_KERNELS_STAMP \"$(${NVCC} --version | tail -1 | tr -d '\n'
 #
 	for s in $STATE_COUNT_LIST; do
 		echo "Making TinyGPU DP state count = $s"
-		${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
+		${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU ${FUSED} -DSTATE_COUNT=$s -DDOUBLE_PRECISION \
 			"${srcdir}/kernelsX.cu" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
 		echo "#define KERNELS_STRING_DP_$s \"" | sed 's/$/\\n\\/' >> "${outheader}"
 		cat "${outptx}" | sed 's/\"/\\"/g' | sed 's/$/\\n\\/' >> "${outheader}"
@@ -96,7 +107,7 @@ if [ "${SPECTRAL}" = spectral ]; then
 		for s in 4 $STATE_COUNT_LIST; do
 			if [ $s = 4 ]; then src=kernels4.cu; else src=kernelsX.cu; fi
 			echo "Making TinyGPU spectral $p state count = $s"
-			${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU -DCUDA_SPECTRAL -DSTATE_COUNT=$s ${pflag} \
+			${NVCC} -o "${outptx}" --default-stream per-thread -ptx -DCUDA -DFW_TINYGPU ${FUSED} -DCUDA_SPECTRAL -DSTATE_COUNT=$s ${pflag} \
 				"${srcdir}/${src}" ${NVCCFLAGS} -DHAVE_CONFIG_H ${INCLUDE_DIRS} || { rm -f "${outheader}"; exit 1; }
 			{ echo; cat "${outptx}"; } > "${cubindir}/SPEC_${p}_$s.ptx"
 		done

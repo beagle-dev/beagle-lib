@@ -66,6 +66,11 @@ if(BUILD_SPECTRAL)   # the spectral implementation: a second factory in this plu
     target_sources(hmsbeagle-tinygpu PRIVATE ../BeagleGPUSpectralImpl.h ../BeagleGPUSpectralImpl.hpp)
     target_compile_definitions(hmsbeagle-tinygpu PRIVATE BEAGLE_TINYGPU_SPECTRAL)
 endif()
+if(BUILD_FUSED)   # the TEST fused implementation: another factory in this plugin, on the standard modules, which then hold
+    # kernelUpPartialsFused (fused-handoff/PLAN-fused-uppartials.md section 6)
+    target_sources(hmsbeagle-tinygpu PRIVATE ../BeagleGPUFusedImpl.h ../BeagleGPUFusedImpl.hpp)
+    target_compile_definitions(hmsbeagle-tinygpu PRIVATE BEAGLE_TINYGPU_FUSED)
+endif()
 if(TINYGPU_COMGR)   # the AMD C++ runtime's ahead-of-time HSACOs (../CMakeLists.txt, TODO.md plan step A1j)
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../kernels/BeagleTinyGPU_hsaco.S" PROPERTIES GENERATED TRUE
             OBJECT_DEPENDS "${TINYGPU_HSACOS}")

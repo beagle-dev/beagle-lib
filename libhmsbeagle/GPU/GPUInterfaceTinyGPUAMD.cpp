@@ -91,6 +91,10 @@ bool AmdSupportsSpectral() {
     return false;
 }
 
+// fused-handoff/PLAN-fused-uppartials.md section 6: the HSACOs are compiled from the standard OpenCL header, which never
+// holds kernelsFused.cu (decision D2)
+bool AmdSupportsFused() { return false; }
+
 // ── Opt-in profiling (BEAGLE_AMD_PROFILE=1): each operation's host time, the GPU's work included where it waits ─────
 static bool amd_profile_enabled() {
     static const bool enabled = (getenv("BEAGLE_AMD_PROFILE") != nullptr);

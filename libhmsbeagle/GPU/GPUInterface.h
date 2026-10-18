@@ -54,6 +54,8 @@
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels_xcode.h"
 #   elif defined(BEAGLE_SPECTRAL_KERNELS)
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCLSpectral_kernels.h"
+#   elif defined(BEAGLE_FUSED_KERNELS)
+        #include "libhmsbeagle/GPU/kernels/BeagleOpenCLFused_kernels.h"
 #   else
         #include "libhmsbeagle/GPU/kernels/BeagleOpenCL_kernels.h"
 #   endif
@@ -221,6 +223,8 @@ public:
     void ReportOutOfMemory(size_t memSize);
     // The build embeds this vendor's spectral modules (SPEC_), which a BeagleGPUSpectralImpl loads
     bool GetSupportsSpectral(int deviceNumber);
+    // The build's standard modules hold kernelUpPartialsFused, which a BeagleGPUFusedImpl launches (BUILD_FUSED, TEST)
+    bool GetSupportsFused(int deviceNumber);
 #endif
 
 #ifdef FW_OPENCL
@@ -229,6 +233,13 @@ public:
 
     void UnmapMemory(GPUPtr dPtr,
                        void* hPtr);
+
+    // A non-blocking copy with no event (BeagleGPUFusedImpl's op table). The caller keeps src unchanged until a later
+    // blocking call on queue 0 (SynchronizeHost, a blocking copy, MemsetZero or MapMemory) has returned. The in-order
+    // queue runs it after earlier commands, before later ones.
+    void MemcpyHostToDeviceNoWait(GPUPtr dest,
+                                  const void* src,
+                                  size_t memSize);
 #endif
 
     GPUPtr AllocateMemory(size_t memSize);

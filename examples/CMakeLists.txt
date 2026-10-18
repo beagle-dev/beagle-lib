@@ -266,6 +266,32 @@ if(BUILD_TINYGPU)
         ENVIRONMENT "DYLD_LIBRARY_PATH=${TINYGPU_PLUGIN_DIR}")
 endif()
 
+if(BUILD_FUSED)
+    # the fused updatePartials TEST implementation (BEAGLE_FLAG_PARALLELOPS_FUSED) against the standard GPU one in one
+    # process; see fusedbench/fusedbench.cpp. fusedcheck skips (77) without a fused plugin. The plugins are loaded by
+    # name at run time, so ctest gives it the build-tree directories of whichever OpenCL plugins exist
+    add_executable(fusedbench
+            fusedbench/fusedbench.cpp)
+    target_link_libraries(fusedbench
+            hmsbeagle
+            hmsbeagle-cpu
+            ${CMAKE_DL_LIBS})
+    add_test(fusedcheck fusedbench --check --quick)
+    set_tests_properties(fusedcheck PROPERTIES SKIP_RETURN_CODE 77)
+    set(FUSED_PLUGIN_DIRS "")
+    foreach(GPU_PLUGIN hmsbeagle-opencl hmsbeagle-opencl-spectral hmsbeagle-opencl-fused)
+        if(TARGET ${GPU_PLUGIN})
+            get_target_property(GPU_PLUGIN_DIR ${GPU_PLUGIN} BINARY_DIR)
+            list(APPEND FUSED_PLUGIN_DIRS ${GPU_PLUGIN_DIR})
+        endif()
+    endforeach()
+    if(FUSED_PLUGIN_DIRS)
+        string(REPLACE ";" ":" FUSED_PLUGIN_DIRS "${FUSED_PLUGIN_DIRS}")
+        set_tests_properties(fusedcheck PROPERTIES
+            ENVIRONMENT "DYLD_LIBRARY_PATH=${FUSED_PLUGIN_DIRS};LD_LIBRARY_PATH=${FUSED_PLUGIN_DIRS}")
+    endif()
+endif(BUILD_FUSED)
+
 add_executable(hellobeagle
 		standalone/hellobeagle/hello.cpp)
 target_link_libraries(hellobeagle hmsbeagle)
