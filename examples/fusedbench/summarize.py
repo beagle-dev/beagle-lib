@@ -5,7 +5,7 @@ usage: python3 -I summarize.py [-o summary.md] CSV_OR_DIRECTORY...
 
 For each CSV (one fusedbench process) and configuration, the ratios A/B and A2/B of T_up_min_us and T_eval_min_us
 are taken within the process (> 1: fused faster), and only between rows in the same completion mode (fusedbench
---mode; process_mode column). Each regime then lists the median and range of its per-process ratios, fast and slow
+--mode; process_mode column; rows whose mode changed during their timed blocks, "changed", are skipped). Each regime then lists the median and range of its per-process ratios, fast and slow
 modes in separate tables, followed by the crossovers C1-C4 (where the median T_up ratio A/B crosses 1, interpolated
 in log x). Failed checks (ok = 0) are listed first. The output defaults to summary.md next to the first CSV.
 """

@@ -582,8 +582,9 @@ double syncTime(const Inst& in, const Problem& p, int cum) {
 // system-wide between fast (t_sync < 1 ms) and slow (5-8 ms) with each context (so successive single-instance
 // processes alternate, and instances created one after another alternate within a process). Each GPU instance is
 // recreated, a new context, until its mode is the target (any: B's, the first created); after 4 attempts it
-// keeps what it has.
+// keeps what it has. The mode is not strictly per context: some runs see several slow contexts in a row.
 void matchModes(Set& s, const Problem& p, std::string target) {
+    std::vector<int> rejected;   // kept until the end: a context finalized early hands its mode to the next one
     for (const char* name : {"B", "A", "A2"}) {
         for (size_t i = 0; i < s.insts.size(); ++i) {
             Inst& in = s.insts[i];
@@ -593,14 +594,15 @@ void matchModes(Set& s, const Problem& p, std::string target) {
                 if (target == "any") target = mode;
                 if (mode == target) break;
                 if (attempt == 4) { printf("  (%s stays in %s mode after 4 recreations)\n", in.name.c_str(), mode.c_str()); break; }
-                Inst fresh;   // created before the old one is finalized, which would hand its context's mode back
+                Inst fresh;
                 fresh.name = in.name;
-                if (create(p, fresh) < 0) { s.error = in.name + " could not be recreated"; return; }
-                beagleFinalizeInstance(in.id);
+                if (create(p, fresh) < 0) { s.error = in.name + " could not be recreated"; break; }
+                rejected.push_back(in.id);
                 in = fresh;
             }
         }
     }
+    for (int id : rejected) beagleFinalizeInstance(id);
 }
 
 // createSet, then matchModes unless B is unavailable; target any (bench mode's default) means B's mode
@@ -1281,6 +1283,14 @@ int benchConfig(const Config& c, int index, Csv& csv) {
             ev[i].push_back(evalBlock(in, p, b, E[i]) / E[i]);
         }
     }
+    std::vector<std::string> mode(s.insts.size());   // "changed" if t_sync after the blocks gives the other mode
+    for (size_t i : timed) {
+        mode[i] = fast[i] ? "fast" : "slow";
+        if ((syncTime(s.insts[i], p, b.rootCum) < 1000.0) != (bool) fast[i]) {
+            mode[i] = "changed";
+            printf("  (%s changed completion mode during the timed blocks; summarize.py skips it)\n", s.insts[i].name.c_str());
+        }
+    }
     for (size_t i : timed) {
         const Inst& in = s.insts[i];
         const double upMin = *std::min_element(up[i].begin(), up[i].end());
@@ -1289,7 +1299,7 @@ int benchConfig(const Config& c, int index, Csv& csv) {
         printf("  %-3s %-24s T_up %10.2f us (med %10.2f)  T_host %9.2f  T_eval %10.2f us (med %10.2f)  K %5d E %4d"
                "  t_sync %8.1f %s  logL %.6f  dREF %.3g  ulpA %s  %s\n",
                in.name.c_str(), in.implName.c_str(), upMin, median(up[i]), hostMin, evMin, median(ev[i]), K[i], E[i],
-               tSync[i], fast[i] ? "fast" : "slow", v[i].logL, v[i].dRef, ulpText(v[i].ulp).c_str(),
+               tSync[i], mode[i].c_str(), v[i].logL, v[i].dRef, ulpText(v[i].ulp).c_str(),
                v[i].ok ? "ok" : "CHECK FAILED");
         if (csv.f) {
             fprintf(csv.f, "%s,%s,%s,%s,%d,%d,%d,%d,%d,%s,%s,%s,%s,%.4g,%.4g,%s,%s,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.2f,"
@@ -1298,7 +1308,7 @@ int benchConfig(const Config& c, int index, Csv& csv) {
                     c.states, paddedStates(c.states), c.patterns, c.categories, c.taxa, c.tree.c_str(),
                     c.update.c_str(), c.scaling.c_str(), c.logScalers ? "log" : "raw", b.pathMean, b.pathMax,
                     in.name.c_str(), in.implName.c_str(), K[i], E[i], gOpt.reps, upMin, median(up[i]), hostMin, evMin,
-                    median(ev[i]), tSync[i], fast[i] ? "fast" : "slow", v[i].logL, v[i].logLRef, v[i].dRef,
+                    median(ev[i]), tSync[i], mode[i].c_str(), v[i].logL, v[i].logLRef, v[i].dRef,
                     v[i].ulp == UINT64_MAX ? -1LL : (long long) v[i].ulp, v[i].ok ? 1 : 0);   // -1: NaN mismatch
             fflush(csv.f);
         }
