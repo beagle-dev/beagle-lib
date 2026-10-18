@@ -436,6 +436,7 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
 }
 bool GPUInterface::GetSupportsDoublePrecision(int) { return isNVIDIA ? NvSupportsDouble() : AmdSupportsDouble(); }   // TODO.md plan steps C16, A7
 bool GPUInterface::GetSupportsSpectral(int) { return isNVIDIA ? NvSupportsSpectral() : AmdSupportsSpectral(); }   // TODO.md plan step S3.3
+bool GPUInterface::GetSupportsFused(int) { return isNVIDIA ? NvSupportsFused() : AmdSupportsFused(); }   // fused-handoff F6
 // TODO.md plan steps C12 (NV) and A3 (AMD)
 bool GPUInterface::GetDeviceLost() { return isNVIDIA ? NvDeviceLost(this) : AmdDeviceLost(this); }
 bool GPUInterface::GetOutOfMemory() { return isNVIDIA ? NvOutOfMemory(this) : AmdOutOfMemory(this); }   // plan step M1

@@ -7,6 +7,9 @@
 #ifdef BEAGLE_TINYGPU_SPECTRAL
 #include "libhmsbeagle/GPU/BeagleGPUSpectralImpl.h"
 #endif
+#ifdef BEAGLE_TINYGPU_FUSED
+#include "libhmsbeagle/GPU/BeagleGPUFusedImpl.h"
+#endif
 #include "libhmsbeagle/GPU/TinyGPUPlugin.h"
 
 namespace beagle {
@@ -60,6 +63,7 @@ TinyGPUPlugin::TinyGPUPlugin() :
     bool anyGPUFound  = false;
     bool anyGPUSupDP  = false;
     bool anyGPUSpectral = false;   // some device has this build's spectral modules (plan decision D9)
+    bool anyGPUFused = false;      // ... modules with kernelUpPartialsFused (BUILD_FUSED, TEST)
 
     if (gpu.Initialize() == BEAGLE_SUCCESS) {
         int gpuDeviceCount = gpu.GetDeviceCount();
@@ -98,6 +102,12 @@ TinyGPUPlugin::TinyGPUPlugin() :
                 anyGPUSpectral = true;
             }
 #endif
+#ifdef BEAGLE_TINYGPU_FUSED
+            if (gpu.GetSupportsFused(i)) {   // fused-handoff/PLAN-fused-uppartials.md section 6
+                resource.supportFlags |= BEAGLE_FLAG_PARALLELOPS_FUSED;
+                anyGPUFused = true;
+            }
+#endif
 
             resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_TINYGPU;
             beagleResources.push_back(resource);
@@ -114,6 +124,13 @@ TinyGPUPlugin::TinyGPUPlugin() :
     if (anyGPUSpectral)
         beagleFactories.push_back(new TinyGPUImplFactory<tinygpu::BeagleGPUSpectralImplFactory>(anyGPUSupDP,
                                                                                     "GPU-SP-DP-TinyGPU-Spectral", 0));
+#endif
+#ifdef BEAGLE_TINYGPU_FUSED
+    // the TEST fused implementation, on the standard modules: its createImpl takes only requests that prefer or require
+    // PARALLELOPS_FUSED, and the wrapper above refuses spectral ones (fused-handoff/PLAN-fused-uppartials.md decision D4)
+    if (anyGPUFused)
+        beagleFactories.push_back(new TinyGPUImplFactory<tinygpu::BeagleGPUFusedImplFactory>(anyGPUSupDP,
+                                                                                 "GPU-SP-DP-TinyGPU-Fused", 0));
 #endif
 }
 

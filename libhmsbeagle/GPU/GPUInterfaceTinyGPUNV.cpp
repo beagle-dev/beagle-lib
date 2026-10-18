@@ -1007,6 +1007,15 @@ bool NvSupportsSpectral() {
 #endif
 }
 
+// fused-handoff/PLAN-fused-uppartials.md section 6: with BUILD_FUSED every module holds kernelUpPartialsFused (decision D4)
+bool NvSupportsFused() {
+#ifdef BEAGLE_TINYGPU_FUSED
+    return true;
+#else
+    return false;
+#endif
+}
+
 // Each handle's launch template: the instance's own programs.
 static void nvLinkTemplates(NVInstance& in, const std::map<std::string, NVDKernel>& templates) {
     for (auto& kv : in.kernels) {

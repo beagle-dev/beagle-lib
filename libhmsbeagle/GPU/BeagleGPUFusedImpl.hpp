@@ -52,9 +52,13 @@ void BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::allocateOpTable(int capacity) {
     const size_t tableBytes = (size_t) capacity * kOpTableWords * sizeof(unsigned int);
     kOpCapacity = capacity;
     dFusedOps = this->gpu->AllocateMemory(tableBytes);
+#ifdef FW_OPENCL
     kFusedOpsBytes = 64 * tableBytes;   // at most one wrap sync per 64 full-capacity calls
     if (kFusedOpsBytes < ((size_t) 16 << 20))
         kFusedOpsBytes = (size_t) 16 << 20;
+#else
+    kFusedOpsBytes = tableBytes;        // TinyGPU's MemcpyHostToDevice has copied the table when it returns
+#endif
     hFusedOps = (unsigned char*) this->gpu->MallocHost(kFusedOpsBytes);
     kFusedOpsPos = 0;
 }
@@ -121,10 +125,12 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
     }
 
     const size_t tableBytes = (size_t) operationCount * kOpTableWords * sizeof(unsigned int);
+#ifdef FW_OPENCL
     if (kFusedOpsPos + tableBytes > kFusedOpsBytes) {
         gpuIf->SynchronizeHost();   // every earlier upload from hFusedOps has completed
         kFusedOpsPos = 0;
     }
+#endif
     unsigned int* rec = (unsigned int*) (hFusedOps + kFusedOpsPos);
 
     // the offsets are read on every call: ensureBufferCounts and pattern resorting move the pools
@@ -186,8 +192,14 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
         r[7] = scaleOff;
     }
 
+#ifdef FW_OPENCL
     gpuIf->MemcpyHostToDeviceNoWait(dFusedOps, rec, tableBytes);
     kFusedOpsPos += tableBytes;
+#else
+    // TinyGPU: copied into the staging ring at once, so the one host buffer is reused at the next call; the copy runs
+    // after the previous launch and before this one (GPUInterfaceTinyGPUNV.cpp's NvMemcpyHostToDevice)
+    gpuIf->MemcpyHostToDevice(dFusedOps, rec, tableBytes);
+#endif
 
     int cumulativeOffset = 0;
     int fusedFlags = 0;   // FUSED_HAS_CUMULATIVE 1, FUSED_SCALERS_LOG 2 (kernelsFused.cu)
@@ -235,6 +247,7 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
     return BEAGLE_SUCCESS;
 }
 
+#ifdef FW_OPENCL
 template<>
 char* BeagleGPUFusedImpl<double>::getInstanceName() {
     return (char*) "OpenCL-Double-Fused";
@@ -244,6 +257,17 @@ template<>
 char* BeagleGPUFusedImpl<float>::getInstanceName() {
     return (char*) "OpenCL-Single-Fused";
 }
+#elif defined(FW_TINYGPU)
+template<>
+char* BeagleGPUFusedImpl<double>::getInstanceName() {
+    return (char*) "TinyGPU-Double-Fused";
+}
+
+template<>
+char* BeagleGPUFusedImpl<float>::getInstanceName() {
+    return (char*) "TinyGPU-Single-Fused";
+}
+#endif
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
@@ -300,6 +324,7 @@ BeagleImpl* BeagleGPUFusedImplFactory<BEAGLE_GPU_GENERIC>::createImpl(
     return NULL;
 }
 
+#ifdef FW_OPENCL
 template<>
 const char* BeagleGPUFusedImplFactory<double>::getName() {
     return "GPU-DP-OpenCL-Fused";
@@ -309,6 +334,17 @@ template<>
 const char* BeagleGPUFusedImplFactory<float>::getName() {
     return "GPU-SP-OpenCL-Fused";
 }
+#elif defined(FW_TINYGPU)
+template<>
+const char* BeagleGPUFusedImplFactory<double>::getName() {
+    return "GPU-DP-TinyGPU-Fused";
+}
+
+template<>
+const char* BeagleGPUFusedImplFactory<float>::getName() {
+    return "GPU-SP-TinyGPU-Fused";
+}
+#endif
 
 BEAGLE_GPU_TEMPLATE
 const long BeagleGPUFusedImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {

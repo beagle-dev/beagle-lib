@@ -223,6 +223,8 @@ public:
     void ReportOutOfMemory(size_t memSize);
     // The build embeds this vendor's spectral modules (SPEC_), which a BeagleGPUSpectralImpl loads
     bool GetSupportsSpectral(int deviceNumber);
+    // The build's standard modules hold kernelUpPartialsFused, which a BeagleGPUFusedImpl launches (BUILD_FUSED, TEST)
+    bool GetSupportsFused(int deviceNumber);
 #endif
 
 #ifdef FW_OPENCL

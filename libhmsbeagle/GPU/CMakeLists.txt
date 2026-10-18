@@ -127,6 +127,12 @@ if(BUILD_TINYGPU)
 		set(TINYGPU_SPECTRAL spectral)   # the scripts' switch; unquoted below, so empty drops out
 		set(TINYGPU_SPECTRAL_SOURCES "kernels/kernelsSpectralIfDef.cu" "kernels/kernelsSpectralIfDef4.cu")
 	endif()
+	# BUILD_FUSED: kernelsFused.cu's kernelUpPartialsFused in every module, standard and SPEC_, which the fused implementation
+	# loads as the standard one does (fused-handoff/PLAN-fused-uppartials.md decision D4); unquoted below, so empty drops out
+	if(BUILD_FUSED)
+		set(TINYGPU_FUSED fused)
+		set(TINYGPU_FUSED_SOURCES "kernels/kernelsFused.cu")
+	endif()
 	# The script also keeps the SP and DP modules for the TinyGPU cubins
 	# (TODO.md plan steps C1, C16), and the SPEC_ ones. Declared as outputs, so a
 	# missing one reruns the script.
@@ -138,9 +144,9 @@ if(BUILD_TINYGPU)
 	endforeach()
 	add_custom_command(
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h" ${TINYGPU_PTX}
-			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}" ${TINYGPU_SPECTRAL}
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}" ${TINYGPU_SPECTRAL} ${TINYGPU_FUSED}
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh" ${TINYGPU_SPECTRAL_SOURCES}
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh" ${TINYGPU_SPECTRAL_SOURCES} ${TINYGPU_FUSED_SOURCES}
 			COMMENT "Building TinyGPU-specific kernel PTX (-DCUDA -DFW_TINYGPU)"
 			VERBATIM)
 	add_custom_command(
@@ -182,7 +188,7 @@ if(BUILD_TINYGPU)
 	endforeach()
 	add_custom_command(
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_cubins.S" "${CMAKE_CURRENT_SOURCE_DIR}/kernels/TinyGPUNVCubins.h" ${TINYGPU_CUBINS}
-			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_cubins.sh" "${TINYGPU_PTXAS}" ${TINYGPU_SPECTRAL}
+			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_cubins.sh" "${TINYGPU_PTXAS}" ${TINYGPU_SPECTRAL} ${TINYGPU_FUSED}
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
 			DEPENDS ${TINYGPU_PTX} "kernels/make_tinygpu_cubins.sh"
 			COMMENT "Building TinyGPU ahead-of-time cubins (ptxas: SP and DP x sm_86, sm_89, sm_120)"
