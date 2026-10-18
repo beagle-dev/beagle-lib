@@ -844,7 +844,7 @@ void checkConfig(const Config& c, int index) {
     const int deep = deepestTip(p), random = branchSequence(p.n, gOpt.seed + index)[0];
     int passed = 0, total = 0;
     for (const char* sc : {"none", "read", "write", "writecum", "writeread"}) {
-        if (!strcmp(sc, "none") && !gOpt.dbl && c.taxa > 17) continue;    // single precision underflows
+        if (!strcmp(sc, "none") && !gOpt.dbl && c.taxa > (c.states > 4 ? 5 : 17)) continue;    // single precision underflows
         for (const char* up : {"full", "branch-deep", "branch-random"}) {
             const int v = strcmp(up, "branch-deep") ? random : deep;
             auto script = [&](const Inst& in) {
@@ -1254,6 +1254,8 @@ int benchConfig(const Config& c, int index, Csv& csv) {
     for (size_t i = 0; i < s.insts.size(); ++i) if (s.insts[i].name != "REF") timed.push_back(i);
     std::vector<int> K(s.insts.size()), E(s.insts.size());
     std::vector<char> fast(s.insts.size());
+    // branch-random blocks start at the sequence length, so every instance times whole cycles of the same paths
+    const int cycle = (int) b.branches.size(), firstK = (cycle > 1) ? cycle : 1, firstE = (cycle > 1) ? cycle : 4;
     for (size_t i : timed) {
         const Inst& in = s.insts[i];
         tSync[i] = syncTime(in, p, b.rootCum);
@@ -1261,8 +1263,8 @@ int benchConfig(const Config& c, int index, Csv& csv) {
         const double target = fast[i] ? 20000.0 : 200000.0;   // slow syncs vary by 5-8 ms
         upBlock(in, p, b, 1, nullptr);                          // untimed: first-touch costs
         evalBlock(in, p, b, 1);
-        K[i] = gOpt.k ? gOpt.k : calibrate([&](int n) { return upBlock(in, p, b, n, nullptr); }, target, 1);
-        E[i] = gOpt.k ? std::max(3, gOpt.k) : calibrate([&](int n) { return evalBlock(in, p, b, n); }, target, 4);
+        K[i] = gOpt.k ? gOpt.k : calibrate([&](int n) { return upBlock(in, p, b, n, nullptr); }, target, firstK);
+        E[i] = gOpt.k ? std::max(3, gOpt.k) : calibrate([&](int n) { return evalBlock(in, p, b, n); }, target, firstE);
     }
     for (size_t i : timed) {
         if (fast[i] != fast[timed[0]])
