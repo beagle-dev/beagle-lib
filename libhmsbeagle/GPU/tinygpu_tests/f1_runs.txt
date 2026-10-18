@@ -9,8 +9,7 @@
 # blocks (16, 16 / C, C) at C 1, 2, 3, 4 and 8, and the generic grid with one row (write) and C rows (none, read).
 # hw and both: run_fused.sh <label> on the eGPU (F7 on the RTX 4060, F8 on the GB205), with --csv next to the run's output;
 # it passes when fusedbench exits 0 with PASS, every CSV row is ok, and the verdict above holds. The first configurations
-# of chk_sp and chk_dp are 4 states at C 2, 4 and 8, the first 3-D blocks launched on NV. BR10 and BR1000 time the
-# branch-random lines in whole cycles of the 64-branch sequence (F5-results.md finding 1); they are optional.
+# of chk_sp and chk_dp are 4 states at C 2, 4 and 8, the first 3-D blocks launched on NV.
 f4_c4|--framework tinygpu --impls B --states 4 --patterns 65 --categories 4 --taxa 17 --tree pectinate --tips mixed --scaling write|fake
 f4_c1|--framework tinygpu --impls B --states 4 --patterns 65 --categories 1 --taxa 17 --update branch-deep --scaling read --logscalers|fake
 f4_c2|--framework tinygpu --impls B --states 4 --patterns 3 --categories 2 --taxa 5 --tips partials --scaling none|fake
@@ -44,5 +43,3 @@ G4|--framework tinygpu --configs $REPO/examples/fusedbench/groups/G4.txt|hw
 SW|--framework tinygpu --configs $REPO/examples/fusedbench/groups/SW.txt|hw
 NVDP|--framework tinygpu --double --configs $REPO/examples/fusedbench/groups/NVDP.txt|hw
 GB205|--framework tinygpu --configs $REPO/examples/fusedbench/groups/GB205.txt|hw
-BR10|--framework tinygpu --configs $REPO/examples/fusedbench/groups/BR10.txt --k 1024|hw
-BR1000|--framework tinygpu --configs $REPO/examples/fusedbench/groups/BR1000.txt --k 64|hw
