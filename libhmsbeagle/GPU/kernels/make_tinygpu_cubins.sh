@@ -114,6 +114,6 @@ done
 
 printf "static const TinyGPUNVCubin kTinyGPUNVCubins[] = {\n${table}};\n" >> "${tmpindex}"
 [ -z "${spectable}" ] || printf "#define TINYGPU_NV_SPECTRAL_CUBINS 1\nstatic const TinyGPUNVCubin kTinyGPUNVSpectralCubins[] = {\n${spectable}};\n" >> "${tmpindex}"
-[ -z "${FUSED}" ] || echo "#define TINYGPU_NV_FUSED_CUBINS 1   // every module holds kernelUpPartialsFused" >> "${tmpindex}"   # tgpaths.fused_built
+[ -z "${FUSED}" ] || echo "#define TINYGPU_NV_FUSED_CUBINS 1   // every module holds kernelUpPartialsFused" >> "${tmpindex}"   # test_c1_cubins.py
 mv "${tmpindex}" "${outindex}"
 mv "${tmpasm}" "${outasm}"
