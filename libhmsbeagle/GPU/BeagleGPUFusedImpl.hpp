@@ -80,8 +80,6 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::createInstance(
     if (requirementFlags & unsupported) return BEAGLE_ERROR_NO_IMPLEMENTATION;
     preferenceFlags &= ~unsupported;
 
-    if (stateCount > 4) return BEAGLE_ERROR_NO_IMPLEMENTATION;   // TEMPORARY (fused plan F3): the generic-state kernel is F4's
-
     int rc = BeagleGPUImpl<Real>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
                                                   stateCount, patternCount, eigenDecompositionCount,
                                                   matrixCount, categoryCount, scaleBufferCount,
@@ -132,6 +130,7 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
     // the offsets are read on every call: ensureBufferCounts and pattern resorting move the pools
     const unsigned int matrixStride = this->getMatrixStrideElements();
     const unsigned int scaleSize    = this->getScaleBufferSizeElements();
+    bool anyWrite = false;
     for (int op = 0; op < operationCount; op++) {
         const int* o = operations + op * BEAGLE_OP_COUNT;
         const int parIndex            = o[0];
@@ -170,6 +169,7 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
         if (writeScalingIndex >= 0) {
             mode     = 2;
             scaleOff = writeScalingIndex * scaleSize;
+            anyWrite = true;
         } else if (readScalingIndex >= 0) {
             mode     = 1;
             scaleOff = readScalingIndex * scaleSize;
@@ -198,11 +198,24 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
     if (this->kFlags & BEAGLE_FLAG_SCALERS_LOG)
         fusedFlags |= 2;
 
-    // 4 states: each work-group computes all categories of 4 * R patterns; never dereferenced, the partials origin
-    // stands in for a missing states or scale pool
-    const int rowsPerCategory = 16 / this->kCategoryCount;
-    Dim3Int block(16, rowsPerCategory, this->kCategoryCount);
-    Dim3Int grid((this->kPaddedPatternCount + 4 * rowsPerCategory - 1) / (4 * rowsPerCategory), 1);
+    // 4 states: each work-group computes all categories of 4 * R patterns. Otherwise block (S, PBS) and one category
+    // per grid row, unless some operation writes factors: then grid.y = 1 and each work-group loops over all
+    // categories of its patterns
+    Dim3Int block, grid;
+    int layoutParam;
+    if (this->kPaddedStateCount == 4) {
+        const int rowsPerCategory = 16 / this->kCategoryCount;
+        block = Dim3Int(16, rowsPerCategory, this->kCategoryCount);
+        grid  = Dim3Int((this->kPaddedPatternCount + 4 * rowsPerCategory - 1) / (4 * rowsPerCategory), 1);
+        layoutParam = rowsPerCategory;
+    } else {
+        const int patternBlockSize = gpuIf->kernelResource->patternBlockSize;
+        const int gy = anyWrite ? 1 : this->kCategoryCount;
+        block = Dim3Int(this->kPaddedStateCount, patternBlockSize);
+        grid  = Dim3Int((this->kPaddedPatternCount + patternBlockSize - 1) / patternBlockSize, gy);
+        layoutParam = gy;
+    }
+    // never dereferenced, the partials origin stands in for a missing states or scale pool
     GPUPtr partialsOrigin = this->getPartialsOrigin();
     GPUPtr statesOrigin   = this->getStatesOrigin();
     GPUPtr scaleOrigin    = this->getScalingFactorsOriginRaw();
@@ -213,7 +226,7 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
                         scaleOrigin ? scaleOrigin : partialsOrigin,
                         dFusedOps,
                         operationCount, this->kPaddedPatternCount, this->kCategoryCount,
-                        rowsPerCategory, cumulativeOffset, fusedFlags);
+                        layoutParam, cumulativeOffset, fusedFlags);
 
 #ifdef BEAGLE_DEBUG_SYNCH
     gpuIf->SynchronizeHost();

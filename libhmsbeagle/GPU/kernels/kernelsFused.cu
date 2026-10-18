@@ -123,7 +123,79 @@ kernelUpPartialsFused(KW_GLOBAL_VAR REAL* partials,
     }
 }
 #else
-/* the generic-state kernel: fused plan F4 */
+/* Block (S, PBS), grid (ceil(P / PBS), categoryStride): a group computes categories KW_GROUP_ID_1,
+   KW_GROUP_ID_1 + categoryStride, ... of its PBS patterns. The host passes categoryStride = 1 (grid.y = 1) when some
+   operation of the call writes factors, so that the group owns every category of its patterns, and the category count
+   otherwise. A work-item reads a child at the element it writes the parent, so earlier operations' outputs need no
+   barrier. The last peeling fence follows the last local read, and factors are read from global, so operations need
+   no boundary fence. No pattern padding: the last block is partial and every store is guarded. */
+KW_GLOBAL_KERNEL void
+#ifdef CUDA
+__launch_bounds__(PATTERN_BLOCK_SIZE * PADDED_STATE_COUNT)
+#endif
+kernelUpPartialsFused(KW_GLOBAL_VAR REAL* partials,
+                      KW_GLOBAL_VAR int* KW_RESTRICT states,
+                      KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+                      KW_GLOBAL_VAR REAL* scaleFactors,
+                      const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                      int opCount, int totalPatterns, int matrixCount,
+                      int layoutParam, int cumulativeOffset, int fusedFlags) {
+    SUM_PARTIALS_PARTIALS_X_DECLARE_GPU()              /* sMatrix1/2, sPartials1/2; states-partials reuses them */
+    KW_LOCAL_MEM REAL fsRedX[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_GLOBAL_VAR REAL* cumulativeScaling = scaleFactors + cumulativeOffset;
+    const int categoryStride = layoutParam;
+    DETERMINE_INDICES_X_PATTERN_GPU()                  /* state, patIdx, pattern */
+    for (int k = 0; k < opCount; k++) {                /* uniform trip count */
+        const int opIndexPtr = k * 8;
+        const unsigned int kind = FUSED_KIND(ptrOffsets[opIndexPtr]), mode = FUSED_MODE(ptrOffsets[opIndexPtr]);
+        KW_GLOBAL_VAR REAL* partials3 = partials + ptrOffsets[opIndexPtr + 4];
+        KW_GLOBAL_VAR REAL* matrices1 = matrices + ptrOffsets[opIndexPtr + 5];
+        KW_GLOBAL_VAR REAL* matrices2 = matrices + ptrOffsets[opIndexPtr + 6];
+        REAL tmax = 0;
+        for (int c = KW_GROUP_ID_1; c < matrixCount; c += categoryStride) {   /* group-uniform */
+            DETERMINE_INDICES_X_CATEGORY_GPU(c)        /* matrix, patternCount, deltas, deltaMatrix, u */
+            REAL v = 0;
+            if (kind == 1) {
+                KW_GLOBAL_VAR REAL* partials1 = partials + ptrOffsets[opIndexPtr + 2];
+                KW_GLOBAL_VAR REAL* partials2 = partials + ptrOffsets[opIndexPtr + 3];
+                SUM_PARTIALS_PARTIALS_X_PTRS_GPU()
+                SUM_PARTIALS_PARTIALS_X_BODY_GPU()
+                v = sum1 * sum2;
+            } else if (kind == 2) {
+                KW_GLOBAL_VAR int*  states1   = states   + ptrOffsets[opIndexPtr + 2];
+                KW_GLOBAL_VAR REAL* partials2 = partials + ptrOffsets[opIndexPtr + 3];
+                SUM_STATES_PARTIALS_X_BODY_GPU()
+                v = sum1 * sum2;
+            } else if (pattern < totalPatterns) {      /* the macro reads states[pattern] unguarded; no barriers */
+                KW_GLOBAL_VAR int* states1 = states + ptrOffsets[opIndexPtr + 2];
+                KW_GLOBAL_VAR int* states2 = states + ptrOffsets[opIndexPtr + 3];
+                SUM_STATES_STATES_X_GPU(v)
+            }
+            if (pattern < totalPatterns) {
+                if (mode == 1) v = v / scaleFactors[ptrOffsets[opIndexPtr + 7] + pattern];
+                if (mode == 2 && v > tmax) tmax = v;
+                partials3[u] = v;
+            }
+        }
+        if (mode == 2) {                               /* uniform; only in calls launched with categoryStride 1 */
+            KW_GLOBAL_VAR REAL* scaleOut = scaleFactors + ptrOffsets[opIndexPtr + 7];
+            fsRedX[patIdx][state] = tmax;  KW_LOCAL_FENCE;
+#ifdef IS_POWER_OF_TWO
+            FIND_MAX_PARTIALS_STATE_POWER_OF_TWO_X_ROW_GPU(fsRedX[patIdx])   /* categories first, then states */
+#else
+            FIND_MAX_PARTIALS_STATE_X_ROW_GPU(fsRedX[patIdx])
+#endif
+            REAL patMax = fsRedX[patIdx][0];          /* not fmax: an OpenCL builtin and a CUDA math function */
+            if (state == 0 && pattern < totalPatterns) { FUSED_WRITE_SCALE_FACTOR_GPU(patMax, pattern) }
+            if (patMax == 0) patMax = 1.0;
+            KW_GLOBAL_FENCE;                           /* after every fsRedX read; the factor to later read operations */
+            for (int c = 0; c < matrixCount; c++) {    /* this work-item's own stores, re-read in program order */
+                DETERMINE_INDICES_X_CATEGORY_GPU(c)
+                if (pattern < totalPatterns) partials3[u] = partials3[u] / patMax;
+            }
+        }
+    }
+}
 #endif
 
 #endif /* FW_OPENCL_CPU */
