@@ -6,7 +6,8 @@
 # (env.sh) when it runs B only (--impls B): one boot, the standard modules only, no launch rejected, no kernel missing and no
 # failed step, B TinyGPU's fused instance, one kernelUpPartialsFused launch per B updatePartials call, and no standard
 # pruning or scaling kernel; any other line fused_run_verdict, with A TinyGPU's standard instance and B its fused one in
-# the same process. Needs fusedbench (BUILD_FUSED); without it nothing runs (exit 2).
+# the same process; an A-only line (--impls A) one boot and A TinyGPU's standard instance. On every line, each launch the
+# plugin encoded must have run on the fake GPU. Needs fusedbench (BUILD_FUSED); without it nothing runs (exit 2).
 # The runs go in parallel (env.sh pjob), then one PASS or FAIL line per check; exit 0 only if all pass.
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 require_no_launch_guard
@@ -21,6 +22,14 @@ check() { if eval "$2"; then pass "$1"; else fail "$1"; fi; }
 
 out() { echo "$TINYGPU_TEST_WORK/run_device_$1.txt"; }   # the plugin's and the program's output (run_fake_device.sh's)
 lines() { grep -E '^[A-Za-z0-9_]+\|.*\|(fake|both)$' "$TG_TESTS/f1_runs.txt"; }
+# every launch the plugin encoded ran on the fake GPU, which walks each batch's QMD chain (F7: a batch larger than the kargs
+# ring overwrote its own QMDs, and the chain skipped them)
+all_ran() {   # <run label>
+    local enc ran
+    enc=$(sed -nE 's/^TinyGPU\/NV: \[profile\]   ([0-9]+) launches in .*/\1/p' "$(out $1)")
+    ran=$(grep -o '"launches": [0-9]*' "$TINYGPU_TEST_WORK/fake_device_$1.log" | tail -1 | grep -o '[0-9]*$')
+    [ -n "$enc" ] && [ "$enc" = "$ran" ]
+}
 
 while IFS='|' read -r label args where; do
     for chip in ad107 ga104 gb205; do
@@ -39,11 +48,15 @@ while IFS='|' read -r label args where; do
             why=$(fused_verdict "$o" "$o")
             check "$label on the fake $(echo $chip | tr a-z A-Z): one boot, standard modules, one kernelUpPartialsFused launch per B call ($(sed -n 's/^B updatePartials calls: //p' "$o") calls)${why:+ ($why)}" \
                 "fused_verdict '$o' '$o' > /dev/null"
+        elif [[ " $args " == *" --impls A "* ]]; then   # the standard instance alone (the wrap line)
+            check "$label on the fake $(echo $chip | tr a-z A-Z): one boot, A TinyGPU's standard instance" \
+                "[ \$(grep -c 'TinyGPU/NV: level boot: the C++ boot, with no daemon' '$o') -eq 1 ] && grep -qE '^  A +TinyGPU-(Single|Double) ' '$o'"
         else
             why=$(fused_run_verdict "$o" "$o")
             check "$label on the fake $(echo $chip | tr a-z A-Z): one boot, standard modules, A TinyGPU's standard instance and B its fused one${why:+ ($why)}" \
                 "fused_run_verdict '$o' '$o' > /dev/null && grep -qE '^  A +TinyGPU-(Single|Double) ' '$o' && grep -qE '^  B +TinyGPU-(Single|Double)-Fused ' '$o'"
         fi
+        check "$label on the fake $(echo $chip | tr a-z A-Z): every encoded launch ran on the fake GPU" "all_ran $l"
     done
 done < <(lines)
 

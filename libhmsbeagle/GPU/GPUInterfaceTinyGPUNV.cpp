@@ -405,15 +405,30 @@ static bool nvd_check_launch(const NVDKernel& k, const int grid[3], const int bl
 
 // The oracle's chained cmd_launch_batch, encoded here: one timeline wait and
 // shader-cache invalidate, each launch's QMD chained onto the previous one,
-// and the last QMD signalling the timeline.
+// and the last QMD signalling the timeline. A backlog that does not fit in the
+// kargs ring goes as several batches: wrapping the ring waits only for work
+// already submitted (nvd_alloc), so the batch so far is submitted first, or the
+// wrap would overwrite its own QMDs before the GPU ran them.
 static void nvdFlushLaunches(std::vector<NVPendingLaunch>& pending) {
     auto t0 = nv_profile_start();
     NVDHandoff& h = g_nvd->h;
     std::vector<uint32_t> pb;
-    uint64_t value = g_nvd->timeline;
-    nvd_push_wait(pb, h, h.signal.va, value - 1);
-    nvd_push_invalidate(pb, h);
+    uint64_t value = 0;
     uint8_t* prev = nullptr;
+    auto begin = [&] {
+        pb.clear();
+        value = g_nvd->timeline;
+        nvd_push_wait(pb, h, h.signal.va, value - 1);
+        nvd_push_invalidate(pb, h);
+        prev = nullptr;
+    };
+    auto submit = [&] {
+        nvd_qmd_release(h, prev, h.signal.va, value);
+        g_nvd->timeline = value + 1;
+        nvd_submit(h.compute, pb);
+        nv_test_kill("batch");   // plan step C10's test: killed with this batch on the GPU
+    };
+    begin();
     long long launched = 0;
     for (const NVPendingLaunch& pl : pending) {
         if (!pl.tmpl) {
@@ -424,6 +439,7 @@ static void nvdFlushLaunches(std::vector<NVPendingLaunch>& pending) {
         if (!nvd_check_launch(k, pl.grid, pl.block)) continue;
         uint32_t grid[3] = { (uint32_t)pl.grid[0], (uint32_t)pl.grid[1], (uint32_t)pl.grid[2] };
         uint32_t block[3] = { (uint32_t)pl.block[0], (uint32_t)pl.block[1], (uint32_t)pl.block[2] };
+        if (prev && ((g_nvd->kargs_pos + 255) & ~255ull) + k.slot_size > h.kargs.size) { submit(); begin(); }
         uint64_t off = nvd_alloc(g_nvd->kargs_pos, h.kargs.size, k.slot_size, 256);
         uint8_t* qmd = nvd_encode_launch(h, k, g_nvd->kargs + off, h.kargs.va + off, grid, block,
                                          reinterpret_cast<const uint64_t*>(pl.ptrs.data()), (int)pl.ptrs.size(),
@@ -435,10 +451,7 @@ static void nvdFlushLaunches(std::vector<NVPendingLaunch>& pending) {
     }
     pending.clear();
     if (!prev) return;
-    nvd_qmd_release(h, prev, h.signal.va, value);
-    g_nvd->timeline = value + 1;
-    nvd_submit(h.compute, pb);
-    nv_test_kill("batch");   // plan step C10's test: killed with this batch on the GPU
+    submit();
     nv_profile_end("launch_batch", t0);
     g_nvProfileLaunches += launched;
 }
