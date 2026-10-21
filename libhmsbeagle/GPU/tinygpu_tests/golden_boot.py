@@ -43,10 +43,15 @@ GB205 = dict(cfg={0x0: 0x2f0410de, 0x4: 0x00100007, 0x8: 0x030000a1, 0x2c: 0x89e
              regs={BOOT_0: 0x1b5000a1, BOOT_42: 0x1b5a1000, SCRATCH_42: 0x2fc3, I2CS: 0xff}, l0="20260927-093033_Marcs-Mac-Studio-490_gb205_l0")
 # plan step G1: an Ampere (an RTX 3070's ids, architecture 0x17, implementation 4) on the AD107's BARs and VRAM; no card, no recording
 GA104 = dict(cfg={**AD107["cfg"], 0x0: 0x248410de}, bars=AD107["bars"], regs={BOOT_0: 0x174000a1, BOOT_42: 0x174a1000, SCRATCH_42: 0x1ffc}, l0=None)
+# the RTX A6000 (GA102, 10de:2230 rev a1, Dell 1028:1459, 49140 MiB) in an Aoostar AG03 (JHL9480): its own replies, from the
+# A6000 fix plan's B2 recording (reports/A6000_fix_plan_2026-10-19.md; the first boot that passed, with the Gen1 link lock)
+GA102 = dict(cfg={0x0: 0x223010de, 0x4: 0x00100007, 0x8: 0x030000a1, 0x2c: 0x14591028},
+             bars={0: (0x111000000, 16 * MB), 1: (0x112000000, 256 * MB), 3: (0x125cbc000, 32 * MB)},
+             regs={BOOT_0: 0xb72000a1, BOOT_42: 0x172a1000, SCRATCH_42: 0xbff4}, l0="20261020-150047_xiang-mbp14-2025_b2_gen1lock")
 
 # ── the VBIOS: the captured dumps, the L0 recording's own, and malformed or ambiguous copies ───────────────────────────────
-def captured_vbios():
-    return [pathlib.Path(p).read_bytes() for p in sorted(glob.glob(str(tgpaths.DATA / "vbios" / "AD107_*.rom")))]
+def captured_vbios(chip="AD107"):
+    return [pathlib.Path(p).read_bytes() for p in sorted(glob.glob(str(tgpaths.DATA / "vbios" / f"{chip}_*.rom")))]
 
 def l0_vbios(name):
     """The VBIOS the recorded boot read: the reply to its prep_ucode read."""
@@ -88,8 +93,11 @@ def patched(vbios, **edits):
     return bytes(v)
 
 class Case:
-    def __init__(self, name, chip, mode="early", cfg=None, bars=None, regs=None, l0=False, expect=None, stream=None, vbios=None, teardown=True):
+    def __init__(self, name, chip, mode="early", cfg=None, bars=None, regs=None, l0=False, expect=None, stream=None, vbios=None, teardown=True,
+                 env=None, lock=None):
         self.name, self.mode, self.l0, self.stream, self.teardown = name, mode, chip["l0"] if l0 else None, stream, teardown
+        self.env = env or {}   # set for both clients
+        self.lock = lock       # sw: whether SET_REGISTRY carries the GA10x link lock (RMPcieLinkSpeed), checked in sysmem
         self.cfg = {**chip["cfg"], **(cfg or {})}
         self.bars = {**chip["bars"], **(bars or {})}
         self.regs = {**chip["regs"], **(regs or {})}
@@ -110,8 +118,28 @@ def cases():
         Case("an unknown architecture", AD107, regs={BOOT_42: 0x187a1000}, expect=r"^error KeyError: 24$"),
         Case("GB205, the FSP never ready", GB205, regs={I2CS: 0x7}, expect=r"^error TimeoutError: FSP not ready: NV_THERM_I2CS_SCRATCH=0x00000007 after N ms"),
     ]
+    cs.append(  # needs no captured VBIOS: the COT boot reads none
+        Case("GB205 cold, the whole init_sw", GB205, mode="sw", l0=True,
+             expect=r"^chip 0x1b5000a1 .*\ncot boot_args 0x[0-9a-f]+ fmc 0x[0-9a-f]+ hash 12 .*\ngsp rm_args .* seq 2 classes 0xc96f 0xcec0 0xcab5 0xcfb0$", lock=False))
+    # the A6000 fix (Phase C): GA10x boots send RMPcieLinkSpeed=0x800002AA in SET_REGISTRY, other families tinygrad's table
+    ga102_rom = l0_vbios(GA102["l0"]) or next(iter(captured_vbios("GA102")), None)
+    if ga102_rom is None: SKIPPED.append("the GA102 cases (no A6000 recording or GA102 VBIOS on this Mac)")
+    else:
+        ga_sw = r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc7c0 0xc7b5 0x0$"
+        cs += [
+            Case("GA102 cold", GA102, l0=True, expect=r"^chip 0xb72000a1 GA102 ga102 mmu 2 fmc 0 vram 51527024640 bar1 268435456 large 0 root "),
+            Case("GA102 cold, NV_FLCN.init_sw (the A6000's VBIOS)", GA102, mode="flcn", l0=True, vbios=ga102_rom,
+                 expect=r"\nflcn frts 0xbff200000 at 0x[0-9a-f]+ desc .* booter at 0x[0-9a-f]+ data .*\nteardown sb at 0x[0-9a-f]+ unload at 0x[0-9a-f]+ data "),
+            Case("GA102 cold, the whole init_sw: SET_REGISTRY carries the Gen1 link lock", GA102, mode="sw", l0=True, vbios=ga102_rom,
+                 expect=ga_sw, lock=True),
+            Case("GA102, BEAGLE_NV_GA10X_LINK_LOCK=0: tinygrad's registry table", GA102, mode="sw", vbios=ga102_rom,
+                 env={"BEAGLE_NV_GA10X_LINK_LOCK": "0"}, expect=ga_sw, lock=False),
+        ]
     roms = captured_vbios()
     rec_rom = l0_vbios(AD107["l0"])
+    if not roms:   # the author's AD107 dumps: without them the VBIOS cases below cannot run here (said, not passed)
+        SKIPPED.append("the AD107 VBIOS cases (no AD107_*.rom in the data directory)")
+        return cs
     lay = vbios_layout(roms[0])
     ok_images = (r"\nflcn frts 0x1ffa00000 at 0x1200000 desc .* booter at 0x1211000 data 0x[0-9a-f]+\+0x[0-9a-f]+ code 0x[0-9a-f]+\+0x[0-9a-f]+\n"
                  r"teardown sb at 0x121f000 unload at 0x1230000 data 0x5000\+0x4e00 code 0x100\+0x4f00$")
@@ -121,13 +149,11 @@ def cases():
         *[Case(f"NV_FLCN.init_sw on the captured VBIOS {i + 1} of {len(roms)}", AD107, mode="flcn", vbios=r, expect=ok_images) for i, r in enumerate(roms)],
         Case("NV_FLCN.init_sw, the teardown off", AD107, mode="flcn", vbios=roms[0], teardown=False, expect=r"booter at 0x1211000 .*\nteardown off$"),
         Case("AD107 cold, the whole init_sw" + (" (the recording's VBIOS)" if rec_rom else ""), AD107, mode="sw", l0=rec_rom is not None,
-             vbios=rec_rom or roms[0], expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc9c0 0xc7b5 0xc9b0$"),
+             vbios=rec_rom or roms[0], expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc9c0 0xc7b5 0xc9b0$", lock=False),
         Case("GA104 cold, NV_FLCN.init_sw (ga102's booters)", GA104, mode="flcn", vbios=roms[0],
              expect=r"\nflcn frts 0x1ffa00000 at 0x1200000 desc .* booter at 0x[0-9a-f]+ data .*\nteardown sb at 0x[0-9a-f]+ unload at 0x[0-9a-f]+ data "),
         Case("GA104 cold, the whole init_sw", GA104, mode="sw", vbios=roms[0],
-             expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc7c0 0xc7b5 0x0$"),
-        Case("GB205 cold, the whole init_sw", GB205, mode="sw", l0=True,
-             expect=r"^chip 0x1b5000a1 .*\ncot boot_args 0x[0-9a-f]+ fmc 0x[0-9a-f]+ hash 12 .*\ngsp rm_args .* seq 2 classes 0xc96f 0xcec0 0xcab5 0xcfb0$"),
+             expect=r"\ngsp rm_args 0x[0-9a-f]+ libos 0x[0-9a-f]+ .* seq 2 classes 0xc56f 0xc7c0 0xc7b5 0x0$", lock=True),
         Case("a later ucode entry FWSEC_PROD too: the last wins", AD107, mode="flcn", expect=r"\nflcn frts 0x1ffa00000 at 0x1200000 desc ",
              vbios=patched(roms[0], e=(lay["later_entry"], bytes([nv.FALCON_UCODE_ENTRY_APPID_FWSEC_PROD])))),
         Case("a bad BIT signature", AD107, mode="flcn", vbios=patched(roms[0], s=(0x1b2, struct.pack("<I", 0x00544943))),
@@ -142,6 +168,8 @@ def cases():
              expect=r"\nerror UnboundLocalError: cannot access local variable 'block_size' where it is not associated with a value$"),
     ]
     return cs
+
+SKIPPED = []   # what this Mac cannot run, said at the end
 
 class FakeBoot(gm.FakeTG):
     """golden_mm.py's fake TinyGPU.app as a boot sees it: every request recorded (MAP_BAR too: both clients cache bar_info),
@@ -186,6 +214,8 @@ def py_boot(path, c, data_dir):
     pci.sock.connect(path)
     pci.pcibus, pci.dev_id, pci.peer_group, pci.lock_fd = "usb4", 0, "usb4", None
     out, saved_env, saved_td = [], os.environ.get("BEAGLE_TINYGPU_DATA"), nv_init_helper._TEARDOWN
+    saved_case_env = {k: os.environ.get(k) for k in c.env}
+    os.environ.update(c.env)
     os.environ["BEAGLE_TINYGPU_DATA"], nv_init_helper._TEARDOWN = data_dir, c.teardown
     try:
         with contextlib.suppress(Exception): pci.resize_bar(1)   # PCIIfaceBase.__init__ (system.py:263)
@@ -224,6 +254,9 @@ def py_boot(path, c, data_dir):
     except Exception as e: out.append(f"error {type(e).__name__}: {e}")
     finally:
         nv_init_helper._TEARDOWN = saved_td
+        for k, v in saved_case_env.items():
+            if v is None: os.environ.pop(k, None)
+            else: os.environ[k] = v
         if saved_env is None: os.environ.pop("BEAGLE_TINYGPU_DATA", None)
         else: os.environ["BEAGLE_TINYGPU_DATA"] = saved_env
     pci.sock.close()
@@ -245,16 +278,21 @@ def l0_frames(name, mode):
     exit marker (sw: the second prequeued RPC's doorbell), as frames."""
     rec = RECORDINGS / name
     if not rec.exists(): return None
-    out = []
+    out, ended = [], mode != "sw"
     for e in tgwire.read(rec)[0]:
-        if mode == "sw" and e.kind == tgwire.K_MARKER and e.f["id"] == 10 and e.f["arg"] & tgwire.MARKER_EXIT: break   # NV_GSP.init_sw exit
+        if mode == "sw" and e.kind == tgwire.K_MARKER and e.f["id"] == 10 and e.f["arg"] & tgwire.MARKER_EXIT: ended = True; break   # NV_GSP.init_sw exit
         if e.kind != tgwire.K_REQ: continue
         cmd, bar = e.f["req"][0], e.f["req"][2]
         if not out and cmd != RemoteCmd.RESIZE_BAR: continue
         if mode == "flcn" and cmd == RemoteCmd.MAP_SYSMEM_FD: break
         out.append(e.f["hdr"] + (e.f["payload"] if cmd == RemoteCmd.MMIO_WRITE else b""))
         if mode == "early" and cmd == RemoteCmd.MMIO_WRITE and bar == 1: break
-    return frames(b"".join(out))   # the same rule as the two clients' streams
+    fs = frames(b"".join(out))   # the same rule as the two clients' streams
+    # a recording made without BEAGLE_TG_MARKERS has no init_sw marker: the whole boot, which the step's stream must begin
+    return fs if ended else PrefixFrames(fs)
+
+class PrefixFrames(list):
+    """An L0 recording's frames past the case's step (no NV_GSP.init_sw marker): the step's stream must be their prefix."""
 
 def names(fs):
     return [tgwire.cmd_name(f[0]) + (f" {tgwire.reg_name(struct.unpack_from(gm.REQ, f)[3])}" if f[0] == RemoteCmd.MMIO_READ else "") for f in fs]
@@ -275,6 +313,7 @@ def run_case(c, exe, priv, quiet=False):
     env = dict(os.environ, TMPDIR=priv, APL_REMOTE_SOCK=path, BEAGLE_TINYGPU_NO_LAUNCH="1", BEAGLE_TINYGPU_LOG=f"{priv}/log", BEAGLE_TINYGPU_DATA=cd,
                BEAGLE_NV_RECOVER="0")
     if not c.teardown: env["BEAGLE_NV_TEARDOWN"] = "0"
+    env.update(c.env)
     r = subprocess.run([exe, c.mode], capture_output=True, text=True, timeout=120, env=env)
     t2.join(timeout=60); srv.close()
     cpp_out = mask(r.stdout.strip() + (f" exit {r.returncode}: {r.stderr.strip()}" if r.returncode else ""))
@@ -289,10 +328,18 @@ def run_case(c, exe, priv, quiet=False):
         ok = ok and names(cf) == c.stream
         summary += f"; the stream: {', '.join(names(cf))}"
     if c.mode == "flcn" and saved(cd): summary += f"; VBIOS copy {saved(cd)[0][0]}"
+    if c.lock is not None:   # the A6000 fix: SET_REGISTRY's packed names in the command queue (the GSP image holds the name too)
+        table = any(b"RMForcePcieConfigSave\x00RMSecBusResetEnable\x00" in a for a in cs)
+        lock = any(b"RMForcePcieConfigSave\x00RMSecBusResetEnable\x00RMPcieLinkSpeed\x00" in a for a in cs)
+        ok = ok and table and lock == c.lock
+        summary += ("; SET_REGISTRY not found" if not table else
+                    f"; SET_REGISTRY {'carries' if lock else 'lacks'} the Gen1 link lock" + ("" if lock == c.lock else " (WRONG)"))
     if c.l0:
         want = l0_frames(c.l0, c.mode)
         if want is None: summary += "; the L0 recording is not on this Mac (not compared)"
         elif want == cf: summary += f"; equal to the L0 recording's {len(want)}"
+        elif isinstance(want, PrefixFrames) and want[:len(cf)] == cf:
+            summary += f"; equal to the first {len(cf)} of the L0 recording's {len(want)} (it has no NV_GSP.init_sw marker)"
         else:
             ok = False
             k = next((i for i, (a, b) in enumerate(zip(want, cf)) if a != b), min(len(want), len(cf)))
@@ -315,6 +362,10 @@ PERTURBED = [
     ("TinyGPUNVBoot.h", "if (d.bar1_size != 256ull << 20 || d.large_bar)", "if (d.large_bar)", "GB205, a 512 MiB BAR1"),
     ("TinyGPUNVBoot.h", "d.large_bar = d.bar1_size >= d.vram_size;", "d.large_bar = d.bar1_size > d.vram_size;", "AD107, a BAR1 as large as VRAM"),
     ("TinyGPUNVBoot.h", '? "ad102" : "ga102";', '? "ad102" : "ad102";', "GA104 cold"),   # plan step G1
+    # the A6000 fix: the lock's value, its gate (GA10x only), and its opt-out
+    ("TinyGPUNVBoot.h", 'table.push_back({"RMPcieLinkSpeed", 0x800002AA});', 'table.push_back({"RMPcieLinkSpeed", 0x80000295});', "GA102 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "return architecture == 0x17 && !(e && strcmp(e, \"0\") == 0);", "return architecture == 0x19 && !(e && strcmp(e, \"0\") == 0);", "GA102 cold, the whole init_sw"),
+    ("TinyGPUNVBoot.h", "return architecture == 0x17 && !(e && strcmp(e, \"0\") == 0);", "return architecture == 0x17;", "GA102, BEAGLE_NV_GA10X_LINK_LOCK=0"),
     # C11b
     ("TinyGPUNVBoot.h", "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE) block_size = imglen;",
      "if (code_type == nv::NV_BCRT_HASH_INFO_BASE_CODE_TYPE_VBIOS_BASE && block_size < 0) block_size = imglen;", "two base images before the expansion ROM"),
@@ -354,7 +405,11 @@ def main():
         fails += not ok
         print(f"{'IDENTICAL' if ok else 'MISMATCH '} {c.name}: {summary}")
     caught, gpu = 0, tgpaths.REPO / "libhmsbeagle" / "GPU"
+    skipped = 0
     for hdr, old, new, case in PERTURBED:
+        if not any(c.name.startswith(case) for c in all_cases):
+            print(f"perturbed {hdr} ({old.strip()[:60]} -> {new.strip()[:40]}): SKIPPED ('{case}' cannot run on this Mac)")
+            skipped += 1; continue
         inc = f"{priv}/perturbed"; os.makedirs(f"{inc}/libhmsbeagle/GPU", exist_ok=True)
         text = (gpu / hdr).read_text()
         assert text.count(old) == 1, (hdr, old)
@@ -364,8 +419,10 @@ def main():
         hit = not run_case(next(c for c in all_cases if c.name.startswith(case)), pexe, priv, quiet=True)[0]
         caught += hit
         print(f"perturbed {hdr} ({old.strip()[:60]} -> {new.strip()[:40]}): {'REJECTED' if hit else 'NOT CAUGHT'} by '{case}'")
-    fails += len(PERTURBED) - caught
-    print(f"C11 boot vs tinygrad: {'all identical' if not fails else f'{fails} FAILED'}")
+    fails += len(PERTURBED) - skipped - caught
+    for s in SKIPPED: print(f"SKIPPED: {s}")
+    print(f"C11 boot vs tinygrad: {'all identical' if not fails else f'{fails} FAILED'}" +
+          (f" ({len(SKIPPED)} case group(s) and {skipped} perturbation(s) skipped on this Mac)" if SKIPPED or skipped else ""))
     sys.exit(1 if fails else 0)
 
 if __name__ == "__main__":

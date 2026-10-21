@@ -24,11 +24,13 @@ oracle.
 |---|---|---|
 | Ada (AD10x) | `0x26xx`-`0x28xx` | tested on an RTX 4060 (AD107); the other AD10x boot the same way, untested |
 | Blackwell (GB20x) | `0x2bxx`-`0x2dxx`, `0x2fxx` | tested on an RTX 5070 (GB205); the other GB20x boot the same way, untested |
-| Ampere (GA10x) | `0x22xx`, `0x24xx`, `0x25xx` | boots as Ada does (TODO.md plan step G1), untested: no Ampere card has run it |
+| Ampere (GA10x) | `0x22xx`, `0x24xx`, `0x25xx` | tested on an RTX A6000 (GA102, `10de:2230`, 48 GiB) in an Aoostar AG03 (Intel JHL9480, Thunderbolt 5; the link trains at Gen4 x4), with the Gen1 link lock below; the other GA10x boot the same way, untested |
 | AMD Navi 31 (gfx1100) | `1002:744c` | tested on an RX 7900 XT |
 | AMD Navi 48 (gfx1201) | `1002:7550` | tested on an RX 9070 XT (XFX); any other AMD device ID is refused before anything is sent to the card, and IP versions other than these two cards' at its boot |
 
-These are tinygrad's NVIDIA families. Any other NVIDIA GPU (Turing, GA100, Hopper, GB100) is refused at
+These are tinygrad's NVIDIA families. TinyGPU.app `c0d024f9` serves only display-class cards (its driver matches PCI
+class `0x0300`), so an NVIDIA card that enumerates as a 3D controller (`0x0302`: the A2, A16, A30, A40 and A100, say) is
+not served at all. Any other NVIDIA GPU (Turing, GA100, Hopper, GB100) is refused at
 `beagleCreateInstance`, with nothing written to it. The NVIDIA boot also needs a 256 MiB BAR1, as GeForce cards come: a
 card with another size (data-center and some professional cards have a larger one) is refused at the start of its boot
 (`BarLayoutError`), before any firmware is set up.
@@ -37,6 +39,23 @@ Both precisions are built, for padded state counts 4, 16, 32, 48, 64, 80, 128, 1
 architecture (sm_86, sm_89, sm_120), on AMD 18 HSACOs per architecture (gfx1100, gfx1201). The resource offers `BEAGLE_FLAG_PRECISION_DOUBLE` as
 well as single (TODO.md plan steps C16, A7); consumer GPUs run double precision natively, at a fraction of the single rate. A
 GPU whose architecture has no cubin is refused at `beagleCreateInstance`.
+
+### Ampere: the Gen1 link lock
+
+On GA10x the plugin adds `RMPcieLinkSpeed=0x800002AA` to the registry table it hands GSP-RM (gens 2 to 6 disabled, locked
+at load: the value tinygrad PR #18215 found for Ada and Blackwell behind Thunderbolt 5 bridges). Without it, the RTX A6000
+behind the AG03's JHL9480 came out of GSP-RM's boot at Gen1 x4 with its target still Gen4, and the link then died under the
+first seconds of BAR1 traffic: the Mac's root port logged AER and a link timeout and disabled the port, every read returned
+all ones, and the crash guard held. With the lock every boot passed (October 2026): the hardware matrix, the soaks and 20
+warm boots, D1 in both precisions, the crash guard at idle and the P4 recovery. The link then runs at Gen1 (2.5 GT/s x4).
+What that costs is not measured, since no unlocked boot of this card survives long enough to compare; the A6000 ran 0.165 ms
+per evaluation at 4 states, single precision. A Gen4 lock (`0x80000295`) broke the boot before GSP-RM was up.
+
+- The lock lasts until the enclosure is power-cycled, so a boot of another configuration after it is not a clean
+  comparison until then.
+- `BEAGLE_NV_GA10X_LINK_LOCK=0` sends tinygrad's table instead (for diagnosis).
+- The enclosure and bridge matter: an RTX 3080 in a Thunderbolt 3 enclosure (Titan Ridge) was reported to boot stock
+  tinygrad (tinygrad PR #16262), so the lock may be unnecessary there. It is on for every GA10x all the same.
 
 ## Requirements
 
@@ -120,7 +139,7 @@ BEAGLE itself, as at exit, so it needs no power cycle.
 Power-cycle the eGPU (unplug it, then plug it in again) only then, and always before killing a holding guard. A GPU left
 warm by an earlier process that was not torn down (WPR2 still up) is refused with nothing written:
 `WARM GPU: WPR2 is up ... Power-cycle the eGPU`. The exception (plan step P4, on Ada and Ampere GPUs; the default since two
-clean recoveries on the RTX 4060, untested on Ampere): a warm GPU whose GSP-RM was unloaded, so that only the teardown is
+clean recoveries on the RTX 4060, and one on the RTX A6000): a warm GPU whose GSP-RM was unloaded, so that only the teardown is
 missing (after `BEAGLE_NV_TEARDOWN=0`, or a teardown that failed after the unload), is torn down at boot and then boots.
 Only reads come before that decision. NVIDIA's driver refuses such a GPU instead; `BEAGLE_NV_RECOVER=0` does too.
 
@@ -140,6 +159,7 @@ For users:
 | `BEAGLE_NV_TEARDOWN=0` | the GSP unload only, no teardown: the next boot then needs a power cycle (for diagnosis) |
 | `BEAGLE_NV_UNLOAD_LEVEL=0` | the LEVEL_0 unload instead of FAST_UNLOAD (a fallback) |
 | `BEAGLE_NV_RECOVER=0` | a warm Ada or Ampere GPU whose GSP is suspended or halted is refused, as NVIDIA's driver does, instead of torn down at boot |
+| `BEAGLE_NV_GA10X_LINK_LOCK=0` | Ampere: no Gen1 link lock in the registry table (tinygrad's table; see Supported GPUs) |
 | `BEAGLE_NV_GUARD` | the crash guard's path (default: next to the plugin); `BEAGLE_AMD_GUARD` for the AMD C++ boot |
 | `APL_REMOTE_SOCK` | TinyGPU.app's socket (default `$TMPDIR/tinygpu.sock`, as tinygrad) |
 | `BEAGLE_AMD_DATA_MB` | AMD: the VRAM pool, in MiB (default: half the VRAM) |
