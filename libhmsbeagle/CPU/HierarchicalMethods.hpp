@@ -723,7 +723,7 @@ void hierarchicalColumnRows(int S,
 #define BEAGLE_HIERARCHICAL_UNROLL _Pragma("unroll")
 #elif defined(__GNUC__)
 #define BEAGLE_HIERARCHICAL_LANE_LOOP _Pragma("GCC ivdep")
-#define BEAGLE_HIERARCHICAL_UNROLL _Pragma("GCC unroll 16")
+#define BEAGLE_HIERARCHICAL_UNROLL _Pragma("GCC unroll 32")
 #else
 #define BEAGLE_HIERARCHICAL_LANE_LOOP
 #define BEAGLE_HIERARCHICAL_UNROLL
@@ -1012,28 +1012,35 @@ BEAGLE_HIERARCHICAL_NOINLINE void hierarchicalDenseColPair(const REALTYPE* const
 
 const int kHierarchicalRescaleMaxRows = 32;
 
+template <typename REALTYPE, int Lo, int Len>
+struct HierarchicalTreeMax {
+    static BEAGLE_HIERARCHICAL_INLINE REALTYPE get(const REALTYPE* v) {
+        const REALTYPE a = HierarchicalTreeMax<REALTYPE, Lo, Len / 2>::get(v);
+        const REALTYPE b = HierarchicalTreeMax<REALTYPE, Lo + Len / 2, Len - Len / 2>::get(v);
+        return a > b ? a : b;
+    }
+};
+
+template <typename REALTYPE, int Lo>
+struct HierarchicalTreeMax<REALTYPE, Lo, 1> {
+    static BEAGLE_HIERARCHICAL_INLINE REALTYPE get(const REALTYPE* v) {
+        return v[Lo];
+    }
+};
+
 template <typename REALTYPE, int N>
 BEAGLE_HIERARCHICAL_NOINLINE void hierarchicalRescaleRows(REALTYPE* const* rows_, REALTYPE* siteMax, int k0, int k1) {
-    constexpr int NP = N <= 1 ? 1 : N <= 2 ? 2 : N <= 4 ? 4 : N <= 8 ? 8 : N <= 16 ? 16 : 32;
     REALTYPE* rows[N];
     for (int i = 0; i < N; i++)
         rows[i] = rows_[i];
     BEAGLE_HIERARCHICAL_LANE_LOOP
     for (int k = k0; k < k1; k++) {
-        REALTYPE v[N], t[NP];
+        REALTYPE v[N];
         BEAGLE_HIERARCHICAL_UNROLL
         for (int i = 0; i < N; i++)
             v[i] = rows[i][k];
-        BEAGLE_HIERARCHICAL_UNROLL
-        for (int i = 0; i < NP; i++)
-            t[i] = v[i < N ? i : 0];
-        BEAGLE_HIERARCHICAL_UNROLL
-        for (int w = NP / 2; w >= 1; w /= 2) {
-            BEAGLE_HIERARCHICAL_UNROLL
-            for (int i = 0; i < w; i++)
-                t[i] = std::fmax(t[i], t[i + w]);
-        }
-        const REALTYPE m = (t[0] == REALTYPE(0)) ? REALTYPE(1.0) : t[0];
+        const REALTYPE t = HierarchicalTreeMax<REALTYPE, 0, N>::get(v);
+        const REALTYPE m = t + REALTYPE(t == REALTYPE(0));
         const REALTYPE f = REALTYPE(1.0) / m;
         BEAGLE_HIERARCHICAL_UNROLL
         for (int i = 0; i < N; i++)
