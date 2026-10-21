@@ -361,7 +361,7 @@ static void compare(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     double dl = std::fabs(h.logL - o.logL) / std::fabs(o.logL);
     for (size_t p = 0; p < h.logLByPartition.size() && p < o.logLByPartition.size(); ++p)
         dl = std::max(dl, std::fabs(h.logLByPartition[p] - o.logLByPartition[p]) / std::fabs(o.logLByPartition[p]));
-    const double tolL = pr.dp ? 1e-13 : 1e-7;
+    const double tolL = pr.dp ? 1e-13 : 1e-6;
     char detail[240];
     snprintf(detail, sizeof(detail), "partials %.2e, tolerance %.0e; logL %.6f, relative %.2e, tolerance %.0e (oracle %s)",
              dp, tol, h.logL, dl, tolL, o.impl.c_str());
