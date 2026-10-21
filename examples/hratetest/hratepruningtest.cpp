@@ -511,7 +511,7 @@ int main() {
     variants[9].scaling = Scaling::Dynamic;
 
     for (bool dp : { true, false }) {
-        for (int S : { 2, 3, 4, 17, 61 })
+        for (int S : { 2, 3, 4, 5, 6, 7, 8, 17, 61 })
             for (int C : { 1, 4 }) {
                 Problem pr = makeProblem(dp, S, C, 1003, rng);
                 for (const Variant& v : variants) {

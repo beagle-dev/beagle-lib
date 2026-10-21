@@ -73,6 +73,7 @@ namespace beagle {
             std::vector<double> gSumHTmp;
             int kKernel;
             bool kSmallBand;
+            int kShapeMaxStates;
             bool kRescaleRows;
             bool kFusedBand;
             bool kColumnGather;

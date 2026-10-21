@@ -27,7 +27,12 @@ const int kHierarchicalBundleVersion = 1;
 const int kHierarchicalModelVersion = 1;
 const int kHierarchicalBundleVersionShift = 65536;
 const size_t kHierarchicalTileBudget = 768 * 1024;
-const int kHierarchicalShapeMaxStates = 4;
+const int kHierarchicalShapeMaxStates = 8;
+const int kHierarchicalShapeBandLimit = 8;
+
+inline bool hierarchicalShapeCompiled(int stateCount) {
+    return (stateCount >= 2 && stateCount <= 6) || stateCount == 8;
+}
 const size_t kHierarchicalGroupBudget = 48 * 1024;
 const size_t kHierarchicalGroupScratchBytes = 16 * 1024;
 const int kHierarchicalGroupMaxLanes = 256;

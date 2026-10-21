@@ -123,7 +123,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     if (const char* orderEnv = getenv("BEAGLE_HRATE_ORDER"))
         if (std::strcmp(orderEnv, "group") == 0)
             kGroupOrder = kHierarchicalOrderGroup;
-    const bool fusedDefault = kernel == NULL && kStateCount >= kHierarchicalFusedDefaultMinStates &&
+    const bool fusedDefault = kKernel == kHierarchicalKernelShape && kStateCount >= kHierarchicalFusedDefaultMinStates &&
                               kPatternCount >= kHierarchicalFusedMinPatterns;
     kFusedBand = (kKernel == kHierarchicalKernelFused || fusedDefault) && kGroupLanes > 0;
     const char* gatherEnv = getenv("BEAGLE_HRATE_GATHER");
@@ -133,8 +133,11 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     if (const char* budgetEnv = getenv("BEAGLE_HRATE_TABLE_BUDGET"))
         kTableBudget = (size_t) std::strtoull(budgetEnv, NULL, 10);
     gTableBytes = 0;
+    kShapeMaxStates = kHierarchicalShapeMaxStates;
+    if (const char* shapeEnv = getenv("BEAGLE_HRATE_SHAPE_MAX"))
+        kShapeMaxStates = std::max(0, std::min(atoi(shapeEnv), kHierarchicalShapeBandLimit));
     kSmallBand = (kKernel == kHierarchicalKernelShape || kKernel == kHierarchicalKernelDense) &&
-                 kStateCount <= kHierarchicalShapeMaxStates;
+                 kStateCount <= kShapeMaxStates && hierarchicalShapeCompiled(kStateCount);
     const char* rescale = getenv("BEAGLE_HRATE_RESCALE");
     kRescaleRows = kStateCount * kCategoryCount <= kHierarchicalRescaleMaxRows &&
                    !(rescale != NULL && std::strcmp(rescale, "legacy") == 0);
@@ -851,7 +854,7 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareTables(const int* ope
         HierarchicalSlot<REALTYPE>* slot2 = singleChild ? NULL : &gSlots[operation[6]];
         const bool states1 = gTipStates[child1] != NULL;
         const bool states2 = !singleChild && gTipStates[child2] != NULL;
-        if (kColumnGather) {
+        if (kColumnGather && !kSmallBand) {
             if (states1 && !slot1.ops->mrca.empty())
                 buildTable(slot1);
             if (states2 && !slot2->ops->mrca.empty())
@@ -976,6 +979,15 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::smallPartials(REALTYPE* dest
                                      scaleFactors, startPattern, endPattern);
         case 4:
             return smallPartialsS<4>(plan, destP, partials1, states1, slot1, partials2, states2, slot2,
+                                     scaleFactors, startPattern, endPattern);
+        case 5:
+            return smallPartialsS<5>(plan, destP, partials1, states1, slot1, partials2, states2, slot2,
+                                     scaleFactors, startPattern, endPattern);
+        case 6:
+            return smallPartialsS<6>(plan, destP, partials1, states1, slot1, partials2, states2, slot2,
+                                     scaleFactors, startPattern, endPattern);
+        case 8:
+            return smallPartialsS<8>(plan, destP, partials1, states1, slot1, partials2, states2, slot2,
                                      scaleFactors, startPattern, endPattern);
         default:
             return false;
