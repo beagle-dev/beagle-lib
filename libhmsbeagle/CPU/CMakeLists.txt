@@ -124,6 +124,7 @@ add_library(hmsbeagle-cpu-hierarchical SHARED
         BeagleCPUHierarchicalPlugin.h
         HierarchicalMethods.h
         HierarchicalMethods.hpp
+        HierarchicalShapes.h
         EigenDecomposition.h
         Precision.h
         )

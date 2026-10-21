@@ -305,6 +305,13 @@ public interface Beagle extends Serializable {
      * @param inEigenVectors            Flattened matrix (stateCount x stateCount) of eigen-vectors (input)
      * @param inInverseEigenVectors     Flattened matrix (stateCount x stateCount) of inverse-eigen-vectors (input)
      * @param inEigenValues             Vector of eigenvalues
+     *
+     * With {@link BeagleFlag#HIERARCHICAL_REPRESENTATION}, the buffer holds a hierarchical model instead:
+     * inEigenValues[0] is version * 65536 + (S - 1) (version 1), inEigenValues[1 .. S-1] the lambdas of the internal
+     * state-tree nodes S .. 2S-2, inEigenVectors[0 .. 3(S-1)) the post-order triples as in the bundle of
+     * {@link #setTransitionMatrix}, and inInverseEigenVectors is ignored. {@link #updateTransitionMatrices} then builds
+     * one bundle per index from the model, state frequencies buffer 0 and the category rates. See
+     * BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION in beagle.h.
      */
     void setEigenDecomposition(
             int eigenIndex,
@@ -460,7 +467,8 @@ public interface Beagle extends Serializable {
      *                         H for internal nodes S .. 2S-2 at time edgeLength * rate[l],
      *                         then Pr(Z = 0) for the tips in state order
      * </pre>
-     * The header is resent in every bundle; BEAGLE keeps no state tree between uploads. pi is not in the bundle: it is
+     * The header is resent in every bundle. Alternatively the model can be stored once with
+     * {@link #setEigenDecomposition} and the bundles built by {@link #updateTransitionMatrices}. pi is not in the bundle: it is
      * state frequencies buffer 0 ({@link #setStateFrequencies}), which must hold the pi used to compute H. See
      * BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION in beagle.h for validation and the matrix getTransitionMatrix returns.
      *

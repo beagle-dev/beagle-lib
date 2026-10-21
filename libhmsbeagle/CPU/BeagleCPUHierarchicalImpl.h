@@ -39,6 +39,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPaddedPatternCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartialsPaddedStateCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kCategoryCount;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kEigenDecompCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartialsSize;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPartitionCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kPatternsReordered;
@@ -55,6 +56,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateScaleFactors;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::removeScaleFactors;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryWeights;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gCategoryRates;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::outLogLikelihoodsTmp;
 
@@ -64,6 +66,21 @@ namespace beagle {
             int kTileSize;
 
             std::vector<HierarchicalSlot<REALTYPE>> gSlots;
+            std::vector<HierarchicalModel> gModels;
+            std::vector<std::vector<double>> gFrequenciesDouble;
+            std::vector<double> gPiNodeTmp;
+            std::vector<double> gPrZ0Tmp;
+            std::vector<double> gSumHTmp;
+            int kKernel;
+            bool kSmallBand;
+            bool kRescaleRows;
+            bool kFusedBand;
+            bool kColumnGather;
+            size_t kTableBudget;
+            size_t gTableBytes;
+            int kGroupLanes;
+            int kGroupOrder;
+            unsigned long gFrequencyStamp;
             std::vector<REALTYPE> gSiteScaleTmp;
             std::vector<double> gSiteAutoScaleTmp;
 
@@ -83,6 +100,77 @@ namespace beagle {
 
             bool slotsReady(const int* operations, int count, int numOps);
 
+            int smallPlan(bool states1,
+                          const HierarchicalSlot<REALTYPE>& slot1,
+                          bool singleChild,
+                          bool states2,
+                          const HierarchicalSlot<REALTYPE>* slot2);
+
+            bool tableReady(const HierarchicalSlot<REALTYPE>& slot);
+
+            void prepareTables(const int* operations, int count, int numOps);
+
+            void buildTable(HierarchicalSlot<REALTYPE>& slot);
+
+            bool fusedColumnPartials(REALTYPE* destP,
+                                     const REALTYPE* partials1,
+                                     const int* states1,
+                                     const HierarchicalSlot<REALTYPE>& slot1,
+                                     bool singleChild,
+                                     const REALTYPE* partials2,
+                                     const int* states2,
+                                     const HierarchicalSlot<REALTYPE>* slot2,
+                                     const REALTYPE* fixedScaleFactors,
+                                     REALTYPE* scaleFactors,
+                                     REALTYPE* cumulativeScaleFactors,
+                                     int startPattern,
+                                     int endPattern);
+
+            bool smallPartials(REALTYPE* destP,
+                               const REALTYPE* partials1,
+                               const int* states1,
+                               const HierarchicalSlot<REALTYPE>& slot1,
+                               bool singleChild,
+                               const REALTYPE* partials2,
+                               const int* states2,
+                               const HierarchicalSlot<REALTYPE>* slot2,
+                               const REALTYPE* scaleFactors,
+                               int startPattern,
+                               int endPattern);
+
+            template <int S>
+            bool smallPartialsS(int plan,
+                                REALTYPE* destP,
+                                const REALTYPE* partials1,
+                                const int* states1,
+                                const HierarchicalSlot<REALTYPE>& slot1,
+                                const REALTYPE* partials2,
+                                const int* states2,
+                                const HierarchicalSlot<REALTYPE>* slot2,
+                                const REALTYPE* scaleFactors,
+                                int startPattern,
+                                int endPattern);
+
+            template <int S, bool Scaled>
+            void smallCategory(int plan,
+                               int category,
+                               REALTYPE* destP,
+                               const REALTYPE* partials1,
+                               const int* states1,
+                               const HierarchicalSlot<REALTYPE>& slot1,
+                               const REALTYPE* partials2,
+                               const int* states2,
+                               const HierarchicalSlot<REALTYPE>* slot2,
+                               const REALTYPE* invScale,
+                               int startPattern,
+                               int endPattern);
+
+            int buildBundles(int modelIndex,
+                             int categoryRatesIndex,
+                             const int* probabilityIndices,
+                             const double* edgeLengths,
+                             int count);
+
             template <int Mode, typename Source>
             void sweep(const HierarchicalSlot<REALTYPE>& slot,
                        const Source& source,
@@ -101,6 +189,29 @@ namespace beagle {
                                       const REALTYPE* scaleFactors,
                                       int startPattern,
                                       int endPattern);
+
+            template <typename Source1, typename Source2>
+            void hierarchicalPartialsFused(REALTYPE* destP,
+                                           const Source1& source1,
+                                           const HierarchicalSlot<REALTYPE>& slot1,
+                                           const Source2* source2,
+                                           const HierarchicalSlot<REALTYPE>* slot2,
+                                           const REALTYPE* fixedScaleFactors,
+                                           REALTYPE* scaleFactors,
+                                           REALTYPE* cumulativeScaleFactors,
+                                           int startPattern,
+                                           int endPattern);
+
+            template <typename Source1, typename Source2>
+            void groupSweep(REALTYPE* destP,
+                            const Source1& source1,
+                            const HierarchicalSlot<REALTYPE>& slot1,
+                            const Source2* source2,
+                            const HierarchicalSlot<REALTYPE>* slot2,
+                            const REALTYPE* fixedScaleFactors,
+                            int category,
+                            int k0,
+                            int k1);
 
             void rescaleRange(REALTYPE* destP,
                               REALTYPE* scaleFactors,
@@ -147,6 +258,9 @@ namespace beagle {
                                       const double* inEigenVectors,
                                       const double* inInverseEigenVectors,
                                       const double* inEigenValues) override;
+
+            int setStateFrequencies(int stateFrequenciesIndex,
+                                    const double* inStateFrequencies) override;
 
             int setTransitionMatrix(int matrixIndex,
                                     const double* inMatrix,

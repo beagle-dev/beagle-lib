@@ -15,21 +15,92 @@
 #define HIERARCHICALMETHODS_H_
 
 #include <cstddef>
+#include <memory>
 #include <vector>
+
+#include "libhmsbeagle/CPU/HierarchicalShapes.h"
 
 namespace beagle {
 namespace cpu {
 
 const int kHierarchicalBundleVersion = 1;
+const int kHierarchicalModelVersion = 1;
 const int kHierarchicalBundleVersionShift = 65536;
 const size_t kHierarchicalTileBudget = 768 * 1024;
+const int kHierarchicalShapeMaxStates = 4;
+const size_t kHierarchicalGroupBudget = 48 * 1024;
+const size_t kHierarchicalGroupScratchBytes = 16 * 1024;
+const int kHierarchicalGroupMaxLanes = 256;
+const int kHierarchicalGroupMaxStates = 128;
+const int kHierarchicalColumnMaxStates = 64;
+const int kHierarchicalFusedDefaultMinStates = 5;
+const int kHierarchicalFusedMinPatterns = 1000;
+const size_t kHierarchicalTableBudget = 64 * 1024 * 1024;
+
+enum HierarchicalKernel {
+    kHierarchicalKernelTiled = 0,
+    kHierarchicalKernelShape = 1,
+    kHierarchicalKernelDense = 2,
+    kHierarchicalKernelFused = 3
+};
+
+enum HierarchicalGroupOrder {
+    kHierarchicalOrderCategory = 0,
+    kHierarchicalOrderGroup = 1
+};
+
+inline int hierarchicalGroupLanes(int stateCount, size_t realSize) {
+    if (stateCount > kHierarchicalGroupMaxStates)
+        return 0;
+    const int floorLanes = (int) (128 / realSize);
+    for (int G = (int) (1024 / realSize); G > floorLanes; G /= 2) {
+        if ((size_t) (6 * stateCount - 3) * G * realSize <= kHierarchicalGroupBudget &&
+            (size_t) (stateCount - 1) * G * realSize <= kHierarchicalGroupScratchBytes)
+            return G;
+    }
+    return (size_t) (stateCount - 1) * floorLanes * realSize <= kHierarchicalGroupScratchBytes ? floorLanes : 0;
+}
+
+enum HierarchicalSmallPlan {
+    kHierarchicalSmallNone = 0,
+    kHierarchicalSmallRegSingle,
+    kHierarchicalSmallColSingle,
+    kHierarchicalSmallRegPair,
+    kHierarchicalSmallDensePair,
+    kHierarchicalSmallRegCol,
+    kHierarchicalSmallColReg,
+    kHierarchicalSmallDenseCol,
+    kHierarchicalSmallColDense,
+    kHierarchicalSmallColCol
+};
+
+struct HierarchicalOps {
+    std::vector<int> postOps;
+    std::vector<int> preOps;
+    std::vector<int> parentOf;
+    int shapeId = -1;
+    std::vector<int> tipOfSlot;
+    std::vector<int> intOfSlot;
+    std::vector<int> mrca;
+};
+
+struct HierarchicalModel {
+    bool set = false;
+    HierarchicalOps ops;
+    std::vector<double> lambda;
+};
 
 template <typename REALTYPE>
 struct HierarchicalSlot {
     bool set = false;
-    std::vector<int> postOps;
-    std::vector<int> preOps;
+    const HierarchicalOps* ops = nullptr;
+    std::shared_ptr<HierarchicalOps> owned;
     std::vector<REALTYPE> values;
+    unsigned long stamp = 0;
+    unsigned long tableStamp = 0;
+    unsigned long tableFrequencyStamp = 0;
+    bool tableSet = false;
+    std::vector<REALTYPE> columnTable;
 };
 
 inline int hierarchicalBundleLength(int stateCount, int categoryCount) {
@@ -46,6 +117,36 @@ int unpackHierarchicalBundle(const double* bundle,
                              int stateCount,
                              int categoryCount,
                              HierarchicalSlot<REALTYPE>& slot);
+
+inline int decodeHierarchicalModel(const double* eigenVectors,
+                            const double* eigenValues,
+                            int stateCount,
+                            HierarchicalModel& model);
+
+inline void hierarchicalNodeFrequencies(const HierarchicalModel& model,
+                                 const double* pi,
+                                 int stateCount,
+                                 double* piNode);
+
+template <typename REALTYPE>
+void hierarchicalBuildBundle(const HierarchicalModel& model,
+                             const double* piNode,
+                             const double* categoryRates,
+                             int categoryCount,
+                             double edgeLength,
+                             double* prZ0Tmp,
+                             HierarchicalSlot<REALTYPE>& slot);
+
+inline void hierarchicalComputeMrca(HierarchicalOps& ops, int stateCount);
+
+inline void hierarchicalDetectShape(HierarchicalOps& ops, int stateCount);
+
+template <typename REALTYPE>
+void hierarchicalColumnTable(HierarchicalSlot<REALTYPE>& slot,
+                             const REALTYPE* pi,
+                             int stateCount,
+                             int categoryCount,
+                             double* sumH);
 
 template <typename REALTYPE>
 void hierarchicalTransitionMatrices(const HierarchicalSlot<REALTYPE>& slot,
@@ -88,6 +189,9 @@ struct HierarchicalPartialsSource {
     inline HierarchicalPartialsTip<REALTYPE> tip(int x) const {
         return HierarchicalPartialsTip<REALTYPE>{ rows + (size_t) x * stride };
     }
+    inline HierarchicalPartialsTip<REALTYPE> tip(int x, int k) const {
+        return HierarchicalPartialsTip<REALTYPE>{ rows + (size_t) x * stride + k };
+    }
 };
 
 template <typename REALTYPE>
@@ -99,6 +203,9 @@ struct HierarchicalStatesSource {
     }
     inline HierarchicalStatesTip<REALTYPE> tip(int x) const {
         return HierarchicalStatesTip<REALTYPE>{ states, x, stateCount };
+    }
+    inline HierarchicalStatesTip<REALTYPE> tip(int x, int k) const {
+        return HierarchicalStatesTip<REALTYPE>{ states + k, x, stateCount };
     }
 };
 

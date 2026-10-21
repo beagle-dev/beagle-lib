@@ -198,9 +198,11 @@ enum BeagleFlags {
     /**
      * Use hierarchical state-tree representation for transition probability calculation.
      *
-     * The application evaluates the hierarchical rate model and, for each branch, passes a self-contained bundle to
-     * beagleSetTransitionMatrix (or one bundle per index to beagleSetTransitionMatrices) in place of a dense matrix;
-     * paddedValue is ignored. BEAGLE stores no state tree between uploads. The stationary frequencies pi are not in
+     * A matrix buffer holds one branch's bundle, set in one of two ways. Bundle path: the application evaluates the
+     * hierarchical rate model and, for each branch, passes a self-contained bundle to beagleSetTransitionMatrix (or one
+     * bundle per index to beagleSetTransitionMatrices) in place of a dense matrix; paddedValue is ignored. Model path:
+     * the application stores the model once with beagleSetEigenDecomposition and BEAGLE builds the bundles from branch
+     * lengths with beagleUpdateTransitionMatrices (described below). The stationary frequencies pi are not in
      * the bundle: they are state frequencies buffer 0, set with beagleSetStateFrequencies, and must be the pi from which
      * the application computed H. The bundle is an array of doubles; S is the state count, C the category count and N = S - 1 the number of internal state-tree
      * nodes. Nodes 0 .. S-1 are the tips in state order and nodes S .. 2S-2 are the internal nodes; the state tree is
@@ -224,10 +226,27 @@ enum BeagleFlags {
      * sum of H along the path from the root to m, built from the stored bundle and state frequencies buffer 0; it
      * returns BEAGLE_ERROR_OUT_OF_RANGE for an index without a bundle or before the frequencies are set.
      *
-     * beagleSetEigenDecomposition, beagleUpdateTransitionMatrices, beagleUpdateTransitionMatricesWithModelCategories
-     * and beagleUpdateTransitionMatricesWithMultipleModels return BEAGLE_ERROR_NO_IMPLEMENTATION. Category rates are
-     * not applied to the bundle, which is already per category; beagleSetCategoryWeights is still required for the
-     * root likelihood.
+     * Model path: beagleSetEigenDecomposition(eigenIndex, eigenVectors, inverseEigenVectors, eigenValues) stores a
+     * hierarchical model in eigen buffer eigenIndex instead of an eigen-decomposition:
+     *
+     *   eigenValues[0]               version * 65536 + N (version 1)
+     *   eigenValues[1 .. S-1]        lambda for the internal nodes S .. 2S-2, finite and non-negative
+     *   eigenVectors[0 .. 3N)        post-order triples, as in the bundle; the pre-order is the reverse list
+     *   inverseEigenVectors          ignored
+     *
+     * A genuine eigen-decomposition fails on the version word; an invalid model is rejected with
+     * BEAGLE_ERROR_OUT_OF_RANGE and leaves the buffer unchanged. beagleUpdateTransitionMatrices(eigenIndex, ...) then
+     * builds one bundle per probability index from that model, state frequencies buffer 0 and category rates buffer
+     * 0, at time edgeLength * rate[l] for category l; beagleUpdateTransitionMatricesWithMultipleModels takes the
+     * model and the category rates buffer per index. The bundles are bit-identical to the bundle path's from the same
+     * model. The model, the frequencies and the rates must be set before the call; a matrix buffer built from a model
+     * refers to it, so re-uploading that eigen buffer changes it (double-buffer the model, as with eigen-decompositions).
+     * An unset model or rates buffer, frequencies not yet set, or a negative or non-finite edge length returns
+     * BEAGLE_ERROR_OUT_OF_RANGE; a batch stops at the first bad index after updating the indices before it. Derivative
+     * indices and beagleUpdateTransitionMatricesWithModelCategories return BEAGLE_ERROR_NO_IMPLEMENTATION.
+     *
+     * Category rates are not applied to a bundle uploaded with beagleSetTransitionMatrix, which is already per
+     * category; beagleSetCategoryWeights is required for the root likelihood on both paths.
      */
     BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41
 };

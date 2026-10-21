@@ -151,6 +151,37 @@ static void referenceBundle(const StateTree& tree, const double* rates, int cate
     }
 }
 
+struct ModelArrays {
+    std::vector<double> vectors;
+    std::vector<double> inverse;
+    std::vector<double> values;
+};
+
+static ModelArrays modelArrays(const StateTree& tree, const std::vector<int>* order = nullptr,
+                               bool swapChildren = false) {
+    const int S = tree.S;
+    const int n = S - 1;
+    std::vector<int> post;
+    if (order)
+        post = *order;
+    else
+        postOrder(tree, tree.root(), post);
+    ModelArrays m;
+    m.vectors.assign((size_t) S * S, 0.0);
+    m.inverse.assign((size_t) S * S, 0.0);
+    m.values.assign(S, 0.0);
+    for (int i = 0; i < n; ++i) {
+        const int p = post[i];
+        m.vectors[3 * i + 0] = p;
+        m.vectors[3 * i + 1] = swapChildren ? tree.right[p] : tree.left[p];
+        m.vectors[3 * i + 2] = swapChildren ? tree.left[p] : tree.right[p];
+    }
+    m.values[0] = 1 * 65536 + n;
+    for (int k = 0; k < n; ++k)
+        m.values[1 + k] = tree.lambda[S + k];
+    return m;
+}
+
 static int mrca(const StateTree& tree, int a, int b) {
     std::vector<bool> seen(tree.nodeCount(), false);
     for (int m = a; m >= 0; m = tree.parent[m])
@@ -215,6 +246,57 @@ static StateTree makeRandomTree(int S, Rng& rng, double lambdaMean) {
     for (int x = 0; x < S; ++x)
         tipPi[x] /= total;
     finishTree(tree, tipPi);
+    return tree;
+}
+
+template <typename Rng>
+static StateTree makeShapedTree(int S, bool caterpillar, Rng& rng, double lambdaMean,
+                                const std::vector<double>* tipPi = nullptr) {
+    StateTree tree;
+    tree.S = S;
+    int N = tree.nodeCount();
+    tree.parent.assign(N, -1);
+    tree.left.assign(N, -1);
+    tree.right.assign(N, -1);
+    tree.lambda.assign(N, 0.0);
+    if (caterpillar) {
+        join(tree, S, 0, 1);
+        for (int i = 1; i < S - 1; ++i)
+            join(tree, S + i, S + i - 1, i + 1);
+    } else {
+        std::vector<int> level;
+        for (int x = 0; x < S; x += 2)
+            level.push_back(x);
+        for (int x = 1; x < S; x += 2)
+            level.push_back(x);
+        int next = S;
+        while (level.size() > 1) {
+            std::vector<int> up;
+            size_t i = 0;
+            for (; i + 1 < level.size(); i += 2) {
+                join(tree, next, level[i], level[i + 1]);
+                up.push_back(next++);
+            }
+            if (i < level.size())
+                up.push_back(level[i]);
+            level.swap(up);
+        }
+    }
+    std::exponential_distribution<double> lambda(1.0 / lambdaMean);
+    for (int m = S; m < N; ++m)
+        tree.lambda[m] = lambda(rng);
+    std::vector<double> pi(S);
+    if (tipPi) {
+        pi = *tipPi;
+    } else {
+        std::uniform_real_distribution<double> weight(0.2, 1.0);
+        double total = 0.0;
+        for (int x = 0; x < S; ++x)
+            total += (pi[x] = weight(rng));
+        for (int x = 0; x < S; ++x)
+            pi[x] /= total;
+    }
+    finishTree(tree, pi);
     return tree;
 }
 

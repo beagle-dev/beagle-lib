@@ -278,9 +278,14 @@ static void evaluate(const Options& opts, const StateTree& tree, Run& run, bool 
 }
 
 static double maxAbsDiff(const std::vector<double>& a, const std::vector<double>& b) {
+    if (a.size() != b.size())
+        return INFINITY;
     double d = 0.0;
-    for (size_t i = 0; i < a.size() && i < b.size(); ++i)
-        d = std::max(d, std::fabs(a[i] - b[i]));
+    for (size_t i = 0; i < a.size(); ++i) {
+        const double e = std::fabs(a[i] - b[i]);
+        if (!(e <= d))
+            d = std::isnan(e) ? INFINITY : e;
+    }
     return d;
 }
 
@@ -432,29 +437,28 @@ int main(int argc, char** argv) {
             }
         }
     } else {
-        skip("transition matrices vs reference", "plain CPU instance");
         skip("oracle comparison", "plain CPU instance is the oracle");
     }
 
     if (hky) {
-        std::vector<double> got(kCategoryCount * S * S), want, closed;
+        std::vector<double> reference, closed;
         double worst = 0.0;
-        int code = BEAGLE_SUCCESS;
-        for (int b = 0; b < kBranchCount && code >= 0; ++b) {
-            if (run.hierarchical)
-                code = beagleGetTransitionMatrix(run.instance, b, got.data());
-            else
-                referenceP(tree, kRates, kCategoryCount, kEdgeLengths[b], got);
+        for (int b = 0; b < kBranchCount; ++b) {
+            referenceP(tree, kRates, kCategoryCount, kEdgeLengths[b], reference);
             tn93P(tipPi, beta, lambdaTransition, lambdaTransition, kRates, kCategoryCount, kEdgeLengths[b], closed);
-            worst = std::max(worst, maxAbsDiff(got, closed));
+            worst = std::max(worst, maxAbsDiff(reference, closed));
         }
-        if (code < 0) {
-            Run r;
-            r.failedCall = "beagleGetTransitionMatrix";
-            r.failedCode = code;
-            reportFailure("transition matrices vs TN93", r);
-        } else {
-            reportDelta("transition matrices vs TN93", worst, dp ? 1e-10 : 1e-5);
+        reportDelta("reference P vs TN93", worst, 1e-12);
+        if (run.hierarchical) {
+            std::vector<double> got(kCategoryCount * S * S);
+            double worstBeagle = 0.0;
+            int code = BEAGLE_SUCCESS;
+            for (int b = 0; b < kBranchCount && code >= 0; ++b) {
+                code = beagleGetTransitionMatrix(run.instance, b, got.data());
+                tn93P(tipPi, beta, lambdaTransition, lambdaTransition, kRates, kCategoryCount, kEdgeLengths[b], closed);
+                worstBeagle = std::max(worstBeagle, maxAbsDiff(got, closed));
+            }
+            reportDelta("transition matrices vs TN93", code < 0 ? INFINITY : worstBeagle, dp ? 1e-10 : 1e-5);
         }
     }
 
@@ -479,7 +483,10 @@ int main(int argc, char** argv) {
             } else {
                 reportDelta("log likelihood vs default run", std::fabs(run.logL - base.logL),
                             dp ? 1e-10 : 1e-7 * std::fabs(base.logL));
-                if (!run.internalPartials.empty())
+                if (!run.internalPartials.empty() && opts.useStates)
+                    reportDelta("partials vs default run (state tips)",
+                                maxAbsDiff(run.internalPartials, base.internalPartials), dp ? 1e-12 : 1e-6);
+                else if (!run.internalPartials.empty())
                     reportDelta("partials vs default run (identical)",
                                 maxAbsDiff(run.internalPartials, base.internalPartials), 1e-300);
             }

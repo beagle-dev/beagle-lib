@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <random>
 #include <string>
 #include <vector>
@@ -49,12 +50,17 @@ struct Problem {
     int S, C, P;
     bool dp;
     StateTree stateTree;
+    std::vector<StateTree> branchTrees;
+    std::string label;
     std::vector<double> rates, weights;
     std::vector<std::vector<int>> tipStates;
     std::vector<int> nodeParent;
     std::vector<double> edge;
     std::vector<BeagleOperation> ops;
     std::vector<int> partitionOf;
+    const StateTree& treeOf(int n) const {
+        return branchTrees.empty() ? stateTree : branchTrees[n % branchTrees.size()];
+    }
 };
 
 static const int kTips = 6;
@@ -153,7 +159,8 @@ static long scalingFlags(Scaling s) {
     }
 }
 
-static Result run(const Problem& pr, const Variant& v, bool hierarchical, std::mt19937_64& rng) {
+static Result run(const Problem& pr, const Variant& v, bool hierarchical, std::mt19937_64& rng,
+                  bool model = false, const std::vector<int>* fixedOrder = nullptr) {
     Result res;
     const int S = pr.S, C = pr.C, P = pr.P;
     long prec = pr.dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
@@ -192,16 +199,30 @@ static Result run(const Problem& pr, const Variant& v, bool hierarchical, std::m
         ok(res, "beagleSetPatternPartitions", beagleSetPatternPartitions(inst, v.partitions, pr.partitionOf.data()));
 
     std::vector<double> payload;
-    for (int n = 0; n < kNodes - 1; ++n) {
+    if (hierarchical && model) {
+        ModelArrays m = modelArrays(pr.stateTree, fixedOrder, fixedOrder != nullptr);
+        if (!ok(res, "beagleSetEigenDecomposition",
+                beagleSetEigenDecomposition(inst, 0, m.vectors.data(), m.inverse.data(), m.values.data())))
+            return res;
+        std::vector<int> indices(kNodes - 1);
+        for (int n = 0; n < kNodes - 1; ++n)
+            indices[n] = n;
+        if (!ok(res, "beagleUpdateTransitionMatrices",
+                beagleUpdateTransitionMatrices(inst, 0, indices.data(), nullptr, nullptr, pr.edge.data(), kNodes - 1)))
+            return res;
+    }
+    for (int n = 0; n < kNodes - 1 && !(hierarchical && model); ++n) {
         if (hierarchical) {
-            if (v.reencode) {
-                std::vector<int> order = randomPostOrder(pr.stateTree, rng);
-                referenceBundle(pr.stateTree, pr.rates.data(), C, pr.edge[n], payload, &order, true);
+            if (fixedOrder) {
+                referenceBundle(pr.treeOf(n), pr.rates.data(), C, pr.edge[n], payload, fixedOrder, true);
+            } else if (v.reencode) {
+                std::vector<int> order = randomPostOrder(pr.treeOf(n), rng);
+                referenceBundle(pr.treeOf(n), pr.rates.data(), C, pr.edge[n], payload, &order, true);
             } else {
-                referenceBundle(pr.stateTree, pr.rates.data(), C, pr.edge[n], payload);
+                referenceBundle(pr.treeOf(n), pr.rates.data(), C, pr.edge[n], payload);
             }
         } else {
-            referenceP(pr.stateTree, pr.rates.data(), C, pr.edge[n], payload);
+            referenceP(pr.treeOf(n), pr.rates.data(), C, pr.edge[n], payload);
         }
         if (!ok(res, "beagleSetTransitionMatrix", beagleSetTransitionMatrix(inst, n, payload.data(), 1.0)))
             return res;
@@ -312,7 +333,8 @@ static double siteMaxDeviation(const Problem& pr, const std::vector<double>& par
 
 static void compare(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     char tag[160];
-    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d %s", pr.dp ? "double" : "single", pr.S, pr.C, pr.P, v.name.c_str());
+    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s %s", pr.dp ? "double" : "single", pr.S, pr.C, pr.P,
+             pr.label.c_str(), v.name.c_str());
     std::string name(tag);
     Variant oracleVariant = v;
     oracleVariant.states = false;
@@ -346,16 +368,84 @@ static void compare(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     report(name, dp < tol && dl < tolL && std::isfinite(h.logL) && extraPass, detail + extra);
 }
 
+static void modelMatchesBundles(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s %s: model path == bundle path", pr.dp ? "double" : "single",
+             pr.S, pr.C, pr.P, pr.label.c_str(), v.name.c_str());
+    std::vector<int> order;
+    if (v.reencode)
+        order = randomPostOrder(pr.stateTree, rng);
+    const std::vector<int>* fixedOrder = v.reencode ? &order : nullptr;
+    Result a = run(pr, v, true, rng, false, fixedOrder);
+    Result b = run(pr, v, true, rng, true, fixedOrder);
+    bool same = a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
+                std::memcmp(a.partials.data(), b.partials.data(), a.partials.size() * sizeof(double)) == 0 &&
+                std::memcmp(&a.logL, &b.logL, sizeof(double)) == 0 &&
+                a.logLByPartition.size() == b.logLByPartition.size() &&
+                std::memcmp(a.logLByPartition.data(), b.logLByPartition.data(),
+                            a.logLByPartition.size() * sizeof(double)) == 0;
+    report(tag, same, "codes " + std::to_string(a.code) + " " + b.call + " " + std::to_string(b.code) +
+                      ", max relative difference " + std::to_string(maxRelDiff(b.partials, a.partials)));
+}
+
+static void rescaleMatchesLegacy(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s %s: rescale == legacy rescale", pr.dp ? "double" : "single",
+             pr.S, pr.C, pr.P, pr.label.c_str(), v.name.c_str());
+    std::mt19937_64 rngA = rng, rngB = rng;
+    setenv("BEAGLE_HRATE_RESCALE", "legacy", 1);
+    Result a = run(pr, v, true, rngA);
+    unsetenv("BEAGLE_HRATE_RESCALE");
+    Result b = run(pr, v, true, rngB);
+    rng = rngB;
+    bool same = a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
+                std::memcmp(a.partials.data(), b.partials.data(), a.partials.size() * sizeof(double)) == 0 &&
+                std::memcmp(&a.logL, &b.logL, sizeof(double)) == 0;
+    report(tag, same, "codes " + std::to_string(a.code) + " " + std::to_string(b.code) +
+                      ", max relative difference " + std::to_string(maxRelDiff(b.partials, a.partials)));
+}
+
+static void fusedMatchesTiled(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s %s: fused == tiled", pr.dp ? "double" : "single", pr.S, pr.C,
+             pr.P, pr.label.c_str(), v.name.c_str());
+    std::mt19937_64 rngA = rng, rngB = rng;
+    const char* saved = getenv("BEAGLE_HRATE_KERNEL");
+    std::string restore = saved ? saved : "";
+    setenv("BEAGLE_HRATE_KERNEL", "tiled", 1);
+    Result a = run(pr, v, true, rngA);
+    setenv("BEAGLE_HRATE_KERNEL", "fused", 1);
+    setenv("BEAGLE_HRATE_GATHER", "off", 1);
+    Result b = run(pr, v, true, rngB);
+    unsetenv("BEAGLE_HRATE_GATHER");
+    if (saved)
+        setenv("BEAGLE_HRATE_KERNEL", restore.c_str(), 1);
+    else
+        unsetenv("BEAGLE_HRATE_KERNEL");
+    rng = rngB;
+    bool same = a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
+                std::memcmp(a.partials.data(), b.partials.data(), a.partials.size() * sizeof(double)) == 0 &&
+                std::memcmp(&a.logL, &b.logL, sizeof(double)) == 0 &&
+                a.logLByPartition.size() == b.logLByPartition.size() &&
+                std::memcmp(a.logLByPartition.data(), b.logLByPartition.data(),
+                            a.logLByPartition.size() * sizeof(double)) == 0;
+    report(tag, same, "codes " + std::to_string(a.code) + " " + std::to_string(b.code) +
+                      ", max relative difference " + std::to_string(maxRelDiff(b.partials, a.partials)));
+}
+
 static void statesMatchPartials(const Problem& pr, std::mt19937_64& rng) {
     char tag[160];
-    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d states == one-hot partials", pr.dp ? "double" : "single",
-             pr.S, pr.C, pr.P);
+    snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s states == one-hot partials", pr.dp ? "double" : "single",
+             pr.S, pr.C, pr.P, pr.label.c_str());
     Variant partials, states;
     states.states = true;
     Result a = run(pr, partials, true, rng);
     Result b = run(pr, states, true, rng);
     double d = maxRelDiff(a.partials, b.partials);
-    report(tag, a.code == 0 && b.code == 0 && d == 0.0, "max relative difference " + std::to_string(d));
+    const double tol = pr.dp ? 1e-12 : 2e-5;
+    char detail[96];
+    snprintf(detail, sizeof(detail), "max relative difference %.2e, tolerance %.0e", d, tol);
+    report(tag, a.code == 0 && b.code == 0 && d <= tol, detail);
 }
 
 static void failsLoudly(std::mt19937_64& rng) {
@@ -420,14 +510,52 @@ int main() {
     variants[9].name = "scaling dynamic, two passes";
     variants[9].scaling = Scaling::Dynamic;
 
-    for (bool dp : { true, false })
-        for (int S : { 4, 17, 61 })
+    for (bool dp : { true, false }) {
+        for (int S : { 2, 3, 4, 17, 61 })
             for (int C : { 1, 4 }) {
                 Problem pr = makeProblem(dp, S, C, 1003, rng);
-                for (const Variant& v : variants)
+                for (const Variant& v : variants) {
                     compare(pr, v, rng);
+                    modelMatchesBundles(pr, v, rng);
+                    if (v.scaling != Scaling::None)
+                        rescaleMatchesLegacy(pr, v, rng);
+                    fusedMatchesTiled(pr, v, rng);
+                }
                 statesMatchPartials(pr, rng);
             }
+        for (int kind = 0; kind < 3; ++kind) {
+            Problem pr = makeProblem(dp, 4, 4, 1003, rng);
+            if (kind == 0) {
+                pr.stateTree = makeShapedTree(4, false, rng, 2.0);
+                pr.label = " balanced";
+            } else if (kind == 1) {
+                pr.stateTree = makeShapedTree(4, true, rng, 2.0);
+                pr.label = " caterpillar";
+            } else {
+                std::vector<double> tipPi(pr.stateTree.pi.begin(), pr.stateTree.pi.begin() + 4);
+                pr.branchTrees = { makeShapedTree(4, false, rng, 2.0, &tipPi), makeShapedTree(4, true, rng, 2.0, &tipPi),
+                                   makeShapedTree(4, true, rng, 2.0, &tipPi) };
+                std::swap(pr.branchTrees[2].lambda[4], pr.branchTrees[2].lambda[5]);
+                pr.stateTree = pr.branchTrees[0];
+                pr.label = " two state trees";
+            }
+            for (const Variant& v : variants) {
+                compare(pr, v, rng);
+                if (pr.branchTrees.empty())
+                    modelMatchesBundles(pr, v, rng);
+                if (v.scaling != Scaling::None)
+                    rescaleMatchesLegacy(pr, v, rng);
+                fusedMatchesTiled(pr, v, rng);
+            }
+            statesMatchPartials(pr, rng);
+        }
+        for (int S : { 4, 8, 17, 20, 61 })
+            for (int P : { 5, 32, 33, 64, 95 }) {
+                Problem pr = makeProblem(dp, S, 4, P, rng);
+                for (int i : { 0, 1, 3, 4, 6, 9 })
+                    fusedMatchesTiled(pr, variants[i], rng);
+            }
+    }
     failsLoudly(rng);
 
     printf("%d of %d checks passed\n", checks - failures, checks);

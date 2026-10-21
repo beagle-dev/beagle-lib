@@ -217,6 +217,41 @@ if(BUILD_HIERARCHICAL)
             hmsbeagle-cpu-hierarchical
             ${CMAKE_DL_LIBS})
     add_test(hratepruningtest hratepruningtest)
+    foreach(HRATE_KERNEL tiled dense fused)
+        add_test(hratepruningtest-${HRATE_KERNEL} hratepruningtest)
+        set_property(TEST hratepruningtest-${HRATE_KERNEL} PROPERTY ENVIRONMENT "BEAGLE_HRATE_KERNEL=${HRATE_KERNEL}")
+        add_test(hratebundletest-${HRATE_KERNEL} hratebundletest)
+        set_property(TEST hratebundletest-${HRATE_KERNEL} PROPERTY ENVIRONMENT "BEAGLE_HRATE_KERNEL=${HRATE_KERNEL}")
+        add_test(hratetest-states-${HRATE_KERNEL} hratetest --states)
+        set_property(TEST hratetest-states-${HRATE_KERNEL} PROPERTY ENVIRONMENT "BEAGLE_HRATE_KERNEL=${HRATE_KERNEL}")
+    endforeach()
+    foreach(HRATE_BUDGET 0 2000)
+        add_test(hratepruningtest-fused-budget-${HRATE_BUDGET} hratepruningtest)
+        set_property(TEST hratepruningtest-fused-budget-${HRATE_BUDGET} PROPERTY ENVIRONMENT
+                     "BEAGLE_HRATE_KERNEL=fused;BEAGLE_HRATE_TABLE_BUDGET=${HRATE_BUDGET}")
+    endforeach()
+    add_executable(hratebench
+            hratetest/hratebench.cpp)
+    target_link_libraries(hratebench
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    if(BUILD_SSE)
+        target_link_libraries(hratebench hmsbeagle-cpu-sse)
+    endif(BUILD_SSE)
+    if(APPLE)
+        target_link_libraries(hratebench "-framework Accelerate")
+        target_compile_definitions(hratebench PRIVATE ACCELERATE_NEW_LAPACK)
+    endif()
+    add_test(hratebench-smoke hratebench --states 17 --patterns 1008 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-smoke-standard hratebench --impl standard --vector none --states 17 --patterns 1008 --tips 8 --budget 0.2 --minreps 2)
+    add_test(hratebench-single-vs-double-4 hratebench --precision single --states 4 --patterns 1008 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-single-vs-double-17 hratebench --precision single --states 17 --patterns 1008 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-fused-smoke hratebench --kernel fused --states 17 --patterns 1008 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-fused-states hratebench --kernel fused --tipdata states --states 20 --patterns 1003 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-fused-scaling hratebench --kernel fused --scaling always --states 20 --patterns 1003 --tips 8 --budget 0.2 --minreps 2 --check)
+    add_test(hratebench-fused-single-4 hratebench --kernel fused --precision single --states 4 --patterns 1008 --tips 8 --budget 0.2 --minreps 2 --check)
 endif(BUILD_HIERARCHICAL)
 
 if(BUILD_SSE)
