@@ -121,7 +121,9 @@ jobs:
 
     - name: Set CMake build type
       run: |
-        CMAKE_ARGS=""
+        # Runners have different CPUs, and ccache would reuse -march=native objects across them
+        # ("Illegal instruction"), so build for the baseline architecture.
+        CMAKE_ARGS="-DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF"
         if [ -n "${{ matrix.buildtype }}" ] ; then
           CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }}"
         fi
