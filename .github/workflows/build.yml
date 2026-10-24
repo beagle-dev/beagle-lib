@@ -90,7 +90,7 @@ jobs:
             arch: "mac-intel64"
 
           - name: macos-xcode16-arm
-            os: macos-latest
+            os: macos-15
             compiler: xcode
             version: "16"
             arch: "mac-arm64"
