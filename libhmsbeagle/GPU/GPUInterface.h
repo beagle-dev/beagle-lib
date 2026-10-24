@@ -94,6 +94,10 @@ public:
 #ifdef CUDA
     // Ordinal of the device chosen by SetDevice( ), for code that uses the CUDA runtime API.
     int GetCudaDeviceOrdinal() { return cudaDeviceOrdinal; }
+
+    // The stream that single-stream operations (copies, scale-factor kernels, ...) are issued on.
+    // ResizeStreamCount( ) replaces it.
+    CUstream GetCudaStream() { return cudaStreams[0]; }
 #endif
 
     void SetDevice(int deviceNumber,

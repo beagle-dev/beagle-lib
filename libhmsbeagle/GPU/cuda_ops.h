@@ -75,76 +75,54 @@ std::vector<T> MemcpyDeviceToHostVector(const T* dptr, int n)
     return host_vec;
 }
 
-struct cuda_scratch_space
-{
-    void* device_ptr = nullptr;
-    size_t size = 0;
-
-    void discard();
-    void fit(size_t n);
-
-    ~cuda_scratch_space();
-};
-
-void cuda_log_vector(double* v, int length);
-void cuda_log_vector(float* v, int length);
-
-// (n,t) -> (n,t)
-void cuda_sign_vector(double* v, int n, int t);
-void cuda_sign_vector(float* v, int n, int t);
-
-// sum.abs over (n,t) -> (1,t), then max over (1,t) -> (1,1).  Matrix assumed to be column-major.
+// max_i |v[i]| (synchronizes with the host).
 double cuda_max_abs(double* v, int length);
 float cuda_max_abs(float* v, int length);
 
-void cuda_max(double* v, int length, double* out, cuda_scratch_space& scratch);
-void cuda_max(float* v, int length, float* out, cuda_scratch_space& scratch);
-
-// max over (n,t) -> (n,1).  Matrix assumed to be column-major.
-void cuda_rowwise_max_abs(float* values_ptr, int n, int t, float* out_ptr);
-void cuda_rowwise_max_abs(double* values_ptr, int n, int t, double* out_ptr);
-
-// h[i] = -1 where visited[i] != 0
-void cuda_mask_visited(float* h, const int* visited, int n);
-void cuda_mask_visited(double* h, const int* visited, int n);
-
-// visited[indices[j]] = 1 for j in [0,t-1]
-void cuda_mark_visited(int* visited, const int* indices, int t);
-
-void cuda_fill_vector(float* buffer, int n, double x);
-void cuda_fill_vector(double* buffer, int n, double x);
-
+// The starting matrix X (n, t) of the block 1-norm estimator: first column 1/n, others random +-1/n.
 void initialize_norm_x_matrix(float* data, int n, int m);
 void initialize_norm_x_matrix(double* data, int n, int m);
 
-float cuda_max_l1_norm(float* values, int n, int t, float* buffer_);
-double cuda_max_l1_norm(double* values, int n, int t, double* buffer_);
+// Block 1-norm estimation, see BlockNormEstimator in BeagleGPUActionImpl.h.
+// y(:, 0:nApplied) = A x(:, 0:nApplied) for column-major y, x with n rows and A in CSR; then nAppend more
+// columns of y are set to sign(signSource) if signSource is non-null, otherwise to unit vectors e(unitRows[c]).
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const float* values, const float* x, float* y,
+                          int nApplied, int nAppend, const float* signSource, const int* unitRows, cudaStream_t stream);
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const double* values, const double* x, double* y,
+                          int nApplied, int nAppend, const double* signSource, const int* unitRows, cudaStream_t stream);
 
-void cuda_max_l1_norm(float* values, int n, int t, float* buffer, float* out, cuda_scratch_space& scratch, int* offsets);
-void cuda_max_l1_norm(double* values, int n, int t, double* buffer, double* out, cuda_scratch_space& scratch, int* offsets);
+// sums[c] = sum_i |x(i, c)| for the nColumns columns of x (n rows).
+void cuda_column_abs_sums(const float* x, int n, int nColumns, float* sums, cudaStream_t stream);
+void cuda_column_abs_sums(const double* x, int n, int nColumns, double* sums, cudaStream_t stream);
 
-void cuda_vec_fill(float* values, int length, float fill);
-void cuda_vec_fill(double* values, int length, double fill);
+// For each of nBlocks blocks of t columns of Z (n rows): the t rows with the largest max_j |Z(i,j)| -> unitRows[b*t ...].
+void cuda_select_unit_columns(const float* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream);
+void cuda_select_unit_columns(const double* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream);
 
-void cuda_vec_abs(float *values, int n, float *results);
-void cuda_vec_abs(double* values, int n, double *results);
+// norms[p] for p = 2..pTop: the largest column sum for p in either iteration (see the kernel).
+void cuda_combine_norm_estimates(const float* sums1, const float* sums2, int t, int pTop, float* norms, cudaStream_t stream);
+void cuda_combine_norm_estimates(const double* sums1, const double* sums2, int t, int pTop, double* norms, cudaStream_t stream);
 
-void cuda_sort_indices_by_vector(const float* values_ptr, int n, int* indices_ptr);
-void cuda_sort_indices_by_vector(const double* values_ptr, int n, int* indices_ptr);
+// parent = left * right for (nStates, nPatterns, nCategories) partials.  If scalingFactors is non-null, also
+// rescale each pattern by its largest entry m, write m (log m if scalersLog) to scalingFactors[pattern],
+// and add log m to cumulative[pattern] if cumulative is non-null.
+void cuda_partials_product(const float* left, const float* right, float* parent, int nStates, int nPatterns, int nCategories,
+                           float* scalingFactors, float* cumulative, bool scalersLog, cudaStream_t stream);
+void cuda_partials_product(const double* left, const double* right, double* parent, int nStates, int nPatterns, int nCategories,
+                           double* scalingFactors, double* cumulative, bool scalersLog, cudaStream_t stream);
 
-void cuda_set_indices(float* x, int n, int t, const int* indices);
-void cuda_set_indices(double* x, int n, int t, const int* indices);
+// siteLogLikelihoods[p] = log(sum_{c,s} root * categoryWeights[c] * frequencies[s]) + cumulativeScaling[p] (if non-null),
+// sumLogLikelihood[0] = sum_p patternWeights[p] * siteLogLikelihoods[p].
+void cuda_root_log_likelihoods(const float* root, const float* categoryWeights, const float* frequencies, const float* cumulativeScaling,
+                               const float* patternWeights, int nStates, int nPaddedPatterns, int nPatterns, int nCategories,
+                               float* siteLogLikelihoods, float* sumLogLikelihood, cudaStream_t stream);
+void cuda_root_log_likelihoods(const double* root, const double* categoryWeights, const double* frequencies, const double* cumulativeScaling,
+                               const double* patternWeights, int nStates, int nPaddedPatterns, int nPatterns, int nCategories,
+                               double* siteLogLikelihoods, double* sumLogLikelihood, cudaStream_t stream);
 
-void  rescalePartials2(bool scalers_log, int kCategoryCount, int kPaddedPatternCount, int kPaddedStateCount,
-		       float* partials, float* scalingFactors, float* cumulativeScalingBuffer, int streamIndex);
-void  rescalePartials2(bool scalers_log, int kCategoryCount, int kPaddedPatternCount, int kPaddedStateCount,
-		       double* partials, double* scalingFactors, double* cumulativeScalingBuffer, int streamIndex);
-
-void sumRootLikelihoods(float* siteProbs, // OUT
-			float* partials, float* weights, float* frequencies, // INT
-			int nStates, int nPatterns, int nCategories);
-
-void sumRootLikelihoods(double* siteProbs, // OUT
-			double* partials, double* weights, double* frequencies, // INT
-			int nStates, int nPatterns, int nCategories);
+// One Taylor term on column-major (nStates, nColumns) matrices: y = alpha * A * x; F = scale * (F + y), A in CSR.
+void cuda_csr_taylor_term(int nStates, int nColumns, const int* rowOffsets, const int* columns, const float* values, float alpha,
+                          const float* x, float* y, float* F, float scale, cudaStream_t stream);
+void cuda_csr_taylor_term(int nStates, int nColumns, const int* rowOffsets, const int* columns, const double* values, double alpha,
+                          const double* x, double* y, double* F, double scale, cudaStream_t stream);
 #endif

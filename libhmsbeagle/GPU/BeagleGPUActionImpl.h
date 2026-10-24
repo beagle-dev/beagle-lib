@@ -123,6 +123,88 @@ template <typename T> cudaDataType DataType;
 template <> cudaDataType DataType<float> = CUDA_R_32F;
 template <> cudaDataType DataType<double> = CUDA_R_64F;
 
+// A CSR matrix on the host.
+template <typename Real>
+struct HostCsr
+{
+    std::vector<int> offsets;
+    std::vector<int> columns;
+    std::vector<Real> values;
+
+    int nonZeros() const {return (int) values.size();}
+};
+
+// B = Q - mu*I as an (n,n) CSR matrix with sorted columns, built directly from Q's triplets.  Duplicate
+// triplets are summed, as Eigen's setFromTriplets( ) does, and every row gets a diagonal entry.
+// Two stable counting sorts (by column, then by row) leave each row sorted, in O(nnz + n) for any input
+// order.  (Going through Eigen took ~2 ms for 75K non-zeros.)
+template <typename Real>
+void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values, int nnz, Real mu, HostCsr<Real>& B)
+{
+    const int m = nnz + n;   // the triplets, plus (i, i, -mu) for each row
+    auto rowOf = [&](int k) {return (k < nnz) ? rows[k] : k - nnz;};
+    auto colOf = [&](int k) {return (k < nnz) ? cols[k] : k - nnz;};
+    auto valueOf = [&](int k) {return (k < nnz) ? values[k] : -mu;};
+
+    // 1. Order the entries by column.
+    std::vector<int> start(n + 1, 0);
+    for (int k = 0; k < m; k++)
+        start[colOf(k) + 1]++;
+    for (int j = 0; j < n; j++)
+        start[j + 1] += start[j];
+    std::vector<int> byColumn(m);
+    for (int k = 0; k < m; k++)
+        byColumn[start[colOf(k)]++] = k;
+
+    // 2. Stably order them by row, so each row is sorted by column.
+    B.offsets.assign(n + 1, 0);
+    for (int k = 0; k < m; k++)
+        B.offsets[rowOf(k) + 1]++;
+    for (int i = 0; i < n; i++)
+        B.offsets[i + 1] += B.offsets[i];
+    std::vector<int> next(B.offsets.begin(), B.offsets.end() - 1);
+    B.columns.resize(m);
+    B.values.resize(m);
+    for (int k: byColumn)
+    {
+        const int a = next[rowOf(k)]++;
+        B.columns[a] = colOf(k);
+        B.values[a] = valueOf(k);
+    }
+
+    // 3. Sum duplicates, compacting in place.
+    int out = 0;
+    for (int i = 0; i < n; i++)
+    {
+        const int begin = B.offsets[i];
+        const int end = B.offsets[i + 1];
+        B.offsets[i] = out;
+        for (int a = begin; a < end; a++)
+        {
+            if (out > B.offsets[i] and B.columns[out - 1] == B.columns[a])
+                B.values[out - 1] += B.values[a];
+            else
+            {
+                B.columns[out] = B.columns[a];
+                B.values[out++] = B.values[a];
+            }
+        }
+    }
+    B.offsets[n] = out;
+    B.columns.resize(out);
+    B.values.resize(out);
+}
+
+// max_j sum_i |B(i,j)|
+template <typename Real>
+double normP1(int n, const HostCsr<Real>& B)
+{
+    std::vector<double> sums(n, 0.0);
+    for (int k = 0; k < B.nonZeros(); k++)
+        sums[B.columns[k]] += std::abs(B.values[k]);
+    return n ? *std::max_element(sums.begin(), sums.end()) : 0.0;
+}
+
 template <typename Real>
 struct DnMatrixDevice
 {
@@ -144,12 +226,14 @@ struct DnMatrixDevice
         MemcpyDeviceToDevice(ptr, D.ptr, size());
     }
 
-    void copyFromAsync(const DnMatrixDevice<Real>& D)
+    void copyFromAsync(const DnMatrixDevice<Real>& D, cudaStream_t stream)
     {
         assert(order == D.order);
         assert(size1 == D.size1);
         assert(size2 == D.size2);
-        MemcpyDeviceToDevice(ptr, D.ptr, size());
+        auto status = cudaMemcpyAsync(ptr, D.ptr, byte_size(), cudaMemcpyDeviceToDevice, stream);
+        if (status != cudaSuccess)
+            throw std::runtime_error("cudaMemcpyAsync(Device->Device): " + std::string(cudaGetErrorString(status)));
     }
 
     // Disallow copying -- only one object can "own" the descriptor.
@@ -202,6 +286,38 @@ struct DnMatrixDevice
             exit(1);
         }
         return *this;
+    }
+
+    // Point at different memory; the cuSPARSE descriptor must follow, or SpMM reads the old buffer.
+    void setPointer(Real* p)
+    {
+        ptr = p;
+        if (descr and cusparseDnMatSetValues(descr, p) != CUSPARSE_STATUS_SUCCESS)
+        {
+            std::cerr<<"cusparseDnMatSetValues( ) failed!";
+            std::exit(1);
+        }
+    }
+
+    // (*this) = a * (*this) + b * D, in one pass.
+    void axpby(Real a, Real b, const DnMatrixDevice<Real>& D)
+    {
+        cublasStatus_t status;
+        assert(D.size1 == size1);
+        assert(D.size2 == size2);
+        assert(order == CUSPARSE_ORDER_COL and D.order == CUSPARSE_ORDER_COL);
+        // geam allows C to alias A when A is not transposed and lda == ldc.
+        if constexpr (std::is_same<Real, float>::value) {
+            status = cublasSgeam(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, size1, size2, &a, ptr, size1, &b, D.ptr, size1, ptr, size1);
+        } else {
+            status = cublasDgeam(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, size1, size2, &a, ptr, size1, &b, D.ptr, size1, ptr, size1);
+        }
+
+        if (status != CUBLAS_STATUS_SUCCESS)
+        {
+            std::cerr<<"cublas error "<<status<<" in DnMatrix<>::axpby\n";
+            exit(1);
+        }
     }
 
     // Disallow copying.
@@ -400,32 +516,29 @@ int spMM(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, con
     return spMM<Real>(A.cusparseHandle, C.descr, alpha, A.descr, B.descr, beta, buffer, buffersize);
 }
 
+// C = alpha * A * B with a work buffer already sized by spMMBufferSize( ).
 template <typename Real>
-int spMTM(cusparseHandle_t handle, cusparseDnMatDescr_t C, Real alpha, cusparseSpMatDescr_t A, cusparseDnMatDescr_t B, Real beta, void*& buffer, size_t& buffersize)
+int spMMPrepared(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B, void* buffer)
 {
-    size_t new_buffersize;
-    CHECK_CUSPARSE(cusparseSpMM_bufferSize(handle, CUSPARSE_OPERATION_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                           &alpha, A, B, &beta, C, DataType<Real>,
-                                           CUSPARSE_SPMM_ALG_DEFAULT, &new_buffersize));
-
-    if(new_buffersize > buffersize)
-    {
-        cudaDeviceDelete(buffer);
-        buffer = cudaMallocWrapped(new_buffersize);
-        buffersize = new_buffersize;
-    }
-
-    // integrationTmp = alpha * A * destP
-    CHECK_CUSPARSE(cusparseSpMM(handle, CUSPARSE_OPERATION_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                &alpha, A, B, &beta, C, DataType<Real>,
-                                CUSPARSE_SPMM_ALG_DEFAULT, buffer)); //row-major layout provides higher performance (?)
+    Real beta = 0;
+    CHECK_CUSPARSE(cusparseSpMM(A.cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                &alpha, A.descr, B.descr, &beta, C.descr, DataType<Real>,
+                                CUSPARSE_SPMM_ALG_DEFAULT, buffer));
     return 0;
 }
 
 template <typename Real>
-int spMTM(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B, Real beta, void*& buffer, size_t& buffersize)
+size_t spMMBufferSize(const DnMatrixDevice<Real>& C, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B)
 {
-    return spMTM<Real>(A.cusparseHandle, C.descr, alpha, A.descr, B.descr, beta, buffer, buffersize);
+    Real alpha = 1;
+    Real beta = 0;
+    size_t size = 0;
+    auto status = cusparseSpMM_bufferSize(A.cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                          &alpha, A.descr, B.descr, &beta, C.descr, DataType<Real>,
+                                          CUSPARSE_SPMM_ALG_DEFAULT, &size);
+    if (status != CUSPARSE_STATUS_SUCCESS)
+        throw std::runtime_error(std::string("cusparseSpMM_bufferSize: ") + cusparseGetErrorString(status));
+    return size;
 }
 
 // Create an io-manipulator so that we can write std::cerr<<byRow(D)<<"\n";
@@ -646,450 +759,161 @@ std::ostream& operator<<(std::ostream& o, const std::vector<T>& H)
 
 
 
-// Make the temporary variables part of a data structure that represents to normest1 problem.
-// We don't want to allocate memory on the GPU every time we run this.
+// Block 1-norm estimates of ||B^p||_1 for p = 2 .. pTop at once, for the d_p of equation 3.7 in Al-Mohy and
+// Higham.  This is Algorithm 2.4 of Higham and Tisseur (2000) with 2 iterations and t columns (without
+// resampling parallel columns), but the products for all p are chained, so it takes about 3*pTop launches
+// of at most (pTop-1)*t columns instead of O(pTop^2) separate SpMMs:
+//   1. Y_p = B^p X0 for p = 1..pTop: one chain, each step reading the previous block.
+//   2. Z_p = (B^T)^p sign(Y_p): start from [sign(Y_pTop)]; each step multiplies all blocks so far by B^T
+//      and appends the next sign block, so sign(Y_p) is multiplied exactly p times.
+//   3. X_p = the t unit vectors e_i with the largest max_j |Z_p(i,j)|.
+//   4. B^p X_p, by the same appending chain with B.
+// The estimate for p is the largest column 1-norm of Y_p and of B^p X_p.  Everything stays on the
+// device until one copy of the pTop+1 results.
 template <typename Real>
-struct GPUnormest1
+struct BlockNormEstimator
 {
-    int p = 0;
     int n = 0;
     int t = 0;
-    int itmax = 0;
-    DnMatrixDevice<Real> X;  // (n,t)
-    DnMatrixDevice<Real> Y;  // (n,t)
-    DnMatrixDevice<Real> h;  // (n,1)
+    int pTop = 0;
 
-    // Sorted matrix dimensions by approximate norm.
-    int* indices = nullptr;  // (n)
+    Real* X0 = nullptr;          // (n, t)
+    Real* Y = nullptr;           // (n, pTop*t): block p-1 is B^p X0
+    Real* chain[2] = {nullptr, nullptr};  // (n, (pTop-1)*t) each
+    Real* sums1 = nullptr;       // pTop*t column sums of Y
+    Real* sums2 = nullptr;       // (pTop-1)*t column sums of step 4
+    int* unitRows = nullptr;     // (pTop-1)*t
+    Real* norms = nullptr;       // pTop+1
 
-    // Used for spMM
-    void* buffer = nullptr;
-    size_t buffer_size = 0;
+    // B^T in CSR (that is, B in CSC)
+    int* btOffsets = nullptr;
+    int* btColumns = nullptr;
+    Real* btValues = nullptr;
+    int btCapacity = 0;
+    void* transposeBuffer = nullptr;
+    size_t transposeBufferSize = 0;
 
-    // Temporary storage for cuda_max_l1_norm
-    Real* buffer2 = nullptr;
-
-    // Space to store the norms for the different iterations.
-    Real* buffer3 = nullptr;
-
-    // Space to store a result
-    Real* buffer4 = nullptr;
-
-    GPUnormest1& operator=(const GPUnormest1&) = delete;
-    GPUnormest1& operator=(GPUnormest1&& g)
+    void allocate(int n_, int t_, int pTop_)
     {
-        std::swap(p, g.p);
-        std::swap(n, g.n);
-        std::swap(t, g.t);
-        std::swap(itmax, g.itmax);
-        std::swap(X, g.X);
-        std::swap(Y, g.Y);
-        std::swap(h, g.h);
-
-        // ensure that (*this) and (g) don't both own the buffers!
-        std::swap(buffer, g.buffer);
-        std::swap(buffer_size, g.buffer_size);
-        std::swap(indices, g.indices);
-        std::swap(buffer2, g.buffer2);
-        std::swap(buffer3, g.buffer3);
-        std::swap(buffer4, g.buffer4);
-
-        return *this;
+        n = n_;
+        t = std::min(t_, n);
+        pTop = pTop_;
+        assert(t <= 32);   // cuda_select_unit_columns( )
+        X0 = cudaDeviceNew<Real>(n * t);
+        Y = cudaDeviceNew<Real>(n * t * pTop);
+        chain[0] = cudaDeviceNew<Real>(n * t * (pTop - 1));
+        chain[1] = cudaDeviceNew<Real>(n * t * (pTop - 1));
+        sums1 = cudaDeviceNew<Real>(t * pTop);
+        sums2 = cudaDeviceNew<Real>(t * (pTop - 1));
+        unitRows = cudaDeviceNew<int>(t * (pTop - 1));
+        norms = cudaDeviceNew<Real>(pTop + 1);
+        btOffsets = cudaDeviceNew<int>(n + 1);
+        initialize_norm_x_matrix(X0, n, t);
     }
 
-    Real operator()(const SpMatrixDevice<Real>& A)
+    // Returns ||B^p||_1 estimates for p = 2..pTop at index p.  (Indices 0 and 1 are not set.)
+    std::vector<Real> estimate(const SpMatrixDevice<Real>& B, cudaStream_t stream)
     {
-        // std::cerr<<"n = "<<n<<"   t = "<<t<<"\n";
-        // std::cerr<<"A.rows() = "<<A.rows()<<"\n";
-        // A is (n,n);
-        assert(A.rows() == A.cols());
-        assert(A.cols() == n);
-        //std::cerr<<"A = "<<byRow(A)<<"\n";
+        assert(B.rows() == n and B.cols() == n);
+        const int nnz = B.num_non_zeros;
+        const int nBlocks = pTop - 1;
+        const size_t blockSize = (size_t) n * t;
 
-        // X[0][j] = 1
-        // X[i][j] = if (uniform(0,1)<0.5) +1 else -1
-        initialize_norm_x_matrix(X.ptr, n, t);
-
-        double norm = 0;
-        for(int k=1; k<=itmax; k++)
+        // B^T
+        if (nnz > btCapacity)
         {
-            // std::cerr<<"iter "<<k<<"\n";
-            // std::cerr<<"X0 = "<<byRow(X)<<"\n\n";
+            cudaDeviceDelete(btColumns);
+            cudaDeviceDelete(btValues);
+            btColumns = cudaDeviceNew<int>(nnz);
+            btValues = cudaDeviceNew<Real>(nnz);
+            btCapacity = nnz;
+        }
+        size_t size = 0;
+        checkCusparse(cusparseCsr2cscEx2_bufferSize(B.cusparseHandle, n, n, nnz, B.values, B.offsets, B.inner,
+                                                    btValues, btOffsets, btColumns, DataType<Real>, CUSPARSE_ACTION_NUMERIC,
+                                                    CUSPARSE_INDEX_BASE_ZERO, CUSPARSE_CSR2CSC_ALG1, &size));
+        if (size > transposeBufferSize or transposeBuffer == nullptr)
+        {
+            cudaDeviceDelete(transposeBuffer);
+            transposeBufferSize = std::max<size_t>(size, 1);
+            transposeBuffer = cudaMallocWrapped(transposeBufferSize);
+        }
+        checkCusparse(cusparseCsr2cscEx2(B.cusparseHandle, n, n, nnz, B.values, B.offsets, B.inner,
+                                         btValues, btOffsets, btColumns, DataType<Real>, CUSPARSE_ACTION_NUMERIC,
+                                         CUSPARSE_INDEX_BASE_ZERO, CUSPARSE_CSR2CSC_ALG1, transposeBuffer));
 
-            for(int i=0;i<p;i++)
-            {
-                // Y = A*X; // Y is (n,t) = (n,n) * (n,t)
-                spMM<Real>(Y, 1, A, X, 0, buffer, buffer_size);
-                // X = Y
-                X.copyFrom(Y);
-            }
+        // 1. Y_p = B^p X0
+        for (int p = 1; p <= pTop; p++)
+        {
+            const Real* x = (p == 1) ? X0 : Y + (p - 2) * blockSize;
+            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, x, Y + (p - 1) * blockSize, t, 0, (Real*)nullptr, nullptr, stream);
+        }
+        cuda_column_abs_sums(Y, n, pTop * t, sums1, stream);
 
-            // get largest L1 norm
-            double new_norm = cuda_max_l1_norm(X.ptr, n, t, buffer2);
-            if (new_norm <= norm and k >= 2)
-                break;
-
-            norm = std::max(norm,new_norm);
-            // std::cerr<<"A^p*X = "<<byRow(X)<<"   norm = "<<norm<<"\n\n";
-
-            // S = sign(X)
-            cuda_sign_vector(X.ptr, n, t);   // (n,n) -> (n,n)
-
-            // (2) Replace parallel entries with random +1/-1 entries.
-            // Skipping this part for now because it involves a lot of branching logic
-            //  and might be slow for the GPU.
-
-            // (3) of Algorithm 2.4
-            // Z = A^T * S
-            spMTM<Real>(Y, 1, A, X, 0, buffer, buffer_size);  // (n,n) * (n,t) -> (n,t)
-
-            // h[i] = max(j) abs(Z(i,j))
-            cuda_rowwise_max_abs(Y.ptr, n, t, h.ptr);  // (n,t) -> (n,1)
-
-            // (4) of Algorithm 2.4 - If we don't find a new best dimension, exit early.
-            // We don't do this, because finding a different reason to exit
-            // seems to provide greater accuracy.
-
-            // Rank the dimensions by the size of their approximate norm in h, in decreasing order.
-            cuda_sort_indices_by_vector(h.ptr, n, indices);
-
-            // Zero the X matrix.
-            cuda_fill_vector(X.ptr, n*t, 0);  // (n,t) -> (n,t)
-
-            // Set X(i,indices[i]) = 1 for i in [0,t-1]
-            cuda_set_indices(X.ptr, n, t, indices);
+        // 2. Z_p = (B^T)^p sign(Y_p), in block pTop - p.
+        Real* in = chain[0];
+        Real* out = chain[1];
+        cuda_norm_chain_step(n, btOffsets, btColumns, btValues, (Real*)nullptr, in, 0, t, Y + (pTop - 1) * blockSize, nullptr, stream);
+        for (int k = 1; k <= pTop; k++)
+        {
+            const bool append = (k < nBlocks);
+            const Real* sign = append ? Y + (pTop - k - 1) * blockSize : nullptr;
+            cuda_norm_chain_step(n, btOffsets, btColumns, btValues, in, out, std::min(k, nBlocks) * t, append ? t : 0, sign, nullptr, stream);
+            std::swap(in, out);
         }
 
-        return norm;
-    }
+        // 3. Unit vectors for the second iteration.
+        cuda_select_unit_columns(in, n, t, nBlocks, unitRows, stream);
 
-    GPUnormest1(GPUnormest1&& g)
-    {
-        operator=(std::move(g));
-    }
-
-    GPUnormest1(const GPUnormest1&) = delete;
-
-    GPUnormest1(cublasHandle_t cb, int p_, int n_, int t_=2, int itmax_=5)
-        :p(p_), n(n_), t(std::min(t_,n)), itmax(itmax_), X(cb,n,t), Y(cb,n,t), h(cb,n,1)
-    {
-        assert(p >= 0);
-        assert(t > 0); // negative means t = n
-        assert(itmax >= 1);
-
-        // Interpret negative t as t == n
-        // if (t < 0) t = n;
-
-        buffer2 = cudaDeviceNew<Real>(t);
-
-        buffer3 = cudaDeviceNew<Real>(itmax);
-
-        buffer4 = cudaDeviceNew<Real>(1);
-
-        indices = cudaDeviceNew<int>(n);
-    }
-
-    ~GPUnormest1()
-    {
-        cudaDeviceDelete(buffer);
-        cudaDeviceDelete(buffer2);
-        cudaDeviceDelete(buffer3);
-        cudaDeviceDelete(buffer4);
-        cudaDeviceDelete(indices);
-    }
-};
-
-// Make the temporary variables part of a data structure that represents to normest1 problem.
-// We don't want to allocate memory on the GPU every time we run this.
-template <typename Real>
-struct GPUnormest2
-{
-    int p = 0;
-    int n = 0;
-    Real const one = Real(1);
-    Real const zero = Real(0);
-
-
-    DnMatrixDevice<Real> Ones;  // (n,1)
-
-    DnMatrixDevice<Real> Y;
-
-    // Used for spMM
-    void* buffer = nullptr;
-    size_t buffer_size = 0;
-
-    Real *valuesBuffer = nullptr;
-
-
-    GPUnormest2& operator=(const GPUnormest2&) = delete;
-    GPUnormest2& operator=(GPUnormest2&& g)
-    {
-        std::swap(p, g.p);
-        std::swap(n, g.n);
-        std::swap(Ones, g.Ones);
-        std::swap(Y, g.Y);
-
-        // ensure that (*this) and (g) don't both own the buffers!
-        std::swap(buffer, g.buffer);
-        std::swap(buffer_size, g.buffer_size);
-        std::swap(valuesBuffer, g.valuesBuffer);
-
-        return *this;
-    }
-
-    Real operator()(const SpMatrixDevice<Real>& A)
-    {
-        // std::cerr<<"n = "<<n<<"   t = "<<t<<"\n";
-        // std::cerr<<"A.rows() = "<<A.rows()<<"\n";
-        // A is (n,n);
-        assert(A.rows() == A.cols());
-        assert(A.cols() == n);
-        //std::cerr<<"A = "<<byRow(A)<<"\n";
-
-        // Step 1, Aabs = abs(A)
-        MemcpyDeviceToDevice(valuesBuffer, A.values, A.num_non_zeros);
-        cuda_vec_abs(A.values, A.num_non_zeros, A.values);
-
-        // std::cerr<<"A = "<<A<<std::endl;
-        // std::cerr<<"Ones = "<<Ones<<std::endl;
-
-        // Step 2, calculate column sum
-
-        spMTM<Real>(Y, 1, A, Ones, 0, buffer, buffer_size);
-
-        // std::cerr<<"Y = "<<Y<<std::endl;
-
-        // Step 3, find max
-        int index = 0;
-        double norm;
-
-        cublasIdamax(A.cublasHandle, n, Y.ptr, one, &index);
-        // std::cerr<<"index = "<<index<<std::endl;
-        // std::cerr<<"Y = "<<Y<<std::endl;
-
-        cudaMemcpy(&norm, Y.ptr + index -1, sizeof(Real), cudaMemcpyDeviceToHost);
-        MemcpyDeviceToDevice(A.values, valuesBuffer, A.num_non_zeros);
-        // std::cerr<<"A = "<<A<<std::endl;
-
-        return norm;
-    }
-
-
-    GPUnormest2(GPUnormest2&& g)
-    {
-        operator=(std::move(g));
-    }
-
-    GPUnormest2(const GPUnormest2&) = delete;
-
-    // SpMatrixDevice(cublasHandle_t h1, cusparseHandle_t h2, int s1, int s2, int n, Real* v, int* c, int* o, sparseFormat f)
-
-    GPUnormest2(cublasHandle_t cb, cusparseHandle_t cs, int p_, int n_)
-        :p(p_), n(n_), Y(cb, n, 1), Ones(cb, n, 1, CUSPARSE_ORDER_COL)
-    {
-        assert(p >= 0);
-
-        cuda_vec_fill(Ones.ptr, n, 1);
-
-        valuesBuffer = cudaDeviceNew<Real>(n * n);
-
-    }
-
-    ~GPUnormest2()
-    {
-        cudaDeviceDelete(buffer);
-        cudaDeviceDelete(valuesBuffer);
-        cudaDeviceDelete(Ones.ptr);
-        cudaDeviceDelete(Y.ptr);
-    }
-};
-
-// Make the temporary variables part of a data structure that represents to normest1 problem.
-// We don't want to allocate memory on the GPU every time we run this.
-template <typename Real>
-struct GPUnormest3
-{
-    int p = 0;
-    int n = 0;
-    int t = 0;
-    int itmax = 0;
-    DnMatrixDevice<Real> X;  // (n,t)
-    DnMatrixDevice<Real> Y;  // (n,t)
-    DnMatrixDevice<Real> h;  // (n,1)
-
-    // Sorted matrix dimensions by approximate norm.
-    int* indices = nullptr;  // (n)
-
-    // Used for spMM
-    void* buffer = nullptr;
-    size_t buffer_size = 0;
-
-    // Temporary storage for cuda_max_l1_norm
-    Real* buffer2 = nullptr;
-
-    // Space to store the norms for the different iterations.
-    Real* buffer3 = nullptr;
-
-    // Space to store a result
-    Real* buffer4 = nullptr;
-
-    cuda_scratch_space scratch;
-
-    int* offsets = nullptr;
-
-    // Rows already used as unit columns of X (ind_hist in Algorithm 2.4).
-    int* visited = nullptr;  // (n)
-
-    GPUnormest3& operator=(const GPUnormest3&) = delete;
-    GPUnormest3& operator=(GPUnormest3&& g)
-    {
-        std::swap(p, g.p);
-        std::swap(n, g.n);
-        std::swap(t, g.t);
-        std::swap(itmax, g.itmax);
-        std::swap(X, g.X);
-        std::swap(Y, g.Y);
-        std::swap(h, g.h);
-
-        // ensure that (*this) and (g) don't both own the buffers!
-        std::swap(buffer, g.buffer);
-        std::swap(buffer_size, g.buffer_size);
-        std::swap(indices, g.indices);
-        std::swap(buffer2, g.buffer2);
-        std::swap(buffer3, g.buffer3);
-        std::swap(buffer4, g.buffer4);
-        std::swap(scratch.device_ptr, g.scratch.device_ptr);
-        std::swap(scratch.size, g.scratch.size);
-        std::swap(offsets, g.offsets);
-        std::swap(visited, g.visited);
-
-        return *this;
-    }
-
-    Real operator()(const SpMatrixDevice<Real>& A)
-    {
-        // std::cerr<<"n = "<<n<<"   t = "<<t<<"\n";
-        // std::cerr<<"A.rows() = "<<A.rows()<<"\n";
-        // A is (n,n);
-        assert(A.rows() == A.cols());
-        assert(A.cols() == n);
-        //std::cerr<<"A = "<<byRow(A)<<"\n";
-
-        // X[0][j] = 1
-        // X[i][j] = if (uniform(0,1)<0.5) +1 else -1
-        initialize_norm_x_matrix(X.ptr, n, t);
-
-        cudaMemset(visited, 0, n * sizeof(int));
-
-        for(int k=1; k<=itmax; k++)
+        // 4. B^p X_p, in block pTop - p.
+        cuda_norm_chain_step(n, B.offsets, B.inner, B.values, (Real*)nullptr, out, 0, t, (Real*)nullptr, unitRows, stream);
+        std::swap(in, out);
+        for (int k = 1; k <= pTop; k++)
         {
-            // std::cerr<<"iter "<<k<<"\n";
-            // std::cerr<<"X0 = "<<byRow(X)<<"\n\n";
-
-            for(int i=0;i<p;i++)
-            {
-                // Y = A*X; // Y is (n,t) = (n,n) * (n,t)
-                spMM<Real>(Y, 1, A, X, 0, buffer, buffer_size);
-                // X = Y
-                X.copyFrom(Y);
-            }
-
-            // get the largest column L1 norm of A^p * X for this iteration -> buffer3[k-1]
-            cuda_max_l1_norm(X.ptr, n, t, buffer2, buffer3 + (k-1), scratch, offsets);
-
-            // The rest only chooses X for the next iteration.
-            if (k == itmax) break;
-
-            // S = sign(X)
-            cuda_sign_vector(X.ptr, n, t);   // (n,t) -> (n,t)
-
-            // (2) Replace parallel entries with random +1/-1 entries.
-            // Skipping this part for now because it involves a lot of branching logic
-            //  and might be slow for the GPU.
-
-            // (3) of Algorithm 2.4
-            // Z = (A^T)^p * S
-            for(int i=0;i<p;i++)
-            {
-                spMTM<Real>(Y, 1, A, X, 0, buffer, buffer_size);  // (n,n) * (n,t) -> (n,t)
-                X.copyFrom(Y);
-            }
-
-            // h[i] = max(j) abs(Z(i,j))
-            cuda_rowwise_max_abs(X.ptr, n, t, h.ptr);  // (n,t) -> (n,1)
-
-            // (4) of Algorithm 2.4 - If we don't find a new best dimension, exit early.
-            // We don't do this, because finding a different reason to exit
-            // seems to provide greater accuracy.
-
-            // (5) of Algorithm 2.4 - Only consider rows that have not been used as unit columns yet.
-            //  (If fewer than t remain, used rows are picked again, which only repeats work.)
-            cuda_mask_visited(h.ptr, visited, n);
-
-            // Rank the dimensions by the size of their approximate norm in h, in decreasing order.
-            cuda_sort_indices_by_vector(h.ptr, n, indices);
-
-            // Zero the X matrix.
-            cuda_fill_vector(X.ptr, n*t, 0);  // (n,t) -> (n,t)
-
-            // Set X(indices[j],j) = 1 for j in [0,t-1]
-            cuda_set_indices(X.ptr, n, t, indices);
-            cuda_mark_visited(visited, indices, t);
+            const bool append = (k < nBlocks);
+            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, in, out, std::min(k, nBlocks) * t, append ? t : 0,
+                                 (Real*)nullptr, append ? unitRows + k * t : nullptr, stream);
+            std::swap(in, out);
         }
+        cuda_column_abs_sums(in, n, nBlocks * t, sums2, stream);
 
-        return cuda_max_abs(buffer3, itmax);
+        cuda_combine_norm_estimates(sums1, sums2, t, pTop, norms, stream);
+
+        std::vector<Real> result(pTop + 1, 0);
+        auto status = cudaMemcpyAsync(result.data(), norms, (pTop + 1) * sizeof(Real), cudaMemcpyDeviceToHost, stream);
+        if (status == cudaSuccess)
+            status = cudaStreamSynchronize(stream);
+        if (status != cudaSuccess)
+            throw std::runtime_error(std::string("BlockNormEstimator: ") + cudaGetErrorString(status));
+        return result;
     }
 
-    GPUnormest3(GPUnormest3&& g)
+    static void checkCusparse(cusparseStatus_t status)
     {
-        operator=(std::move(g));
+        if (status != CUSPARSE_STATUS_SUCCESS)
+            throw std::runtime_error(std::string("BlockNormEstimator: ") + cusparseGetErrorString(status));
     }
 
-    GPUnormest3(const GPUnormest3&) = delete;
+    BlockNormEstimator() = default;
+    BlockNormEstimator(const BlockNormEstimator&) = delete;
+    BlockNormEstimator& operator=(const BlockNormEstimator&) = delete;
 
-    GPUnormest3(cublasHandle_t cb, int p_, int n_, int t_=2, int itmax_=5)
-        :p(p_), n(n_), t(std::min(t_,n)), itmax(itmax_), X(cb,n,t), Y(cb,n,t), h(cb,n,1)
+    ~BlockNormEstimator()
     {
-        assert(p >= 0);
-        assert(t > 0); // negative means t = n
-        assert(itmax >= 1);
-
-        // Interpret negative t as t == n
-        // if (t < 0) t = n;
-
-        buffer2 = cudaDeviceNew<Real>(t);
-
-        buffer3 = cudaDeviceNew<Real>(itmax);
-
-        buffer4 = cudaDeviceNew<Real>(1);
-
-        indices = cudaDeviceNew<int>(n);
-
-        offsets = cudaDeviceNew<int>(t+1);
-
-        visited = cudaDeviceNew<int>(n);
-
-        std::vector<int> h_offsets(t+1);
-        for(int i=0;i<t+1;i++)
-            h_offsets[i] = i*n;
-        MemcpyHostToDevice(offsets, h_offsets.data(), h_offsets.size());
-    }
-
-    ~GPUnormest3()
-    {
-        cudaDeviceDelete(X.ptr);
-        cudaDeviceDelete(Y.ptr);
-        cudaDeviceDelete(h.ptr);
-        cudaDeviceDelete(buffer);
-        cudaDeviceDelete(buffer2);
-        cudaDeviceDelete(buffer3);
-        cudaDeviceDelete(buffer4);
-        cudaDeviceDelete(indices);
-        cudaDeviceDelete(offsets);
-        cudaDeviceDelete(visited);
+        cudaDeviceDelete(X0);
+        cudaDeviceDelete(Y);
+        cudaDeviceDelete(chain[0]);
+        cudaDeviceDelete(chain[1]);
+        cudaDeviceDelete(sums1);
+        cudaDeviceDelete(sums2);
+        cudaDeviceDelete(unitRows);
+        cudaDeviceDelete(norms);
+        cudaDeviceDelete(btOffsets);
+        cudaDeviceDelete(btColumns);
+        cudaDeviceDelete(btValues);
+        cudaDeviceDelete(transposeBuffer);
     }
 };
-
 
 
 //template <typename Real>
@@ -1146,8 +970,6 @@ public:
                        int operationCount,
                        int cumulativeScalingIndex);
 
-    void rescalePartials(Real* partials, Real* scalingFactors, Real* cumulativeScalingBuffer, int streamIndex);
-
     // Action instances have no dense transition matrices (see createInstance), so these are not available.
     // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
     int updatePrePartials(const int*, int, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
@@ -1170,9 +992,8 @@ public:
 
 protected:
 
-    std::vector<SpMatrix<Real>> hInstantaneousMatrices;
-    std::vector<SpMatrix<Real>> hBs;
-    SpMatrix<Real> hIdentity;
+    // Per eigen index: B = Q - mu*I.
+    std::vector<HostCsr<Real>> hBs;
     std::vector<Real> hMuBs;
     std::vector<Real> hB1Norms;
     const int mMax = 55;
@@ -1222,37 +1043,31 @@ protected:
 //    std::vector<cusparseSpMatDescr_t> dInstantaneousMatrices;
     std::vector<DnMatrixDevice<Real>> dPartialsWrapper;
     // Per category: the action of each child's edge on its partials (exp(tQ) * partials).
+    // These hold the Taylor sum F while it is accumulated.
     std::vector<DnMatrixDevice<Real>> dDestPLeft;
     std::vector<DnMatrixDevice<Real>> dDestPRight;
-    std::vector<DnMatrixDevice<Real>> dFLeft;
-    std::vector<DnMatrixDevice<Real>> dFRight;
-    std::vector<DnMatrixDevice<Real>> dIntegrationTmpLeft;
-    std::vector<DnMatrixDevice<Real>> dIntegrationTmpRight;
-    std::vector<SpMatrixDevice<Real>> dAs;
-    std::vector<GPUnormest3<Real>> L1normForPower;
-    std::vector<size_t> integrationLeftBufferSize;
-    std::vector<void*> dIntegrationLeftBuffer;
-    std::vector<size_t> integrationRightBufferSize;
-    std::vector<void*> dIntegrationRightBuffer;
+    // Per category: two buffers that alternate as the input and output of each Taylor term.
+    std::vector<DnMatrixDevice<Real>> dTerms[2];
+    // Per eigen index: B = Q - mu*I on the device.  The edge multiplier goes into the SpMM alpha.
+    std::vector<SpMatrixDevice<Real>> dBs;
+    void* dSpMMBuffer = nullptr;
+    size_t spMMBufferBytes = 0;
+    BlockNormEstimator<Real> normEstimator;
+
+    // All work is issued on the GPUInterface's stream 0, so it is ordered with the base class's
+    // copies and kernels (two different blocking streams would not be).  See setCudaDevice( ).
+    cudaStream_t stream = nullptr;
 
     std::vector<int *> dBsCsrOffsetsCache;
     std::vector<int *> dBsCsrColumnsCache;
     std::vector<Real*> dBsCsrValuesCache;
-    std::vector<Real*> dACscValuesCache;
     std::vector<int> currentCacheNNZs;
 
-    cublasHandle_t cublasHandle;
-    cusparseHandle_t cusparseHandle;
+    cublasHandle_t cublasHandle = nullptr;
+    cusparseHandle_t cusparseHandle = nullptr;
 
     std::vector<int> hEigenMaps;
     std::vector<Real> hEdgeMultipliers;
-
-    std::vector<tuple<int, int>> msCache;
-    std::vector<Real> etaCache;
-    std::vector<Real> c1Cache;
-    std::vector<Real> c2Cache;
-    std::vector<Real> alphaCache;
-    std::vector<Real> integrationMultipliers;
 
 
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kTipCount;
@@ -1320,25 +1135,25 @@ private:
 				 int count);
     double getPMax() const;
 
-    // Make CUDA runtime, cuBLAS, cuSPARSE and Thrust calls target this instance's device.
+    // Make CUDA runtime, cuBLAS, cuSPARSE and Thrust calls target this instance's device,
+    // and cuBLAS/cuSPARSE use the GPUInterface's stream.
     void setCudaDevice();
 
     int getPartialIndex(int nodeIndex, int categoryIndex);
 
     DnMatrixDevice<Real>& getPartialsWrapper(int nodeIndex, int categoryIndex);
 
+    // scalingFactors == nullptr means no rescaling.
     void calcPartialsPartials(int destPIndex,
                               int partials1Index,
                               int edgeIndex1,
                               int partials2Index,
-                              int edgeIndex2);
+                              int edgeIndex2,
+                              Real* scalingFactors,
+                              Real* cumulativeScalingBuffer);
 
-    int simpleAction2(DnMatrixDevice<Real>& destP, const DnMatrixDevice<Real>& inPartials, int edgeIndex, int category, int matrixIndex, bool left, bool transpose);
-
-    int simpleAction3(int partialsIndex1, int edgeIndex1,
-                      int partialsIndex2, int edgeIndex2);
-
-    int cacheAMatrices(int edgeIndex1, int edgeIndex2, bool transpose);
+    // F = exp(t * edgeMultiplier * Q) * inPartials
+    int simpleAction2(DnMatrixDevice<Real>& F, const DnMatrixDevice<Real>& inPartials, int edgeIndex, int category);
 
     std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
                                        int eigenIndex) const;

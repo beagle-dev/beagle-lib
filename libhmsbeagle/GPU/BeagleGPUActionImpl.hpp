@@ -291,45 +291,27 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     setCudaDevice();
 
-    hIdentity = SpMatrix<Real>(kPaddedStateCount, kPaddedStateCount);
-    hIdentity.setIdentity();
-    hInstantaneousMatrices.resize(kEigenDecompCount);
     hBs.resize(kEigenDecompCount);
-    for (int i = 0; i < kEigenDecompCount; i++) {
-        hInstantaneousMatrices[i] = SpMatrix<Real>(kPaddedStateCount, kPaddedStateCount);
-        hBs[i] = SpMatrix<Real>(kPaddedStateCount, kPaddedStateCount);
-    }
     hMuBs.resize(kEigenDecompCount);
     hB1Norms.resize(kEigenDecompCount);
     hds.resize(kEigenDecompCount);
 
-    CUBLAS_CHECK(cublasCreate(&cublasHandle));  //TODO: destroyer: CUBLAS_CHECK(cublasDestroy(cublasHandle));
+    CUBLAS_CHECK(cublasCreate(&cublasHandle));
     CHECK_CUSPARSE(cusparseCreate(&cusparseHandle));
+    setCudaDevice();
 
     dBsCsrOffsetsCache.resize(kEigenDecompCount);
     dBsCsrColumnsCache.resize(kEigenDecompCount);
     dBsCsrValuesCache.resize(kEigenDecompCount);
-    dACscValuesCache.resize(kEigenDecompCount * kCategoryCount * 2);
-    dAs = std::vector<SpMatrixDevice<Real>>(kEigenDecompCount * kCategoryCount * 2);
-    for(int p=0; p<=getPMax()+1; p++)
-    {
-        int t = 5;
-        int itmax = 2;
-        L1normForPower.push_back({cublasHandle, p, kPaddedStateCount, t, itmax});
-
-//        This is very fast, but computes |A| instead of |A^p|
-//        L1normForPower.push_back(GPUnormest2<Real>(cublasHandle, cusparseHandle, p, kPaddedStateCount));
-    }
+    dBs = std::vector<SpMatrixDevice<Real>>(kEigenDecompCount);
+    // getStatistics2( ) uses d_p for p = 2 .. pMax+1.
+    normEstimator.allocate(kPaddedStateCount, 5, getPMax() + 1);
 
     currentCacheNNZs = std::vector<int>(kEigenDecompCount, kPaddedStateCount);
     for (int i = 0; i < kEigenDecompCount; i++) {
         dBsCsrOffsetsCache[i] = cudaDeviceNew<int>(kPaddedStateCount + 1);
         dBsCsrColumnsCache[i] = cudaDeviceNew<int>(currentCacheNNZs[i]);
         dBsCsrValuesCache[i] = cudaDeviceNew<Real>(currentCacheNNZs[i]);
-        for (int j = 0; j < kCategoryCount; j++) {
-            dACscValuesCache[i * kCategoryCount * 2 + 2 * j] = cudaDeviceNew<Real>(currentCacheNNZs[i]);
-            dACscValuesCache[i * kCategoryCount * 2 + 2 * j + 1] = cudaDeviceNew<Real>(currentCacheNNZs[i]);
-        }
     }
 
 
@@ -342,31 +324,16 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         }
     }
 
-    Real* dDestPLeftPtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-    Real* dDestPRightPtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-
-    Real* dLeftCachePtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-    Real* dRightCachePtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-
-    Real* dIntegrationTmpLeftCachePtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-    Real* dIntegrationTmpRightCachePtr = cudaDeviceNew<Real>(kPaddedStateCount * kPaddedPatternCount * kCategoryCount);
-
-    integrationLeftBufferSize = std::vector<size_t>(kCategoryCount, kPaddedStateCount * kPaddedPatternCount);
-    dIntegrationLeftBuffer = std::vector<void*>(kCategoryCount, nullptr);
-    integrationRightBufferSize = std::vector<size_t>(kCategoryCount, kPaddedStateCount * kPaddedPatternCount);
-    dIntegrationRightBuffer = std::vector<void*>(kCategoryCount, nullptr);
+    const size_t partialsSize = (size_t) kPaddedStateCount * kPaddedPatternCount * kCategoryCount;
+    Real* dDestPLeftPtr = cudaDeviceNew<Real>(partialsSize);
+    Real* dDestPRightPtr = cudaDeviceNew<Real>(partialsSize);
+    // The two children are processed one after the other, so they share the term buffers.
+    Real* dTermPtrs[2] = {cudaDeviceNew<Real>(partialsSize), cudaDeviceNew<Real>(partialsSize)};
 
     dDestPLeft.clear();
-
     dDestPRight.clear();
-
-    dFLeft.clear();
-
-    dFRight.clear();
-
-    dIntegrationTmpLeft.clear();
-
-    dIntegrationTmpRight.clear();
+    dTerms[0].clear();
+    dTerms[1].clear();
 
     for (int category = 0; category < kCategoryCount; category++)
     {
@@ -375,28 +342,12 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         dDestPLeft.emplace_back(cublasHandle, dDestPLeftPtr + offset, kPaddedStateCount, kPaddedPatternCount);
         dDestPRight.emplace_back(cublasHandle, dDestPRightPtr + offset, kPaddedStateCount, kPaddedPatternCount);
 
-        dFLeft.emplace_back(cublasHandle, dLeftCachePtr + offset, kPaddedStateCount, kPaddedPatternCount);
-        dFRight.emplace_back(cublasHandle, dRightCachePtr + offset, kPaddedStateCount, kPaddedPatternCount);
-
-	dIntegrationTmpLeft.emplace_back(cublasHandle, dIntegrationTmpLeftCachePtr + offset,  kPaddedStateCount, kPaddedPatternCount);
-	dIntegrationTmpRight.emplace_back(cublasHandle, dIntegrationTmpRightCachePtr + offset,  kPaddedStateCount, kPaddedPatternCount);
-    }
-
-    for (int category = 0; category < kCategoryCount; category++) {
-
-        CHECK_CUDA(cudaMalloc(&dIntegrationLeftBuffer[category], integrationLeftBufferSize[category]))
-        CHECK_CUDA(cudaMalloc(&dIntegrationRightBuffer[category], integrationRightBufferSize[category]))
+        for (int k = 0; k < 2; k++)
+            dTerms[k].emplace_back(cublasHandle, dTermPtrs[k] + offset, kPaddedStateCount, kPaddedPatternCount);
     }
 
     hEigenMaps.resize(kMatrixCount);
     hEdgeMultipliers.resize(kMatrixCount * kCategoryCount);
-
-    msCache = std::vector<tuple<int, int>>(2 * kCategoryCount, tuple<int, int>{0, 0});
-    etaCache = std::vector<Real>(2 * kCategoryCount, 0);
-    c1Cache.resize(2 * kCategoryCount);
-    c2Cache.resize(2 * kCategoryCount);
-    alphaCache.resize(2 * kCategoryCount);
-    integrationMultipliers = std::vector<Real>(kCategoryCount * 2, 1);
 
     return BEAGLE_SUCCESS;
 }
@@ -405,28 +356,20 @@ BEAGLE_GPU_TEMPLATE
 BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUActionImpl()
 {
     cudaSetDevice(gpu->GetCudaDeviceOrdinal());
+    cudaStreamSynchronize(stream);
 
-    for (int i = 0; i < kCategoryCount; i++) {
-        cudaFree(dIntegrationLeftBuffer[i]);
-        cudaFree(dIntegrationRightBuffer[i]);
-    }
+    cudaFree(dSpMMBuffer);
 
     // The memory for each matrix group was allocation in a single block.
     cudaFree(dDestPLeft[0].ptr);
     cudaFree(dDestPRight[0].ptr);
-    cudaFree(dFLeft[0].ptr);
-    cudaFree(dFRight[0].ptr);
-    cudaFree(dIntegrationTmpLeft[0].ptr);
-    cudaFree(dIntegrationTmpRight[0].ptr);
+    cudaFree(dTerms[0][0].ptr);
+    cudaFree(dTerms[1][0].ptr);
 
     for (int i = 0; i < kEigenDecompCount; i++) {
         cudaFree(dBsCsrOffsetsCache[i]);
         cudaFree(dBsCsrColumnsCache[i]);
         cudaFree(dBsCsrValuesCache[i]);
-        for (int j = 0; j < kCategoryCount * 2; j++) {
-            cudaFree(dACscValuesCache[i * kCategoryCount * 2 + j]);
-//            cusparseDestroySpMat(dAs[i * kCategoryCount * 2 + i]);
-        }
     }
     cublasDestroy(cublasHandle);
     cusparseDestroy(cusparseHandle);
@@ -486,7 +429,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setTipPartials(int tipIndex, const 
     BeagleGPUImpl<Real>::setTipPartials(tipIndex, inPartials);
 
     for (int category = 0; category < kCategoryCount; category++) {
-        dPartialsWrapper[getPartialIndex(tipIndex, category)].ptr = (Real*) dPartials[tipIndex] + kPaddedStateCount * kPaddedPatternCount * category;
+        dPartialsWrapper[getPartialIndex(tipIndex, category)].setPointer((Real*) dPartials[tipIndex] + kPaddedStateCount * kPaddedPatternCount * category);
     }
 
 
@@ -505,7 +448,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setPartials(int tipIndex, const Rea
 
     BeagleGPUImpl<Real>::setPartials(tipIndex, inPartials);
     for (int category = 0; category < kCategoryCount; category++) {
-        dPartialsWrapper[getPartialIndex(tipIndex, category)].ptr = (Real*) dPartials[tipIndex] + kPaddedStateCount * kPaddedPatternCount * category;
+        dPartialsWrapper[getPartialIndex(tipIndex, category)].setPointer((Real*) dPartials[tipIndex] + kPaddedStateCount * kPaddedPatternCount * category);
     }
 
 
@@ -543,21 +486,6 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operation
 }
 
 BEAGLE_GPU_TEMPLATE
-void  BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::rescalePartials(Real* partials, Real* scalingFactors, Real* cumulativeScalingBuffer, int streamIndex)
-{
-//    std::cerr<<"initial  partials (kernel) = "<<asDeviceVec((Real*)partials, kPaddedStateCount * kPaddedPatternCount * kCategoryCount)<<"\n";
-
-//            kernels->RescalePartials(partials3, scalingFactors, cumulativeScalingBuffer,
-//                                     kPaddedPatternCount, kCategoryCount, 0, streamIndex, -1);
-
-    bool scalers_log = (kFlags & BEAGLE_FLAG_SCALERS_LOG)?true:false;
-    // rescalePartialsDevice(partials, scalingFactors, cumulativeScalingBuffer, kPaddedStateCount, kPaddedPatternCount, kCategoryCount);
-    rescalePartials2(scalers_log, kCategoryCount, kPaddedPatternCount, kPaddedStateCount, partials, scalingFactors, cumulativeScalingBuffer, streamIndex);
-//    std::cerr<<"rescaled partials (kernel) = "<<asDeviceVec((Real*)partials, kPaddedStateCount * kPaddedPatternCount * kCategoryCount)<<"\n";
-//    std::cerr<<"scaling factors (kernel) = "<<asDeviceVec((Real*)scalingFactors, kPatternCount)<<"\n";
-}
-
-BEAGLE_GPU_TEMPLATE
 void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setCudaDevice()
 {
     // GPUInterface uses the driver API and pops its context after each call, so without this
@@ -565,6 +493,15 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setCudaDevice()
     auto status = cudaSetDevice(gpu->GetCudaDeviceOrdinal());
     if (status != cudaSuccess)
         throw std::runtime_error(std::string("cudaSetDevice: ") + cudaGetErrorString(status));
+
+    auto beagleStream = (cudaStream_t) gpu->GetCudaStream();
+    if (cublasHandle and beagleStream != stream)
+    {
+        stream = beagleStream;
+        CUBLAS_CHECK(cublasSetStream(cublasHandle, stream));
+        if (cusparseSetStream(cusparseHandle, stream) != CUSPARSE_STATUS_SUCCESS)
+            throw std::runtime_error("cusparseSetStream failed");
+    }
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -591,9 +528,6 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     Real* cumulativeScalingBuffer = 0;
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = (Real*)dScalingFactors[cumulativeScalingIndex];
-
-    int streamIndex = -1;
-    int waitIndex = -1;
 
     for (int op = 0; op < operationCount; op++) {
         const int numOps = BEAGLE_OP_COUNT;
@@ -626,15 +560,8 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         }
 
         calcPartialsPartials(destinationPartialIndex, firstChildPartialIndex, firstChildSubstitutionMatrixIndex,
-                             secondChildPartialIndex, secondChildSubstitutionMatrixIndex);
-
-
-        if (rescale == 1)
-        {
-            Real* partials3 = (Real*)dPartials[destinationPartialIndex];
-
-	    rescalePartials(partials3, scalingFactors, cumulativeScalingBuffer, streamIndex);
-        }
+                             secondChildPartialIndex, secondChildSubstitutionMatrixIndex,
+                             (rescale == 1) ? scalingFactors : nullptr, cumulativeScalingBuffer);
 
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             int parScalingIndex = destinationPartialIndex - kTipCount;
@@ -783,49 +710,22 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPartialsPartials(int destPInde
                                                                    int partials1Index,
                                                                    int edgeIndex1,
                                                                    int partials2Index,
-                                                                   int edgeIndex2) {
-
-    cacheAMatrices(edgeIndex1, edgeIndex2, false);
-
-    for (int category = 0; category < kCategoryCount; category++)
-    {
-
-        const int matrixIndex1 = hEigenMaps[edgeIndex1] * kCategoryCount * 2 + category;
-        const int matrixIndex2 = hEigenMaps[edgeIndex2] * kCategoryCount * 2 + kCategoryCount + category;
-
-        simpleAction2(dDestPLeft[category], getPartialsWrapper(partials1Index, category),
-                      edgeIndex1, category, matrixIndex1, true, false);
-
-        simpleAction2(dDestPRight[category], getPartialsWrapper(partials2Index, category),
-                      edgeIndex2, category, matrixIndex2, false, false);
-    }
-
-    // simpleAction3(partials1Index, edgeIndex1, partials2Index, edgeIndex2);
+                                                                   int edgeIndex2,
+                                                                   Real* scalingFactors,
+                                                                   Real* cumulativeScalingBuffer) {
 
     for (int category = 0; category < kCategoryCount; category++)
     {
-        const int destPartialIndex = getPartialIndex(destPIndex, category);
+        simpleAction2(dDestPLeft[category], getPartialsWrapper(partials1Index, category), edgeIndex1, category);
 
-	// element-wise multiply
-        if constexpr (std::is_same<Real, float>::value) {
-            CUBLAS_CHECK(cublasSdgmm(cublasHandle, CUBLAS_SIDE_LEFT, kPaddedStateCount * kPaddedPatternCount, 1, dDestPLeft[category].ptr, kPaddedStateCount * kPaddedPatternCount,
-                                     dDestPRight[category].ptr, 1, dPartialsWrapper[destPartialIndex].ptr, kPaddedStateCount * kPaddedPatternCount));
-
-        } else {
-            CUBLAS_CHECK(cublasDdgmm(cublasHandle, CUBLAS_SIDE_LEFT, kPaddedStateCount * kPaddedPatternCount, 1, dDestPLeft[category].ptr, kPaddedStateCount * kPaddedPatternCount,
-                                     dDestPRight[category].ptr, 1, dPartialsWrapper[destPartialIndex].ptr, kPaddedStateCount * kPaddedPatternCount));
-
-        }
-//#ifdef BEAGLE_DEBUG_FLOW
-//        std::cerr<<"Checking p_parent = p_1 * p_2, parent index = "<<destPartialIndex<<" chil1 index = " << partial1CacheIndex<< " child2 index = "<<partial2CacheIndex<<std::endl;
-//        std::cerr<<"p1 = "<<std::endl;
-//        PrintfDeviceVector(dPartialCache[partial1CacheIndex], kPaddedStateCount * kPaddedPatternCount, -1, 0, 0);
-//        std::cerr<<"p2 = "<<std::endl;
-//        PrintfDeviceVector(dPartialCache[partial2CacheIndex], kPaddedStateCount * kPaddedPatternCount, -1, 0, 0);
-//        std::cerr<<"p_parent = "<<std::endl;
-//        PrintfDeviceVector(dPartialCache[destPartialIndex], kPaddedStateCount * kPaddedPatternCount, -1, 0, 0);
-//#endif
+        simpleAction2(dDestPRight[category], getPartialsWrapper(partials2Index, category), edgeIndex2, category);
     }
+
+    // parent = left * right for all categories, then (optionally) rescale each pattern.
+    bool scalers_log = (kFlags & BEAGLE_FLAG_SCALERS_LOG)?true:false;
+    cuda_partials_product(dDestPLeft[0].ptr, dDestPRight[0].ptr, (Real*)dPartials[destPIndex],
+                          kPaddedStateCount, kPaddedPatternCount, kCategoryCount,
+                          scalingFactors, cumulativeScalingBuffer, scalers_log, stream);
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -933,16 +833,6 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const i
     std::cerr<<"root partials = "<<asDeviceVec((Real*)dPartials[rootNodeIndex], kPaddedPatternCount * kPaddedStateCount * kCategoryCount)<<"\n";
 #endif
 
-    Real* siteProbs = (Real*)dIntegrationTmp;
-    Real* rootPartials = (Real*)dPartials[rootNodeIndex];
-    Real* categoryWeights = (Real*)dWeights[categoryWeightsIndex];
-    Real* stateFrequencies = (Real*)dFrequencies[stateFrequenciesIndex]; // these really should be category-dependent
-
-    // 1. Compute pr[pattern] = sum_{category,state} likelihood(category,pattern,state) * categoryWeights[category] * statesFrequencies[state]
-    sumRootLikelihoods(siteProbs, rootPartials, categoryWeights, stateFrequencies, kPaddedStateCount, kPaddedPatternCount, kCategoryCount);
-
-    // auto hStateFrequencies = MemcpyDeviceToHostVector((Real*)dFrequencies[stateFrequenciesIndex], kStateCount);
-    // auto hPatternWeights = MemcpyDeviceToHostVector((Real*)dPatternWeights, kPatternCount);
     if (kFlags & BEAGLE_FLAG_SCALING_AUTO)
     {
 	// scaling factor per pattern*category -- see BeagleGPUImpl<>::createInstance
@@ -953,61 +843,29 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const i
 	std::abort();
     }
 
-    // 2. Compute log(pr[pattern])
-    cuda_log_vector(siteProbs, kPatternCount);
+    Real* siteLogLikelihoods = (Real*)dIntegrationTmp;
+    Real* rootPartials = (Real*)dPartials[rootNodeIndex];
+    Real* categoryWeights = (Real*)dWeights[categoryWeightsIndex];
+    Real* stateFrequencies = (Real*)dFrequencies[stateFrequenciesIndex]; // these really should be category-dependent
 
-    // 3. Add scaling factors back in.
-    if (scale)
-    {
-	cublasStatus_t status;
-	if constexpr (std::is_same<Real, float>::value)
-	{
-	    Real alpha = 1;
-	    status = cublasSaxpy(cublasHandle, kPatternCount,
-				 &alpha,
-				 dCumulativeScalingFactor, 1,
-				 siteProbs, 1);
-	}
-	else
-	{
-	    Real alpha = 1;
-	    status = cublasDaxpy(cublasHandle, kPatternCount,
-				 &alpha,
-				 dCumulativeScalingFactor, 1,
-				 siteProbs, 1);
-	}
-	if (status != CUBLAS_STATUS_SUCCESS)
-	{
-	    std::cerr<<"cublas error "<<status<<" in cublas<t>axpy( ).";
-	    exit(1);
-	}
-    }
-
-
-/*
-    std::cerr<<"site probs (d1) = "<<asDeviceVec((Real*)dIntegrationTmp, kPatternCount)<<"\n";
-*/
+    // siteLogLikelihoods[pattern] = log( sum_{category,state} likelihood(category,pattern,state) * categoryWeights[category] * statesFrequencies[state] )
+    //                               + scaling factor
+    // dSumLogLikelihood[0] = sum_{pattern} patternWeights[pattern] * siteLogLikelihoods[pattern]
+    cuda_root_log_likelihoods(rootPartials, categoryWeights, stateFrequencies, scale ? dCumulativeScalingFactor : nullptr,
+                              (Real*)dPatternWeights, kPaddedStateCount, kPaddedPatternCount, kPatternCount, kCategoryCount,
+                              siteLogLikelihoods, (Real*)dSumLogLikelihood, stream);
 
 #ifdef BEAGLE_DEBUG_VALUES
-    std::cerr<<"before pattern weights = "<<asDeviceVec((Real*)dIntegrationTmp, kPatternCount)<<"\n";
+    std::cerr<<"site log likelihoods = "<<asDeviceVec((Real*)dIntegrationTmp, kPatternCount)<<"\n";
 #endif
 
-    // Take the dot product of the pattern log-likelihoods and the pattern weights.
-    // The output (dSumLogLikelihood) needs to be a device pointer.
-    dotProduct((Real*)dSumLogLikelihood, cublasHandle, kPatternCount, (Real*)dIntegrationTmp, (Real*)dPatternWeights);
-
-//    std::cerr<<"logLikelihood (kernel) = "<<MemcpyDeviceToHostVector((Real*)dSumLogLikelihood,1)[0]<<"   logLikelihood (ours) = "<<OurResult<<"\n";
-
     if (kFlags & BEAGLE_FLAG_COMPUTATION_SYNCH) {
-        gpu->MemcpyDeviceToHost(hLogLikelihoodsCache, dSumLogLikelihood, sizeof(Real) * kSumSitesBlockCount);
+        CHECK_CUDA(cudaMemcpyAsync(hLogLikelihoodsCache, (Real*)dSumLogLikelihood, sizeof(Real), cudaMemcpyDeviceToHost, stream));
+        CHECK_CUDA(cudaStreamSynchronize(stream));
 
-        *outSumLogLikelihood = 0.0;
-        for (int i = 0; i < kSumSitesBlockCount; i++) {
-            if (hLogLikelihoodsCache[i] != hLogLikelihoodsCache[i])
-                returnCode = BEAGLE_ERROR_FLOATING_POINT;
-
-            *outSumLogLikelihood += hLogLikelihoodsCache[i];
-        }
+        *outSumLogLikelihood = hLogLikelihoodsCache[0];
+        if (*outSumLogLikelihood != *outSumLogLikelihood)
+            returnCode = BEAGLE_ERROR_FLOATING_POINT;
     }
 
 #ifdef BEAGLE_DEBUG_VALUES
@@ -1086,332 +944,95 @@ std::tuple<int,int> BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getStatistics2(doub
 }
 
 BEAGLE_GPU_TEMPLATE
-int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::cacheAMatrices(int edgeIndex1, int edgeIndex2, bool transpose)
-{
-    for (int category = 0; category < kCategoryCount; category++) {
-        const int matrixIndex1 = hEigenMaps[edgeIndex1] * kCategoryCount * 2 + category;
-        const int edgeMultiplierIndex1 = edgeIndex1 * kCategoryCount + category;
-        const Real edgeMultiplier1 = hEdgeMultipliers[edgeMultiplierIndex1];
-
-        const int matrixIndex2 = hEigenMaps[edgeIndex2] * kCategoryCount * 2 + kCategoryCount + category;
-        const int edgeMultiplierIndex2 = edgeIndex2 * kCategoryCount + category;
-        const Real edgeMultiplier2 = hEdgeMultipliers[edgeMultiplierIndex2];
-
-        MemcpyDeviceToDevice(dACscValuesCache[matrixIndex1], dBsCsrValuesCache[hEigenMaps[edgeIndex1]], currentCacheNNZs[hEigenMaps[edgeIndex1]]);
-        MemcpyDeviceToDevice(dACscValuesCache[matrixIndex2], dBsCsrValuesCache[hEigenMaps[edgeIndex2]], currentCacheNNZs[hEigenMaps[edgeIndex2]]);
-        auto format = transpose ? sparseFormat::csc : sparseFormat::csr;
-
-        dAs[matrixIndex1] = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
-                                                 kPaddedStateCount, kPaddedStateCount,
-                                                 currentCacheNNZs[hEigenMaps[edgeIndex1]],
-                                                 dACscValuesCache[matrixIndex1],
-                                                 dBsCsrColumnsCache[hEigenMaps[edgeIndex1]],
-                                                 dBsCsrOffsetsCache[hEigenMaps[edgeIndex1]],
-                                                 format);
-
-        dAs[matrixIndex2] = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
-                                                 kPaddedStateCount, kPaddedStateCount,
-                                                 currentCacheNNZs[hEigenMaps[edgeIndex2]],
-                                                 dACscValuesCache[matrixIndex2],
-                                                 dBsCsrColumnsCache[hEigenMaps[edgeIndex2]],
-                                                 dBsCsrOffsetsCache[hEigenMaps[edgeIndex2]],
-                                                 format);
-
-        dAs[matrixIndex1] *= edgeMultiplier1; //Check if this is asynchronous with the following
-        dAs[matrixIndex2] *= edgeMultiplier2;
-
-#ifdef BEAGLE_DEBUG_FLOW
-        std::cerr<<"category = "<<category<<std::endl;
-        std::cerr<<"matrixIndex1 = "<<matrixIndex1<<std::endl;
-        std::cerr<<"edgeIndex1 = "<<edgeIndex1<<std::endl;
-        std::cerr<<"edgeMultiplierIndex1 = "<<edgeMultiplierIndex1<<std::endl;
-        std::cerr<<"edgeMultiplier1 = "<<edgeMultiplier1<<std::endl;
-        std::cerr<<"hEigenMaps[edgeIndex1] = "<<hEigenMaps[edgeIndex1]<<std::endl;
-        std::cerr<<"dAs["<<matrixIndex1<<"] = \n"<<dAs[matrixIndex1]<<"\n";
-#endif
-    }
-
-    return BEAGLE_SUCCESS;
-}
-
-BEAGLE_GPU_TEMPLATE
-int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::simpleAction2(DnMatrixDevice<Real>& destP, const DnMatrixDevice<Real>& inPartials, int edgeIndex, int category, int matrixIndex, bool left, bool transpose) {
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::simpleAction2(DnMatrixDevice<Real>& F, const DnMatrixDevice<Real>& inPartials, int edgeIndex, int category) {
     const double tol = pow(2.0, -53.0);
     const double t = 1.0;
     const int nCol = kPaddedPatternCount;
     const int edgeMultiplierIndex = edgeIndex * kCategoryCount + category;
+    const int eigenIndex = hEigenMaps[edgeIndex];
 
     const double edgeMultiplier = hEdgeMultipliers[edgeMultiplierIndex];
 
-    auto [m, s] = getStatistics2(t, nCol, edgeMultiplier, hEigenMaps[edgeIndex]);
+    auto [m, s] = getStatistics2(t, nCol, edgeMultiplier, eigenIndex);
 
 
 #ifdef BEAGLE_DEBUG_FLOW
     std::cerr << "\n\nsimpleAction2: m = " << m << "  s = " << s << " t = " << t << " nCol = " << nCol << " edgeMultiplier = " << edgeMultiplier << std::endl;
-    std::cerr << "  edgeIndex = " << edgeIndex << " category = " << category << " matrixIndex = "<<matrixIndex << std::endl;
+    std::cerr << "  edgeIndex = " << edgeIndex << " category = " << category << std::endl;
 #endif
 
-//    SpMatrix<Real> A = hBs[hEigenMaps[edgeIndex]] * edgeMultiplier;
-    auto& A = dAs[matrixIndex];
-    vector<DnMatrixDevice<Real>>* FF;
-    vector<DnMatrixDevice<Real>>* integrationTmpPtr;
-    // Pointers, not copies: spMM may reallocate the buffer, and the new one must be kept.
-    std::vector<void*>* integrationBufferPtr;
-    std::vector<size_t>* integrationBufferSizePtr;
-    if (left) {
-        FF = &dFLeft;
-        integrationTmpPtr = &dIntegrationTmpLeft;
-        integrationBufferPtr = &dIntegrationLeftBuffer;
-        integrationBufferSizePtr = &integrationLeftBufferSize;
-    } else {
-        FF = &dFRight;
-        integrationTmpPtr = &dIntegrationTmpRight;
-        integrationBufferPtr = &dIntegrationRightBuffer;
-        integrationBufferSizePtr = &integrationRightBufferSize;
-    }
-    auto& F = (*FF)[category];
-    auto& integrationTmp = (*integrationTmpPtr)[category];
-    auto& integrationBuffer = (*integrationBufferPtr)[category];
-    auto& integrationBufferSize = (*integrationBufferSizePtr)[category];
+    // A = edgeMultiplier * B, so A is never formed: the multiplier goes into the SpMM alpha.
+    auto& B = dBs[eigenIndex];
 
-    destP.copyFrom( inPartials );
+    // For small problems one fused kernel per term beats cuSPARSE's 3 kernels + axpy, which are
+    // launch-bound there.  (A100: 7 vs 21 us per term for IGC at 1 column; cuSPARSE wins from
+    // about nnz * columns = 3e6, e.g. 53 vs 67 us for MM M=32 at 64 columns.)
+    const bool fusedTerms = (double) B.num_non_zeros * kPaddedPatternCount < 3e6;
 
-    F.copyFrom( inPartials );
+    // F accumulates the Taylor sum in place.  Each term is written to one of the two term buffers and
+    // is the input of the next term, so no copies are needed.
+    F.copyFromAsync( inPartials, stream );
 
-    const Real eta = exp(t * hMuBs[hEigenMaps[edgeIndex]] * edgeMultiplier / (Real) s);
+    const Real eta = exp(t * hMuBs[eigenIndex] * edgeMultiplier / (Real) s);
 
-    const Real zero = 0;
-    const Real one = 1;
     for (int i = 0; i < s; i++) {
 
+        // The first term of each step reads the current F.
+        const DnMatrixDevice<Real>* x = (i == 0) ? &inPartials : &F;
+        bool scaled = false;
+
+        // The fused kernel updates F while other threads read x, so x must not be F.
+        // (Term j=1 writes dTerms[1], so dTerms[0] is free here.)
+        if (fusedTerms and x == &F)
+        {
+            dTerms[0][category].copyFromAsync(F, stream);
+            x = &dTerms[0][category];
+        }
+
 #ifdef ACTION_EARLY_EXIT_NORM
-        Real c1 = normPInf(destP);
+        Real c1 = normPInf(*x);
 #endif
 
         for (int j = 1; j < m + 1; j++) {
 
+            auto& y = dTerms[j % 2][category];
+            const Real alpha = edgeMultiplier * t / ((Real) s * j);
+
+            // y = alpha * B * x; F += y, folding in F *= eta after the last term.
+            const Real scale = (j < m) ? 1 : eta;
+            if (fusedTerms)
+                cuda_csr_taylor_term(kPaddedStateCount, kPaddedPatternCount, B.offsets, B.inner, B.values, alpha,
+                                     x->ptr, y.ptr, F.ptr, scale, stream);
+            else
+            {
+                spMMPrepared<Real>(y, alpha, B, *x, dSpMMBuffer);
+                if (j < m)
+                    F += y;
+                else
+                    F.axpby(eta, eta, y);
+            }
+            scaled = (j == m);
+
 #ifdef BEAGLE_DEBUG_FLOW
-            std::cerr<<"j/m = "<<j<<"/"<<m<<", i = "<<i<<", alpha = "<<t / ((Real) s * j)<<std::endl;
-            std::cerr<<"A = \n" << A << "\n";
-            std::cerr<<"destP = \n" << destP << "\n";
-            std::cerr<<"F = \n" << F << "\n";
-#endif
-
-
-            spMM<Real>(integrationTmp, t / ((Real) s * j), A, destP, 0, integrationBuffer, integrationBufferSize);
-
-            destP.copyFrom( integrationTmp );
-
-            F += destP;
-
-#ifdef BEAGLE_DEBUG_FLOW
-            std::cerr<<"After destP = \n" << destP << "\n";
-            std::cerr<<"Action2 Step 2, integrationTmp =\n"<<integrationTmp<<"\n";
-            std::cerr<<"Action2 Step 2, destP =\n"<<destP<<"\n";
-            std::cerr<<"Action2 Step 2, F =\n"<<F<<"\n";
+            std::cerr<<"j/m = "<<j<<"/"<<m<<", i = "<<i<<", alpha = "<<edgeMultiplier * t / ((Real) s * j)<<std::endl;
+            std::cerr<<"term =\n"<<y<<"\n";
+            std::cerr<<"F =\n"<<F<<"\n";
 #endif
 
 #ifdef ACTION_EARLY_EXIT_NORM
-            Real c2 = normPInf(destP);
+            Real c2 = normPInf(y);
             if (c1 + c2 <= tol * normPInf(F)) break;
             c1 = c2;
 #endif
+            x = &y;
         }
 
-        F *= eta;
-
-        destP.copyFrom ( F );
-
-#ifdef BEAGLE_DEBUG_FLOW
-        std::cerr<<"i = "<<i<<" destP = F:\n"<<"  "<<byCol(destP)<<"\n";
-#endif
-    }
-
-    return BEAGLE_SUCCESS;
-}
-
-
-BEAGLE_GPU_TEMPLATE
-int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::simpleAction3(int partialsIndex1, int edgeIndex1,
-                                                           int partialsIndex2, int edgeIndex2) {
-    const double tol = pow(2.0, -53.0);
-    const double t = 1.0;
-    const int nCol = kPaddedPatternCount;
-
-
-
-    int m_max = 0, s_max = 0;
-    for (int category = 0; category < kCategoryCount; category++) {
-        const int edgeMultiplierIndex1 = edgeIndex1 * kCategoryCount + category;
-        const double edgeMultiplier1 = hEdgeMultipliers[edgeMultiplierIndex1];
-        msCache[category] = getStatistics2(t, nCol, edgeMultiplier1, hEigenMaps[edgeIndex1]);
-        auto [m1, s1] = msCache[category];
-        if (m_max < m1) m_max = m1;
-        if (s_max < s1) s_max = s1;
-
-        const int edgeMultiplierIndex2 = edgeIndex2 * kCategoryCount + category;
-        const double edgeMultiplier2 = hEdgeMultipliers[edgeMultiplierIndex2];
-        msCache[kCategoryCount + category] = getStatistics2(t, nCol, edgeMultiplier2, hEigenMaps[edgeIndex2]);
-        auto [m2, s2] = msCache[kCategoryCount + category];
-        if (m_max < m2) m_max = m2;
-        if (s_max < s2) s_max = s2;
-    }
+        if (not scaled)
+            F *= eta;
 
 #ifdef BEAGLE_DEBUG_FLOW
-    std::cerr<<"s_max = "<<s_max<<" m_max = "<< m_max<<", partialsIndex1 = "<< partialsIndex1<< ", partialsIndex2 = "<< partialsIndex2 << "\n";
-    std::cerr<<"Entering step 1: destP = inPartial, F = inPartial"<<"\n";
+        std::cerr<<"i = "<<i<<" F:\n"<<"  "<<byCol(F)<<"\n";
 #endif
-
-    for (int category = 0; category < kCategoryCount; category++) {
-
-        auto& FLeft = dFLeft[category];
-        auto& FRight = dFRight[category];
-
-        auto& destPLeft = dDestPLeft[category];
-        auto& destPRight = dDestPRight[category];
-
-        auto& inPartialsLeft = getPartialsWrapper(partialsIndex1, category);
-        auto& inPartialsRight = getPartialsWrapper(partialsIndex2, category);
-
-        destPLeft.copyFromAsync( inPartialsLeft );
-        destPRight.copyFromAsync( inPartialsRight );
-
-        FLeft.copyFromAsync( inPartialsLeft );
-        FRight.copyFromAsync( inPartialsRight );
-
-
-#ifdef BEAGLE_DEBUG_FLOW
-        std::cerr<<"category = "<<category<<"\n";
-        std::cerr<<"inPartialsLeft = \n" << inPartialsLeft << "\n";
-        std::cerr<<"inPartialsRight = \n" << inPartialsRight << "\n";
-
-        std::cerr<<"destPLeft = \n" << destPLeft << "\n";
-        std::cerr<<"destPRight = \n" << destPRight << "\n";
-        std::cerr<<"FLeft = \n" << FLeft << "\n";
-        std::cerr<<"FRight = \n" << FRight << "\n";
-
-#endif
-
-
-    }
-    cudaDeviceSynchronize();
-
-
-
-
-    const Real etaConst1 = t * hMuBs[hEigenMaps[edgeIndex1]] / (Real) s_max;
-    const Real etaConst2 = t * hMuBs[hEigenMaps[edgeIndex2]] / (Real) s_max;
-
-
-    for (int i = 0; i < s_max; i++) {
-        for (int j = 1; j < m_max + 1; j++) {
-            //#ifdef BEAGLE_DEBUG_FLOW
-            //            std::cerr<<"j/m = "<<j<<"/"<<m<<", alpha = "<<alpha<<std::endl;
-            //#endif
-
-            for (int category = 0; category < kCategoryCount; category++) {
-                const int matrixIndex1 = hEigenMaps[edgeIndex1] * kCategoryCount * 2 + category;
-                const int matrixIndex2 = hEigenMaps[edgeIndex2] * kCategoryCount * 2 + kCategoryCount + category;
-
-                auto& ALeft = dAs[matrixIndex1];
-                auto& ARight = dAs[matrixIndex2];
-
-                auto& FLeft = dFLeft[category];
-                auto& FRight = dFRight[category];
-
-                auto& destPLeft = dDestPLeft[category];
-                auto& destPRight = dDestPRight[category];
-
-                spMM<Real>(dIntegrationTmpLeft[category], t / ((Real) s_max * j), ALeft, destPLeft, 0, dIntegrationLeftBuffer[category], integrationLeftBufferSize[category]);
-                spMM<Real>(dIntegrationTmpRight[category], t / ((Real) s_max * j), ARight, destPRight, 0, dIntegrationRightBuffer[category], integrationRightBufferSize[category]);
-
-#ifdef BEAGLE_DEBUG_FLOW
-                cudaDeviceSynchronize();
-                std::cerr<<"Step2, integrationTmp = alpha * A * destP, category = "<<category << ", j/m = "<<j<<"/"<<m_max<<", i = "<<i<< ", alpha = " << t / ((Real) s_max * j) <<"\n";
-                std::cerr<<"Aleft =\n" << ALeft << "\n";
-                std::cerr<<"destPLeft = \n" << destPLeft << "\n";
-                std::cerr<<"dIntegrationTmpLeft = \n" << dIntegrationTmpLeft[category] << "\n";
-
-                // std::cerr<<"ARight =\n" << ARight << "\n";
-                // std::cerr<<"destPRight = \n" << destPRight << "\n";
-                // std::cerr<<"dIntegrationTmpRight = \n" << dIntegrationTmpRight[category] << "\n";
-
-#endif
-            }
-            cudaDeviceSynchronize();
-
-
-
-            for (int category = 0; category < kCategoryCount; category++) {
-
-                auto& FLeft = dFLeft[category];
-                auto& FRight = dFRight[category];
-
-                auto& destPLeft = dDestPLeft[category];
-                auto& destPRight = dDestPRight[category];
-
-#ifdef BEAGLE_DEBUG_FLOW
-                cudaDeviceSynchronize();
-                std::cerr<<"Before Step2, F += IntegrationTmp, category = "<<category << ", j/m = "<<j<<"/"<<m_max<<", i = "<<i<< ", alpha = " << t / ((Real) s_max * j) <<"\n";
-                std::cerr<<"destPLeft =\n" << destPLeft << "\n";
-                std::cerr<<"Before, FLeft = \n" << FLeft << "\n";
-
-                // std::cerr<<"destPRight = \n" << destPRight << "\n";
-                // std::cerr<<"FRight = \n" << FRight << "\n";
-
-#endif
-
-                destPLeft.copyFromAsync( dIntegrationTmpLeft[category] );
-                destPRight.copyFromAsync( dIntegrationTmpRight[category] );
-
-                FLeft += dIntegrationTmpLeft[category];
-                FRight += dIntegrationTmpRight[category];
-
-#ifdef BEAGLE_DEBUG_FLOW
-                cudaDeviceSynchronize();
-                std::cerr<<"Step2, F += IntegrationTmp, category = "<<category << ", j/m = "<<j<<"/"<<m_max<<", i = "<<i<< ", alpha = " << t / ((Real) s_max * j) <<"\n";
-                std::cerr<<"destPLeft =\n" << destPLeft << "\n";
-                std::cerr<<"FLeft = \n" << FLeft << "\n";
-
-                // std::cerr<<"destPRight = \n" << destPRight << "\n";
-                // std::cerr<<"FRight = \n" << FRight << "\n";
-
-#endif
-            }
-            cudaDeviceSynchronize();
-        }
-
-        for (int category = 0; category < kCategoryCount; category++) {
-
-            const int edgeMultiplierIndex1 = edgeIndex1 * kCategoryCount + category;
-            const double edgeMultiplier1 = hEdgeMultipliers[edgeMultiplierIndex1];
-            const Real eta1 = exp(etaConst1 * edgeMultiplier1);
-            const int edgeMultiplierIndex2 = edgeIndex2 * kCategoryCount + category;
-            const double edgeMultiplier2 = hEdgeMultipliers[edgeMultiplierIndex2];
-            const Real eta2 = exp(etaConst2 * edgeMultiplier2);
-
-            auto& FLeft = dFLeft[category];
-            auto& FRight = dFRight[category];
-
-            FLeft *= eta1;
-            FRight *= eta2;
-
-        }
-        cudaDeviceSynchronize();
-
-        for (int category = 0; category < kCategoryCount; category++) {
-
-
-            auto& FLeft = dFLeft[category];
-            auto& FRight = dFRight[category];
-
-            auto& destPLeft = dDestPLeft[category];
-            auto& destPRight = dDestPRight[category];
-
-            destPLeft.copyFromAsync( FLeft );
-            destPRight.copyFromAsync( FRight );
-        }
-        cudaDeviceSynchronize();
     }
 
     return BEAGLE_SUCCESS;
@@ -1437,40 +1058,27 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
 {
     setCudaDevice();
 
-    std::vector<Triplet<Real>> tripletList;
-    for (int i = 0; i < numNonZeros; i++) {
-        tripletList.push_back(Triplet<Real>(rowIndices[i], colIndices[i], values[i]));
-    }
-    hInstantaneousMatrices[matrixIndex].setFromTriplets(tripletList.begin(), tripletList.end());
-
-#ifdef BEAGLE_DEBUG_FLOW
-
-    std::cerr<<"CPU instantaneous matrix "<<matrixIndex<<" =\n"<<hInstantaneousMatrices[matrixIndex]<<std::endl;
-    std::cerr<<"outerIndexPtr = \n";
-    for (int i = 0; i < kPaddedStateCount + 1; i++) {
-        std::cerr<<hInstantaneousMatrices[matrixIndex].outerIndexPtr()[i]<<", ";
-    }
-    std::cerr<<"\ninnerIndexPtr = \n";
-    for (int i = 0; i < hInstantaneousMatrices[matrixIndex].nonZeros(); i++) {
-        std::cerr<<hInstantaneousMatrices[matrixIndex].innerIndexPtr()[i]<<", ";
-    }
-    std::cerr<<"\nvaluePtr = \n";
-    for (int i = 0; i < hInstantaneousMatrices[matrixIndex].nonZeros(); i++) {
-        std::cerr<<hInstantaneousMatrices[matrixIndex].valuePtr()[i]<<", ";
-    }
-
-#endif
-
-    //TODO: use cusparse function for diagonal sum?
+    // mu = trace(Q) / kStateCount (duplicate triplets are summed)
     Real mu_B = 0.0;
-    for (int i = 0; i < kStateCount; i++) {
-        mu_B += hInstantaneousMatrices[matrixIndex].coeff(i, i);
+    for (int k = 0; k < numNonZeros; k++) {
+        if (rowIndices[k] == colIndices[k] and rowIndices[k] < kStateCount)
+            mu_B += values[k];
     }
     mu_B /= (Real) kStateCount;
 
     hMuBs[matrixIndex] = mu_B;
-    hBs[matrixIndex] = hInstantaneousMatrices[matrixIndex] - mu_B * hIdentity;
-    hB1Norms[matrixIndex] = normP1(hBs[matrixIndex]);
+    buildShiftedCsr(kPaddedStateCount, rowIndices, colIndices, values, numNonZeros, mu_B, hBs[matrixIndex]);
+    hB1Norms[matrixIndex] = normP1(kPaddedStateCount, hBs[matrixIndex]);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    std::cerr<<"B "<<matrixIndex<<": mu = "<<mu_B<<"  ||B||_1 = "<<hB1Norms[matrixIndex]<<"\noffsets = \n";
+    for (int x: hBs[matrixIndex].offsets) std::cerr<<x<<", ";
+    std::cerr<<"\ncolumns = \n";
+    for (int x: hBs[matrixIndex].columns) std::cerr<<x<<", ";
+    std::cerr<<"\nvalues = \n";
+    for (Real x: hBs[matrixIndex].values) std::cerr<<x<<", ";
+    std::cerr<<"\n";
+#endif
 
     const int currentNNZ = hBs[matrixIndex].nonZeros();
     if (currentCacheNNZs[matrixIndex] != currentNNZ) {
@@ -1479,15 +1087,11 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
         cudaDeviceDelete(dBsCsrValuesCache[matrixIndex]);
         dBsCsrColumnsCache[matrixIndex] = cudaDeviceNew<int>(currentNNZ);
         dBsCsrValuesCache[matrixIndex] = cudaDeviceNew<Real>(currentNNZ);
-        for (int j = 0; j < kCategoryCount * 2; j++) {
-            cudaDeviceDelete(dACscValuesCache[matrixIndex * kCategoryCount * 2 + j]);
-            dACscValuesCache[matrixIndex * kCategoryCount * 2 + j] = cudaDeviceNew<Real>(currentNNZ);
-        }
     }
 
-    MemcpyHostToDevice(dBsCsrOffsetsCache[matrixIndex], hBs[matrixIndex].outerIndexPtr(), kPaddedStateCount + 1);
-    MemcpyHostToDevice(dBsCsrColumnsCache[matrixIndex], hBs[matrixIndex].innerIndexPtr(), currentNNZ);
-    MemcpyHostToDevice(dBsCsrValuesCache[matrixIndex], hBs[matrixIndex].valuePtr(), currentNNZ);
+    MemcpyHostToDevice(dBsCsrOffsetsCache[matrixIndex], hBs[matrixIndex].offsets.data(), kPaddedStateCount + 1);
+    MemcpyHostToDevice(dBsCsrColumnsCache[matrixIndex], hBs[matrixIndex].columns.data(), currentNNZ);
+    MemcpyHostToDevice(dBsCsrValuesCache[matrixIndex], hBs[matrixIndex].values.data(), currentNNZ);
 
 #ifdef BEAGLE_DEBUG_FLOW
 
@@ -1504,44 +1108,54 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
 #endif
 
 
-    hds[matrixIndex].clear();
+    dBs[matrixIndex] = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
+                                            kPaddedStateCount, kPaddedStateCount,
+                                            currentNNZ,
+                                            dBsCsrValuesCache[matrixIndex],
+                                            dBsCsrColumnsCache[matrixIndex],
+                                            dBsCsrOffsetsCache[matrixIndex],
+                                            sparseFormat::csr);
+    auto& dB = dBs[matrixIndex];
 
-    auto dB = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
-                                   kPaddedStateCount, kPaddedStateCount,
-                                   currentNNZ,
-                                   dBsCsrValuesCache[matrixIndex],
-                                   dBsCsrColumnsCache[matrixIndex],
-                                   dBsCsrOffsetsCache[matrixIndex],
-                                   sparseFormat::csr);
-
-    int pMax = getPMax();
-    auto tmp = hBs[matrixIndex];
-#ifdef BEAGLE_DEBUG_NORMEST
-    DnMatrix<Real> denseB = hBs[matrixIndex];
-    DnMatrix<Real> denseBp = DnMatrix<Real>::Identity(kPaddedStateCount, kPaddedStateCount);
-#endif
-    for(int p=0;p <= pMax+1; p++)
+    // Size the work buffer for the Taylor-term SpMMs once per matrix, not on every call.
+    size_t newSpMMBufferSize = spMMBufferSize(dTerms[0][0], dB, dTerms[1][0]);
+    if (newSpMMBufferSize > spMMBufferBytes or dSpMMBuffer == nullptr)
     {
-        // GPU Norm
-        Real approx_norm = L1normForPower[p]( dB );
+        CHECK_CUDA(cudaStreamSynchronize(stream));
+        cudaDeviceDelete(dSpMMBuffer);
+        spMMBufferBytes = std::max<size_t>(newSpMMBufferSize, 1);
+        dSpMMBuffer = cudaMallocWrapped(spMMBufferBytes);
+    }
+
+    // equation 3.7 in Al-Mohy and Higham: d_p = ||B^p||_1^(1/p).  d_1 is known exactly; d_0 is not used.
+    const int pTop = getPMax() + 1;
+    auto norms = normEstimator.estimate(dB, stream);
+    hds[matrixIndex].assign(pTop + 1, 1.0);
+    hds[matrixIndex][1] = hB1Norms[matrixIndex];
+    for (int p = 2; p <= pTop; p++)
+        hds[matrixIndex][p] = pow(norms[p], 1.0 / Real(p));
 
 #ifdef BEAGLE_DEBUG_NORMEST
-        // Compare with the CPU estimator and, for small S, the exact ||B^p||_1.
-        Real approx_norm_CPU = normest1( hBs[matrixIndex], p, 5);
+    // Compare with the CPU estimator and, for small S, the exact ||B^p||_1.
+    auto& hB = hBs[matrixIndex];
+    SpMatrix<Real> sparseB = Eigen::Map<const SpMatrix<Real>>(kPaddedStateCount, kPaddedStateCount, hB.nonZeros(),
+                                                               hB.offsets.data(), hB.columns.data(), hB.values.data());
+    DnMatrix<Real> denseB = sparseB;
+    DnMatrix<Real> denseBp = denseB;
+    for (int p = 2; p <= pTop; p++)
+    {
+        Real approx_norm_CPU = normest1( sparseB, p, 5);
         double exact_norm = -1;
         if (kPaddedStateCount <= 4096)
         {
-            if (p > 0) denseBp = denseB * denseBp;
+            denseBp = denseB * denseBp;
             exact_norm = normP1(denseBp);
         }
         std::fprintf(stderr, "normest matrix=%d S=%d p=%d gpu=%.6e cpu=%.6e exact=%.6e gpu/exact=%.4f cpu/exact=%.4f\n",
-                     matrixIndex, kPaddedStateCount, p, (double)approx_norm, (double)approx_norm_CPU, exact_norm,
-                     approx_norm / exact_norm, approx_norm_CPU / exact_norm);
-#endif
-
-        // equation 3.7 in Al-Mohy and Higham
-        hds[matrixIndex].push_back(pow(approx_norm, 1.0 / Real(p) ) );
+                     matrixIndex, kPaddedStateCount, p, (double)norms[p], (double)approx_norm_CPU, exact_norm,
+                     norms[p] / exact_norm, approx_norm_CPU / exact_norm);
     }
+#endif
 
 //#ifdef BEAGLE_DEBUG_FLOW
 //    std::cerr<<"Setting host matrix: "<<matrixIndex<<std::endl<<hInstantaneousMatrices[matrixIndex]<<std::endl
