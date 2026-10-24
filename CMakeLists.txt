@@ -14,7 +14,7 @@ set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 message(STATUS "BEAGLE_VERSION = ${BEAGLE_VERSION}")
 message(STATUS "BEAGLE_PLUGIN_VERSION = ${BEAGLE_PLUGIN_VERSION}")
 
-option(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH "Compile with -march=native (not portable to other CPUs)" ON)
+set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)

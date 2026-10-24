@@ -121,9 +121,7 @@ jobs:
 
     - name: Set CMake build type
       run: |
-        # Runners have different CPUs, and ccache would reuse -march=native objects across them
-        # ("Illegal instruction"), so build for the baseline architecture.
-        CMAKE_ARGS="-DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF"
+        CMAKE_ARGS=""
         if [ -n "${{ matrix.buildtype }}" ] ; then
           CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }}"
         fi
@@ -179,12 +177,25 @@ jobs:
           echo "CXX=ccache clang++" >> $GITHUB_ENV
           echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
 
+    # The build uses -march=native, but ccache keys on the literal flag, not on the CPU.  Without the
+    # CPU in the cache key, objects built on one runner get reused on a runner with an older CPU
+    # ("Illegal instruction").
+    - name: Identify CPU (for the ccache key)
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          cpu=$(sysctl -n machdep.cpu.brand_string)
+        else
+          cpu=$(grep -m1 "model name" /proc/cpuinfo || uname -m)
+        fi
+        echo "CPU_KEY=$(echo "$cpu" | cksum | cut -d' ' -f1)" >> $GITHUB_ENV
+
     - name: Set up ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-         key: ${{ matrix.name }}
+         key: ${{ matrix.name }}-${{ env.CPU_KEY }}
          restore-keys: |
-           ${{ matrix.name }}
+           ${{ matrix.name }}-${{ env.CPU_KEY }}
 
     - name: Configure
       run: |
