@@ -146,7 +146,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         }
 
         // TODO: free subpointers
-        gpu->FreeMemory(dMatrices[0]);    // TODO Should try: gpu->FreeMemory(dMatricesOrigin); instead of above
+        if (kMatrixCount > 0 && dMatrices[0])
+            gpu->FreeMemory(dMatrices[0]);    // TODO Should try: gpu->FreeMemory(dMatricesOrigin); instead of above
         if(dEigenValues) {
             gpu->FreeMemory(dEigenValues[0]); // TODO Here is where my Mac / Intel-GPU are throwing bad-exception
             gpu->FreeMemory(dEvec[0]);        // TODO Should be save and then release just d*Origin?
@@ -600,6 +601,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     int hMatrixCacheSize = kMatrixSize * kCategoryCount * BEAGLE_CACHED_MATRICES_COUNT;
     if ((2 * kMatrixSize + kEigenValuesSize) > hMatrixCacheSize)
         hMatrixCacheSize = 2 * kMatrixSize + kEigenValuesSize;
+    // Action-based instances never form dense transition matrices.
+    if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ACTION)
+        hMatrixCacheSize = kEigenValuesSize;
 
     hLogLikelihoodsCache = (Real*) gpu->MallocHost(kPatternCount * sizeof(Real));
     hMatrixCache = (Real*) gpu->CallocHost(hMatrixCacheSize, sizeof(Real));
@@ -616,13 +620,19 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dWeights = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
     dFrequencies = (GPUPtr*) calloc(sizeof(GPUPtr),kEigenDecompCount);
 
-    dMatrices = (GPUPtr*) malloc(sizeof(GPUPtr) * kMatrixCount);
+    // Fill with 0s so 'free' does not choke if unallocated
+    dMatrices = (GPUPtr*) calloc(sizeof(GPUPtr), kMatrixCount);
 
     size_t ptrIncrement = gpu->AlignMemOffset(kMatrixSize * kCategoryCount * sizeof(Real));
     kIndexOffsetMat = ptrIncrement/sizeof(Real);
-    dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
-    for (int i = 0; i < kMatrixCount; i++) {
-        dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
+    if (preferenceFlags & BEAGLE_FLAG_COMPUTATION_ACTION) {
+        // O(S^2) per matrix: exhausts device memory for large state spaces, and is unused by action.
+        dMatricesOrigin = (GPUPtr) NULL;
+    } else {
+        dMatricesOrigin = gpu->AllocateMemory(kMatrixCount * ptrIncrement);
+        for (int i = 0; i < kMatrixCount; i++) {
+            dMatrices[i] = gpu->CreateSubPointer(dMatricesOrigin, ptrIncrement*i, ptrIncrement);
+        }
     }
     if (kScaleBufferCount > 0) {
         if (kFlags & BEAGLE_FLAG_SCALING_AUTO) {

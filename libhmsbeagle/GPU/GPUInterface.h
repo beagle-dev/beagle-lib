@@ -66,6 +66,7 @@ private:
     int numStreams;
 #ifdef CUDA
     CUdevice cudaDevice;
+    int cudaDeviceOrdinal;
     CUcontext cudaContext;
     CUmodule cudaModule;
     CUstream* cudaStreams;
@@ -89,6 +90,11 @@ public:
     int Initialize();
 
     int GetDeviceCount();
+
+#ifdef CUDA
+    // Ordinal of the device chosen by SetDevice( ), for code that uses the CUDA runtime API.
+    int GetCudaDeviceOrdinal() { return cudaDeviceOrdinal; }
+#endif
 
     void SetDevice(int deviceNumber,
                    int paddedStateCount,

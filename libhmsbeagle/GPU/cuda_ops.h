@@ -104,6 +104,13 @@ void cuda_max(float* v, int length, float* out, cuda_scratch_space& scratch);
 void cuda_rowwise_max_abs(float* values_ptr, int n, int t, float* out_ptr);
 void cuda_rowwise_max_abs(double* values_ptr, int n, int t, double* out_ptr);
 
+// h[i] = -1 where visited[i] != 0
+void cuda_mask_visited(float* h, const int* visited, int n);
+void cuda_mask_visited(double* h, const int* visited, int n);
+
+// visited[indices[j]] = 1 for j in [0,t-1]
+void cuda_mark_visited(int* visited, const int* indices, int t);
+
 void cuda_fill_vector(float* buffer, int n, double x);
 void cuda_fill_vector(double* buffer, int n, double x);
 
@@ -113,7 +120,7 @@ void initialize_norm_x_matrix(double* data, int n, int m);
 float cuda_max_l1_norm(float* values, int n, int t, float* buffer_);
 double cuda_max_l1_norm(double* values, int n, int t, double* buffer_);
 
-void cuda_max_l1_norm(float* values, int n, int t, float* buffer, double* out, cuda_scratch_space& scratch, int* offsets);
+void cuda_max_l1_norm(float* values, int n, int t, float* buffer, float* out, cuda_scratch_space& scratch, int* offsets);
 void cuda_max_l1_norm(double* values, int n, int t, double* buffer, double* out, cuda_scratch_space& scratch, int* offsets);
 
 void cuda_vec_fill(float* values, int length, float fill);

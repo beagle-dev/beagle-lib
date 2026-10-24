@@ -2,6 +2,8 @@
 
 #include <cub/cub.cuh>
 
+#include <iostream>
+
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -11,7 +13,7 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/functional.h>
-#include <thrust/async/for_each.h>
+#include <thrust/tuple.h>
 #include <thrust/random.h>
 #include <thrust/sort.h>
 
@@ -124,7 +126,7 @@ T cuda_max_l1_norm(device_ptr<T> values, int n, int t, device_ptr<T> buffer)
         );                                                       // summation is the default operation.
 
     // 2. Second maximize over the column sums and return the highest.
-    return thrust::reduce(buffer, buffer+t, 0.0, thrust::maximum<float>());
+    return thrust::reduce(buffer, buffer+t, T(0), thrust::maximum<T>());
 }
 
 float cuda_max_l1_norm(float* values, int n, int t, float* buffer)
@@ -298,50 +300,65 @@ void cuda_vec_abs(double* values, int n, double* results)
     cuda_vec_abs(device_pointer_cast(values), n, device_pointer_cast(results));
 }
 
+// out[i] = max_j |values(i,j)| for a column-major (n,t) matrix.
+// (A reduce_by_key with keys i % n cannot do this: equal keys are never adjacent in column-major order.)
+template <typename T>
+__global__ void rowwise_max_abs_kernel(const T* values, int n, int t, T* out)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+
+    T m = 0;
+    for (int j = 0; j < t; j++)
+        m = max(m, abs(values[i + (size_t)j * n]));
+    out[i] = m;
+}
+
+template <typename T>
+void cuda_rowwise_max_abs_impl(const T* values_ptr, int n, int t, T* out_ptr)
+{
+    const int blockSize = 256;
+    rowwise_max_abs_kernel<<<(n + blockSize - 1) / blockSize, blockSize>>>(values_ptr, n, t, out_ptr);
+}
+
 void cuda_rowwise_max_abs(float* values_ptr, int n, int t, float* out_ptr)
 {
-    using namespace thrust::placeholders;
-    //    We assume that the matrix has dimensions (n,t) and is column-major.
-
-    // 1. First sum the absolute values in each column and place the results into buffer
-    //    Using _1 % n here should group by row, yielding 0 1 2 3 ...(n-1) 0 1 2 3 ... (n-1) ...
-    auto in_keys_start = thrust::make_transform_iterator(thrust::make_counting_iterator((int)0), (_1 % n));
-
-    auto in_values_start = thrust::transform_iterator(thrust::device_pointer_cast(values_ptr),
-                                                      [] __host__ __device__ (float x) {return std::abs(x);} );
-
-    auto out = thrust::device_pointer_cast(out_ptr);
-
-    thrust::reduce_by_key(in_keys_start, in_keys_start + n*t,    // key indices (group by column)
-                          in_values_start,                       // values to reduce (with abs applied)
-                          thrust::make_discard_iterator(),       // key values out
-                          out,                                   // reduced values out
-                          thrust::equal_to<int>(),               // compare-keys operation
-                          thrust::maximum<float>()                  // summation is the default operation.
-        );
+    cuda_rowwise_max_abs_impl(values_ptr, n, t, out_ptr);
 }
 
 void cuda_rowwise_max_abs(double* values_ptr, int n, int t, double* out_ptr)
 {
-    using namespace thrust::placeholders;
-    //    We assume that the matrix has dimensions (n,t) and is column-major.
+    cuda_rowwise_max_abs_impl(values_ptr, n, t, out_ptr);
+}
 
-    // 1. First sum the absolute values in each column and place the results into buffer
-    //    Using _1 % n here should group by row, yielding 0 1 2 3 ...(n-1) 0 1 2 3 ... (n-1) ...
-    auto in_keys_start = thrust::make_transform_iterator(thrust::make_counting_iterator((int)0), (_1 % n));
+// h[i] = -1 for rows already used as unit columns, so they sort last and are not chosen again.
+template <typename T>
+__global__ void mask_visited_kernel(T* h, const int* visited, int n)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n and visited[i]) h[i] = -1;
+}
 
-    auto in_values_start = thrust::transform_iterator(thrust::device_pointer_cast(values_ptr),
-                                                      [] __host__ __device__ (double x) {return std::abs(x);} );
+// visited[indices[j]] = 1 for j in [0,t-1]
+__global__ void mark_visited_kernel(int* visited, const int* indices, int t)
+{
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    if (j < t) visited[indices[j]] = 1;
+}
 
-    auto out = thrust::device_pointer_cast(out_ptr);
+void cuda_mask_visited(float* h, const int* visited, int n)
+{
+    mask_visited_kernel<<<(n + 255) / 256, 256>>>(h, visited, n);
+}
 
-    thrust::reduce_by_key(in_keys_start, in_keys_start + n*t,    // key indices (group by column)
-                          in_values_start,                       // values to reduce (with abs applied)
-                          thrust::make_discard_iterator(),       // key values out
-                          out,                                   // reduced values out
-                          thrust::equal_to<int>(),               // compare-keys operation
-                          thrust::maximum<double>()                  // summation is the default operation.
-        );
+void cuda_mask_visited(double* h, const int* visited, int n)
+{
+    mask_visited_kernel<<<(n + 255) / 256, 256>>>(h, visited, n);
+}
+
+void cuda_mark_visited(int* visited, const int* indices, int t)
+{
+    mark_visited_kernel<<<(t + 255) / 256, 256>>>(visited, indices, t);
 }
 
 void cuda_fill_vector(float* buffer, int n, double x)
@@ -457,7 +474,7 @@ void justMaximize(device_ptr<T> partials, device_ptr<T> scalingFactors,
 	thrust::make_discard_iterator(),               // key values out
 	scalingFactors,                                // reduced values out
 	thrust::equal_to<int>(),                       // compare keys operation
-	thrust::maximum<float>()                       // reduction operation
+	thrust::maximum<T>()                           // reduction operation
     );
 }
 
@@ -543,7 +560,7 @@ void sumRootLikelihoods(device_ptr<T> siteProbs, // OUT
     // 5. Make the sequence of likelihood * categoryWeight * stateFrequency
     auto tuples = thrust::make_zip_iterator(thrust::make_tuple(in_lks_start, in_weights_start, in_frequencies_start));
 
-    auto in_values_start = thrust::make_transform_iterator(tuples, Prod3<float>());
+    auto in_values_start = thrust::make_transform_iterator(tuples, Prod3<T>());
 
     // 6. Sum over state and category for each pattern.
     thrust::reduce_by_key(

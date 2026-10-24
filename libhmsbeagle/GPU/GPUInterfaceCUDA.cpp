@@ -116,6 +116,7 @@ GPUInterface::GPUInterface() {
 #endif
 
     cudaDevice = (CUdevice) 0;
+    cudaDeviceOrdinal = 0;
     cudaContext = NULL;
     cudaModule = NULL;
     cudaStreams = NULL;
@@ -252,7 +253,8 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif
 
-    SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
+    cudaDeviceOrdinal = (*resourceMap)[deviceNumber];
+    SAFE_CUDA(cuDeviceGet(&cudaDevice, cudaDeviceOrdinal));
 
     // unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
 

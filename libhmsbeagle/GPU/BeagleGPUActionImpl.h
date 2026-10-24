@@ -743,8 +743,8 @@ struct GPUnormest1
             // Z = A^T * S
             spMTM<Real>(Y, 1, A, X, 0, buffer, buffer_size);  // (n,n) * (n,t) -> (n,t)
 
-            // h[0,j] = max(i) abs(Z(i,j))
-            cuda_rowwise_max_abs(Y.ptr, t, t, h.ptr);  // (n,t) -> (n,1)
+            // h[i] = max(j) abs(Z(i,j))
+            cuda_rowwise_max_abs(Y.ptr, n, t, h.ptr);  // (n,t) -> (n,1)
 
             // (4) of Algorithm 2.4 - If we don't find a new best dimension, exit early.
             // We don't do this, because finding a different reason to exit
@@ -898,6 +898,9 @@ struct GPUnormest2
     ~GPUnormest2()
     {
         cudaDeviceDelete(buffer);
+        cudaDeviceDelete(valuesBuffer);
+        cudaDeviceDelete(Ones.ptr);
+        cudaDeviceDelete(Y.ptr);
     }
 };
 
@@ -934,6 +937,9 @@ struct GPUnormest3
 
     int* offsets = nullptr;
 
+    // Rows already used as unit columns of X (ind_hist in Algorithm 2.4).
+    int* visited = nullptr;  // (n)
+
     GPUnormest3& operator=(const GPUnormest3&) = delete;
     GPUnormest3& operator=(GPUnormest3&& g)
     {
@@ -952,8 +958,10 @@ struct GPUnormest3
         std::swap(buffer2, g.buffer2);
         std::swap(buffer3, g.buffer3);
         std::swap(buffer4, g.buffer4);
-        std::swap(scratch, g.scratch);
+        std::swap(scratch.device_ptr, g.scratch.device_ptr);
+        std::swap(scratch.size, g.scratch.size);
         std::swap(offsets, g.offsets);
+        std::swap(visited, g.visited);
 
         return *this;
     }
@@ -971,6 +979,8 @@ struct GPUnormest3
         // X[i][j] = if (uniform(0,1)<0.5) +1 else -1
         initialize_norm_x_matrix(X.ptr, n, t);
 
+        cudaMemset(visited, 0, n * sizeof(int));
+
         for(int k=1; k<=itmax; k++)
         {
             // std::cerr<<"iter "<<k<<"\n";
@@ -984,26 +994,37 @@ struct GPUnormest3
                 X.copyFrom(Y);
             }
 
-            // get the L1 norm for this iterations -> buffer3[k]
-            cuda_max_l1_norm(X.ptr, n, 1, buffer2, buffer3 + (k-1), scratch, offsets);
+            // get the largest column L1 norm of A^p * X for this iteration -> buffer3[k-1]
+            cuda_max_l1_norm(X.ptr, n, t, buffer2, buffer3 + (k-1), scratch, offsets);
+
+            // The rest only chooses X for the next iteration.
+            if (k == itmax) break;
 
             // S = sign(X)
-            cuda_sign_vector(X.ptr, n, t);   // (n,n) -> (n,n)
+            cuda_sign_vector(X.ptr, n, t);   // (n,t) -> (n,t)
 
             // (2) Replace parallel entries with random +1/-1 entries.
             // Skipping this part for now because it involves a lot of branching logic
             //  and might be slow for the GPU.
 
             // (3) of Algorithm 2.4
-            // Z = A^T * S
-            spMTM<Real>(Y, 1, A, X, 0, buffer, buffer_size);  // (n,n) * (n,t) -> (n,t)
+            // Z = (A^T)^p * S
+            for(int i=0;i<p;i++)
+            {
+                spMTM<Real>(Y, 1, A, X, 0, buffer, buffer_size);  // (n,n) * (n,t) -> (n,t)
+                X.copyFrom(Y);
+            }
 
-            // h[0,j] = max(i) abs(Z(i,j))
-            cuda_rowwise_max_abs(Y.ptr, t, t, h.ptr);  // (n,t) -> (n,1)
+            // h[i] = max(j) abs(Z(i,j))
+            cuda_rowwise_max_abs(X.ptr, n, t, h.ptr);  // (n,t) -> (n,1)
 
             // (4) of Algorithm 2.4 - If we don't find a new best dimension, exit early.
             // We don't do this, because finding a different reason to exit
             // seems to provide greater accuracy.
+
+            // (5) of Algorithm 2.4 - Only consider rows that have not been used as unit columns yet.
+            //  (If fewer than t remain, used rows are picked again, which only repeats work.)
+            cuda_mask_visited(h.ptr, visited, n);
 
             // Rank the dimensions by the size of their approximate norm in h, in decreasing order.
             cuda_sort_indices_by_vector(h.ptr, n, indices);
@@ -1011,8 +1032,9 @@ struct GPUnormest3
             // Zero the X matrix.
             cuda_fill_vector(X.ptr, n*t, 0);  // (n,t) -> (n,t)
 
-            // Set X(i,indices[i]) = 1 for i in [0,t-1]
+            // Set X(indices[j],j) = 1 for j in [0,t-1]
             cuda_set_indices(X.ptr, n, t, indices);
+            cuda_mark_visited(visited, indices, t);
         }
 
         return cuda_max_abs(buffer3, itmax);
@@ -1045,6 +1067,8 @@ struct GPUnormest3
 
         offsets = cudaDeviceNew<int>(t+1);
 
+        visited = cudaDeviceNew<int>(n);
+
         std::vector<int> h_offsets(t+1);
         for(int i=0;i<t+1;i++)
             h_offsets[i] = i*n;
@@ -1053,12 +1077,16 @@ struct GPUnormest3
 
     ~GPUnormest3()
     {
+        cudaDeviceDelete(X.ptr);
+        cudaDeviceDelete(Y.ptr);
+        cudaDeviceDelete(h.ptr);
         cudaDeviceDelete(buffer);
         cudaDeviceDelete(buffer2);
         cudaDeviceDelete(buffer3);
         cudaDeviceDelete(buffer4);
         cudaDeviceDelete(indices);
         cudaDeviceDelete(offsets);
+        cudaDeviceDelete(visited);
     }
 };
 
@@ -1120,9 +1148,28 @@ public:
 
     void rescalePartials(Real* partials, Real* scalingFactors, Real* cumulativeScalingBuffer, int streamIndex);
 
+    // Action instances have no dense transition matrices (see createInstance), so these are not available.
+    // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
+    int updatePrePartials(const int*, int, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updatePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updatePrePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setEigenDecomposition(int, const double*, const double*, const double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setTransitionMatrix(int, const double*, double) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setTransitionMatrices(const int*, const double*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int getTransitionMatrix(int, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int convolveTransitionMatrices(const int*, const int*, const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int transposeTransitionMatrices(const int*, const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updateTransitionMatricesWithModelCategories(int*, const int*, const int*, const int*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updateTransitionMatricesWithMultipleModels(const int*, const int*, const int*, const int*, const int*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int calculateEdgeLogLikelihoods(const int*, const int*, const int*, const int*, const int*, const int*, const int*, const int*,
+                                    int, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int calculateEdgeLogLikelihoodsByPartition(const int*, const int*, const int*, const int*, const int*, const int*, const int*, const int*,
+                                               const int*, int, int, double*, double*, double*, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int calculateEdgeDerivatives(const int*, const int*, const int*, const int*, const int*, const int*,
+                                 int, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+
 protected:
 
-    int kPartialsCacheOffset;
     std::vector<SpMatrix<Real>> hInstantaneousMatrices;
     std::vector<SpMatrix<Real>> hBs;
     SpMatrix<Real> hIdentity;
@@ -1174,6 +1221,9 @@ protected:
 
 //    std::vector<cusparseSpMatDescr_t> dInstantaneousMatrices;
     std::vector<DnMatrixDevice<Real>> dPartialsWrapper;
+    // Per category: the action of each child's edge on its partials (exp(tQ) * partials).
+    std::vector<DnMatrixDevice<Real>> dDestPLeft;
+    std::vector<DnMatrixDevice<Real>> dDestPRight;
     std::vector<DnMatrixDevice<Real>> dFLeft;
     std::vector<DnMatrixDevice<Real>> dFRight;
     std::vector<DnMatrixDevice<Real>> dIntegrationTmpLeft;
@@ -1210,6 +1260,7 @@ protected:
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kStateCount;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kEigenDecompCount;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kCategoryCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kMatrixCount;
 
 
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPaddedStateCount;
@@ -1269,13 +1320,12 @@ private:
 				 int count);
     double getPMax() const;
 
+    // Make CUDA runtime, cuBLAS, cuSPARSE and Thrust calls target this instance's device.
+    void setCudaDevice();
+
     int getPartialIndex(int nodeIndex, int categoryIndex);
 
-    int getPartialCacheIndex(int nodeIndex, int categoryIndex);
-
     DnMatrixDevice<Real>& getPartialsWrapper(int nodeIndex, int categoryIndex);
-
-    DnMatrixDevice<Real>& getPartialsCacheWrapper(int nodeIndex, int categoryIndex);
 
     void calcPartialsPartials(int destPIndex,
                               int partials1Index,
