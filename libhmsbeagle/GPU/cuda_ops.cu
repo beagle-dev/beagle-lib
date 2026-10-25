@@ -1,5 +1,8 @@
 #include "cuda_ops.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -67,19 +70,13 @@ void initialize_norm_x_matrix(double* data, int n, int m)
 
 
 // ---------------------------------------------------------------------------------------------------
-// Kernels for the per-node product/rescale and the root likelihood.  They replace the Thrust
-// reduce_by_key chains, which allocate temporary memory and block the host on every call.
+// Kernels for the Taylor terms, the per-node product/rescale and the root likelihood.
 //
-// Partials are stored as [category][pattern][state] (state fastest), with the padded counts.
-// One block handles one pattern.
-
-// With few patterns there are few blocks, so give each block more threads.
-inline int patternBlockSize(int nPatterns)
-{
-    return (nPatterns >= 256) ? 128 : 1024;
-}
+// Action partials are stored pattern-fastest: [category][state][pattern], i.e. a (nCategories*nStates)
+// x nPatterns row-major matrix, so a CSR row of Q gathers whole rows of x (coalesced over patterns).
 
 // Reduce v over the block with op; identity must be neutral for op.  Every thread gets the result.
+// Only for one-dimensional blocks.
 template <typename T, typename Op>
 __device__ T block_reduce(T v, T identity, Op op)
 {
@@ -109,179 +106,442 @@ __device__ T block_reduce(T v, T identity, Op op)
 struct MaxOp { template <typename T> __device__ T operator()(T a, T b) const { return max(a, b); } };
 struct SumOp { template <typename T> __device__ T operator()(T a, T b) const { return a + b; } };
 
-// parent = left * right (elementwise).  If scalingFactors is non-null, also divide each pattern by its
-// largest entry m (1 if all are 0), store m (or log m) in scalingFactors, and add log m to cumulative.
-template <typename T>
-__global__ void partials_product_kernel(const T* left, const T* right, T* parent,
-                                        int nStates, int nPatterns, int nCategories,
-                                        T* scalingFactors, T* cumulative, bool scalersLog)
+static int nextPowerOfTwo(int n, int cap)
 {
-    const int pattern = blockIdx.x;
-    const size_t categoryStride = (size_t)nStates * nPatterns;
-    const size_t offset = (size_t)pattern * nStates;
+    int p = 1;
+    while (p < n and p < cap) p *= 2;
+    return p;
+}
 
-    if (not scalingFactors)
+// One step w <- scale * (b + alpha * A * x) of Horner's rule for the Taylor polynomial, for each group of the
+// batch.  A is (nRows, nRows) in CSR; x, b and out are (nRows, nCols) row-major.
+//
+// For nCols >= 32: blockIdx.z is the group, the 32 lanes of a warp cover 32 adjacent columns of one row, and
+// each thread does CPT columns 32 apart.  Blocks are ordered rows-fastest, so the blocks in flight read the
+// same column panel of x and it stays in L2.
+template <typename T, int CPT>
+__global__ void __launch_bounds__(256) taylor_horner_term_kernel(int nRows, int nCols, const int* __restrict__ rowOffsets,
+                                                                 const int* __restrict__ columns, const T* __restrict__ values,
+                                                                 const TaylorTermBatch<T> batch)
+{
+    const TaylorTermGroup<T>& g = batch.groups[blockIdx.z];
+    const int row = blockIdx.x * (blockDim.x / 32) + threadIdx.x / 32;
+    const int col = blockIdx.y * (32 * CPT) + threadIdx.x % 32;
+    if (row >= nRows) return;
+
+    const int kBegin = rowOffsets[row];
+    const int kEnd = rowOffsets[row + 1];
+    const T* b = g.b + (size_t)row * g.ldb + col;
+    T* out = g.out + (size_t)row * g.ldOut + col;
+    const T* x = g.x + col;
+    T acc[CPT];
+    T own[CPT];
+
+    if (col + (CPT - 1) * 32 < nCols)
     {
-        for (int c = 0; c < nCategories; c++)
-            for (int s = threadIdx.x; s < nStates; s += blockDim.x)
-            {
-                const size_t i = c * categoryStride + offset + s;
-                parent[i] = left[i] * right[i];
-            }
+#pragma unroll
+        for (int q = 0; q < CPT; q++)
+        {
+            own[q] = b[q * 32];
+            acc[q] = 0;
+        }
+        for (int k = kBegin; k < kEnd; k++)
+        {
+            const T v = values[k];
+            const T* xRow = x + (size_t)columns[k] * g.ldx;
+#pragma unroll
+            for (int q = 0; q < CPT; q++)
+                acc[q] += v * __ldg(xRow + q * 32);
+        }
+#pragma unroll
+        for (int q = 0; q < CPT; q++)
+            out[q * 32] = g.scale * (own[q] + g.alpha * acc[q]);
+    }
+    else
+    {
+#pragma unroll
+        for (int q = 0; q < CPT; q++)
+        {
+            own[q] = (col + q * 32 < nCols) ? b[q * 32] : T(0);
+            acc[q] = 0;
+        }
+        for (int k = kBegin; k < kEnd; k++)
+        {
+            const T v = values[k];
+            const T* xRow = x + (size_t)columns[k] * g.ldx;
+#pragma unroll
+            for (int q = 0; q < CPT; q++)
+                if (col + q * 32 < nCols)
+                    acc[q] += v * __ldg(xRow + q * 32);
+        }
+#pragma unroll
+        for (int q = 0; q < CPT; q++)
+            if (col + q * 32 < nCols)
+                out[q * 32] = g.scale * (own[q] + g.alpha * acc[q]);
+    }
+}
+
+// For nCols < 32: the columns of all groups are numbered v = group * nCols + column, and LANES consecutive
+// lanes share a row and cover LANES consecutive v.  So the lanes share each (column, value) load of A, and
+// when the groups' matrices are stored side by side the gathers of x are coalesced across groups too.
+template <typename T, int LANES>
+__global__ void __launch_bounds__(256) taylor_horner_term_narrow_kernel(int nRows, int nCols, const int* __restrict__ rowOffsets,
+                                                                        const int* __restrict__ columns, const T* __restrict__ values,
+                                                                        const TaylorTermBatch<T> batch)
+{
+    // The lanes read different groups, which shared memory serves without serializing like parameter space.
+    __shared__ TaylorTermGroup<T> groups[kMaxTaylorGroups];
+    for (int i = threadIdx.x; i < batch.count; i += blockDim.x)
+        groups[i] = batch.groups[i];
+    __syncthreads();
+
+    const int lane = threadIdx.x % 32;
+    const int row = (blockIdx.x * (blockDim.x / 32) + threadIdx.x / 32) * (32 / LANES) + lane / LANES;
+    const int v = blockIdx.y * LANES + lane % LANES;
+    if (row >= nRows or v >= batch.count * nCols) return;
+
+    const TaylorTermGroup<T>& g = groups[v / nCols];
+    const int col = v % nCols;
+    const T* x = g.x + col;
+    const T own = g.b[(size_t)row * g.ldb + col];
+    T acc = 0;
+    for (int k = rowOffsets[row]; k < rowOffsets[row + 1]; k++)
+        acc += values[k] * __ldg(x + (size_t)columns[k] * g.ldx);
+    g.out[(size_t)row * g.ldOut + col] = g.scale * (own + g.alpha * acc);
+}
+
+template <typename T, int CPT>
+void launch_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const int* columns, const T* values,
+                                const TaylorTermBatch<T>& batch, cudaStream_t stream)
+{
+    const int threads = 256;
+    const dim3 grid((nRows + threads / 32 - 1) / (threads / 32), (nCols + 32 * CPT - 1) / (32 * CPT), batch.count);
+    taylor_horner_term_kernel<T, CPT><<<grid, threads, 0, stream>>>(nRows, nCols, rowOffsets, columns, values, batch);
+}
+
+template <typename T, int LANES>
+void launch_taylor_horner_terms_narrow(int nRows, int nCols, const int* rowOffsets, const int* columns, const T* values,
+                                       const TaylorTermBatch<T>& batch, cudaStream_t stream)
+{
+    const int threads = 256;
+    const int rowsPerBlock = (threads / 32) * (32 / LANES);
+    const dim3 grid((nRows + rowsPerBlock - 1) / rowsPerBlock, (batch.count * nCols + LANES - 1) / LANES);
+    taylor_horner_term_narrow_kernel<T, LANES><<<grid, threads, 0, stream>>>(nRows, nCols, rowOffsets, columns, values, batch);
+}
+
+// Columns per thread for nCols >= 32; BEAGLE_ACTION_CPT (1, 2 or 4) overrides it for tuning.
+static int columnsPerThread(int nCols)
+{
+    static const int forced = getenv("BEAGLE_ACTION_CPT") ? atoi(getenv("BEAGLE_ACTION_CPT")) : 0;
+    if (forced == 1 or forced == 2 or forced == 4)
+        return forced;
+    return (nCols >= 256) ? 4 : (nCols >= 64) ? 2 : 1;
+}
+
+template <typename T>
+void cuda_taylor_horner_terms_impl(int nRows, int nCols, const int* rowOffsets, const int* columns, const T* values,
+                                   const TaylorTermBatch<T>& batch, cudaStream_t stream)
+{
+    if (batch.count == 0) return;
+    if (nCols >= 32)
+    {
+        switch (columnsPerThread(nCols))
+        {
+            case 4:  launch_taylor_horner_terms<T, 4>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+            case 2:  launch_taylor_horner_terms<T, 2>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+            default: launch_taylor_horner_terms<T, 1>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        }
+        return;
+    }
+    switch (nextPowerOfTwo(batch.count * nCols, 32))
+    {
+        case 1:  launch_taylor_horner_terms_narrow<T, 1>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        case 2:  launch_taylor_horner_terms_narrow<T, 2>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        case 4:  launch_taylor_horner_terms_narrow<T, 4>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        case 8:  launch_taylor_horner_terms_narrow<T, 8>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        case 16: launch_taylor_horner_terms_narrow<T, 16>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+        default: launch_taylor_horner_terms_narrow<T, 32>(nRows, nCols, rowOffsets, columns, values, batch, stream); break;
+    }
+}
+
+void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const int* columns, const float* values,
+                              const TaylorTermBatch<float>& batch, cudaStream_t stream)
+{
+    cuda_taylor_horner_terms_impl(nRows, nCols, rowOffsets, columns, values, batch, stream);
+}
+
+void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const int* columns, const double* values,
+                              const TaylorTermBatch<double>& batch, cudaStream_t stream)
+{
+    cuda_taylor_horner_terms_impl(nRows, nCols, rowOffsets, columns, values, batch, stream);
+}
+
+// The per-pattern reductions over the rows of an (nRows, nPatterns) row-major matrix use blocks of
+// patternsPerBlock x (256 / patternsPerBlock) threads, and split the rows into chunks so that there are
+// enough blocks.  Each chunk writes one partial result per pattern; a second kernel combines them.
+struct RowChunks
+{
+    int patternsPerBlock;
+    int rowsPerBlock;
+    int patternBlocks;
+    int rowsPerChunk;
+    int chunks;
+};
+
+static RowChunks rowChunks(int nRows, int nPatterns)
+{
+    RowChunks c;
+    c.patternsPerBlock = nextPowerOfTwo(nPatterns, 32);
+    c.rowsPerBlock = 256 / c.patternsPerBlock;
+    c.patternBlocks = (nPatterns + c.patternsPerBlock - 1) / c.patternsPerBlock;
+    const int targetBlocks = 512;
+    int chunks = (targetBlocks + c.patternBlocks - 1) / c.patternBlocks;
+    chunks = std::max(1, std::min({chunks, nRows / (8 * c.rowsPerBlock), 128}));
+    c.rowsPerChunk = (nRows + chunks - 1) / chunks;
+    c.chunks = (nRows + c.rowsPerChunk - 1) / c.rowsPerChunk;
+    return c;
+}
+
+int cuda_row_chunk_count(int nRows, int nPatterns)
+{
+    return rowChunks(nRows, nPatterns).chunks;
+}
+
+// Reduce v over threadIdx.y (blockDim.y a power of two); the result is valid in the threads with threadIdx.y == 0.
+template <typename T, typename Op>
+__device__ T column_reduce(T v, Op op)
+{
+    __shared__ T shared[256];
+    const int i = threadIdx.y * blockDim.x + threadIdx.x;
+    shared[i] = v;
+    __syncthreads();
+    for (int stride = blockDim.y / 2; stride > 0; stride /= 2)
+    {
+        if (threadIdx.y < stride)
+            shared[i] = op(shared[i], shared[i + stride * blockDim.x]);
+        __syncthreads();
+    }
+    return shared[threadIdx.x];
+}
+
+// parent = left * right for each product of the batch (blockIdx.y)
+template <typename T>
+__global__ void partials_product_kernel(const PartialsProductBatch<T> batch, size_t n)
+{
+    const PartialsProduct<T>& product = batch.products[blockIdx.y];
+    for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x)
+        product.parent[i] = product.left[i] * product.right[i];
+}
+
+// chunkMax[product, chunk, p] = max over the chunk's rows r of left[r, p] * right[r, p]  (product = blockIdx.z)
+template <typename T>
+__global__ void partials_product_max_kernel(const PartialsProductBatch<T> batch, int nRows, int nPatterns, int rowsPerChunk, T* chunkMax)
+{
+    const PartialsProduct<T>& product = batch.products[blockIdx.z];
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+    const int rowEnd = min(nRows, (blockIdx.y + 1) * rowsPerChunk);
+    T m = 0;
+    if (p < nPatterns and product.scalingFactors)
+        for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
+        {
+            const size_t i = (size_t)r * nPatterns + p;
+            m = max(m, product.left[i] * product.right[i]);
+        }
+    m = column_reduce(m, MaxOp());
+    if (threadIdx.y == 0 and p < nPatterns)
+        chunkMax[((size_t)blockIdx.z * gridDim.y + blockIdx.y) * nPatterns + p] = m;
+}
+
+// parent = left * right / m, where m is the largest entry of the pattern (1 if all are 0, or without rescaling).
+template <typename T>
+__global__ void partials_product_scale_kernel(const PartialsProductBatch<T> batch, int nRows, int nPatterns, int rowsPerChunk,
+                                              const T* chunkMax, bool scalersLog)
+{
+    const PartialsProduct<T>& product = batch.products[blockIdx.z];
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // One row of threads combines the chunks' maxima for the block's patterns.
+    __shared__ T patternMax[32];
+    if (threadIdx.y == 0)
+    {
+        T m = 0;
+        if (p < nPatterns)
+            for (int c = 0; c < gridDim.y; c++)
+                m = max(m, chunkMax[((size_t)blockIdx.z * gridDim.y + c) * nPatterns + p]);
+        patternMax[threadIdx.x] = (m == 0) ? T(1) : m;
+    }
+    __syncthreads();
+    if (p >= nPatterns) return;
+    const T m = patternMax[threadIdx.x];
+    const T inverse = 1 / m;
+
+    const int rowEnd = min(nRows, (blockIdx.y + 1) * rowsPerChunk);
+    for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
+    {
+        const size_t i = (size_t)r * nPatterns + p;
+        product.parent[i] = product.left[i] * product.right[i] * inverse;
+    }
+
+    if (product.scalingFactors and blockIdx.y == 0 and threadIdx.y == 0)
+        product.scalingFactors[p] = scalersLog ? log(m) : m;
+}
+
+// cumulative[p] += log m of each product in turn (the order of separate calls, so the rounding is the same).
+template <typename T>
+__global__ void accumulate_scaling_kernel(const PartialsProductBatch<T> batch, int nPatterns, T* cumulative, bool scalersLog)
+{
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= nPatterns) return;
+    T sum = cumulative[p];
+    for (int k = 0; k < batch.count; k++)
+    {
+        const T* factors = batch.products[k].scalingFactors;
+        if (factors)
+            sum += scalersLog ? factors[p] : log(factors[p]);
+    }
+    cumulative[p] = sum;
+}
+
+template <typename T>
+void cuda_partials_products_impl(const PartialsProductBatch<T>& batch, int nRows, int nPatterns, T* cumulative, bool scalersLog,
+                                 T* scratch, cudaStream_t stream)
+{
+    if (batch.count == 0) return;
+    bool rescale = false;
+    for (int k = 0; k < batch.count; k++)
+        rescale = rescale or batch.products[k].scalingFactors;
+
+    if (not rescale)
+    {
+        const size_t n = (size_t)nRows * nPatterns;
+        const int blocks = (int)std::min<size_t>((n + 255) / 256, 4096 / batch.count + 1);
+        partials_product_kernel<<<dim3(blocks, batch.count), 256, 0, stream>>>(batch, n);
         return;
     }
 
-    T m = 0;
-    for (int c = 0; c < nCategories; c++)
-        for (int s = threadIdx.x; s < nStates; s += blockDim.x)
-        {
-            const size_t i = c * categoryStride + offset + s;
-            m = max(m, left[i] * right[i]);
-        }
-    m = block_reduce(m, T(0), MaxOp());
-    if (m == 0) m = 1;
+    const RowChunks c = rowChunks(nRows, nPatterns);
+    const dim3 block(c.patternsPerBlock, c.rowsPerBlock);
+    const dim3 grid(c.patternBlocks, c.chunks, batch.count);
+    partials_product_max_kernel<<<grid, block, 0, stream>>>(batch, nRows, nPatterns, c.rowsPerChunk, scratch);
+    partials_product_scale_kernel<<<grid, block, 0, stream>>>(batch, nRows, nPatterns, c.rowsPerChunk, scratch, scalersLog);
+    if (cumulative)
+        accumulate_scaling_kernel<<<(nPatterns + 255) / 256, 256, 0, stream>>>(batch, nPatterns, cumulative, scalersLog);
+}
 
-    const T inverse = 1 / m;
-    for (int c = 0; c < nCategories; c++)
-        for (int s = threadIdx.x; s < nStates; s += blockDim.x)
-        {
-            const size_t i = c * categoryStride + offset + s;
-            parent[i] = left[i] * right[i] * inverse;
-        }
+void cuda_partials_products(const PartialsProductBatch<float>& batch, int nRows, int nPatterns, float* cumulative, bool scalersLog,
+                            float* scratch, cudaStream_t stream)
+{
+    cuda_partials_products_impl(batch, nRows, nPatterns, cumulative, scalersLog, scratch, stream);
+}
 
-    if (threadIdx.x == 0)
+void cuda_partials_products(const PartialsProductBatch<double>& batch, int nRows, int nPatterns, double* cumulative, bool scalersLog,
+                            double* scratch, cudaStream_t stream)
+{
+    cuda_partials_products_impl(batch, nRows, nPatterns, cumulative, scalersLog, scratch, stream);
+}
+
+template <typename T>
+__global__ void accumulate_scale_factors_kernel(const ScaleFactorBatch<T> batch, int nPatterns, T* cumulative, bool scalersLog, bool subtract)
+{
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+    if (p >= nPatterns) return;
+    T total = 0;
+    for (int k = 0; k < batch.count; k++)
     {
-        const T logM = log(m);
-        scalingFactors[pattern] = scalersLog ? logM : m;
-        if (cumulative) cumulative[pattern] += logM;
+        const T factor = batch.factors[k][p];
+        if (scalersLog)
+            total += factor;
+        else if (factor != 1)
+            total += log(factor);
     }
+    cumulative[p] += subtract ? -total : total;
 }
 
 template <typename T>
-void cuda_partials_product_impl(const T* left, const T* right, T* parent, int nStates, int nPatterns, int nCategories,
-                                 T* scalingFactors, T* cumulative, bool scalersLog, cudaStream_t stream)
+void cuda_accumulate_scale_factors_impl(const ScaleFactorBatch<T>& batch, int nPatterns, T* cumulative, bool scalersLog,
+                                        bool subtract, cudaStream_t stream)
 {
-    partials_product_kernel<<<nPatterns, patternBlockSize(nPatterns), 0, stream>>>(left, right, parent, nStates, nPatterns, nCategories,
-                                                                         scalingFactors, cumulative, scalersLog);
+    if (batch.count == 0) return;
+    accumulate_scale_factors_kernel<<<(nPatterns + 255) / 256, 256, 0, stream>>>(batch, nPatterns, cumulative, scalersLog, subtract);
 }
 
-void cuda_partials_product(const float* left, const float* right, float* parent, int nStates, int nPatterns, int nCategories,
-                           float* scalingFactors, float* cumulative, bool scalersLog, cudaStream_t stream)
+void cuda_accumulate_scale_factors(const ScaleFactorBatch<float>& batch, int nPatterns, float* cumulative, bool scalersLog,
+                                   bool subtract, cudaStream_t stream)
 {
-    cuda_partials_product_impl(left, right, parent, nStates, nPatterns, nCategories, scalingFactors, cumulative, scalersLog, stream);
+    cuda_accumulate_scale_factors_impl(batch, nPatterns, cumulative, scalersLog, subtract, stream);
 }
 
-void cuda_partials_product(const double* left, const double* right, double* parent, int nStates, int nPatterns, int nCategories,
-                           double* scalingFactors, double* cumulative, bool scalersLog, cudaStream_t stream)
+void cuda_accumulate_scale_factors(const ScaleFactorBatch<double>& batch, int nPatterns, double* cumulative, bool scalersLog,
+                                   bool subtract, cudaStream_t stream)
 {
-    cuda_partials_product_impl(left, right, parent, nStates, nPatterns, nCategories, scalingFactors, cumulative, scalersLog, stream);
+    cuda_accumulate_scale_factors_impl(batch, nPatterns, cumulative, scalersLog, subtract, stream);
 }
 
-// siteLogLikelihoods[p] = log( sum_{c,s} root(c,p,s) * categoryWeights[c] * frequencies[s] ) + cumulativeScaling[p]
+// chunkSum[chunk, p] = sum over the chunk's rows r = (c, s) of root[r, p] * categoryWeights[c] * frequencies[s]
 template <typename T>
-__global__ void root_site_log_likelihoods_kernel(const T* root, const T* categoryWeights, const T* frequencies,
-                                                 const T* cumulativeScaling, int nStates, int nPaddedPatterns, int nCategories,
-                                                 T* siteLogLikelihoods)
+__global__ void root_chunk_sums_kernel(const T* root, const T* categoryWeights, const T* frequencies, int nStates, int nRows,
+                                       int nPatterns, int rowsPerChunk, T* chunkSum)
 {
-    const int pattern = blockIdx.x;
-    const size_t categoryStride = (size_t)nStates * nPaddedPatterns;
-    const size_t offset = (size_t)pattern * nStates;
-
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+    const int rowEnd = min(nRows, (blockIdx.y + 1) * rowsPerChunk);
     T sum = 0;
-    for (int c = 0; c < nCategories; c++)
+    if (p < nPatterns)
+        for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
+            sum += root[(size_t)r * nPatterns + p] * categoryWeights[r / nStates] * frequencies[r % nStates];
+    sum = column_reduce(sum, SumOp());
+    if (threadIdx.y == 0 and p < nPatterns)
+        chunkSum[blockIdx.y * nPatterns + p] = sum;
+}
+
+// siteLogLikelihoods[p] = log(sum of the chunk sums) + cumulativeScaling[p];  out[0] = sum_p patternWeights[p] * siteLogLikelihoods[p].
+// A single block, so the sum is deterministic.
+template <typename T>
+__global__ void root_finish_kernel(const T* chunkSum, int nChunks, int nPaddedPatterns, int nPatterns, const T* cumulativeScaling,
+                                   const T* patternWeights, T* siteLogLikelihoods, T* out)
+{
+    T total = 0;
+    for (int p = threadIdx.x; p < nPatterns; p += blockDim.x)
     {
-        T categorySum = 0;
-        for (int s = threadIdx.x; s < nStates; s += blockDim.x)
-            categorySum += root[c * categoryStride + offset + s] * frequencies[s];
-        sum += categorySum * categoryWeights[c];
+        T sum = 0;
+        for (int c = 0; c < nChunks; c++)
+            sum += chunkSum[c * nPaddedPatterns + p];
+        const T site = log(sum) + (cumulativeScaling ? cumulativeScaling[p] : T(0));
+        siteLogLikelihoods[p] = site;
+        total += site * patternWeights[p];
     }
-    sum = block_reduce(sum, T(0), SumOp());
-
-    if (threadIdx.x == 0)
-        siteLogLikelihoods[pattern] = log(sum) + (cumulativeScaling ? cumulativeScaling[pattern] : T(0));
-}
-
-// out[0] = sum_i values[i] * weights[i], using a single block (deterministic).
-template <typename T>
-__global__ void weighted_sum_kernel(const T* values, const T* weights, int n, T* out)
-{
-    T sum = 0;
-    for (int i = threadIdx.x; i < n; i += blockDim.x)
-        sum += values[i] * weights[i];
-    sum = block_reduce(sum, T(0), SumOp());
-    if (threadIdx.x == 0) out[0] = sum;
+    total = block_reduce(total, T(0), SumOp());
+    if (threadIdx.x == 0) out[0] = total;
 }
 
 template <typename T>
 void cuda_root_log_likelihoods_impl(const T* root, const T* categoryWeights, const T* frequencies, const T* cumulativeScaling,
                                     const T* patternWeights, int nStates, int nPaddedPatterns, int nPatterns, int nCategories,
-                                    T* siteLogLikelihoods, T* sumLogLikelihood, cudaStream_t stream)
+                                    T* scratch, T* siteLogLikelihoods, T* sumLogLikelihood, cudaStream_t stream)
 {
-    root_site_log_likelihoods_kernel<<<nPatterns, patternBlockSize(nPatterns), 0, stream>>>(root, categoryWeights, frequencies, cumulativeScaling,
-                                                                                  nStates, nPaddedPatterns, nCategories, siteLogLikelihoods);
-    weighted_sum_kernel<<<1, 1024, 0, stream>>>(siteLogLikelihoods, patternWeights, nPatterns, sumLogLikelihood);
+    const int nRows = nStates * nCategories;
+    const RowChunks c = rowChunks(nRows, nPaddedPatterns);
+    const dim3 block(c.patternsPerBlock, c.rowsPerBlock);
+    const dim3 grid(c.patternBlocks, c.chunks);
+    root_chunk_sums_kernel<<<grid, block, 0, stream>>>(root, categoryWeights, frequencies, nStates, nRows, nPaddedPatterns,
+                                                       c.rowsPerChunk, scratch);
+    root_finish_kernel<<<1, 1024, 0, stream>>>(scratch, c.chunks, nPaddedPatterns, nPatterns, cumulativeScaling, patternWeights,
+                                               siteLogLikelihoods, sumLogLikelihood);
 }
 
 void cuda_root_log_likelihoods(const float* root, const float* categoryWeights, const float* frequencies, const float* cumulativeScaling,
                                const float* patternWeights, int nStates, int nPaddedPatterns, int nPatterns, int nCategories,
-                               float* siteLogLikelihoods, float* sumLogLikelihood, cudaStream_t stream)
+                               float* scratch, float* siteLogLikelihoods, float* sumLogLikelihood, cudaStream_t stream)
 {
     cuda_root_log_likelihoods_impl(root, categoryWeights, frequencies, cumulativeScaling, patternWeights,
-                                   nStates, nPaddedPatterns, nPatterns, nCategories, siteLogLikelihoods, sumLogLikelihood, stream);
+                                   nStates, nPaddedPatterns, nPatterns, nCategories, scratch, siteLogLikelihoods, sumLogLikelihood, stream);
 }
 
 void cuda_root_log_likelihoods(const double* root, const double* categoryWeights, const double* frequencies, const double* cumulativeScaling,
                                const double* patternWeights, int nStates, int nPaddedPatterns, int nPatterns, int nCategories,
-                               double* siteLogLikelihoods, double* sumLogLikelihood, cudaStream_t stream)
+                               double* scratch, double* siteLogLikelihoods, double* sumLogLikelihood, cudaStream_t stream)
 {
     cuda_root_log_likelihoods_impl(root, categoryWeights, frequencies, cumulativeScaling, patternWeights,
-                                   nStates, nPaddedPatterns, nPatterns, nCategories, siteLogLikelihoods, sumLogLikelihood, stream);
-}
-
-
-// One Taylor term on column-major (nStates, nColumns) matrices, in a single pass:
-//   y = alpha * A * x;   F = scale * (F + y)
-// One thread per (row, column), consecutive threads on consecutive rows.  Used when the work is small:
-// it replaces cuSPARSE's partition, beta=0 fill and SpMM kernels plus the axpy.
-template <typename T>
-__global__ void csr_taylor_term_kernel(int nStates, int nColumns, const int* __restrict__ rowOffsets,
-                                       const int* __restrict__ columns, const T* __restrict__ values, T alpha,
-                                       const T* __restrict__ x, T* __restrict__ y, T* __restrict__ F, T scale)
-{
-    const size_t index = blockIdx.x * (size_t)blockDim.x + threadIdx.x;
-    if (index >= (size_t)nStates * nColumns) return;
-    const int row = index % nStates;
-    const T* xColumn = x + (index - row);
-
-    T sum = 0;
-    for (int k = rowOffsets[row]; k < rowOffsets[row + 1]; k++)
-        sum += values[k] * __ldg(xColumn + columns[k]);
-    sum *= alpha;
-
-    y[index] = sum;
-    F[index] = scale * (F[index] + sum);
-}
-
-template <typename T>
-void cuda_csr_taylor_term_impl(int nStates, int nColumns, const int* rowOffsets, const int* columns, const T* values, T alpha,
-                               const T* x, T* y, T* F, T scale, cudaStream_t stream)
-{
-    const size_t n = (size_t)nStates * nColumns;
-    const int blockSize = 256;
-    csr_taylor_term_kernel<<<(n + blockSize - 1) / blockSize, blockSize, 0, stream>>>(nStates, nColumns, rowOffsets, columns, values,
-                                                                                       alpha, x, y, F, scale);
-}
-
-void cuda_csr_taylor_term(int nStates, int nColumns, const int* rowOffsets, const int* columns, const float* values, float alpha,
-                          const float* x, float* y, float* F, float scale, cudaStream_t stream)
-{
-    cuda_csr_taylor_term_impl(nStates, nColumns, rowOffsets, columns, values, alpha, x, y, F, scale, stream);
-}
-
-void cuda_csr_taylor_term(int nStates, int nColumns, const int* rowOffsets, const int* columns, const double* values, double alpha,
-                          const double* x, double* y, double* F, double scale, cudaStream_t stream)
-{
-    cuda_csr_taylor_term_impl(nStates, nColumns, rowOffsets, columns, values, alpha, x, y, F, scale, stream);
+                                   nStates, nPaddedPatterns, nPatterns, nCategories, scratch, siteLogLikelihoods, sumLogLikelihood, stream);
 }
 
 

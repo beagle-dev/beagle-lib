@@ -226,16 +226,6 @@ struct DnMatrixDevice
         MemcpyDeviceToDevice(ptr, D.ptr, size());
     }
 
-    void copyFromAsync(const DnMatrixDevice<Real>& D, cudaStream_t stream)
-    {
-        assert(order == D.order);
-        assert(size1 == D.size1);
-        assert(size2 == D.size2);
-        auto status = cudaMemcpyAsync(ptr, D.ptr, byte_size(), cudaMemcpyDeviceToDevice, stream);
-        if (status != cudaSuccess)
-            throw std::runtime_error("cudaMemcpyAsync(Device->Device): " + std::string(cudaGetErrorString(status)));
-    }
-
     // Disallow copying -- only one object can "own" the descriptor.
     DnMatrixDevice<Real>& operator=(const DnMatrixDevice<Real>&) = delete;
     // Allow moving.
@@ -286,38 +276,6 @@ struct DnMatrixDevice
             exit(1);
         }
         return *this;
-    }
-
-    // Point at different memory; the cuSPARSE descriptor must follow, or SpMM reads the old buffer.
-    void setPointer(Real* p)
-    {
-        ptr = p;
-        if (descr and cusparseDnMatSetValues(descr, p) != CUSPARSE_STATUS_SUCCESS)
-        {
-            std::cerr<<"cusparseDnMatSetValues( ) failed!";
-            std::exit(1);
-        }
-    }
-
-    // (*this) = a * (*this) + b * D, in one pass.
-    void axpby(Real a, Real b, const DnMatrixDevice<Real>& D)
-    {
-        cublasStatus_t status;
-        assert(D.size1 == size1);
-        assert(D.size2 == size2);
-        assert(order == CUSPARSE_ORDER_COL and D.order == CUSPARSE_ORDER_COL);
-        // geam allows C to alias A when A is not transposed and lda == ldc.
-        if constexpr (std::is_same<Real, float>::value) {
-            status = cublasSgeam(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, size1, size2, &a, ptr, size1, &b, D.ptr, size1, ptr, size1);
-        } else {
-            status = cublasDgeam(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, size1, size2, &a, ptr, size1, &b, D.ptr, size1, ptr, size1);
-        }
-
-        if (status != CUBLAS_STATUS_SUCCESS)
-        {
-            std::cerr<<"cublas error "<<status<<" in DnMatrix<>::axpby\n";
-            exit(1);
-        }
     }
 
     // Disallow copying.
@@ -514,31 +472,6 @@ template <typename Real>
 int spMM(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B, Real beta, void*& buffer, size_t& buffersize)
 {
     return spMM<Real>(A.cusparseHandle, C.descr, alpha, A.descr, B.descr, beta, buffer, buffersize);
-}
-
-// C = alpha * A * B with a work buffer already sized by spMMBufferSize( ).
-template <typename Real>
-int spMMPrepared(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B, void* buffer)
-{
-    Real beta = 0;
-    CHECK_CUSPARSE(cusparseSpMM(A.cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                &alpha, A.descr, B.descr, &beta, C.descr, DataType<Real>,
-                                CUSPARSE_SPMM_ALG_DEFAULT, buffer));
-    return 0;
-}
-
-template <typename Real>
-size_t spMMBufferSize(const DnMatrixDevice<Real>& C, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B)
-{
-    Real alpha = 1;
-    Real beta = 0;
-    size_t size = 0;
-    auto status = cusparseSpMM_bufferSize(A.cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                          &alpha, A.descr, B.descr, &beta, C.descr, DataType<Real>,
-                                          CUSPARSE_SPMM_ALG_DEFAULT, &size);
-    if (status != CUSPARSE_STATUS_SUCCESS)
-        throw std::runtime_error(std::string("cusparseSpMM_bufferSize: ") + cusparseGetErrorString(status));
-    return size;
 }
 
 // Create an io-manipulator so that we can write std::cerr<<byRow(D)<<"\n";
@@ -960,6 +893,10 @@ public:
     int setPartials(int bufferIndex,
                     const Real* inPartials);
 
+    int getPartials(int bufferIndex,
+                    int scaleIndex,
+                    double* outPartials) override;
+
     int setSparseMatrix(int matrixIndex,
                         const int* rowIndices,
                         const int* colIndices,
@@ -969,6 +906,11 @@ public:
     int updatePartials(const int* operations,
                        int operationCount,
                        int cumulativeScalingIndex);
+
+    // The base versions read past the end of the scaling buffers unless the pattern count is padded to their
+    // block size, which the action layout does not do.
+    int accumulateScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex) override;
+    int removeScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex) override;
 
     // Action instances have no dense transition matrices (see createInstance), so these are not available.
     // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
@@ -1040,19 +982,22 @@ protected:
             {55, 9.9},
     };
 
-//    std::vector<cusparseSpMatDescr_t> dInstantaneousMatrices;
-    std::vector<DnMatrixDevice<Real>> dPartialsWrapper;
-    // Per category: the action of each child's edge on its partials (exp(tQ) * partials).
-    // These hold the Taylor sum F while it is accumulated.
-    std::vector<DnMatrixDevice<Real>> dDestPLeft;
-    std::vector<DnMatrixDevice<Real>> dDestPRight;
-    // Per category: two buffers that alternate as the input and output of each Taylor term.
-    std::vector<DnMatrixDevice<Real>> dTerms[2];
-    // Per eigen index: B = Q - mu*I on the device.  The edge multiplier goes into the SpMM alpha.
+    // Per eigen index: B = Q - mu*I on the device.  The edge multiplier goes into the term coefficients.
     std::vector<SpMatrixDevice<Real>> dBs;
-    void* dSpMMBuffer = nullptr;
-    size_t spMMBufferBytes = 0;
     BlockNormEstimator<Real> normEstimator;
+
+    // Partials are stored pattern-fastest, [category][state][pattern] (see cuda_ops.h); hPartialsTransposed
+    // converts to and from BEAGLE's [category][pattern][state].
+    std::vector<Real> hPartialsTransposed;
+    // Independent operations (e.g. one level of the tree) are computed together, up to maxBatchOperations.
+    int maxBatchOperations = 1;
+    // The actions of both children's edges, [operation][child][category] blocks of (kPaddedStateCount, kPaddedPatternCount).
+    Real* dActionResults = nullptr;
+    // 2 or 3 Horner work matrices; each holds one (kPaddedStateCount, kPaddedPatternCount) block per operation,
+    // child and category (see calcPartialsPartials( )).
+    Real* dActionScratch = nullptr;
+    // Per-pattern partial results of the product and root kernels.
+    Real* dReductionScratch = nullptr;
 
     // All work is issued on the GPUInterface's stream 0, so it is ordered with the base class's
     // copies and kernels (two different blocking streams would not be).  See setCudaDevice( ).
@@ -1076,6 +1021,7 @@ protected:
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kEigenDecompCount;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kCategoryCount;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kMatrixCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPartialsSize;
 
 
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPaddedStateCount;
@@ -1085,6 +1031,7 @@ protected:
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kMatrixSize;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kernels;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dScalingFactors;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kScaleBufferCount;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPartials;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPartialsOrigin;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::hCategoryRates;
@@ -1104,6 +1051,8 @@ protected:
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::hPtrQueue;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dMaxScalingFactors;
     using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dIndexMaxScalingFactors;
+
+    int addScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex, bool subtract);
 
     int upPartials(bool byPartition,
 		   const int *operations,
@@ -1139,21 +1088,38 @@ private:
     // and cuBLAS/cuSPARSE use the GPUInterface's stream.
     void setCudaDevice();
 
-    int getPartialIndex(int nodeIndex, int categoryIndex);
+    // Copy BEAGLE-layout partials (for one category if tipPartials, else for all) into dPartials[bufferIndex].
+    void uploadPartials(int bufferIndex, const Real* inPartials, bool tipPartials);
 
-    DnMatrixDevice<Real>& getPartialsWrapper(int nodeIndex, int categoryIndex);
+    struct PartialsOperation
+    {
+        int destination;
+        int children[2];
+        int edges[2];
+        Real* scalingFactors;   // nullptr means no rescaling
+    };
 
-    // scalingFactors == nullptr means no rescaling.
-    void calcPartialsPartials(int destPIndex,
-                              int partials1Index,
-                              int edgeIndex1,
-                              int partials2Index,
-                              int edgeIndex2,
-                              Real* scalingFactors,
-                              Real* cumulativeScalingBuffer);
+    // The operations must be independent: no operation reads or writes another one's destination.
+    void calcPartialsPartials(const std::vector<PartialsOperation>& operations, Real* cumulativeScalingBuffer);
 
-    // F = exp(t * edgeMultiplier * Q) * inPartials
-    int simpleAction2(DnMatrixDevice<Real>& F, const DnMatrixDevice<Real>& inPartials, int edgeIndex, int category);
+    // out = exp(multiplier * Q_eigenIndex) * in for one (kPaddedStateCount, kPaddedPatternCount) matrix.
+    // in is not modified; scratch is 2 or 3 matrices of work space with row stride scratchStride.
+    struct ActionGroup
+    {
+        const Real* in;
+        Real* out;
+        Real* scratch[3];
+        int scratchCount;
+        int scratchStride;
+        int eigenIndex;
+        double multiplier;
+    };
+
+    // With fewer than 32 patterns, the Horner work blocks are interleaved (see calcPartialsPartials( )).
+    bool interleavedScratch() const { return kPaddedPatternCount < 32; }
+
+    // Computes all the actions, batching the Taylor terms of the groups that share Q into one launch each.
+    void computeActions(const std::vector<ActionGroup>& groups);
 
     std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
                                        int eigenIndex) const;
