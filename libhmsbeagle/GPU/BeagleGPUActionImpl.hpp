@@ -292,6 +292,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     setCudaDevice();
 
     hBs.resize(kEigenDecompCount);
+    csrBuilders.resize(kEigenDecompCount);
     hMuBs.resize(kEigenDecompCount);
     hB1Norms.resize(kEigenDecompCount);
     hds.resize(kEigenDecompCount);
@@ -308,8 +309,13 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     normEstimator.allocate(kPaddedStateCount, 5, getPMax() + 1);
 
     currentCacheNNZs = std::vector<int>(kEigenDecompCount, kPaddedStateCount);
+    dBtOffsets.assign(kEigenDecompCount, nullptr);
+    dBtColumns.assign(kEigenDecompCount, nullptr);
+    dBtSlots.assign(kEigenDecompCount, nullptr);
+    dBtValues.assign(kEigenDecompCount, nullptr);
     for (int i = 0; i < kEigenDecompCount; i++) {
         dBsCsrOffsetsCache[i] = cudaDeviceNew<int>(kPaddedStateCount + 1);
+        dBtOffsets[i] = cudaDeviceNew<int>(kPaddedStateCount + 1);
         dBsCsrColumnsCache[i] = cudaDeviceNew<int>(currentCacheNNZs[i]);
         dBsCsrValuesCache[i] = cudaDeviceNew<Real>(currentCacheNNZs[i]);
     }
@@ -343,6 +349,10 @@ BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUActionImpl()
 
     for (int i = 0; i < kEigenDecompCount; i++) {
         cudaFree(dBsCsrOffsetsCache[i]);
+        cudaFree(dBtOffsets[i]);
+        cudaFree(dBtColumns[i]);
+        cudaFree(dBtSlots[i]);
+        cudaFree(dBtValues[i]);
         cudaFree(dBsCsrColumnsCache[i]);
         cudaFree(dBsCsrValuesCache[i]);
     }
@@ -1216,7 +1226,8 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
     mu_B /= (Real) kStateCount;
 
     hMuBs[matrixIndex] = mu_B;
-    buildShiftedCsr(kPaddedStateCount, rowIndices, colIndices, values, numNonZeros, mu_B, hBs[matrixIndex]);
+    auto& builder = csrBuilders[matrixIndex];
+    const bool structureChanged = builder.build(kPaddedStateCount, rowIndices, colIndices, values, numNonZeros, mu_B, hBs[matrixIndex]);
     hB1Norms[matrixIndex] = normP1(kPaddedStateCount, hBs[matrixIndex]);
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -1229,18 +1240,39 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
     std::cerr<<"\n";
 #endif
 
+    // With an unchanged structure only the values of B go to the device; B^T's values are gathered from them.
     const int currentNNZ = hBs[matrixIndex].nonZeros();
-    if (currentCacheNNZs[matrixIndex] != currentNNZ) {
-        currentCacheNNZs[matrixIndex] = currentNNZ;
-        cudaDeviceDelete(dBsCsrColumnsCache[matrixIndex]);
-        cudaDeviceDelete(dBsCsrValuesCache[matrixIndex]);
-        dBsCsrColumnsCache[matrixIndex] = cudaDeviceNew<int>(currentNNZ);
-        dBsCsrValuesCache[matrixIndex] = cudaDeviceNew<Real>(currentNNZ);
-    }
+    if (structureChanged) {
+        if (currentCacheNNZs[matrixIndex] != currentNNZ) {
+            currentCacheNNZs[matrixIndex] = currentNNZ;
+            cudaDeviceDelete(dBsCsrColumnsCache[matrixIndex]);
+            cudaDeviceDelete(dBsCsrValuesCache[matrixIndex]);
+            dBsCsrColumnsCache[matrixIndex] = cudaDeviceNew<int>(currentNNZ);
+            dBsCsrValuesCache[matrixIndex] = cudaDeviceNew<Real>(currentNNZ);
+        }
+        cudaDeviceDelete(dBtColumns[matrixIndex]);
+        cudaDeviceDelete(dBtSlots[matrixIndex]);
+        cudaDeviceDelete(dBtValues[matrixIndex]);
+        dBtColumns[matrixIndex] = cudaDeviceNew<int>(currentNNZ);
+        dBtSlots[matrixIndex] = cudaDeviceNew<int>(currentNNZ);
+        dBtValues[matrixIndex] = cudaDeviceNew<Real>(currentNNZ);
 
-    MemcpyHostToDevice(dBsCsrOffsetsCache[matrixIndex], hBs[matrixIndex].offsets.data(), kPaddedStateCount + 1);
-    MemcpyHostToDevice(dBsCsrColumnsCache[matrixIndex], hBs[matrixIndex].columns.data(), currentNNZ);
+        MemcpyHostToDevice(dBsCsrOffsetsCache[matrixIndex], hBs[matrixIndex].offsets.data(), kPaddedStateCount + 1);
+        MemcpyHostToDevice(dBsCsrColumnsCache[matrixIndex], hBs[matrixIndex].columns.data(), currentNNZ);
+        MemcpyHostToDevice(dBtOffsets[matrixIndex], builder.transposeOffsets.data(), kPaddedStateCount + 1);
+        MemcpyHostToDevice(dBtColumns[matrixIndex], builder.transposeColumns.data(), currentNNZ);
+        MemcpyHostToDevice(dBtSlots[matrixIndex], builder.transposeSlot.data(), currentNNZ);
+
+        dBs[matrixIndex] = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
+                                                kPaddedStateCount, kPaddedStateCount,
+                                                currentNNZ,
+                                                dBsCsrValuesCache[matrixIndex],
+                                                dBsCsrColumnsCache[matrixIndex],
+                                                dBsCsrOffsetsCache[matrixIndex],
+                                                sparseFormat::csr);
+    }
     MemcpyHostToDevice(dBsCsrValuesCache[matrixIndex], hBs[matrixIndex].values.data(), currentNNZ);
+    cuda_gather(dBsCsrValuesCache[matrixIndex], dBtSlots[matrixIndex], currentNNZ, dBtValues[matrixIndex], stream);
 
 #ifdef BEAGLE_DEBUG_FLOW
 
@@ -1256,19 +1288,11 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
     PrintfDeviceVector(dBsCsrValuesCache[matrixIndex], currentNNZ, -1, 0, 0);
 #endif
 
-
-    dBs[matrixIndex] = SpMatrixDevice<Real>(cublasHandle, cusparseHandle,
-                                            kPaddedStateCount, kPaddedStateCount,
-                                            currentNNZ,
-                                            dBsCsrValuesCache[matrixIndex],
-                                            dBsCsrColumnsCache[matrixIndex],
-                                            dBsCsrOffsetsCache[matrixIndex],
-                                            sparseFormat::csr);
     auto& dB = dBs[matrixIndex];
 
     // equation 3.7 in Al-Mohy and Higham: d_p = ||B^p||_1^(1/p).  d_1 is known exactly; d_0 is not used.
     const int pTop = getPMax() + 1;
-    auto norms = normEstimator.estimate(dB, stream);
+    auto norms = normEstimator.estimate(dB, dBtOffsets[matrixIndex], dBtColumns[matrixIndex], dBtValues[matrixIndex], stream);
     hds[matrixIndex].assign(pTop + 1, 1.0);
     hds[matrixIndex][1] = hB1Norms[matrixIndex];
     for (int p = 2; p <= pTop; p++)

@@ -79,25 +79,31 @@ std::vector<T> MemcpyDeviceToHostVector(const T* dptr, int n)
 double cuda_max_abs(double* v, int length);
 float cuda_max_abs(float* v, int length);
 
-// The starting matrix X (n, t) of the block 1-norm estimator: first column 1/n, others random +-1/n.
+// The starting matrix X (n, t), row-major, of the block 1-norm estimator: first column 1/n, others random +-1/n.
 void initialize_norm_x_matrix(float* data, int n, int m);
 void initialize_norm_x_matrix(double* data, int n, int m);
 
-// Block 1-norm estimation, see BlockNormEstimator in BeagleGPUActionImpl.h.
-// y(:, 0:nApplied) = A x(:, 0:nApplied) for column-major y, x with n rows and A in CSR; then nAppend more
-// columns of y are set to sign(signSource) if signSource is non-null, otherwise to unit vectors e(unitRows[c]).
-void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const float* values, const float* x, float* y,
-                          int nApplied, int nAppend, const float* signSource, const int* unitRows, cudaStream_t stream);
-void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const double* values, const double* x, double* y,
-                          int nApplied, int nAppend, const double* signSource, const int* unitRows, cudaStream_t stream);
+// Block 1-norm estimation, see BlockNormEstimator in BeagleGPUActionImpl.h.  Matrices are row-major with n rows
+// and row stride ld*.
+// y(:, 0:nApplied) = A x(:, 0:nApplied) with A in CSR; then nAppend more columns of y are set to sign(signSource)
+// if signSource is non-null, otherwise to unit vectors e(unitRows[c]).
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const float* values, const float* x, int ldx, float* y, int ldy,
+                          int nApplied, int nAppend, const float* signSource, int ldSign, const int* unitRows, cudaStream_t stream);
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const double* values, const double* x, int ldx, double* y, int ldy,
+                          int nApplied, int nAppend, const double* signSource, int ldSign, const int* unitRows, cudaStream_t stream);
 
-// sums[c] = sum_i |x(i, c)| for the nColumns columns of x (n rows).
-void cuda_column_abs_sums(const float* x, int n, int nColumns, float* sums, cudaStream_t stream);
-void cuda_column_abs_sums(const double* x, int n, int nColumns, double* sums, cudaStream_t stream);
+// sums[c] = sum_i |x(i, c)| for the first nColumns columns of x (n rows, row stride ld).
+void cuda_column_abs_sums(const float* x, int n, int nColumns, int ld, float* sums, cudaStream_t stream);
+void cuda_column_abs_sums(const double* x, int n, int nColumns, int ld, double* sums, cudaStream_t stream);
 
-// For each of nBlocks blocks of t columns of Z (n rows): the t rows with the largest max_j |Z(i,j)| -> unitRows[b*t ...].
-void cuda_select_unit_columns(const float* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream);
-void cuda_select_unit_columns(const double* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream);
+// For each of nBlocks blocks of t columns of Z (n rows, row stride ld): the t rows with the largest
+// max_j |Z(i,j)| -> unitRows[b*t ...].  rowMax is scratch for n * nBlocks values.
+void cuda_select_unit_columns(const float* Z, int n, int t, int nBlocks, int ld, float* rowMax, int* unitRows, cudaStream_t stream);
+void cuda_select_unit_columns(const double* Z, int n, int t, int nBlocks, int ld, double* rowMax, int* unitRows, cudaStream_t stream);
+
+// dst[i] = src[index[i]] for i < n.
+void cuda_gather(const float* src, const int* index, int n, float* dst, cudaStream_t stream);
+void cuda_gather(const double* src, const int* index, int n, double* dst, cudaStream_t stream);
 
 // norms[p] for p = 2..pTop: the largest column sum for p in either iteration (see the kernel).
 void cuda_combine_norm_estimates(const float* sums1, const float* sums2, int t, int pTop, float* norms, cudaStream_t stream);

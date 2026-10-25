@@ -138,8 +138,10 @@ struct HostCsr
 // triplets are summed, as Eigen's setFromTriplets( ) does, and every row gets a diagonal entry.
 // Two stable counting sorts (by column, then by row) leave each row sorted, in O(nnz + n) for any input
 // order.  (Going through Eigen took ~2 ms for 75K non-zeros.)
+// If slot is non-null, it receives the position in B.values of each triplet, then of each row's -mu.
 template <typename Real>
-void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values, int nnz, Real mu, HostCsr<Real>& B)
+void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values, int nnz, Real mu, HostCsr<Real>& B,
+                     std::vector<int>* slot = nullptr)
 {
     const int m = nnz + n;   // the triplets, plus (i, i, -mu) for each row
     auto rowOf = [&](int k) {return (k < nnz) ? rows[k] : k - nnz;};
@@ -165,14 +167,17 @@ void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values
     std::vector<int> next(B.offsets.begin(), B.offsets.end() - 1);
     B.columns.resize(m);
     B.values.resize(m);
+    if (slot) slot->resize(m);
     for (int k: byColumn)
     {
         const int a = next[rowOf(k)]++;
         B.columns[a] = colOf(k);
         B.values[a] = valueOf(k);
+        if (slot) (*slot)[k] = a;
     }
 
     // 3. Sum duplicates, compacting in place.
+    std::vector<int> compacted(slot ? m : 0);
     int out = 0;
     for (int i = 0; i < n; i++)
     {
@@ -188,12 +193,68 @@ void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values
                 B.columns[out] = B.columns[a];
                 B.values[out++] = B.values[a];
             }
+            if (slot) compacted[a] = out - 1;
         }
     }
     B.offsets[n] = out;
     B.columns.resize(out);
     B.values.resize(out);
+    if (slot)
+        for (int& a: *slot)
+            a = compacted[a];
 }
+
+// Builds B = Q - mu*I like buildShiftedCsr( ), and the structure of B^T.  It remembers where each triplet
+// went, so when Q has the same triplet pattern as last time (the usual case: only the rates change), it only
+// scatters the values, in O(nnz), adding them in the same order as a full build.
+template <typename Real>
+struct ShiftedCsrBuilder
+{
+    std::vector<int> rows;               // the triplet pattern of the last full build
+    std::vector<int> cols;
+    std::vector<int> slot;               // see buildShiftedCsr( )
+    std::vector<int> transposeOffsets;   // B^T in CSR: offsets and columns;
+    std::vector<int> transposeColumns;
+    std::vector<int> transposeSlot;      // its values are B.values[transposeSlot[j]]
+
+    // Returns true if the structure of B (and so of B^T) changed.
+    bool build(int n, const int* rowIndices, const int* colIndices, const Real* values, int nnz, Real mu, HostCsr<Real>& B)
+    {
+        const bool samePattern = (int) B.offsets.size() == n + 1 and (int) rows.size() == nnz and
+                                 std::equal(rows.begin(), rows.end(), rowIndices) and std::equal(cols.begin(), cols.end(), colIndices);
+        if (samePattern)
+        {
+            std::fill(B.values.begin(), B.values.end(), Real(0));
+            for (int k = 0; k < nnz; k++)
+                B.values[slot[k]] += values[k];
+            for (int i = 0; i < n; i++)
+                B.values[slot[nnz + i]] += -mu;
+            return false;
+        }
+
+        rows.assign(rowIndices, rowIndices + nnz);
+        cols.assign(colIndices, colIndices + nnz);
+        buildShiftedCsr(n, rowIndices, colIndices, values, nnz, mu, B, &slot);
+
+        // B^T by a counting sort on the columns; rows are visited in order, so each row of B^T is sorted.
+        transposeOffsets.assign(n + 1, 0);
+        for (int c: B.columns)
+            transposeOffsets[c + 1]++;
+        for (int j = 0; j < n; j++)
+            transposeOffsets[j + 1] += transposeOffsets[j];
+        std::vector<int> next(transposeOffsets.begin(), transposeOffsets.end() - 1);
+        transposeColumns.resize(B.nonZeros());
+        transposeSlot.resize(B.nonZeros());
+        for (int i = 0; i < n; i++)
+            for (int a = B.offsets[i]; a < B.offsets[i + 1]; a++)
+            {
+                const int b = next[B.columns[a]]++;
+                transposeColumns[b] = i;
+                transposeSlot[b] = a;
+            }
+        return true;
+    }
+};
 
 // max_j sum_i |B(i,j)|
 template <typename Real>
@@ -702,7 +763,8 @@ std::ostream& operator<<(std::ostream& o, const std::vector<T>& H)
 //   3. X_p = the t unit vectors e_i with the largest max_j |Z_p(i,j)|.
 //   4. B^p X_p, by the same appending chain with B.
 // The estimate for p is the largest column 1-norm of Y_p and of B^p X_p.  Everything stays on the
-// device until one copy of the pTop+1 results.
+// device until one copy of the pTop+1 results.  The matrices are row-major (n rows), so that the gathers of a
+// product read contiguous rows.
 template <typename Real>
 struct BlockNormEstimator
 {
@@ -711,20 +773,13 @@ struct BlockNormEstimator
     int pTop = 0;
 
     Real* X0 = nullptr;          // (n, t)
-    Real* Y = nullptr;           // (n, pTop*t): block p-1 is B^p X0
-    Real* chain[2] = {nullptr, nullptr};  // (n, (pTop-1)*t) each
+    Real* Y = nullptr;           // (n, pTop*t): columns (p-1)*t .. p*t-1 are B^p X0
+    Real* chain[2] = {nullptr, nullptr};  // up to (n, (pTop-1)*t) each
     Real* sums1 = nullptr;       // pTop*t column sums of Y
     Real* sums2 = nullptr;       // (pTop-1)*t column sums of step 4
     int* unitRows = nullptr;     // (pTop-1)*t
+    Real* rowMax = nullptr;      // (pTop-1)*n, for step 3
     Real* norms = nullptr;       // pTop+1
-
-    // B^T in CSR (that is, B in CSC)
-    int* btOffsets = nullptr;
-    int* btColumns = nullptr;
-    Real* btValues = nullptr;
-    int btCapacity = 0;
-    void* transposeBuffer = nullptr;
-    size_t transposeBufferSize = 0;
 
     void allocate(int n_, int t_, int pTop_)
     {
@@ -732,83 +787,70 @@ struct BlockNormEstimator
         t = std::min(t_, n);
         pTop = pTop_;
         assert(t <= 32);   // cuda_select_unit_columns( )
-        X0 = cudaDeviceNew<Real>(n * t);
-        Y = cudaDeviceNew<Real>(n * t * pTop);
-        chain[0] = cudaDeviceNew<Real>(n * t * (pTop - 1));
-        chain[1] = cudaDeviceNew<Real>(n * t * (pTop - 1));
+        X0 = cudaDeviceNew<Real>((size_t) n * t);
+        Y = cudaDeviceNew<Real>((size_t) n * t * pTop);
+        chain[0] = cudaDeviceNew<Real>((size_t) n * t * (pTop - 1));
+        chain[1] = cudaDeviceNew<Real>((size_t) n * t * (pTop - 1));
         sums1 = cudaDeviceNew<Real>(t * pTop);
         sums2 = cudaDeviceNew<Real>(t * (pTop - 1));
         unitRows = cudaDeviceNew<int>(t * (pTop - 1));
+        rowMax = cudaDeviceNew<Real>((size_t) n * (pTop - 1));
         norms = cudaDeviceNew<Real>(pTop + 1);
-        btOffsets = cudaDeviceNew<int>(n + 1);
         initialize_norm_x_matrix(X0, n, t);
     }
 
     // Returns ||B^p||_1 estimates for p = 2..pTop at index p.  (Indices 0 and 1 are not set.)
-    std::vector<Real> estimate(const SpMatrixDevice<Real>& B, cudaStream_t stream)
+    // BT is B^T in CSR.
+    std::vector<Real> estimate(const SpMatrixDevice<Real>& B, const int* btOffsets, const int* btColumns, const Real* btValues,
+                               cudaStream_t stream)
     {
         assert(B.rows() == n and B.cols() == n);
-        const int nnz = B.num_non_zeros;
         const int nBlocks = pTop - 1;
-        const size_t blockSize = (size_t) n * t;
-
-        // B^T
-        if (nnz > btCapacity)
-        {
-            cudaDeviceDelete(btColumns);
-            cudaDeviceDelete(btValues);
-            btColumns = cudaDeviceNew<int>(nnz);
-            btValues = cudaDeviceNew<Real>(nnz);
-            btCapacity = nnz;
-        }
-        size_t size = 0;
-        checkCusparse(cusparseCsr2cscEx2_bufferSize(B.cusparseHandle, n, n, nnz, B.values, B.offsets, B.inner,
-                                                    btValues, btOffsets, btColumns, DataType<Real>, CUSPARSE_ACTION_NUMERIC,
-                                                    CUSPARSE_INDEX_BASE_ZERO, CUSPARSE_CSR2CSC_ALG1, &size));
-        if (size > transposeBufferSize or transposeBuffer == nullptr)
-        {
-            cudaDeviceDelete(transposeBuffer);
-            transposeBufferSize = std::max<size_t>(size, 1);
-            transposeBuffer = cudaMallocWrapped(transposeBufferSize);
-        }
-        checkCusparse(cusparseCsr2cscEx2(B.cusparseHandle, n, n, nnz, B.values, B.offsets, B.inner,
-                                         btValues, btOffsets, btColumns, DataType<Real>, CUSPARSE_ACTION_NUMERIC,
-                                         CUSPARSE_INDEX_BASE_ZERO, CUSPARSE_CSR2CSC_ALG1, transposeBuffer));
+        const int ldY = pTop * t;
 
         // 1. Y_p = B^p X0
         for (int p = 1; p <= pTop; p++)
         {
-            const Real* x = (p == 1) ? X0 : Y + (p - 2) * blockSize;
-            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, x, Y + (p - 1) * blockSize, t, 0, (Real*)nullptr, nullptr, stream);
+            const Real* x = (p == 1) ? X0 : Y + (p - 2) * t;
+            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, x, (p == 1) ? t : ldY, Y + (p - 1) * t, ldY,
+                                 t, 0, (Real*)nullptr, 0, nullptr, stream);
         }
-        cuda_column_abs_sums(Y, n, pTop * t, sums1, stream);
+        cuda_column_abs_sums(Y, n, pTop * t, ldY, sums1, stream);
 
-        // 2. Z_p = (B^T)^p sign(Y_p), in block pTop - p.
+        // 2. Z_p = (B^T)^p sign(Y_p), in block pTop - p.  Each step's output has `columns` columns.
         Real* in = chain[0];
         Real* out = chain[1];
-        cuda_norm_chain_step(n, btOffsets, btColumns, btValues, (Real*)nullptr, in, 0, t, Y + (pTop - 1) * blockSize, nullptr, stream);
+        int columns = t;
+        cuda_norm_chain_step(n, btOffsets, btColumns, btValues, (Real*)nullptr, 0, in, columns, 0, t, Y + (pTop - 1) * t, ldY, nullptr, stream);
         for (int k = 1; k <= pTop; k++)
         {
             const bool append = (k < nBlocks);
-            const Real* sign = append ? Y + (pTop - k - 1) * blockSize : nullptr;
-            cuda_norm_chain_step(n, btOffsets, btColumns, btValues, in, out, std::min(k, nBlocks) * t, append ? t : 0, sign, nullptr, stream);
+            const Real* sign = append ? Y + (pTop - k - 1) * t : nullptr;
+            const int outColumns = columns + (append ? t : 0);
+            cuda_norm_chain_step(n, btOffsets, btColumns, btValues, in, columns, out, outColumns, columns, append ? t : 0,
+                                 sign, ldY, nullptr, stream);
             std::swap(in, out);
+            columns = outColumns;
         }
+        assert(columns == nBlocks * t);
 
         // 3. Unit vectors for the second iteration.
-        cuda_select_unit_columns(in, n, t, nBlocks, unitRows, stream);
+        cuda_select_unit_columns(in, n, t, nBlocks, columns, rowMax, unitRows, stream);
 
         // 4. B^p X_p, in block pTop - p.
-        cuda_norm_chain_step(n, B.offsets, B.inner, B.values, (Real*)nullptr, out, 0, t, (Real*)nullptr, unitRows, stream);
+        columns = t;
+        cuda_norm_chain_step(n, B.offsets, B.inner, B.values, (Real*)nullptr, 0, out, columns, 0, t, (Real*)nullptr, 0, unitRows, stream);
         std::swap(in, out);
         for (int k = 1; k <= pTop; k++)
         {
             const bool append = (k < nBlocks);
-            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, in, out, std::min(k, nBlocks) * t, append ? t : 0,
-                                 (Real*)nullptr, append ? unitRows + k * t : nullptr, stream);
+            const int outColumns = columns + (append ? t : 0);
+            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, in, columns, out, outColumns, columns, append ? t : 0,
+                                 (Real*)nullptr, 0, append ? unitRows + k * t : nullptr, stream);
             std::swap(in, out);
+            columns = outColumns;
         }
-        cuda_column_abs_sums(in, n, nBlocks * t, sums2, stream);
+        cuda_column_abs_sums(in, n, nBlocks * t, columns, sums2, stream);
 
         cuda_combine_norm_estimates(sums1, sums2, t, pTop, norms, stream);
 
@@ -819,12 +861,6 @@ struct BlockNormEstimator
         if (status != cudaSuccess)
             throw std::runtime_error(std::string("BlockNormEstimator: ") + cudaGetErrorString(status));
         return result;
-    }
-
-    static void checkCusparse(cusparseStatus_t status)
-    {
-        if (status != CUSPARSE_STATUS_SUCCESS)
-            throw std::runtime_error(std::string("BlockNormEstimator: ") + cusparseGetErrorString(status));
     }
 
     BlockNormEstimator() = default;
@@ -840,11 +876,8 @@ struct BlockNormEstimator
         cudaDeviceDelete(sums1);
         cudaDeviceDelete(sums2);
         cudaDeviceDelete(unitRows);
+        cudaDeviceDelete(rowMax);
         cudaDeviceDelete(norms);
-        cudaDeviceDelete(btOffsets);
-        cudaDeviceDelete(btColumns);
-        cudaDeviceDelete(btValues);
-        cudaDeviceDelete(transposeBuffer);
     }
 };
 
@@ -936,6 +969,7 @@ protected:
 
     // Per eigen index: B = Q - mu*I.
     std::vector<HostCsr<Real>> hBs;
+    std::vector<ShiftedCsrBuilder<Real>> csrBuilders;
     std::vector<Real> hMuBs;
     std::vector<Real> hB1Norms;
     const int mMax = 55;
@@ -1002,6 +1036,12 @@ protected:
     // All work is issued on the GPUInterface's stream 0, so it is ordered with the base class's
     // copies and kernels (two different blocking streams would not be).  See setCudaDevice( ).
     cudaStream_t stream = nullptr;
+
+    // Per eigen index: B^T in CSR, and the positions in B's values of its values.
+    std::vector<int*> dBtOffsets;
+    std::vector<int*> dBtColumns;
+    std::vector<int*> dBtSlots;
+    std::vector<Real*> dBtValues;
 
     std::vector<int *> dBsCsrOffsetsCache;
     std::vector<int *> dBsCsrColumnsCache;

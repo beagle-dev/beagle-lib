@@ -39,18 +39,23 @@ double cuda_max_abs(double* values, int length)
 template <typename T>
 void initialize_norm_x_matrix(device_ptr<T> out_ptr, int n, int m)
 {
+    // Element (row, column) is stored at row * m + column.  Its sign comes from its column-major index
+    // i = column * n + row.
     auto indices = thrust::counting_iterator<unsigned int>(0);
-    auto initialize = [n,m] __host__ __device__ (int i)
+    auto initialize = [n,m] __host__ __device__ (int index)
     {
+        const int row = index / m;
+        const int column = index % m;
+        const int i = column * n + row;
         thrust::default_random_engine rng;
         thrust::uniform_real_distribution<T> dist(0, 1);
 
-        if (i<n) return 1.0/n;
+        if (i<n) return T(1.0/n);
         rng.discard(i);
         if (dist(rng) > 0.5)
-            return 1.0/n;
+            return T(1.0/n);
         else
-            return -1.0/n;
+            return T(-1.0/n);
     };
 
     thrust::transform(indices, indices + n*m, // in
@@ -547,99 +552,157 @@ void cuda_root_log_likelihoods(const double* root, const double* categoryWeights
 
 // ---------------------------------------------------------------------------------------------------
 // Block 1-norm estimation of ||B^p||_1 for all p at once (Higham & Tisseur Algorithm 2.4, 2 iterations).
-// All matrices are column-major with n rows.  See BlockNormEstimator in BeagleGPUActionImpl.h.
+// All matrices are row-major with n rows and an explicit row stride.  See BlockNormEstimator in
+// BeagleGPUActionImpl.h.
 
 // y(:, 0:nApplied) = A * x(:, 0:nApplied), then nAppend more columns of y are set:
 //   from signSource (n, nAppend):  y(i, c) = +1 if signSource(i, c) >= 0, else -1
 //   from unitRows   (nAppend):     y(i, c) = 1 if i == unitRows[c], else 0
-template <typename T>
+// LANES lanes share a row and cover its columns, so the gathers of x are coalesced.
+template <typename T, int LANES>
 __global__ void norm_chain_step_kernel(int n, const int* __restrict__ rowOffsets, const int* __restrict__ columns,
-                                       const T* __restrict__ values, const T* __restrict__ x, T* __restrict__ y,
-                                       int nApplied, int nAppend, const T* __restrict__ signSource, const int* __restrict__ unitRows)
+                                       const T* __restrict__ values, const T* __restrict__ x, int ldx, T* __restrict__ y, int ldy,
+                                       int nApplied, int nAppend, const T* __restrict__ signSource, int ldSign,
+                                       const int* __restrict__ unitRows)
 {
-    const size_t index = blockIdx.x * (size_t)blockDim.x + threadIdx.x;
-    if (index >= (size_t)n * (nApplied + nAppend)) return;
-    const int row = index % n;
-    const int column = index / n;
+    const int lane = threadIdx.x % 32;
+    const int row = (blockIdx.x * (blockDim.x / 32) + threadIdx.x / 32) * (32 / LANES) + lane / LANES;
+    if (row >= n) return;
+    T* yRow = y + (size_t)row * ldy;
 
-    if (column < nApplied)
+    const int kBegin = rowOffsets[row];
+    const int kEnd = rowOffsets[row + 1];
+    for (int c = lane % LANES; c < nApplied; c += LANES)
     {
-        const T* xColumn = x + (size_t)column * n;
         T sum = 0;
-        for (int k = rowOffsets[row]; k < rowOffsets[row + 1]; k++)
-            sum += values[k] * xColumn[columns[k]];
-        y[index] = sum;
+        for (int k = kBegin; k < kEnd; k++)
+            sum += values[k] * x[(size_t)columns[k] * ldx + c];
+        yRow[c] = sum;
     }
-    else
+    for (int c = lane % LANES; c < nAppend; c += LANES)
     {
-        const int c = column - nApplied;
         if (signSource)
-            y[index] = (signSource[(size_t)c * n + row] >= 0) ? T(1) : T(-1);
+            yRow[nApplied + c] = (signSource[(size_t)row * ldSign + c] >= 0) ? T(1) : T(-1);
         else
-            y[index] = (row == unitRows[c]) ? T(1) : T(0);
+            yRow[nApplied + c] = (row == unitRows[c]) ? T(1) : T(0);
     }
+}
+
+template <typename T, int LANES>
+void launch_norm_chain_step(int n, const int* rowOffsets, const int* columns, const T* values, const T* x, int ldx, T* y, int ldy,
+                            int nApplied, int nAppend, const T* signSource, int ldSign, const int* unitRows, cudaStream_t stream)
+{
+    const int threads = 256;
+    const int rowsPerBlock = (threads / 32) * (32 / LANES);
+    norm_chain_step_kernel<T, LANES><<<(n + rowsPerBlock - 1) / rowsPerBlock, threads, 0, stream>>>(
+        n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows);
 }
 
 template <typename T>
-void cuda_norm_chain_step_impl(int n, const int* rowOffsets, const int* columns, const T* values, const T* x, T* y,
-                               int nApplied, int nAppend, const T* signSource, const int* unitRows, cudaStream_t stream)
+void cuda_norm_chain_step_impl(int n, const int* rowOffsets, const int* columns, const T* values, const T* x, int ldx, T* y, int ldy,
+                               int nApplied, int nAppend, const T* signSource, int ldSign, const int* unitRows, cudaStream_t stream)
 {
-    const size_t total = (size_t)n * (nApplied + nAppend);
-    const int blockSize = 256;
-    norm_chain_step_kernel<<<(total + blockSize - 1) / blockSize, blockSize, 0, stream>>>(n, rowOffsets, columns, values, x, y,
-                                                                                          nApplied, nAppend, signSource, unitRows);
+    switch (nextPowerOfTwo(std::max(nApplied, nAppend), 32))
+    {
+        case 1:
+        case 2:
+        case 4:  launch_norm_chain_step<T, 4>(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream); break;
+        case 8:  launch_norm_chain_step<T, 8>(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream); break;
+        case 16: launch_norm_chain_step<T, 16>(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream); break;
+        default: launch_norm_chain_step<T, 32>(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream); break;
+    }
 }
 
-void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const float* values, const float* x, float* y,
-                          int nApplied, int nAppend, const float* signSource, const int* unitRows, cudaStream_t stream)
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const float* values, const float* x, int ldx, float* y, int ldy,
+                          int nApplied, int nAppend, const float* signSource, int ldSign, const int* unitRows, cudaStream_t stream)
 {
-    cuda_norm_chain_step_impl(n, rowOffsets, columns, values, x, y, nApplied, nAppend, signSource, unitRows, stream);
+    cuda_norm_chain_step_impl(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream);
 }
 
-void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const double* values, const double* x, double* y,
-                          int nApplied, int nAppend, const double* signSource, const int* unitRows, cudaStream_t stream)
+void cuda_norm_chain_step(int n, const int* rowOffsets, const int* columns, const double* values, const double* x, int ldx, double* y, int ldy,
+                          int nApplied, int nAppend, const double* signSource, int ldSign, const int* unitRows, cudaStream_t stream)
 {
-    cuda_norm_chain_step_impl(n, rowOffsets, columns, values, x, y, nApplied, nAppend, signSource, unitRows, stream);
+    cuda_norm_chain_step_impl(n, rowOffsets, columns, values, x, ldx, y, ldy, nApplied, nAppend, signSource, ldSign, unitRows, stream);
 }
 
 // sums[c] = sum_i |x(i, c)|, one block per column.
 template <typename T>
-__global__ void column_abs_sums_kernel(const T* x, int n, T* sums)
+__global__ void column_abs_sums_kernel(const T* x, int n, int ld, T* sums)
 {
-    const T* column = x + (size_t)blockIdx.x * n;
+    const int c = blockIdx.x;
     T sum = 0;
     for (int i = threadIdx.x; i < n; i += blockDim.x)
-        sum += abs(column[i]);
+        sum += abs(x[(size_t)i * ld + c]);
     sum = block_reduce(sum, T(0), SumOp());
-    if (threadIdx.x == 0) sums[blockIdx.x] = sum;
+    if (threadIdx.x == 0) sums[c] = sum;
 }
 
 template <typename T>
-void cuda_column_abs_sums_impl(const T* x, int n, int nColumns, T* sums, cudaStream_t stream)
+void cuda_column_abs_sums_impl(const T* x, int n, int nColumns, int ld, T* sums, cudaStream_t stream)
 {
-    column_abs_sums_kernel<<<nColumns, 256, 0, stream>>>(x, n, sums);
+    column_abs_sums_kernel<<<nColumns, 256, 0, stream>>>(x, n, ld, sums);
 }
 
-void cuda_column_abs_sums(const float* x, int n, int nColumns, float* sums, cudaStream_t stream)
+void cuda_column_abs_sums(const float* x, int n, int nColumns, int ld, float* sums, cudaStream_t stream)
 {
-    cuda_column_abs_sums_impl(x, n, nColumns, sums, stream);
+    cuda_column_abs_sums_impl(x, n, nColumns, ld, sums, stream);
 }
 
-void cuda_column_abs_sums(const double* x, int n, int nColumns, double* sums, cudaStream_t stream)
+void cuda_column_abs_sums(const double* x, int n, int nColumns, int ld, double* sums, cudaStream_t stream)
 {
-    cuda_column_abs_sums_impl(x, n, nColumns, sums, stream);
+    cuda_column_abs_sums_impl(x, n, nColumns, ld, sums, stream);
 }
 
-// For each block b of t columns of Z: h(i) = max_j |Z_b(i, j)|; unitRows[b*t + r] = the row with the
-// r-th largest h (ties go to the lower row).  One thread block per column block.
+// dst[i] = src[index[i]]
 template <typename T>
-__global__ void select_unit_columns_kernel(const T* Z, int n, int t, int* unitRows)
+__global__ void gather_kernel(const T* src, const int* index, int n, T* dst)
+{
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) dst[i] = src[index[i]];
+}
+
+template <typename T>
+void cuda_gather_impl(const T* src, const int* index, int n, T* dst, cudaStream_t stream)
+{
+    if (n > 0)
+        gather_kernel<<<(n + 255) / 256, 256, 0, stream>>>(src, index, n, dst);
+}
+
+void cuda_gather(const float* src, const int* index, int n, float* dst, cudaStream_t stream)
+{
+    cuda_gather_impl(src, index, n, dst, stream);
+}
+
+void cuda_gather(const double* src, const int* index, int n, double* dst, cudaStream_t stream)
+{
+    cuda_gather_impl(src, index, n, dst, stream);
+}
+
+// rowMax[b * n + i] = max_j |Z(i, b*t + j)| for each block b of t columns of Z (row stride ld).
+template <typename T>
+__global__ void block_row_max_kernel(const T* Z, int n, int t, int nBlocks, int ld, T* rowMax)
+{
+    const int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= n * nBlocks) return;
+    const int b = index / n;
+    const int i = index % n;
+    const T* z = Z + (size_t)i * ld + b * t;
+    T h = 0;
+    for (int j = 0; j < t; j++)
+        h = max(h, abs(z[j]));
+    rowMax[index] = h;
+}
+
+// unitRows[b*t + r] = the row with the r-th largest rowMax[b * n + i] (ties go to the lower row).
+// One thread block per column block.
+template <typename T>
+__global__ void select_unit_columns_kernel(const T* rowMax, int n, int t, int* unitRows)
 {
     __shared__ T bestValue[1024];
     __shared__ int bestRow[1024];
     __shared__ int chosen[32];
 
-    const T* block = Z + (size_t)blockIdx.x * n * t;
+    const T* h = rowMax + (size_t)blockIdx.x * n;
 
     for (int r = 0; r < t; r++)
     {
@@ -652,10 +715,7 @@ __global__ void select_unit_columns_kernel(const T* Z, int n, int t, int* unitRo
                 used = used or (chosen[q] == i);
             if (used) continue;
 
-            T h = 0;
-            for (int j = 0; j < t; j++)
-                h = max(h, abs(block[(size_t)j * n + i]));
-            if (h > value) { value = h; row = i; }
+            if (h[i] > value) { value = h[i]; row = i; }
         }
         bestValue[threadIdx.x] = value;
         bestRow[threadIdx.x] = row;
@@ -686,19 +746,20 @@ __global__ void select_unit_columns_kernel(const T* Z, int n, int t, int* unitRo
 }
 
 template <typename T>
-void cuda_select_unit_columns_impl(const T* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream)
+void cuda_select_unit_columns_impl(const T* Z, int n, int t, int nBlocks, int ld, T* rowMax, int* unitRows, cudaStream_t stream)
 {
-    select_unit_columns_kernel<<<nBlocks, 1024, 0, stream>>>(Z, n, t, unitRows);
+    block_row_max_kernel<<<(n * nBlocks + 255) / 256, 256, 0, stream>>>(Z, n, t, nBlocks, ld, rowMax);
+    select_unit_columns_kernel<<<nBlocks, 1024, 0, stream>>>(rowMax, n, t, unitRows);
 }
 
-void cuda_select_unit_columns(const float* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream)
+void cuda_select_unit_columns(const float* Z, int n, int t, int nBlocks, int ld, float* rowMax, int* unitRows, cudaStream_t stream)
 {
-    cuda_select_unit_columns_impl(Z, n, t, nBlocks, unitRows, stream);
+    cuda_select_unit_columns_impl(Z, n, t, nBlocks, ld, rowMax, unitRows, stream);
 }
 
-void cuda_select_unit_columns(const double* Z, int n, int t, int nBlocks, int* unitRows, cudaStream_t stream)
+void cuda_select_unit_columns(const double* Z, int n, int t, int nBlocks, int ld, double* rowMax, int* unitRows, cudaStream_t stream)
 {
-    cuda_select_unit_columns_impl(Z, n, t, nBlocks, unitRows, stream);
+    cuda_select_unit_columns_impl(Z, n, t, nBlocks, ld, rowMax, unitRows, stream);
 }
 
 // norms[p] = max over the t columns for p in both iterations, for p = 2 .. pTop:
