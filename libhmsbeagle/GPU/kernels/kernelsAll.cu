@@ -2728,11 +2728,13 @@ KW_DEVICE_FUNC REAL bastaReduceAcrossTwoPasses(REAL* sPartials1,
                                             REAL pass1Val,
                                             REAL pass2Val,
                                             int tid){
+    const int nReduce = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT;
+
     sPartials1[tid] = pass1Val;
     KW_LOCAL_FENCE;
 
-    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-        if (tid < i) {
+    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (tid < i && tid + i < nReduce) {
             sPartials1[tid] += sPartials1[tid + i];
         }
         KW_LOCAL_FENCE;
@@ -2743,8 +2745,8 @@ KW_DEVICE_FUNC REAL bastaReduceAcrossTwoPasses(REAL* sPartials1,
     sPartials1[tid] = pass2Val;
     KW_LOCAL_FENCE;
 
-    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-        if (tid < i) {
+    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (tid < i && tid + i < nReduce) {
             sPartials1[tid] += sPartials1[tid + i];
         }
         KW_LOCAL_FENCE;
@@ -3949,8 +3951,8 @@ KW_GLOBAL_KERNEL void kernelCoalescentSlab(
 
     sRed[yIdx][i] = z_i * w_i;
     KW_LOCAL_FENCE;
-    for (int s = PADDED_STATE_COUNT >> 1; s > 0; s >>= 1) {
-        if (i < s) sRed[yIdx][i] += sRed[yIdx][i + s];
+    for (int s = SMALLEST_POWER_OF_TWO >> 1; s > 0; s >>= 1) {
+        if (i < s && i + s < PADDED_STATE_COUNT) sRed[yIdx][i] += sRed[yIdx][i + s];
         KW_LOCAL_FENCE;
     }
     REAL dotZW = sRed[yIdx][0];
