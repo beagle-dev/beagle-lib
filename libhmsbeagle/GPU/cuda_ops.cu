@@ -335,7 +335,7 @@ __global__ void partials_product_kernel(const PartialsProductBatch<T> batch, siz
 {
     const PartialsProduct<T>& product = batch.products[blockIdx.y];
     for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x)
-        product.parent[i] = product.left[i] * product.right[i];
+        product.parent[i] = product.right ? product.left[i] * product.right[i] : product.left[i];
 }
 
 // chunkMax[product, chunk, p] = max over the chunk's rows r of left[r, p] * right[r, p]  (product = blockIdx.z)
@@ -350,7 +350,7 @@ __global__ void partials_product_max_kernel(const PartialsProductBatch<T> batch,
         for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
         {
             const size_t i = (size_t)r * nPatterns + p;
-            m = max(m, product.left[i] * product.right[i]);
+            m = max(m, product.right ? product.left[i] * product.right[i] : product.left[i]);
         }
     m = column_reduce(m, MaxOp());
     if (threadIdx.y == 0 and p < nPatterns)
@@ -384,7 +384,7 @@ __global__ void partials_product_scale_kernel(const PartialsProductBatch<T> batc
     for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
     {
         const size_t i = (size_t)r * nPatterns + p;
-        product.parent[i] = product.left[i] * product.right[i] * inverse;
+        product.parent[i] = (product.right ? product.left[i] * product.right[i] : product.left[i]) * inverse;
     }
 
     if (product.scalingFactors and blockIdx.y == 0 and threadIdx.y == 0)
@@ -480,6 +480,219 @@ void cuda_accumulate_scale_factors(const ScaleFactorBatch<double>& batch, int nP
                                    bool subtract, cudaStream_t stream)
 {
     cuda_accumulate_scale_factors_impl(batch, nPatterns, cumulative, scalersLog, subtract, stream);
+}
+
+// out(c, s, p) = frequencies[s] for p < nPatterns, 0 for the padded patterns.
+template <typename T>
+__global__ void root_pre_partials_kernel(T* out, const T* frequencies, int nStates, int nRows, int nPaddedPatterns, int nPatterns)
+{
+    const size_t n = (size_t)nRows * nPaddedPatterns;
+    for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x)
+    {
+        const int r = i / nPaddedPatterns;
+        const int p = i % nPaddedPatterns;
+        out[i] = (p < nPatterns) ? frequencies[r % nStates] : T(0);
+    }
+}
+
+template <typename T>
+void cuda_root_pre_partials_impl(T* out, const T* frequencies, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                                 cudaStream_t stream)
+{
+    const size_t n = (size_t)nStates * nCategories * nPaddedPatterns;
+    const int blocks = (int)std::min<size_t>((n + 255) / 256, 4096);
+    root_pre_partials_kernel<<<blocks, 256, 0, stream>>>(out, frequencies, nStates, nStates * nCategories, nPaddedPatterns, nPatterns);
+}
+
+void cuda_root_pre_partials(float* out, const float* frequencies, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                            cudaStream_t stream)
+{
+    cuda_root_pre_partials_impl(out, frequencies, nStates, nCategories, nPaddedPatterns, nPatterns, stream);
+}
+
+void cuda_root_pre_partials(double* out, const double* frequencies, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                            cudaStream_t stream)
+{
+    cuda_root_pre_partials_impl(out, frequencies, nStates, nCategories, nPaddedPatterns, nPatterns, stream);
+}
+
+// For node z = blockIdx.z, over the chunk's rows r = (c, s):
+//   chunkNumerator[z, chunk, p]   = sum w_c m_c pre(r, p) (D post)(r, p),  D = A + shift I in CSR (if rowOffsets)
+//   chunkDenominator[z, chunk, p] = sum w_c pre(r, p) post(r, p)
+// D acts within each category's (nStates, nPatterns) block.
+template <typename T>
+__global__ void edge_derivative_sums_kernel(const EdgeDerivativeBatch<T> batch, int nStates, int nRows, int nPatterns, int rowsPerChunk,
+                                            const int* __restrict__ rowOffsets, const int* __restrict__ columns,
+                                            const T* __restrict__ values, T shift, const T* __restrict__ categoryWeights,
+                                            T* chunkNumerator, T* chunkDenominator)
+{
+    const T* post = batch.post[blockIdx.z];
+    const T* pre = batch.pre[blockIdx.z];
+    const int p = blockIdx.x * blockDim.x + threadIdx.x;
+    const int rowEnd = min(nRows, (blockIdx.y + 1) * rowsPerChunk);
+    T numerator = 0;
+    T denominator = 0;
+    if (p < nPatterns)
+        for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
+        {
+            const int c = r / nStates;
+            const int s = r % nStates;
+            const size_t i = (size_t)r * nPatterns + p;
+            const T w = categoryWeights[c];
+            const T own = post[i];
+            denominator += w * pre[i] * own;
+            if (rowOffsets)
+            {
+                const T* block = post + (size_t)c * nStates * nPatterns + p;
+                T sum = shift * own;
+                for (int k = rowOffsets[s]; k < rowOffsets[s + 1]; k++)
+                    sum += values[k] * block[(size_t)columns[k] * nPatterns];
+                numerator += w * batch.categoryMultipliers[c] * pre[i] * sum;
+            }
+        }
+    numerator = column_reduce(numerator, SumOp());
+    __syncthreads();
+    denominator = column_reduce(denominator, SumOp());
+    if (threadIdx.y == 0 and p < nPatterns)
+    {
+        const size_t o = ((size_t)blockIdx.z * gridDim.y + blockIdx.y) * nPatterns + p;
+        chunkNumerator[o] = numerator;
+        chunkDenominator[o] = denominator;
+    }
+}
+
+// For node z = blockIdx.x: derivatives[z, p] = numerator / denominator (each summed over the chunks), and
+// sums[z] = sum_p patternWeights[p] * derivative, sumSquares[z] = sum_p patternWeights[p] * derivative^2.
+// With numerators == nullptr, derivatives[z, p] = patternWeights[p] / denominator instead (no sums).
+template <typename T>
+__global__ void edge_derivative_finish_kernel(const T* chunkNumerator, const T* chunkDenominator, int nChunks, int nPaddedPatterns,
+                                              int nPatterns, const T* patternWeights, T* derivatives, T* sums, T* sumSquares)
+{
+    const size_t base = (size_t)blockIdx.x * nChunks * nPaddedPatterns;
+    T sum = 0;
+    T sumSquare = 0;
+    for (int p = threadIdx.x; p < nPatterns; p += blockDim.x)
+    {
+        T numerator = 0;
+        T denominator = 0;
+        for (int c = 0; c < nChunks; c++)
+        {
+            denominator += chunkDenominator[base + (size_t)c * nPaddedPatterns + p];
+            if (chunkNumerator)
+                numerator += chunkNumerator[base + (size_t)c * nPaddedPatterns + p];
+        }
+        if (not chunkNumerator)
+        {
+            derivatives[(size_t)blockIdx.x * nPatterns + p] = patternWeights[p] / denominator;
+            continue;
+        }
+        const T derivative = numerator / denominator;
+        derivatives[(size_t)blockIdx.x * nPatterns + p] = derivative;
+        sum += derivative * patternWeights[p];
+        sumSquare += derivative * derivative * patternWeights[p];
+    }
+    if (not chunkNumerator) return;
+    sum = block_reduce(sum, T(0), SumOp());
+    __syncthreads();
+    sumSquare = block_reduce(sumSquare, T(0), SumOp());
+    if (threadIdx.x == 0)
+    {
+        sums[blockIdx.x] = sum;
+        sumSquares[blockIdx.x] = sumSquare;
+    }
+}
+
+template <typename T>
+void cuda_edge_derivatives_impl(const EdgeDerivativeBatch<T>& batch, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                                const int* rowOffsets, const int* columns, const T* values, T shift, const T* categoryWeights,
+                                const T* patternWeights, T* scratch, T* derivatives, T* sums, T* sumSquares, cudaStream_t stream)
+{
+    if (batch.count == 0) return;
+    const int nRows = nStates * nCategories;
+    const RowChunks c = rowChunks(nRows, nPaddedPatterns);
+    const dim3 block(c.patternsPerBlock, c.rowsPerBlock);
+    const dim3 grid(c.patternBlocks, c.chunks, batch.count);
+    T* chunkNumerator = rowOffsets ? scratch : nullptr;
+    T* chunkDenominator = scratch + (size_t)batch.count * c.chunks * nPaddedPatterns;
+    edge_derivative_sums_kernel<<<grid, block, 0, stream>>>(batch, nStates, nRows, nPaddedPatterns, c.rowsPerChunk,
+                                                            rowOffsets, columns, values, shift, categoryWeights,
+                                                            scratch, chunkDenominator);
+    edge_derivative_finish_kernel<<<batch.count, 256, 0, stream>>>(chunkNumerator, chunkDenominator, c.chunks, nPaddedPatterns, nPatterns,
+                                                                   patternWeights, derivatives, sums, sumSquares);
+}
+
+size_t cuda_edge_derivative_scratch_size(int nStates, int nCategories, int nPaddedPatterns)
+{
+    return (size_t)2 * kMaxEdgeDerivativeNodes * rowChunks(nStates * nCategories, nPaddedPatterns).chunks * nPaddedPatterns;
+}
+
+void cuda_edge_derivatives(const EdgeDerivativeBatch<float>& batch, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                           const int* rowOffsets, const int* columns, const float* values, float shift, const float* categoryWeights,
+                           const float* patternWeights, float* scratch, float* derivatives, float* sums, float* sumSquares, cudaStream_t stream)
+{
+    cuda_edge_derivatives_impl(batch, nStates, nCategories, nPaddedPatterns, nPatterns, rowOffsets, columns, values, shift, categoryWeights,
+                               patternWeights, scratch, derivatives, sums, sumSquares, stream);
+}
+
+void cuda_edge_derivatives(const EdgeDerivativeBatch<double>& batch, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                           const int* rowOffsets, const int* columns, const double* values, double shift, const double* categoryWeights,
+                           const double* patternWeights, double* scratch, double* derivatives, double* sums, double* sumSquares, cudaStream_t stream)
+{
+    cuda_edge_derivatives_impl(batch, nStates, nCategories, nPaddedPatterns, nPatterns, rowOffsets, columns, values, shift, categoryWeights,
+                               patternWeights, scratch, derivatives, sums, sumSquares, stream);
+}
+
+// crossProducts[k] += sum_{c,p} multipliers[c] * patternScale[p] * pre(c, i, p) * post(c, j, p) for each non-zero k = (i, j)
+// of the CSR pattern.  One warp per row i; the lanes cover (category, pattern) pairs.
+template <typename T>
+__global__ void cross_products_kernel(const T* pre, const T* post, int nStates, int nCategories, int nPatterns,
+                                      const int* __restrict__ rowOffsets, const int* __restrict__ columns,
+                                      const CategoryMultipliers<T> multipliers, const T* __restrict__ patternScale, T* crossProducts)
+{
+    const int lane = threadIdx.x % 32;
+    const int i = blockIdx.x * (blockDim.x / 32) + threadIdx.x / 32;
+    if (i >= nStates) return;
+    const size_t categoryStride = (size_t)nStates * nPatterns;
+    const int n = nCategories * nPatterns;
+    for (int k = rowOffsets[i]; k < rowOffsets[i + 1]; k++)
+    {
+        const int j = columns[k];
+        T sum = 0;
+        for (int q = lane; q < n; q += 32)
+        {
+            const int c = q / nPatterns;
+            const int p = q % nPatterns;
+            sum += multipliers.values[c] * patternScale[p] * pre[c * categoryStride + (size_t)i * nPatterns + p] *
+                   post[c * categoryStride + (size_t)j * nPatterns + p];
+        }
+        for (int offset = 16; offset > 0; offset /= 2)
+            sum += __shfl_down_sync(0xffffffff, sum, offset);
+        if (lane == 0)
+            crossProducts[k] += sum;
+    }
+}
+
+template <typename T>
+void cuda_cross_products_impl(const T* pre, const T* post, int nStates, int nCategories, int nPatterns, const int* rowOffsets,
+                              const int* columns, const CategoryMultipliers<T>& multipliers, const T* patternScale, T* crossProducts,
+                              cudaStream_t stream)
+{
+    cross_products_kernel<<<(nStates + 7) / 8, 256, 0, stream>>>(pre, post, nStates, nCategories, nPatterns, rowOffsets, columns,
+                                                                 multipliers, patternScale, crossProducts);
+}
+
+void cuda_cross_products(const float* pre, const float* post, int nStates, int nCategories, int nPatterns, const int* rowOffsets,
+                         const int* columns, const CategoryMultipliers<float>& multipliers, const float* patternScale, float* crossProducts,
+                         cudaStream_t stream)
+{
+    cuda_cross_products_impl(pre, post, nStates, nCategories, nPatterns, rowOffsets, columns, multipliers, patternScale, crossProducts, stream);
+}
+
+void cuda_cross_products(const double* pre, const double* post, int nStates, int nCategories, int nPatterns, const int* rowOffsets,
+                         const int* columns, const CategoryMultipliers<double>& multipliers, const double* patternScale, double* crossProducts,
+                         cudaStream_t stream)
+{
+    cuda_cross_products_impl(pre, post, nStates, nCategories, nPatterns, rowOffsets, columns, multipliers, patternScale, crossProducts, stream);
 }
 
 // chunkSum[chunk, p] = sum over the chunk's rows r = (c, s) of root[r, p] * categoryWeights[c] * frequencies[s]

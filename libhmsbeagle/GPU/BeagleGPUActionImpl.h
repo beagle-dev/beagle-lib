@@ -35,6 +35,8 @@
 
 #include "libhmsbeagle/GPU/BeagleGPUImpl.h"
 #include <vector>
+#include <map>
+#include <set>
 #include <random>
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
@@ -255,6 +257,20 @@ struct ShiftedCsrBuilder
         return true;
     }
 };
+
+// max_i sum_j |B(i,j)| = ||B^T||_1
+template <typename Real>
+double normPInf(int n, const HostCsr<Real>& B)
+{
+    double result = 0;
+    for (int i = 0; i < n; i++) {
+        double sum = 0;
+        for (int k = B.offsets[i]; k < B.offsets[i + 1]; k++)
+            sum += std::abs(B.values[k]);
+        result = std::max(result, sum);
+    }
+    return result;
+}
 
 // max_j sum_i |B(i,j)|
 template <typename Real>
@@ -800,11 +816,10 @@ struct BlockNormEstimator
     }
 
     // Returns ||B^p||_1 estimates for p = 2..pTop at index p.  (Indices 0 and 1 are not set.)
-    // BT is B^T in CSR.
-    std::vector<Real> estimate(const SpMatrixDevice<Real>& B, const int* btOffsets, const int* btColumns, const Real* btValues,
-                               cudaStream_t stream)
+    // B and B^T are (n, n) in CSR.
+    std::vector<Real> estimate(const int* bOffsets, const int* bColumns, const Real* bValues,
+                               const int* btOffsets, const int* btColumns, const Real* btValues, cudaStream_t stream)
     {
-        assert(B.rows() == n and B.cols() == n);
         const int nBlocks = pTop - 1;
         const int ldY = pTop * t;
 
@@ -812,7 +827,7 @@ struct BlockNormEstimator
         for (int p = 1; p <= pTop; p++)
         {
             const Real* x = (p == 1) ? X0 : Y + (p - 2) * t;
-            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, x, (p == 1) ? t : ldY, Y + (p - 1) * t, ldY,
+            cuda_norm_chain_step(n, bOffsets, bColumns, bValues, x, (p == 1) ? t : ldY, Y + (p - 1) * t, ldY,
                                  t, 0, (Real*)nullptr, 0, nullptr, stream);
         }
         cuda_column_abs_sums(Y, n, pTop * t, ldY, sums1, stream);
@@ -839,13 +854,13 @@ struct BlockNormEstimator
 
         // 4. B^p X_p, in block pTop - p.
         columns = t;
-        cuda_norm_chain_step(n, B.offsets, B.inner, B.values, (Real*)nullptr, 0, out, columns, 0, t, (Real*)nullptr, 0, unitRows, stream);
+        cuda_norm_chain_step(n, bOffsets, bColumns, bValues, (Real*)nullptr, 0, out, columns, 0, t, (Real*)nullptr, 0, unitRows, stream);
         std::swap(in, out);
         for (int k = 1; k <= pTop; k++)
         {
             const bool append = (k < nBlocks);
             const int outColumns = columns + (append ? t : 0);
-            cuda_norm_chain_step(n, B.offsets, B.inner, B.values, in, columns, out, outColumns, columns, append ? t : 0,
+            cuda_norm_chain_step(n, bOffsets, bColumns, bValues, in, columns, out, outColumns, columns, append ? t : 0,
                                  (Real*)nullptr, 0, append ? unitRows + k * t : nullptr, stream);
             std::swap(in, out);
             columns = outColumns;
@@ -930,6 +945,13 @@ public:
                     int scaleIndex,
                     double* outPartials) override;
 
+    // Pre-order partials are the stationary frequencies.  (Only count == 1, as in the CPU implementation.)
+    int setRootPrePartials(const int* bufferIndices, const int* stateFrequenciesIndices, int count) override;
+
+    // A derivative matrix for calculateEdgeDerivatives( ), at an index of its own or replacing setSparseMatrix( )'s Q there.
+    int setSparseDifferentialMatrix(int matrixIndex, const int* rowIndices, const int* colIndices, const double* values,
+                                    int numNonZeros) override;
+
     int setSparseMatrix(int matrixIndex,
                         const int* rowIndices,
                         const int* colIndices,
@@ -947,7 +969,8 @@ public:
 
     // Action instances have no dense transition matrices (see createInstance), so these are not available.
     // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
-    int updatePrePartials(const int*, int, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    // Pre-order: dest = exp(t Q^T) (exp(t_sibling Q) sibling o parent), see calcPrePartials( ).
+    int updatePrePartials(const int* operations, int operationCount, int cumulativeScalingIndex) override;
     int updatePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int updatePrePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int setEigenDecomposition(int, const double*, const double*, const double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
@@ -962,13 +985,29 @@ public:
                                     int, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int calculateEdgeLogLikelihoodsByPartition(const int*, const int*, const int*, const int*, const int*, const int*, const int*, const int*,
                                                const int*, int, int, double*, double*, double*, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
-    int calculateEdgeDerivatives(const int*, const int*, const int*, const int*, const int*, const int*,
-                                 int, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+
+    // Per pattern: sum_c w_c r_c pre^T D post / sum_c w_c pre^T post, with D the derivative matrix (Q itself for
+    // an index set by setSparseMatrix( )).  Categories use rate set 0, as in the CPU implementation.
+    int calculateEdgeDerivatives(const int* postBufferIndices, const int* preBufferIndices, const int* derivativeMatrixIndices,
+                                 const int* categoryWeightsIndices, const int* categoryRatesIndices, const int* cumulativeScaleIndices,
+                                 int count, double* outDerivatives, double* outSumDerivatives, double* outSumSquaredDerivatives) override;
+
+    // Adds sum_p (patternWeight_p / pre^T post) sum_c w_c r_c t pre(c, i, p) post(c, j, p) to outSumDerivatives[i * S + j],
+    // but only for the (i, j) in the sparsity pattern of Q (the union over the eigen indices that are set), which is
+    // where substitution-model derivatives are non-zero.  (The CPU implementation computes all S^2 entries.)
+    // outSumSquaredDerivatives is not used, as in the CPU implementation.
+    int calculateCrossProducts(const int* postBufferIndices, const int* preBufferIndices, const int* categoryRatesIndices,
+                               const int* categoryWeightsIndices, const double* edgeLengths, int count,
+                               double* outSumDerivatives, double* outSumSquaredDerivatives) override;
 
 protected:
 
     // Per eigen index: B = Q - mu*I.
     std::vector<HostCsr<Real>> hBs;
+    // ||B^T||_1 and the d_p of B^T, for the actions of pre-order (estimated on first use after setSparseMatrix( )).
+    std::vector<Real> hBt1Norms;
+    std::vector<std::vector<Real>> hdsT;
+    std::vector<bool> hdsTCurrent;
     std::vector<ShiftedCsrBuilder<Real>> csrBuilders;
     std::vector<Real> hMuBs;
     std::vector<Real> hB1Norms;
@@ -1032,6 +1071,45 @@ protected:
     Real* dActionScratch = nullptr;
     // Per-pattern partial results of the product and root kernels.
     Real* dReductionScratch = nullptr;
+
+    // Post-order caches each child's action exp(t Q) partials, which pre-order needs for the sibling.  A cached action
+    // is used only if the buffer, the matrix (edge length, Q) and Q are all unchanged since it was computed; generation
+    // counters track that, so a rejected proposal that BEAST undoes by flipping indices or re-sending edge lengths
+    // cannot leave a stale action behind.
+    std::vector<uint64_t> partialsGenerations;   // per partials buffer: bumped whenever it is written
+    std::vector<uint64_t> matrixGenerations;     // per matrix index: bumped by updateTransitionMatrices( )
+    std::vector<uint64_t> qGenerations;          // per eigen index: bumped by setSparseMatrix( )
+    struct ActionCacheEntry
+    {
+        Real* data = nullptr;   // kCategoryCount matrices
+        bool valid = false;
+        int matrixIndex = -1;
+        uint64_t partialsGeneration = 0;
+        uint64_t matrixGeneration = 0;
+        uint64_t qGeneration = 0;
+    };
+    std::vector<ActionCacheEntry> actionCache;   // per partials buffer
+    bool cacheActions = false;                   // turned on by the first pre-order update
+
+    // Derivative matrices, indexed like setSparseMatrix( ) and setSparseDifferentialMatrix( ).  eigenIndex >= 0 means Q
+    // of that eigen index (B + mu I); otherwise the matrix is stored here.
+    struct DerivativeMatrix
+    {
+        int eigenIndex = -1;
+        int* offsets = nullptr;
+        int* columns = nullptr;
+        Real* values = nullptr;
+    };
+    std::vector<DerivativeMatrix> derivativeMatrices;
+    Real* dDerivativeScratch = nullptr;
+    Real* dDerivativeOutput = nullptr;
+    size_t derivativeOutputSize = 0;
+    std::vector<Real> hDerivativeOutput;
+    // Cross products: the pattern (when it is not one eigen index's) and the values.
+    int* dCrossOffsets = nullptr;
+    int* dCrossColumns = nullptr;
+    Real* dCrossValues = nullptr;
+    size_t crossCapacity = 0;
 
     // All work is issued on the GPUInterface's stream 0, so it is ordered with the base class's
     // copies and kernels (two different blocking streams would not be).  See setCudaDevice( ).
@@ -1131,6 +1209,9 @@ private:
     // Copy BEAGLE-layout partials (for one category if tipPartials, else for all) into dPartials[bufferIndex].
     void uploadPartials(int bufferIndex, const Real* inPartials, bool tipPartials);
 
+    // Post-order: destination = action(children[0], edges[0]) o action(children[1], edges[1]).
+    // Pre-order: children[0] is the parent's pre-order buffer and children[1] the sibling's post-order buffer;
+    //   edges[0] is the destination's edge and edges[1] the sibling's.
     struct PartialsOperation
     {
         int destination;
@@ -1139,8 +1220,21 @@ private:
         Real* scalingFactors;   // nullptr means no rescaling
     };
 
+    // Groups operations into batches of independent ones (one tree level, up to maxBatchOperations each), in an
+    // order that respects their dependencies through the partials and scaling buffers.
+    std::vector<std::vector<PartialsOperation>> scheduleBatches(const std::vector<PartialsOperation>& operations) const;
+
     // The operations must be independent: no operation reads or writes another one's destination.
     void calcPartialsPartials(const std::vector<PartialsOperation>& operations, Real* cumulativeScalingBuffer);
+    void calcPrePartials(const std::vector<PartialsOperation>& operations, Real* cumulativeScalingBuffer);
+
+    // Whether actionCache[buffer] holds exp(t Q) partials for the buffer's current contents and matrixIndex.
+    bool actionCached(int buffer, int matrixIndex) const;
+    // Where post-order may put a child's action so that it is cached, or nullptr.
+    Real* actionCacheSlot(int buffer, int matrixIndex);
+
+    // Makes hdsT[eigenIndex] current.
+    void estimateTransposedNorms(int eigenIndex);
 
     // out = exp(multiplier * Q_eigenIndex) * in for one (kPaddedStateCount, kPaddedPatternCount) matrix.
     // in is not modified; scratch is 2 or 3 matrices of work space with row stride scratchStride.
@@ -1153,7 +1247,11 @@ private:
         int scratchStride;
         int eigenIndex;
         double multiplier;
+        bool transpose;   // use Q^T
     };
+
+    // Points group.scratch at the work blocks of group number g (< 2 * kCategoryCount * maxBatchOperations).
+    void setActionScratch(ActionGroup& group, size_t g);
 
     // With fewer than 32 patterns, the Horner work blocks are interleaved (see calcPartialsPartials( )).
     bool interleavedScratch() const { return kPaddedPatternCount < 32; }
@@ -1162,9 +1260,9 @@ private:
     void computeActions(const std::vector<ActionGroup>& groups);
 
     std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
-                                       int eigenIndex) const;
+                                       int eigenIndex, bool transpose = false) const;
 
-    double getDValue(int p, int eigenIndex) const;
+    double getDValue(int p, int eigenIndex, bool transpose = false) const;
 
     int PrintfDeviceVector(Real* dPtr, int length, double checkValue, int *signal, Real r);
     int PrintfDeviceVector(int* dPtr, int length, double checkValue, int *signal, Real r);

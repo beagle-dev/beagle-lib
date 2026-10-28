@@ -148,8 +148,8 @@ void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const
 // (per product, for the products).
 int cuda_row_chunk_count(int nRows, int nPatterns);
 
-// parent = left * right for (nRows, nPatterns) partials.  If scalingFactors is non-null, also rescale each
-// pattern by its largest entry m and write m (log m if scalersLog) to scalingFactors[pattern].
+// parent = left * right for (nRows, nPatterns) partials (right == nullptr means 1).  If scalingFactors is non-null,
+// also rescale each pattern by its largest entry m and write m (log m if scalersLog) to scalingFactors[pattern].
 template <typename T>
 struct PartialsProduct
 {
@@ -186,6 +186,54 @@ void cuda_accumulate_scale_factors(const ScaleFactorBatch<float>& batch, int nPa
                                    bool subtract, cudaStream_t stream);
 void cuda_accumulate_scale_factors(const ScaleFactorBatch<double>& batch, int nPatterns, double* cumulative, bool scalersLog,
                                    bool subtract, cudaStream_t stream);
+
+// out(c, s, p) = frequencies[s] for p < nPatterns, 0 for the padded patterns: root pre-order partials.
+void cuda_root_pre_partials(float* out, const float* frequencies, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                            cudaStream_t stream);
+void cuda_root_pre_partials(double* out, const double* frequencies, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                            cudaStream_t stream);
+
+constexpr int kMaxEdgeDerivativeNodes = 64;
+constexpr int kMaxDerivativeCategories = 64;
+
+// Up to kMaxEdgeDerivativeNodes (post-order, pre-order) pairs, with per-category multipliers m_c (the rates).
+template <typename T>
+struct EdgeDerivativeBatch
+{
+    int count = 0;
+    const T* post[kMaxEdgeDerivativeNodes];
+    const T* pre[kMaxEdgeDerivativeNodes];
+    T categoryMultipliers[kMaxDerivativeCategories];
+};
+
+// For each node z of the batch and pattern p < nPatterns (partials are (nCategories * nStates, nPaddedPatterns)):
+//   derivatives[z * nPatterns + p] = (sum_c w_c m_c pre^T D post) / (sum_c w_c pre^T post),  D = A + shift I,
+//   sums[z] = sum_p patternWeights[p] * derivative,  sumSquares[z] = sum_p patternWeights[p] * derivative^2,
+// with A in CSR (nStates, nStates).  With rowOffsets == nullptr only the denominators are formed, and
+// derivatives[z * nPatterns + p] = patternWeights[p] / denominator (sums are not set).
+// scratch holds cuda_edge_derivative_scratch_size( ) values; all outputs are on the device.
+size_t cuda_edge_derivative_scratch_size(int nStates, int nCategories, int nPaddedPatterns);
+void cuda_edge_derivatives(const EdgeDerivativeBatch<float>& batch, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                           const int* rowOffsets, const int* columns, const float* values, float shift, const float* categoryWeights,
+                           const float* patternWeights, float* scratch, float* derivatives, float* sums, float* sumSquares, cudaStream_t stream);
+void cuda_edge_derivatives(const EdgeDerivativeBatch<double>& batch, int nStates, int nCategories, int nPaddedPatterns, int nPatterns,
+                           const int* rowOffsets, const int* columns, const double* values, double shift, const double* categoryWeights,
+                           const double* patternWeights, double* scratch, double* derivatives, double* sums, double* sumSquares, cudaStream_t stream);
+
+template <typename T>
+struct CategoryMultipliers
+{
+    T values[kMaxDerivativeCategories];
+};
+
+// crossProducts[k] += sum_{c,p} multipliers[c] * patternScale[p] * pre(c, i, p) * post(c, j, p) for each non-zero k = (i, j)
+// of the CSR pattern (rowOffsets, columns) of an (nStates, nStates) matrix.  pre and post are (nCategories * nStates, nPatterns).
+void cuda_cross_products(const float* pre, const float* post, int nStates, int nCategories, int nPatterns, const int* rowOffsets,
+                         const int* columns, const CategoryMultipliers<float>& multipliers, const float* patternScale, float* crossProducts,
+                         cudaStream_t stream);
+void cuda_cross_products(const double* pre, const double* post, int nStates, int nCategories, int nPatterns, const int* rowOffsets,
+                         const int* columns, const CategoryMultipliers<double>& multipliers, const double* patternScale, double* crossProducts,
+                         cudaStream_t stream);
 
 // siteLogLikelihoods[p] = log(sum_{c,s} root(c,s,p) * categoryWeights[c] * frequencies[s]) + cumulativeScaling[p] (if non-null),
 // sumLogLikelihood[0] = sum_p patternWeights[p] * siteLogLikelihoods[p].

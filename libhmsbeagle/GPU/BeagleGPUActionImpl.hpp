@@ -293,6 +293,14 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
 
     hBs.resize(kEigenDecompCount);
     csrBuilders.resize(kEigenDecompCount);
+    hBt1Norms.resize(kEigenDecompCount);
+    hdsT.resize(kEigenDecompCount);
+    hdsTCurrent.assign(kEigenDecompCount, false);
+    partialsGenerations.assign(kPartialsBufferCount, 0);
+    matrixGenerations.assign(kMatrixCount, 0);
+    qGenerations.assign(kEigenDecompCount, 0);
+    actionCache.resize(kPartialsBufferCount);
+    derivativeMatrices.resize(kEigenDecompCount + kMatrixCount);
     hMuBs.resize(kEigenDecompCount);
     hB1Norms.resize(kEigenDecompCount);
     hds.resize(kEigenDecompCount);
@@ -346,6 +354,18 @@ BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUActionImpl()
     cudaFree(dActionResults);
     cudaFree(dActionScratch);
     cudaFree(dReductionScratch);
+    for (auto& entry: actionCache)
+        cudaFree(entry.data);
+    for (auto& matrix: derivativeMatrices) {
+        cudaFree(matrix.offsets);
+        cudaFree(matrix.columns);
+        cudaFree(matrix.values);
+    }
+    cudaFree(dDerivativeScratch);
+    cudaFree(dDerivativeOutput);
+    cudaFree(dCrossOffsets);
+    cudaFree(dCrossColumns);
+    cudaFree(dCrossValues);
 
     for (int i = 0; i < kEigenDecompCount; i++) {
         cudaFree(dBsCsrOffsetsCache[i]);
@@ -418,6 +438,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::uploadPartials(int bufferIndex, co
                 out[(size_t) state * kPaddedPatternCount + pattern] = in[(size_t) pattern * kStateCount + state];
     }
     gpu->MemcpyHostToDevice(dPartials[bufferIndex], hPartialsTransposed.data(), sizeof(Real) * kPartialsSize);
+    partialsGenerations[bufferIndex]++;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -573,16 +594,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     if (cumulativeScalingIndex != BEAGLE_OP_NONE)
         cumulativeScalingBuffer = (Real*)dScalingFactors[cumulativeScalingIndex];
 
-    // Operations are grouped into levels: each goes to the earliest level after every earlier operation that
-    // writes a buffer it reads, or reads or writes a buffer (partials or scaling) it writes.  The operations of
-    // a level are independent, so they can be computed together.
     std::vector<PartialsOperation> parsed(operationCount);
-    std::vector<int> levels(operationCount);
-    std::vector<int> writeLevel(kPartialsBufferCount, -1);
-    std::vector<int> readLevel(kPartialsBufferCount, -1);
-    std::map<Real*, int> scalingWriteLevel;
-    int levelCount = 0;
-
     for (int op = 0; op < operationCount; op++) {
         const int numOps = BEAGLE_OP_COUNT;
 
@@ -620,27 +632,9 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         operation.edges[0] = firstChildSubstitutionMatrixIndex;
         operation.edges[1] = secondChildSubstitutionMatrixIndex;
         operation.scalingFactors = (rescale == 1) ? scalingFactors : nullptr;
-
-        int level = std::max(writeLevel[operation.destination], readLevel[operation.destination]) + 1;
-        for (int child: operation.children)
-            level = std::max(level, writeLevel[child] + 1);
-        if (operation.scalingFactors) {
-            auto it = scalingWriteLevel.find(operation.scalingFactors);
-            if (it != scalingWriteLevel.end())
-                level = std::max(level, it->second + 1);
-            scalingWriteLevel[operation.scalingFactors] = level;
-        }
-        writeLevel[operation.destination] = level;
-        for (int child: operation.children)
-            readLevel[child] = std::max(readLevel[child], level);
-        levels[op] = level;
-        levelCount = std::max(levelCount, level + 1);
     }
 
-    std::vector<PartialsOperation> batch;
-    auto flush = [&]() {
-        if (batch.empty())
-            return;
+    for (const auto& batch: scheduleBatches(parsed)) {
         calcPartialsPartials(batch, cumulativeScalingBuffer);
         if (kFlags & BEAGLE_FLAG_SCALING_ALWAYS) {
             for (const auto& operation: batch) {
@@ -659,18 +653,6 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
                 }
             }
         }
-        batch.clear();
-    };
-
-    for (int level = 0; level < levelCount; level++) {
-        for (int op = 0; op < operationCount; op++) {
-            if (levels[op] != level)
-                continue;
-            if ((int) batch.size() == maxBatchOperations)
-                flush();
-            batch.push_back(parsed[op]);
-        }
-        flush();
     }
 
 #ifdef BEAGLE_DEBUG_SYNCH
@@ -681,6 +663,398 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
     fprintf(stderr, "\tLeaving  BeagleGPUActionImpl::upPartials\n");
 #endif
 
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+std::vector<std::vector<typename BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::PartialsOperation>>
+BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::scheduleBatches(const std::vector<PartialsOperation>& operations) const
+{
+    // Each operation goes to the earliest level after every earlier operation that writes a buffer it reads, or
+    // reads or writes a buffer (partials or scaling) it writes.  The operations of a level are independent.
+    const int operationCount = (int) operations.size();
+    std::vector<int> levels(operationCount);
+    std::vector<int> writeLevel(kPartialsBufferCount, -1);
+    std::vector<int> readLevel(kPartialsBufferCount, -1);
+    std::map<Real*, int> scalingWriteLevel;
+    int levelCount = 0;
+
+    for (int op = 0; op < operationCount; op++) {
+        const PartialsOperation& operation = operations[op];
+        int level = std::max(writeLevel[operation.destination], readLevel[operation.destination]) + 1;
+        for (int child: operation.children)
+            level = std::max(level, writeLevel[child] + 1);
+        if (operation.scalingFactors) {
+            auto it = scalingWriteLevel.find(operation.scalingFactors);
+            if (it != scalingWriteLevel.end())
+                level = std::max(level, it->second + 1);
+            scalingWriteLevel[operation.scalingFactors] = level;
+        }
+        writeLevel[operation.destination] = level;
+        for (int child: operation.children)
+            readLevel[child] = std::max(readLevel[child], level);
+        levels[op] = level;
+        levelCount = std::max(levelCount, level + 1);
+    }
+
+    std::vector<std::vector<PartialsOperation>> batches;
+    for (int level = 0; level < levelCount; level++) {
+        std::vector<PartialsOperation> batch;
+        for (int op = 0; op < operationCount; op++) {
+            if (levels[op] != level)
+                continue;
+            if ((int) batch.size() == maxBatchOperations) {
+                batches.push_back(batch);
+                batch.clear();
+            }
+            batch.push_back(operations[op]);
+        }
+        if (not batch.empty())
+            batches.push_back(batch);
+    }
+    return batches;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int* operations,
+                                                               int operationCount,
+                                                               int cumulativeScalingIndex)
+{
+    setCudaDevice();
+    return upPrePartials(false, operations, operationCount, cumulativeScalingIndex);
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
+							   const int *operations,
+							   int operationCount,
+							   int cumulativeScalingIndex)
+{
+    // From now on post-order keeps the children's actions for the siblings of later pre-order updates.
+    cacheActions = true;
+
+    Real* cumulativeScalingBuffer = nullptr;
+    if (cumulativeScalingIndex != BEAGLE_OP_NONE)
+        cumulativeScalingBuffer = (Real*)dScalingFactors[cumulativeScalingIndex];
+
+    // [dest, writeScaling, readScaling, parent (pre-order), dest's matrix, sibling (post-order), sibling's matrix].
+    // As in the CPU implementation, only a write scaling index rescales.
+    std::vector<PartialsOperation> parsed(operationCount);
+    for (int op = 0; op < operationCount; op++) {
+        const int* x = operations + op * BEAGLE_OP_COUNT;
+        PartialsOperation& operation = parsed[op];
+        operation.destination = x[0];
+        operation.children[0] = x[3];
+        operation.children[1] = x[5];
+        operation.edges[0] = x[4];
+        operation.edges[1] = x[6];
+        operation.scalingFactors = (x[1] >= 0) ? (Real*)dScalingFactors[x[1]] : nullptr;
+        for (int buffer: {x[0], x[3], x[5]})
+            if (buffer < 0 or buffer >= kPartialsBufferCount or dPartials[buffer] == 0)
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    for (const auto& batch: scheduleBatches(parsed))
+        calcPrePartials(batch, cumulativeScalingBuffer);
+
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->SynchronizeHost();
+#endif
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+bool BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::actionCached(int buffer, int matrixIndex) const
+{
+    const ActionCacheEntry& entry = actionCache[buffer];
+    return entry.valid and entry.data and entry.matrixIndex == matrixIndex and
+           entry.partialsGeneration == partialsGenerations[buffer] and
+           entry.matrixGeneration == matrixGenerations[matrixIndex] and
+           entry.qGeneration == qGenerations[hEigenMaps[matrixIndex]];
+}
+
+BEAGLE_GPU_TEMPLATE
+Real* BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::actionCacheSlot(int buffer, int matrixIndex)
+{
+    if (not cacheActions)
+        return nullptr;
+    ActionCacheEntry& entry = actionCache[buffer];
+    if (not entry.data) {
+        const size_t size = (size_t) kCategoryCount * kPaddedStateCount * kPaddedPatternCount;
+        if (cudaMalloc((void**) &entry.data, size * sizeof(Real)) != cudaSuccess) {
+            // Out of memory: pre-order recomputes the siblings' actions instead.
+            cudaGetLastError();
+            entry.data = nullptr;
+            return nullptr;
+        }
+    }
+    entry.valid = true;
+    entry.matrixIndex = matrixIndex;
+    entry.partialsGeneration = partialsGenerations[buffer];
+    entry.matrixGeneration = matrixGenerations[matrixIndex];
+    entry.qGeneration = qGenerations[hEigenMaps[matrixIndex]];
+    return entry.data;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::estimateTransposedNorms(int eigenIndex)
+{
+    if (hdsTCurrent[eigenIndex])
+        return;
+    // The estimator for B^T: its transpose is B.
+    const auto& dB = dBs[eigenIndex];
+    auto norms = normEstimator.estimate(dBtOffsets[eigenIndex], dBtColumns[eigenIndex], dBtValues[eigenIndex],
+                                        dB.offsets, dB.inner, dB.values, stream);
+    const int pTop = getPMax() + 1;
+    hdsT[eigenIndex].assign(pTop + 1, 1.0);
+    hdsT[eigenIndex][1] = hBt1Norms[eigenIndex];
+    for (int p = 2; p <= pTop; p++)
+        hdsT[eigenIndex][p] = pow(norms[p], 1.0 / Real(p));
+    hdsTCurrent[eigenIndex] = true;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setRootPrePartials(const int* bufferIndices,
+                                                                const int* stateFrequenciesIndices,
+                                                                int count)
+{
+    if (count != 1)
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    const int buffer = bufferIndices[0];
+    if (buffer < 0 or buffer >= kPartialsBufferCount or dPartials[buffer] == 0)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    setCudaDevice();
+    cuda_root_pre_partials((Real*) dPartials[buffer], (const Real*) dFrequencies[stateFrequenciesIndices[0]],
+                           kPaddedStateCount, kCategoryCount, kPaddedPatternCount, kPatternCount, stream);
+    partialsGenerations[buffer]++;
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseDifferentialMatrix(int matrixIndex,
+                                                                         const int* rowIndices,
+                                                                         const int* colIndices,
+                                                                         const double* values,
+                                                                         int numNonZeros)
+{
+    if (matrixIndex < 0 or matrixIndex >= (int) derivativeMatrices.size())
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    setCudaDevice();
+
+    // Duplicates are summed; every row gets a (possibly zero) diagonal entry, which is harmless.
+    std::vector<Real> realValues(values, values + numNonZeros);
+    HostCsr<Real> D;
+    buildShiftedCsr(kPaddedStateCount, rowIndices, colIndices, realValues.data(), numNonZeros, Real(0), D);
+
+    DerivativeMatrix& matrix = derivativeMatrices[matrixIndex];
+    cudaDeviceDelete(matrix.offsets);
+    cudaDeviceDelete(matrix.columns);
+    cudaDeviceDelete(matrix.values);
+    matrix.offsets = cudaDeviceNew<int>(kPaddedStateCount + 1);
+    matrix.columns = cudaDeviceNew<int>(D.nonZeros());
+    matrix.values = cudaDeviceNew<Real>(D.nonZeros());
+    MemcpyHostToDevice(matrix.offsets, D.offsets.data(), kPaddedStateCount + 1);
+    MemcpyHostToDevice(matrix.columns, D.columns.data(), D.nonZeros());
+    MemcpyHostToDevice(matrix.values, D.values.data(), D.nonZeros());
+    matrix.eigenIndex = -1;
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calculateEdgeDerivatives(const int* postBufferIndices,
+                                                                      const int* preBufferIndices,
+                                                                      const int* derivativeMatrixIndices,
+                                                                      const int* categoryWeightsIndices,
+                                                                      const int* categoryRatesIndices,
+                                                                      const int* cumulativeScaleIndices,
+                                                                      int count,
+                                                                      double* outDerivatives,
+                                                                      double* outSumDerivatives,
+                                                                      double* outSumSquaredDerivatives)
+{
+    if (count <= 0)
+        return BEAGLE_SUCCESS;
+    if (kCategoryCount > kMaxDerivativeCategories)
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    for (int node = 0; node < count; node++) {
+        const int d = derivativeMatrixIndices[node];
+        if (d < 0 or d >= (int) derivativeMatrices.size() or
+            (derivativeMatrices[d].eigenIndex < 0 and derivativeMatrices[d].offsets == nullptr))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+        for (int buffer: {postBufferIndices[node], preBufferIndices[node]})
+            if (buffer < 0 or buffer >= kPartialsBufferCount or dPartials[buffer] == 0)
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    setCudaDevice();
+
+    if (not dDerivativeScratch)
+        dDerivativeScratch = cudaDeviceNew<Real>(cuda_edge_derivative_scratch_size(kPaddedStateCount, kCategoryCount, kPaddedPatternCount));
+    // derivatives (count * kPatternCount), then the sums (count), then the sums of squares (count)
+    const size_t outputSize = (size_t) count * (kPatternCount + 2);
+    if (outputSize > derivativeOutputSize) {
+        cudaDeviceDelete(dDerivativeOutput);
+        dDerivativeOutput = cudaDeviceNew<Real>(outputSize);
+        derivativeOutputSize = outputSize;
+    }
+    Real* derivatives = dDerivativeOutput;
+    Real* sums = derivatives + (size_t) count * kPatternCount;
+    Real* sumSquares = sums + count;
+
+    // As in the CPU implementation, the categories use rate set 0.
+    EdgeDerivativeBatch<Real> batch;
+    for (int c = 0; c < kCategoryCount; c++)
+        batch.categoryMultipliers[c] = (Real) hCategoryRates[0][c];
+    const Real* categoryWeights = (const Real*) dWeights[categoryWeightsIndices[0]];
+
+    // Consecutive nodes with the same derivative matrix go in one batch.
+    for (int first = 0; first < count;) {
+        const int d = derivativeMatrixIndices[first];
+        batch.count = 0;
+        while (first + batch.count < count and batch.count < kMaxEdgeDerivativeNodes and
+               derivativeMatrixIndices[first + batch.count] == d) {
+            batch.post[batch.count] = (const Real*) dPartials[postBufferIndices[first + batch.count]];
+            batch.pre[batch.count] = (const Real*) dPartials[preBufferIndices[first + batch.count]];
+            batch.count++;
+        }
+        const DerivativeMatrix& matrix = derivativeMatrices[d];
+        const int e = matrix.eigenIndex;
+        // Q = B + mu I
+        const int* offsets = (e >= 0) ? dBs[e].offsets : matrix.offsets;
+        const int* columns = (e >= 0) ? dBs[e].inner : matrix.columns;
+        const Real* values = (e >= 0) ? dBs[e].values : matrix.values;
+        const Real shift = (e >= 0) ? hMuBs[e] : Real(0);
+        cuda_edge_derivatives(batch, kPaddedStateCount, kCategoryCount, kPaddedPatternCount, kPatternCount,
+                              offsets, columns, values, shift, categoryWeights, (const Real*) dPatternWeights,
+                              dDerivativeScratch, derivatives + (size_t) first * kPatternCount, sums + first, sumSquares + first, stream);
+        first += batch.count;
+    }
+
+    hDerivativeOutput.resize(outputSize);
+    auto status = cudaMemcpyAsync(hDerivativeOutput.data(), dDerivativeOutput, outputSize * sizeof(Real), cudaMemcpyDeviceToHost, stream);
+    if (status == cudaSuccess)
+        status = cudaStreamSynchronize(stream);
+    if (status != cudaSuccess)
+        return BEAGLE_ERROR_GENERAL;
+
+    const Real* h = hDerivativeOutput.data();
+    if (outDerivatives)
+        std::copy(h, h + (size_t) count * kPatternCount, outDerivatives);
+    if (outSumDerivatives)
+        std::copy(h + (size_t) count * kPatternCount, h + (size_t) count * kPatternCount + count, outSumDerivatives);
+    if (outSumSquaredDerivatives)
+        std::copy(h + (size_t) count * (kPatternCount + 1), h + outputSize, outSumSquaredDerivatives);
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calculateCrossProducts(const int* postBufferIndices,
+                                                                    const int* preBufferIndices,
+                                                                    const int* categoryRatesIndices,
+                                                                    const int* categoryWeightsIndices,
+                                                                    const double* edgeLengths,
+                                                                    int count,
+                                                                    double* outSumDerivatives,
+                                                                    double* outSumSquaredDerivatives)
+{
+    if (count <= 0)
+        return BEAGLE_SUCCESS;
+    if (kCategoryCount > kMaxDerivativeCategories)
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    for (int node = 0; node < count; node++)
+        for (int buffer: {postBufferIndices[node], preBufferIndices[node]})
+            if (buffer < 0 or buffer >= kPartialsBufferCount or dPartials[buffer] == 0)
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+    setCudaDevice();
+
+    // The pattern: the union of the patterns of the eigen indices that are set (normally they are all the same).
+    std::vector<int> set;
+    for (int e = 0; e < kEigenDecompCount; e++)
+        if (not hBs[e].offsets.empty())
+            set.push_back(e);
+    if (set.empty())
+        return BEAGLE_ERROR_GENERAL;
+    const int n = kPaddedStateCount;
+    HostCsr<Real> pattern = hBs[set[0]];
+    bool shared = true;
+    for (int e: set)
+        shared = shared and hBs[e].offsets == pattern.offsets and hBs[e].columns == pattern.columns;
+    if (not shared) {
+        std::vector<std::set<int>> rows(n);
+        for (int e: set)
+            for (int i = 0; i < n; i++)
+                for (int k = hBs[e].offsets[i]; k < hBs[e].offsets[i + 1]; k++)
+                    rows[i].insert(hBs[e].columns[k]);
+        pattern.offsets.assign(n + 1, 0);
+        pattern.columns.clear();
+        for (int i = 0; i < n; i++) {
+            pattern.columns.insert(pattern.columns.end(), rows[i].begin(), rows[i].end());
+            pattern.offsets[i + 1] = (int) pattern.columns.size();
+        }
+    }
+    const int nnz = (int) pattern.columns.size();
+    if ((size_t) nnz > crossCapacity) {
+        cudaDeviceDelete(dCrossColumns);
+        cudaDeviceDelete(dCrossValues);
+        dCrossColumns = cudaDeviceNew<int>(nnz);
+        dCrossValues = cudaDeviceNew<Real>(nnz);
+        crossCapacity = nnz;
+    }
+    if (not dCrossOffsets)
+        dCrossOffsets = cudaDeviceNew<int>(n + 1);
+    const int* offsets = shared ? dBs[set[0]].offsets : dCrossOffsets;
+    const int* columns = shared ? dBs[set[0]].inner : dCrossColumns;
+    if (not shared) {
+        MemcpyHostToDevice(dCrossOffsets, pattern.offsets.data(), n + 1);
+        MemcpyHostToDevice(dCrossColumns, pattern.columns.data(), nnz);
+    }
+    CHECK_CUDA(cudaMemsetAsync(dCrossValues, 0, nnz * sizeof(Real), stream));
+
+    // Per node: patternScale[p] = patternWeight[p] / sum_c w_c pre^T post, then the products scaled by w_c r_c t.
+    if (not dDerivativeScratch)
+        dDerivativeScratch = cudaDeviceNew<Real>(cuda_edge_derivative_scratch_size(kPaddedStateCount, kCategoryCount, kPaddedPatternCount));
+    const size_t scaleSize = (size_t) kMaxEdgeDerivativeNodes * kPaddedPatternCount;
+    if (scaleSize > derivativeOutputSize) {
+        cudaDeviceDelete(dDerivativeOutput);
+        dDerivativeOutput = cudaDeviceNew<Real>(scaleSize);
+        derivativeOutputSize = scaleSize;
+    }
+    CHECK_CUDA(cudaMemsetAsync(dDerivativeOutput, 0, scaleSize * sizeof(Real), stream));
+
+    int ratesIndex = categoryRatesIndices ? categoryRatesIndices[0] : 0;
+    if (ratesIndex < 0 or ratesIndex >= kEigenDecompCount or hCategoryRates[ratesIndex] == nullptr)
+        ratesIndex = 0;
+    std::vector<Real> weights(kCategoryCount);
+    CHECK_CUDA(cudaMemcpyAsync(weights.data(), (const Real*) dWeights[categoryWeightsIndices[0]], kCategoryCount * sizeof(Real),
+                               cudaMemcpyDeviceToHost, stream));
+    CHECK_CUDA(cudaStreamSynchronize(stream));
+
+    EdgeDerivativeBatch<Real> batch;
+    for (int first = 0; first < count; first += batch.count) {
+        batch.count = std::min(count - first, kMaxEdgeDerivativeNodes);
+        for (int z = 0; z < batch.count; z++) {
+            batch.post[z] = (const Real*) dPartials[postBufferIndices[first + z]];
+            batch.pre[z] = (const Real*) dPartials[preBufferIndices[first + z]];
+        }
+        // Scales are written with stride kPatternCount; kPatternCount == kPaddedPatternCount for this plugin.
+        cuda_edge_derivatives(batch, kPaddedStateCount, kCategoryCount, kPaddedPatternCount, kPatternCount,
+                              nullptr, nullptr, nullptr, Real(0), (const Real*) dWeights[categoryWeightsIndices[0]],
+                              (const Real*) dPatternWeights, dDerivativeScratch, dDerivativeOutput, nullptr, nullptr, stream);
+        for (int z = 0; z < batch.count; z++) {
+            CategoryMultipliers<Real> multipliers;
+            for (int c = 0; c < kCategoryCount; c++)
+                multipliers.values[c] = weights[c] * (Real) (hCategoryRates[ratesIndex][c] * edgeLengths[first + z]);
+            cuda_cross_products(batch.pre[z], batch.post[z], kPaddedStateCount, kCategoryCount, kPaddedPatternCount, offsets, columns,
+                                multipliers, dDerivativeOutput + (size_t) z * kPatternCount, dCrossValues, stream);
+        }
+    }
+
+    std::vector<Real> values(nnz);
+    CHECK_CUDA(cudaMemcpyAsync(values.data(), dCrossValues, nnz * sizeof(Real), cudaMemcpyDeviceToHost, stream));
+    CHECK_CUDA(cudaStreamSynchronize(stream));
+    for (int i = 0; i < kStateCount; i++)
+        for (int k = pattern.offsets[i]; k < pattern.offsets[i + 1]; k++)
+            if (pattern.columns[k] < kStateCount)
+                outSumDerivatives[(size_t) i * kStateCount + pattern.columns[k]] += values[k];
     return BEAGLE_SUCCESS;
 }
 
@@ -799,30 +1173,47 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::PrintfDeviceVector(cusparseDnMatDes
 }
 
 BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setActionScratch(ActionGroup& group, size_t g)
+{
+    // With few patterns, the groups' blocks of the 3 scratch matrices are side by side (coalescing the gathers
+    // across groups); otherwise each group uses 2 contiguous blocks.  See computeActions( ).
+    const size_t matrixSize = (size_t) kPaddedStateCount * kPaddedPatternCount;
+    const size_t scratchMatrixSize = (size_t) 2 * kCategoryCount * maxBatchOperations * matrixSize;
+    const bool interleaved = interleavedScratch();
+    group.scratchStride = interleaved ? (int) (2 * kCategoryCount * maxBatchOperations * kPaddedPatternCount) : kPaddedPatternCount;
+    group.scratchCount = interleaved ? 3 : 2;
+    for (int k = 0; k < group.scratchCount; k++)
+        group.scratch[k] = dActionScratch + k * scratchMatrixSize + g * (interleaved ? kPaddedPatternCount : matrixSize);
+}
+
+BEAGLE_GPU_TEMPLATE
 void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPartialsPartials(const std::vector<PartialsOperation>& operations,
                                                                    Real* cumulativeScalingBuffer) {
     const size_t matrixSize = (size_t) kPaddedStateCount * kPaddedPatternCount;
-    // With few patterns, the groups' blocks of the 3 scratch matrices are side by side (coalescing the gathers
-    // across groups); otherwise each group uses 2 contiguous blocks.  See computeActions( ).
-    const size_t scratchMatrixSize = (size_t) 2 * kCategoryCount * maxBatchOperations * matrixSize;
-    const bool interleaved = interleavedScratch();
-    const size_t scratchStride = interleaved ? (size_t) 2 * kCategoryCount * maxBatchOperations * kPaddedPatternCount : kPaddedPatternCount;
 
+    // Each child's action goes to the action cache once pre-order is in use (unless the same child appears twice in
+    // this batch), otherwise to dActionResults.
     std::vector<ActionGroup> groups;
+    std::vector<const Real*> actions(2 * operations.size());
+    std::set<int> cachedChildren;
     for (size_t op = 0; op < operations.size(); op++) {
         for (int child = 0; child < 2; child++) {
+            const int buffer = operations[op].children[child];
             const int edgeIndex = operations[op].edges[child];
+            Real* out = nullptr;
+            if (cachedChildren.insert(buffer).second)
+                out = actionCacheSlot(buffer, edgeIndex);
+            if (not out)
+                out = dActionResults + (op * 2 + child) * kCategoryCount * matrixSize;
+            actions[op * 2 + child] = out;
             for (int category = 0; category < kCategoryCount; category++) {
-                const size_t g = (op * 2 + child) * kCategoryCount + category;
                 ActionGroup group;
-                group.in = (const Real*) dPartials[operations[op].children[child]] + category * matrixSize;
-                group.out = dActionResults + g * matrixSize;
-                group.scratchCount = interleaved ? 3 : 2;
-                for (int k = 0; k < group.scratchCount; k++)
-                    group.scratch[k] = dActionScratch + k * scratchMatrixSize + g * (interleaved ? kPaddedPatternCount : matrixSize);
-                group.scratchStride = scratchStride;
+                group.in = (const Real*) dPartials[buffer] + category * matrixSize;
+                group.out = out + category * matrixSize;
+                setActionScratch(group, (op * 2 + child) * kCategoryCount + category);
                 group.eigenIndex = hEigenMaps[edgeIndex];
                 group.multiplier = hEdgeMultipliers[edgeIndex * kCategoryCount + category];
+                group.transpose = false;
                 groups.push_back(group);
             }
         }
@@ -833,10 +1224,91 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPartialsPartials(const std::ve
     bool scalers_log = (kFlags & BEAGLE_FLAG_SCALERS_LOG)?true:false;
     PartialsProductBatch<Real> products;
     for (size_t op = 0; op < operations.size(); op++) {
-        const Real* left = dActionResults + op * 2 * kCategoryCount * matrixSize;
         auto& product = products.products[products.count++];
-        product.left = left;
-        product.right = left + kCategoryCount * matrixSize;
+        product.left = actions[op * 2];
+        product.right = actions[op * 2 + 1];
+        product.parent = (Real*)dPartials[operations[op].destination];
+        product.scalingFactors = operations[op].scalingFactors;
+        partialsGenerations[operations[op].destination]++;
+    }
+    cuda_partials_products(products, kCategoryCount * kPaddedStateCount, kPaddedPatternCount,
+                           cumulativeScalingBuffer, scalers_log, dReductionScratch, stream);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPrePartials(const std::vector<PartialsOperation>& operations,
+                                                              Real* cumulativeScalingBuffer) {
+    const size_t matrixSize = (size_t) kPaddedStateCount * kPaddedPatternCount;
+    const size_t partialsSize = kCategoryCount * matrixSize;
+    // Per operation, two blocks of dActionResults: block 0 = the sibling's action o the parent, block 1 = the
+    // sibling's action when it is not cached, then the result before rescaling.
+    auto block = [&](size_t op, int k) { return dActionResults + (op * 2 + k) * partialsSize; };
+
+    // 1. The siblings' actions exp(t_sibling Q) sibling, from the cache when it is current.
+    std::vector<ActionGroup> groups;
+    std::vector<const Real*> siblingActions(operations.size());
+    for (size_t op = 0; op < operations.size(); op++) {
+        const int sibling = operations[op].children[1];
+        const int edgeIndex = operations[op].edges[1];
+        if (actionCached(sibling, edgeIndex)) {
+            siblingActions[op] = actionCache[sibling].data;
+            continue;
+        }
+        siblingActions[op] = block(op, 1);
+        for (int category = 0; category < kCategoryCount; category++) {
+            ActionGroup group;
+            group.in = (const Real*) dPartials[sibling] + category * matrixSize;
+            group.out = block(op, 1) + category * matrixSize;
+            setActionScratch(group, (op * 2 + 1) * kCategoryCount + category);
+            group.eigenIndex = hEigenMaps[edgeIndex];
+            group.multiplier = hEdgeMultipliers[edgeIndex * kCategoryCount + category];
+            group.transpose = false;
+            groups.push_back(group);
+        }
+    }
+    computeActions(groups);
+
+    // 2. sibling's action o parent's pre-order partials.
+    PartialsProductBatch<Real> products;
+    for (size_t op = 0; op < operations.size(); op++) {
+        auto& product = products.products[products.count++];
+        product.left = siblingActions[op];
+        product.right = (const Real*) dPartials[operations[op].children[0]];
+        product.parent = block(op, 0);
+        product.scalingFactors = nullptr;
+    }
+    cuda_partials_products(products, kCategoryCount * kPaddedStateCount, kPaddedPatternCount, nullptr, false,
+                           dReductionScratch, stream);
+
+    // 3. exp(t Q^T) along the destination's edge; straight into the destination unless it is rescaled.
+    groups.clear();
+    for (size_t op = 0; op < operations.size(); op++) {
+        const int edgeIndex = operations[op].edges[0];
+        estimateTransposedNorms(hEigenMaps[edgeIndex]);
+        Real* out = operations[op].scalingFactors ? block(op, 1) : (Real*) dPartials[operations[op].destination];
+        for (int category = 0; category < kCategoryCount; category++) {
+            ActionGroup group;
+            group.in = block(op, 0) + category * matrixSize;
+            group.out = out + category * matrixSize;
+            setActionScratch(group, (op * 2) * kCategoryCount + category);
+            group.eigenIndex = hEigenMaps[edgeIndex];
+            group.multiplier = hEdgeMultipliers[edgeIndex * kCategoryCount + category];
+            group.transpose = true;
+            groups.push_back(group);
+        }
+    }
+    computeActions(groups);
+
+    // 4. Rescale where requested.
+    bool scalers_log = (kFlags & BEAGLE_FLAG_SCALERS_LOG)?true:false;
+    products.count = 0;
+    for (size_t op = 0; op < operations.size(); op++) {
+        partialsGenerations[operations[op].destination]++;
+        if (not operations[op].scalingFactors)
+            continue;
+        auto& product = products.products[products.count++];
+        product.left = block(op, 1);
+        product.right = nullptr;
         product.parent = (Real*)dPartials[operations[op].destination];
         product.scalingFactors = operations[op].scalingFactors;
     }
@@ -914,16 +1386,20 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<A
         if (done[first])
             continue;
 
-        // All the groups that share this group's B run in lockstep: one launch per term.
+        // All the groups that share this group's matrix (B or B^T) run in lockstep: one launch per term.
         const int eigenIndex = groups[first].eigenIndex;
+        const bool transpose = groups[first].transpose;
         const auto& B = dBs[eigenIndex];
+        const int* offsets = transpose ? dBtOffsets[eigenIndex] : B.offsets;
+        const int* columns = transpose ? dBtColumns[eigenIndex] : B.inner;
+        const Real* values = transpose ? dBtValues[eigenIndex] : B.values;
         std::vector<Schedule> schedules;
         for (size_t i = first; i < groups.size(); i++) {
-            if (done[i] or groups[i].eigenIndex != eigenIndex)
+            if (done[i] or groups[i].eigenIndex != eigenIndex or groups[i].transpose != transpose)
                 continue;
             done[i] = true;
             const ActionGroup& group = groups[i];
-            auto [m, s] = getStatistics2(1.0, kPaddedPatternCount, group.multiplier, eigenIndex);
+            auto [m, s] = getStatistics2(1.0, kPaddedPatternCount, group.multiplier, eigenIndex, transpose);
             if (m == 0) {
                 auto status = cudaMemcpyAsync(group.out, group.in, matrixSize * sizeof(Real), cudaMemcpyDeviceToDevice, stream);
                 if (status != cudaSuccess)
@@ -967,7 +1443,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<A
                 term.ldOut = schedule.stride(term.out);
 
                 if (batch.count == kMaxTaylorGroups) {
-                    cuda_taylor_horner_terms(kPaddedStateCount, kPaddedPatternCount, B.offsets, B.inner, B.values, batch, stream);
+                    cuda_taylor_horner_terms(kPaddedStateCount, kPaddedPatternCount, offsets, columns, values, batch, stream);
                     batch.count = 0;
                 }
 
@@ -978,7 +1454,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<A
                         schedule.startStep();
                 }
             }
-            cuda_taylor_horner_terms(kPaddedStateCount, kPaddedPatternCount, B.offsets, B.inner, B.values, batch, stream);
+            cuda_taylor_horner_terms(kPaddedStateCount, kPaddedPatternCount, offsets, columns, values, batch, stream);
         }
     }
 }
@@ -990,11 +1466,12 @@ double BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getPMax() const
 }
 
 BEAGLE_GPU_TEMPLATE
-double BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getDValue(int p, int eigenIndex) const
+double BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getDValue(int p, int eigenIndex, bool transpose) const
 {
-    assert(p >= 0 and p < hds[eigenIndex].size());
+    const auto& d = transpose ? hdsT[eigenIndex] : hds[eigenIndex];
+    assert(p >= 0 and p < d.size());
 
-    return hds[eigenIndex][p];
+    return d[p];
 }
 
 std::ostream& showScalingInfo(std::ostream& o, std::uint64_t kFlags, const int* cumulativeScaleIndices, int kScaleBufferSize)
@@ -1141,13 +1618,15 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calculateRootLogLikelihoods(const i
 BEAGLE_GPU_TEMPLATE
 std::tuple<int,int> BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getStatistics2(double t, int nCol,
                                                               double edgeMultiplier,
-                                                              int eigenIndex) const {
+                                                              int eigenIndex, bool transpose) const {
     assert( t >= 0 );
     assert( nCol >= 0);
     assert( edgeMultiplier >= 0 );
     assert( eigenIndex >= 0);
 
-    if (t * hB1Norms[eigenIndex] == 0.0)
+    const double norm1 = transpose ? hBt1Norms[eigenIndex] : hB1Norms[eigenIndex];
+
+    if (t * norm1 == 0.0)
         return {0, 1};
 
     int bestM = INT_MAX;
@@ -1158,7 +1637,7 @@ std::tuple<int,int> BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getStatistics2(doub
 
     // 1. The best (m,s) based only on ||B||_1 (in some sense the result for p=1).
     for (auto& [thisM, thetaM]: thetaConstants) {
-        const double thisS = ceil(hB1Norms[eigenIndex] * edgeMultiplier / thetaM);
+        const double thisS = ceil(norm1 * edgeMultiplier / thetaM);
         if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
             bestS = thisS;
             bestM = thisM;
@@ -1173,8 +1652,8 @@ std::tuple<int,int> BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getStatistics2(doub
             auto it = thetaConstants.find(thisM);
             if (it != thetaConstants.end()) {
                 // equation 3.7 in Al-Mohy and Higham
-                const double dValueP = getDValue(p, eigenIndex);
-                const double dValuePPlusOne = getDValue(p + 1, eigenIndex);
+                const double dValueP = getDValue(p, eigenIndex, transpose);
+                const double dValuePPlusOne = getDValue(p + 1, eigenIndex, transpose);
                 const double alpha = std::max(dValueP, dValuePPlusOne) * edgeMultiplier;
                 // part of equation 3.10
                 const double thisS = ceil(alpha / thetaConstants.at(thisM));
@@ -1198,15 +1677,6 @@ std::tuple<int,int> BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getStatistics2(doub
     return {m,s};
 }
 
-BEAGLE_GPU_TEMPLATE
-int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
-							   const int *operations,
-							   int operationCount,
-							   int cumulativeScalingIndex)
-{
-    // Not yet implemented for action; the dense fallback would read transition matrices that are never formed.
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
-}
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
@@ -1229,6 +1699,10 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
     auto& builder = csrBuilders[matrixIndex];
     const bool structureChanged = builder.build(kPaddedStateCount, rowIndices, colIndices, values, numNonZeros, mu_B, hBs[matrixIndex]);
     hB1Norms[matrixIndex] = normP1(kPaddedStateCount, hBs[matrixIndex]);
+    hBt1Norms[matrixIndex] = normPInf(kPaddedStateCount, hBs[matrixIndex]);
+    hdsTCurrent[matrixIndex] = false;
+    qGenerations[matrixIndex]++;
+    derivativeMatrices[matrixIndex].eigenIndex = matrixIndex;
 
 #ifdef BEAGLE_DEBUG_FLOW
     std::cerr<<"B "<<matrixIndex<<": mu = "<<mu_B<<"  ||B||_1 = "<<hB1Norms[matrixIndex]<<"\noffsets = \n";
@@ -1292,7 +1766,8 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::setSparseMatrix(int matrixIndex,
 
     // equation 3.7 in Al-Mohy and Higham: d_p = ||B^p||_1^(1/p).  d_1 is known exactly; d_0 is not used.
     const int pTop = getPMax() + 1;
-    auto norms = normEstimator.estimate(dB, dBtOffsets[matrixIndex], dBtColumns[matrixIndex], dBtValues[matrixIndex], stream);
+    auto norms = normEstimator.estimate(dB.offsets, dB.inner, dB.values,
+                                        dBtOffsets[matrixIndex], dBtColumns[matrixIndex], dBtValues[matrixIndex], stream);
     hds[matrixIndex].assign(pTop + 1, 1.0);
     hds[matrixIndex][1] = hB1Norms[matrixIndex];
     for (int p = 2; p <= pTop; p++)
@@ -1338,6 +1813,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(int eigenI
     for (int i = 0; i < count; i++) {
         const int nodeIndex = probabilityIndices[i];
         hEigenMaps[nodeIndex] = eigenIndex;
+        matrixGenerations[nodeIndex]++;
 
         for (int category = 0; category < kCategoryCount; category++) {
             const double categoryRate = hCategoryRates[0][category]; // XJ: because rate categories are only set for first eigen index
