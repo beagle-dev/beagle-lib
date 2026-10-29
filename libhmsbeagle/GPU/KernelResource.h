@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  */
@@ -29,7 +19,7 @@
 class KernelResource {
 public:
     KernelResource();
-    
+
     KernelResource(
         int inPaddedStateCount,
         char* inKernelString,
@@ -43,12 +33,12 @@ public:
         int inUnpaddedPatternCount,
         long inFlags
         );
-    
+
     KernelResource(const KernelResource& krIn,
                    char* inKernelCode);
-    
+
     virtual ~KernelResource();
-    
+
     int paddedStateCount;
     int categoryCount;
     int patternCount;
@@ -62,7 +52,7 @@ public:
     int slowReweighing;
     int multiplyBlockSize;
     long flags;
-    
+
     KernelResource* copy();
 };
 

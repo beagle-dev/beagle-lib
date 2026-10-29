@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Marc Suchard
  * @author Daniel Ayres
@@ -126,6 +116,7 @@ GPUInterface::GPUInterface() {
 #endif
 
     cudaDevice = (CUdevice) 0;
+    cudaDeviceOrdinal = 0;
     cudaContext = NULL;
     cudaModule = NULL;
     cudaStreams = NULL;
@@ -251,6 +242,8 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
         case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
         case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256); break;
+        default: fprintf(stderr,"ACTION CUDA: Stupidly loading 4-state kernel since we can't find the right one\n");
+	    LOAD_KERNEL_INTO_RESOURCE(  4, DP,   4); 
     }
 }
 
@@ -260,7 +253,8 @@ void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount, int categor
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
 #endif
 
-    SAFE_CUDA(cuDeviceGet(&cudaDevice, (*resourceMap)[deviceNumber]));
+    cudaDeviceOrdinal = (*resourceMap)[deviceNumber];
+    SAFE_CUDA(cuDeviceGet(&cudaDevice, cudaDeviceOrdinal));
 
     // unsigned int ctxFlags = CU_CTX_SCHED_AUTO;
 

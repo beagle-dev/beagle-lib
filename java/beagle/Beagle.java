@@ -5,19 +5,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @brief This file documents the API as well as header for the
  * Broad-platform Evolutionary Analysis General Likelihood Evaluator
@@ -286,6 +276,42 @@ public interface Beagle extends Serializable {
             final double[] inEigenVectors,
             final double[] inInverseEigenVectors,
             final double[] inEigenValues);
+
+    /**
+     * Set a sparse matrix
+     *
+     * This function copies a sparse matrix into a instance buffer.
+     *
+     * @param matrixIndex              Index of sparse matrix buffer (input)
+     * @param inRowIndices              Row indices of non-zero entries (input)
+     * @param inColIndices              Column indices of non-zero entries (input)
+     * @param inValues                  Vector of non-zero values (input)
+     * @param numNonZeros               Number of non-zero entries (input)
+     */
+    void setSparseMatrix(
+            int matrixIndex,
+            final int[] inRowIndices,
+            final int[] inColIndices,
+            final double[] inValues,
+            int numNonZeros);
+
+    /**
+     * Set a sparse differential matrix
+     *
+     * This function copies a sparse matrix into a instance buffer.
+     *
+     * @param matrixIndex              Index of sparse matrix buffer (input)
+     * @param inRowIndices              Row indices of non-zero entries (input)
+     * @param inColIndices              Column indices of non-zero entries (input)
+     * @param inValues                  Vector of non-zero values (input)
+     * @param numNonZeros               Number of non-zero entries (input)
+     */
+    void setSparseDifferentialMatrix(
+                    int matrixIndex,
+                    final int[] inRowIndices,
+                    final int[] inColIndices,
+                    final double[] inValues,
+                    int numNonZeros);
 
     /**
      * Set a set of state frequences. These will probably correspond to an

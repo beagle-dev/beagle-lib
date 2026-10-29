@@ -1,0 +1,1302 @@
+/*
+ *  BeagleGPUActionImpl.h
+ *  BEAGLE
+ *
+ * Copyright 2024 Phylogenetic Likelihood Working Group
+ *
+ * This file is part of BEAGLE.
+ *
+ * BEAGLE is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * BEAGLE is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with BEAGLE.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ *
+ * @author Xiang Ji
+ * @author Benjamin Redelings
+ * @author Marc Suchard
+ */
+
+
+#ifndef BEAGLE_BEAGLEGPUACTIONIMPL_H
+#define BEAGLE_BEAGLEGPUACTIONIMPL_H
+
+#ifdef HAVE_CONFIG_H
+#include "libhmsbeagle/config.h"
+#endif
+
+#include "libhmsbeagle/GPU/BeagleGPUImpl.h"
+#include <vector>
+#include <map>
+#include <set>
+#include <random>
+#include <Eigen/Sparse>
+#include <Eigen/Dense>
+#include <cuda_runtime_api.h> // cudaMalloc, cudaMemcpy, etc.
+#include <cusparse.h>         // cusparseSpMV
+#include <cublas_v2.h>
+#include "cuda_ops.h"
+#include <iostream>
+
+using std::vector;
+using std::tuple;
+using Eigen::MatrixXi;
+
+#define CHECK_CUDA(func)                                                       \
+{                                                                              \
+    cudaError_t status = (func);                                               \
+    if (status != cudaSuccess) {                                               \
+        printf("CUDA API failed at line %d with error: %s (%d)\n",             \
+               __LINE__, cudaGetErrorString(status), status);                  \
+        return EXIT_FAILURE;                                                   \
+    }                                                                          \
+}
+
+#define CHECK_CUSPARSE(func)                                                   \
+{                                                                              \
+    cusparseStatus_t status = (func);                                          \
+    if (status != CUSPARSE_STATUS_SUCCESS) {                                   \
+        printf("CUSPARSE API failed at line %d with error: %s (%d)\n",         \
+               __LINE__, cusparseGetErrorString(status), status);              \
+        return EXIT_FAILURE;                                                   \
+    }                                                                          \
+}
+
+// cublas API error checking
+#define CUBLAS_CHECK(err)                                                                          \
+    do {                                                                                           \
+        cublasStatus_t err_ = (err);                                                               \
+        if (err_ != CUBLAS_STATUS_SUCCESS) {                                                       \
+            std::printf("cublas error %d at %s:%d\n", err_, __FILE__, __LINE__);                   \
+            throw std::runtime_error("cublas error");                                              \
+        }                                                                                          \
+    } while (0)
+
+
+template <typename T>
+double normP1(const T& matrix) {
+    return (Eigen::RowVectorXd::Ones(matrix.rows()) * matrix.cwiseAbs()).maxCoeff();
+}
+
+template <typename T>
+tuple<double,int> ArgNormP1(const T& matrix)
+{
+    int x=-1;
+    double v = matrix.colwise().template lpNorm<1>().maxCoeff(&x);
+    return {v,x};
+}
+
+template <typename T>
+auto normPInf(const T& matrix) {
+    return matrix.template lpNorm<Eigen::Infinity>();
+}
+
+template <typename Real>
+auto normPInf(Real* matrix, int nRows, int nCols)
+{
+    return cuda_max_abs(matrix, nRows * nCols);
+}
+
+template <typename Real>
+using SpMatrix = Eigen::SparseMatrix<Real, Eigen::StorageOptions::RowMajor>;
+
+template <typename Real>
+using Triplet = Eigen::Triplet<Real>;
+
+template <typename Real>
+using DnMatrix = Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic>;
+
+template <typename Real>
+using DnVector = Eigen::Matrix<Real, Eigen::Dynamic, 1>;
+
+template <typename T> cusparseIndexType_t IndexType;
+template <> cusparseIndexType_t IndexType<int32_t> = CUSPARSE_INDEX_32I;
+template <> cusparseIndexType_t IndexType<int64_t> = CUSPARSE_INDEX_64I;
+
+template <typename T> cudaDataType DataType;
+template <> cudaDataType DataType<float> = CUDA_R_32F;
+template <> cudaDataType DataType<double> = CUDA_R_64F;
+
+// A CSR matrix on the host.
+template <typename Real>
+struct HostCsr
+{
+    std::vector<int> offsets;
+    std::vector<int> columns;
+    std::vector<Real> values;
+
+    int nonZeros() const {return (int) values.size();}
+};
+
+// B = Q - mu*I as an (n,n) CSR matrix with sorted columns, built directly from Q's triplets.  Duplicate
+// triplets are summed, as Eigen's setFromTriplets( ) does, and every row gets a diagonal entry.
+// Two stable counting sorts (by column, then by row) leave each row sorted, in O(nnz + n) for any input
+// order.  (Going through Eigen took ~2 ms for 75K non-zeros.)
+// If slot is non-null, it receives the position in B.values of each triplet, then of each row's -mu.
+template <typename Real>
+void buildShiftedCsr(int n, const int* rows, const int* cols, const Real* values, int nnz, Real mu, HostCsr<Real>& B,
+                     std::vector<int>* slot = nullptr)
+{
+    const int m = nnz + n;   // the triplets, plus (i, i, -mu) for each row
+    auto rowOf = [&](int k) {return (k < nnz) ? rows[k] : k - nnz;};
+    auto colOf = [&](int k) {return (k < nnz) ? cols[k] : k - nnz;};
+    auto valueOf = [&](int k) {return (k < nnz) ? values[k] : -mu;};
+
+    // 1. Order the entries by column.
+    std::vector<int> start(n + 1, 0);
+    for (int k = 0; k < m; k++)
+        start[colOf(k) + 1]++;
+    for (int j = 0; j < n; j++)
+        start[j + 1] += start[j];
+    std::vector<int> byColumn(m);
+    for (int k = 0; k < m; k++)
+        byColumn[start[colOf(k)]++] = k;
+
+    // 2. Stably order them by row, so each row is sorted by column.
+    B.offsets.assign(n + 1, 0);
+    for (int k = 0; k < m; k++)
+        B.offsets[rowOf(k) + 1]++;
+    for (int i = 0; i < n; i++)
+        B.offsets[i + 1] += B.offsets[i];
+    std::vector<int> next(B.offsets.begin(), B.offsets.end() - 1);
+    B.columns.resize(m);
+    B.values.resize(m);
+    if (slot) slot->resize(m);
+    for (int k: byColumn)
+    {
+        const int a = next[rowOf(k)]++;
+        B.columns[a] = colOf(k);
+        B.values[a] = valueOf(k);
+        if (slot) (*slot)[k] = a;
+    }
+
+    // 3. Sum duplicates, compacting in place.
+    std::vector<int> compacted(slot ? m : 0);
+    int out = 0;
+    for (int i = 0; i < n; i++)
+    {
+        const int begin = B.offsets[i];
+        const int end = B.offsets[i + 1];
+        B.offsets[i] = out;
+        for (int a = begin; a < end; a++)
+        {
+            if (out > B.offsets[i] and B.columns[out - 1] == B.columns[a])
+                B.values[out - 1] += B.values[a];
+            else
+            {
+                B.columns[out] = B.columns[a];
+                B.values[out++] = B.values[a];
+            }
+            if (slot) compacted[a] = out - 1;
+        }
+    }
+    B.offsets[n] = out;
+    B.columns.resize(out);
+    B.values.resize(out);
+    if (slot)
+        for (int& a: *slot)
+            a = compacted[a];
+}
+
+// Builds B = Q - mu*I like buildShiftedCsr( ), and the structure of B^T.  It remembers where each triplet
+// went, so when Q has the same triplet pattern as last time (the usual case: only the rates change), it only
+// scatters the values, in O(nnz), adding them in the same order as a full build.
+template <typename Real>
+struct ShiftedCsrBuilder
+{
+    std::vector<int> rows;               // the triplet pattern of the last full build
+    std::vector<int> cols;
+    std::vector<int> slot;               // see buildShiftedCsr( )
+    std::vector<int> transposeOffsets;   // B^T in CSR: offsets and columns;
+    std::vector<int> transposeColumns;
+    std::vector<int> transposeSlot;      // its values are B.values[transposeSlot[j]]
+
+    // Returns true if the structure of B (and so of B^T) changed.
+    bool build(int n, const int* rowIndices, const int* colIndices, const Real* values, int nnz, Real mu, HostCsr<Real>& B)
+    {
+        const bool samePattern = (int) B.offsets.size() == n + 1 and (int) rows.size() == nnz and
+                                 std::equal(rows.begin(), rows.end(), rowIndices) and std::equal(cols.begin(), cols.end(), colIndices);
+        if (samePattern)
+        {
+            std::fill(B.values.begin(), B.values.end(), Real(0));
+            for (int k = 0; k < nnz; k++)
+                B.values[slot[k]] += values[k];
+            for (int i = 0; i < n; i++)
+                B.values[slot[nnz + i]] += -mu;
+            return false;
+        }
+
+        rows.assign(rowIndices, rowIndices + nnz);
+        cols.assign(colIndices, colIndices + nnz);
+        buildShiftedCsr(n, rowIndices, colIndices, values, nnz, mu, B, &slot);
+
+        // B^T by a counting sort on the columns; rows are visited in order, so each row of B^T is sorted.
+        transposeOffsets.assign(n + 1, 0);
+        for (int c: B.columns)
+            transposeOffsets[c + 1]++;
+        for (int j = 0; j < n; j++)
+            transposeOffsets[j + 1] += transposeOffsets[j];
+        std::vector<int> next(transposeOffsets.begin(), transposeOffsets.end() - 1);
+        transposeColumns.resize(B.nonZeros());
+        transposeSlot.resize(B.nonZeros());
+        for (int i = 0; i < n; i++)
+            for (int a = B.offsets[i]; a < B.offsets[i + 1]; a++)
+            {
+                const int b = next[B.columns[a]]++;
+                transposeColumns[b] = i;
+                transposeSlot[b] = a;
+            }
+        return true;
+    }
+};
+
+// max_i sum_j |B(i,j)| = ||B^T||_1
+template <typename Real>
+double normPInf(int n, const HostCsr<Real>& B)
+{
+    double result = 0;
+    for (int i = 0; i < n; i++) {
+        double sum = 0;
+        for (int k = B.offsets[i]; k < B.offsets[i + 1]; k++)
+            sum += std::abs(B.values[k]);
+        result = std::max(result, sum);
+    }
+    return result;
+}
+
+// max_j sum_i |B(i,j)|
+template <typename Real>
+double normP1(int n, const HostCsr<Real>& B)
+{
+    std::vector<double> sums(n, 0.0);
+    for (int k = 0; k < B.nonZeros(); k++)
+        sums[B.columns[k]] += std::abs(B.values[k]);
+    return n ? *std::max_element(sums.begin(), sums.end()) : 0.0;
+}
+
+template <typename Real>
+struct DnMatrixDevice
+{
+    cublasHandle_t cublasHandle = nullptr;
+    // Lets assume any cusparseHandle_t comes from a sparse matrix.
+    cusparseDnMatDescr_t descr = nullptr;
+    Real* ptr = nullptr;
+    size_t size1 = 0;
+    size_t size2 = 0;
+    cusparseOrder_t order = CUSPARSE_ORDER_COL;
+    size_t size() const {return size1*size2;}
+    size_t byte_size() const {return size()*sizeof(Real);}
+
+    void copyFrom(const DnMatrixDevice<Real>& D)
+    {
+        assert(order == D.order);
+        assert(size1 == D.size1);
+        assert(size2 == D.size2);
+        MemcpyDeviceToDevice(ptr, D.ptr, size());
+    }
+
+    // Disallow copying -- only one object can "own" the descriptor.
+    DnMatrixDevice<Real>& operator=(const DnMatrixDevice<Real>&) = delete;
+    // Allow moving.
+    DnMatrixDevice<Real>& operator=(DnMatrixDevice<Real>&& D) noexcept
+    {
+        std::swap(cublasHandle, D.cublasHandle);
+        std::swap(descr, D.descr);
+        std::swap(ptr, D.ptr);
+        std::swap(size1, D.size1);
+        std::swap(size2, D.size2);
+        std::swap(order, D.order);
+        return *this;
+    }
+
+    DnMatrixDevice<Real>& operator*=(Real d)
+    {
+        cublasStatus_t status;
+        if constexpr (std::is_same<Real, float>::value) {
+            status = cublasSscal(cublasHandle, size(), &d, ptr, 1);
+        } else {
+            status = cublasDscal(cublasHandle, size(), &d, ptr, 1);
+        }
+
+        if (status != CUBLAS_STATUS_SUCCESS)
+        {
+            std::cerr<<"cublas error "<<status<<" in DnMatrix<>::operator*=\n";
+            exit(1);
+        }
+        return *this;
+    }
+
+    DnMatrixDevice<Real>& operator+=(const DnMatrixDevice<Real>& D)
+    {
+        cublasStatus_t status;
+        assert(D.size1 == size1);
+        assert(D.size2 == size2);
+        assert(D.cublasHandle == cublasHandle);
+        Real one = 1;
+        if constexpr (std::is_same<Real, float>::value) {
+            status = cublasSaxpy(cublasHandle, size(), &one, D.ptr, 1, ptr, 1);
+        } else {
+            status = cublasDaxpy(cublasHandle, size(), &one, D.ptr, 1, ptr, 1);
+        }
+
+        if (status != CUBLAS_STATUS_SUCCESS)
+        {
+            std::cerr<<"cublas error "<<status<<" in DnMatrix<>::operator+=\n";
+            exit(1);
+        }
+        return *this;
+    }
+
+    // Disallow copying.
+    DnMatrixDevice(const DnMatrixDevice<Real>&) = delete;
+    // Allow moving.
+    DnMatrixDevice(DnMatrixDevice<Real>&& D) noexcept
+    {
+        operator=(std::move(D));
+    }
+
+    DnMatrixDevice() = default;
+    DnMatrixDevice(cublasHandle_t cb, Real* p, size_t s1, size_t s2, cusparseOrder_t o = CUSPARSE_ORDER_COL)
+        :cublasHandle(cb), ptr(p), size1(s1), size2(s2), order(o)
+    {
+        auto status = (order == CUSPARSE_ORDER_COL)
+            ? cusparseCreateDnMat(&descr, size1, size2, size1, ptr, DataType<Real>, CUSPARSE_ORDER_COL)
+            : cusparseCreateDnMat(&descr, size1, size2, size2, ptr, DataType<Real>, CUSPARSE_ORDER_ROW);
+
+        if (status != CUSPARSE_STATUS_SUCCESS)
+        {
+            std::cerr<<"cusparseCreateDnMat( ) failed!";
+            std::exit(1);
+        }
+    }
+    DnMatrixDevice(cublasHandle_t cb, size_t s1, size_t s2, cusparseOrder_t o = CUSPARSE_ORDER_COL)
+        :DnMatrixDevice(cb, cudaDeviceNew<Real>(s1*s2), s1, s2, o)
+    {
+    }
+
+    ~DnMatrixDevice()
+     {
+         // This class does not own the memory, so does not call cudaFree.
+         if (descr)
+         {
+             cusparseDestroyDnMat(descr);
+             descr = nullptr;
+         }
+     }
+};
+
+enum class sparseFormat { none, csr, csc };
+
+template <typename Real>
+struct SpMatrixDevice
+{
+    cublasHandle_t cublasHandle = nullptr;
+    cusparseHandle_t cusparseHandle = nullptr;
+    cusparseSpMatDescr_t descr = nullptr;
+    int size1 = 0; // rows
+    int size2 = 0; // columns
+    int num_non_zeros = 0;
+    Real* values = nullptr;
+    int* inner = nullptr;
+    int* offsets = nullptr;
+    sparseFormat format = sparseFormat::none;
+
+    int outer_dim_size() const
+    {
+	// With CSR, we return the number of row.
+	if (format == sparseFormat::csr)
+	    return size1;
+	// With CSC, we return the number of columns;
+	else if (format == sparseFormat::csc)
+	    return size2;
+	else
+	    std::abort();
+    }
+
+    int rows() const {return size1;}
+    int cols() const {return size2;}
+
+    // Disallow copying -- only one object can "own" the descriptor.
+    SpMatrixDevice<Real>& operator=(const SpMatrixDevice<Real>&) = delete;
+    // Allow moving.
+    SpMatrixDevice<Real>& operator=(SpMatrixDevice<Real>&& D) noexcept
+    {
+	std::swap(cublasHandle, D.cublasHandle);
+	std::swap(cusparseHandle, D.cusparseHandle);
+	std::swap(descr, D.descr);
+	std::swap(size1, D.size1);
+	std::swap(size2, D.size2);
+	std::swap(num_non_zeros, D.num_non_zeros);
+	std::swap(values, D.values);
+	std::swap(inner, D.inner);
+	std::swap(offsets, D.offsets);
+	std::swap(format, D.format);
+	return *this;
+    }
+
+    SpMatrixDevice<Real>& operator*=(Real d)
+    {
+        cublasStatus_t status;
+        if constexpr (std::is_same<Real, float>::value) {
+            status = cublasSscal(cublasHandle, num_non_zeros, &d, values, 1);
+        } else {
+            status = cublasDscal(cublasHandle, num_non_zeros, &d, values, 1);
+        }
+
+        if (status != CUBLAS_STATUS_SUCCESS)
+        {
+            std::cerr<<"cublas error "<<status<<" in SpMatrix<>::operator*=\n";
+            exit(1);
+        }
+        return *this;
+    }
+
+   // Disallow copying.
+    SpMatrixDevice(const SpMatrixDevice<Real>&) = delete;
+    // Allow moving.
+    SpMatrixDevice(SpMatrixDevice<Real>&& D) noexcept
+    {
+	operator=(std::move(D));
+    }
+
+    void setValues(Real *newValues) {
+        values = newValues;
+    }
+
+    SpMatrixDevice() = default;
+    SpMatrixDevice(cublasHandle_t h1, cusparseHandle_t h2, int s1, int s2, int n, Real* v, int* c, int* o, sparseFormat f)
+	:cublasHandle(h1), cusparseHandle(h2), size1(s1), size2(s2), num_non_zeros(n), values(v), inner(c), offsets(o), format(f)
+    {
+	cusparseStatus_t status;
+	if (format == sparseFormat::csc)
+	{
+	    status = cusparseCreateCsc(&descr, s1, s2, num_non_zeros, offsets, inner, values,
+				       IndexType<int>, IndexType<int>, CUSPARSE_INDEX_BASE_ZERO, DataType<Real>);
+	}
+	else
+	{
+	    status = cusparseCreateCsr(&descr, s1, s2, num_non_zeros, offsets, inner, values,
+				       IndexType<int>, IndexType<int>, CUSPARSE_INDEX_BASE_ZERO, DataType<Real>);
+	}
+
+	if (status != CUSPARSE_STATUS_SUCCESS)
+	{
+	    std::cerr<<"cusparseCreateSpMat( ) failed!";
+	    std::exit(1);
+	}
+    }
+
+    ~SpMatrixDevice()
+    {
+	if (descr)
+	{
+	    cusparseDestroySpMat(descr);
+	    descr = nullptr;
+	}
+    }
+};
+
+template <typename Real>
+void dotProduct(Real* out, cublasHandle_t handle, int n, Real* v1, Real* v2)
+{
+    if constexpr (std::is_same<Real, float>::value)
+    {
+        cublasSdot(handle, n, v1, 1, v2, 1, out);
+    }
+    else
+    {
+        cublasDdot(handle, n, v1, 1, v2, 1, out);
+    }
+};
+
+template <typename Real>
+auto normPInf(const DnMatrixDevice<Real>& M)
+{
+    return normPInf(M.ptr, M.size1, M.size2);
+}
+
+template <typename Real>
+int spMM(cusparseHandle_t handle, cusparseDnMatDescr_t C, Real alpha, cusparseSpMatDescr_t A, cusparseDnMatDescr_t B, Real beta, void*& buffer, size_t& buffersize)
+{
+    size_t new_buffersize;
+    CHECK_CUSPARSE(cusparseSpMM_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                           &alpha, A, B, &beta, C, DataType<Real>,
+                                           CUSPARSE_SPMM_ALG_DEFAULT, &new_buffersize));
+
+    if(new_buffersize > buffersize)
+    {
+        cudaDeviceDelete(buffer);
+        buffer = cudaMallocWrapped(new_buffersize);
+        buffersize = new_buffersize;
+    }
+
+    // integrationTmp = alpha * A * destP
+    CHECK_CUSPARSE(cusparseSpMM(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                &alpha, A, B, &beta, C, DataType<Real>,
+                                CUSPARSE_SPMM_ALG_DEFAULT, buffer)); //row-major layout provides higher performance (?)
+    return 0;
+}
+
+template <typename Real>
+int spMM(DnMatrixDevice<Real>& C, Real alpha, const SpMatrixDevice<Real>& A, const DnMatrixDevice<Real>& B, Real beta, void*& buffer, size_t& buffersize)
+{
+    return spMM<Real>(A.cusparseHandle, C.descr, alpha, A.descr, B.descr, beta, buffer, buffersize);
+}
+
+// Create an io-manipulator so that we can write std::cerr<<byRow(D)<<"\n";
+template <typename Real>
+class byRowDense
+{
+    const DnMatrixDevice<Real>& D;
+    bool multiline = false;
+public:
+
+    friend std::ostream& operator<<(std::ostream& o, const byRowDense<Real>& pr)
+    {
+        auto& D = pr.D;
+	bool multiline = pr.multiline;
+
+        auto hPtr = MemcpyDeviceToHostVector(D.ptr, D.size());
+
+        if (not multiline) o<<"Rows [";
+        for(int row=0;row<D.size1;row++)
+        {
+            if (not multiline) o<<" ";
+            for(int col=0;col<D.size2;col++)
+            {
+                if (D.order == CUSPARSE_ORDER_COL)
+                    o<<hPtr[col*D.size1 + row]<<", ";
+                else
+                    o<<hPtr[row*D.size2 + col]<<", ";
+            }
+	    if (not multiline)
+		o<<"; ";
+	    else if (row+1 != D.size1)
+		o<<"\n";
+        }
+        if (not multiline) o<<"]";
+
+	if (D.order == CUSPARSE_ORDER_COL)
+	    o<<" (column-major)";
+	else
+	    o<<" (row-major)";
+
+	if (multiline) o<<"\n";
+        return o;
+    }
+
+    // Initialize the forwarding struct from the matrix that we want to print.
+    byRowDense(const DnMatrixDevice<Real>& d, bool m=false):D(d),multiline(m) {}
+};
+
+// Create an io-manipulator so that we can write std::cerr<<byCol(D)<<"\n";
+template <typename Real>
+class byColDense
+{
+    const DnMatrixDevice<Real>& D;
+public:
+
+    friend std::ostream& operator<<(std::ostream& o, const byColDense<Real>& pr)
+    {
+	auto& D = pr.D;
+
+        auto hPtr = MemcpyDeviceToHostVector(D.ptr, D.size());
+
+        o<<"Cols[ ";
+        for(int col=0;col<D.size2;col++)
+        {
+            o<<"[ ";
+            for(int row=0;row<D.size1;row++)
+            {
+                if (D.order == CUSPARSE_ORDER_COL)
+                    o<<hPtr[col*D.size1 + row]<<", ";
+                else
+                    o<<hPtr[row*D.size2 + col]<<", ";
+            }
+            o<<"] ";
+        }
+        o<<"]";
+
+	if (D.order == CUSPARSE_ORDER_COL)
+	    o<<" (column-major)";
+	else
+	    o<<" (row-major)";
+
+        return o;
+    }
+
+    // Initialize the forwarding struct from the matrix that we want to print.
+    byColDense(const DnMatrixDevice<Real>& d):D(d) {}
+};
+
+std::ostream& operator<<(std::ostream& o, sparseFormat f)
+{
+    if (f == sparseFormat::csr)
+	o<<"csr";
+    else if (f == sparseFormat::csc)
+	o<<"csc";
+    else
+	o<<"sparseFormat=unknown";
+    return o;
+}
+	
+// Create an io-manipulator so that we can write std::cerr<<byRow(D)<<"\n";
+template <typename Real>
+class byRowSparse
+{
+    const SpMatrixDevice<Real>& S;
+    bool multiline = false;
+public:
+
+    friend std::ostream& operator<<(std::ostream& o, const byRowSparse<Real>& pr)
+    {
+        auto& S = pr.S;
+	bool multiline = pr.multiline;
+
+	auto values = MemcpyDeviceToHostVector(S.values, S.num_non_zeros);
+	auto inner = MemcpyDeviceToHostVector(S.inner, S.num_non_zeros);
+	auto offsets = MemcpyDeviceToHostVector(S.offsets, S.outer_dim_size() + 1);
+	
+	std::vector< std::vector<Real> > D(S.size1, std::vector<Real>(S.size2, 0));
+        for(int o=0; o< S.outer_dim_size();o++)
+        {
+            for(int index=offsets[o];index<offsets[o+1];index++)
+            {
+                if (S.format == sparseFormat::csr)
+		    D[o][inner[index]] = values[index];
+		else
+		    D[inner[index]][o] = values[index];
+            }
+        }
+
+        if (not multiline) o<<"Rows [";
+	for(int row=0;row<D.size();row++)
+	{
+            if (not multiline) o<<" ";
+	    for(int col=0;col<D[row].size();col++)
+	    {
+		o<<D[row][col]<<", ";
+            }
+            if (not multiline)
+		o<<"; ";
+	    else if (row+1 != D.size())
+		o<<"\n";
+        }
+        if (not multiline) o<<"]";
+
+	o<<" ("<<S.format<<")";
+	if (multiline) o<<"\n";
+
+        return o;
+    }
+
+    // Initialize the forwarding struct from the matrix that we want to print.
+    byRowSparse(const SpMatrixDevice<Real>& s, bool m = false):S(s),multiline(m) {}
+};
+
+template <typename Real>
+byRowDense<Real> byRow(const DnMatrixDevice<Real>& D, bool m = false)
+{
+    return byRowDense<Real>(D, m);
+}
+
+template <typename Real>
+byRowSparse<Real> byRow(const SpMatrixDevice<Real>& D, bool m = false)
+{
+    return byRowSparse<Real>(D, m);
+}
+
+template <typename Real>
+byColDense<Real> byCol(const DnMatrixDevice<Real>& D)
+{
+    return byColDense<Real>(D);
+}
+
+template <typename Real>
+std::ostream& operator<<(std::ostream& o, const DnMatrixDevice<Real>& D)
+{
+    return o<<byRow(D, true);
+}
+
+template <typename Real>
+std::ostream& operator<<(std::ostream& o, const SpMatrixDevice<Real>& D)
+{
+    return o<<byRow(D, true);
+}
+
+
+template <typename Real>
+struct asDeviceVec
+{
+    const Real* data;
+    int length;
+
+    asDeviceVec(const Real* d, int l):data(d),length(l) { }
+};
+
+template <typename Real>
+std::ostream& operator<<(std::ostream& o, const asDeviceVec<Real>& D)
+{
+    auto H = MemcpyDeviceToHostVector(D.data, D.length);
+
+    o<<"[ ";
+    for(auto& h: H)
+	o<<h<<" ";
+    o<<"]";
+
+    return o;
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& o, const std::vector<T>& H)
+{
+    o<<"[ ";
+    for(auto& h: H)
+	o<<h<<" ";
+    o<<"]";
+
+    return o;
+}
+
+
+
+
+// Block 1-norm estimates of ||B^p||_1 for p = 2 .. pTop at once, for the d_p of equation 3.7 in Al-Mohy and
+// Higham.  This is Algorithm 2.4 of Higham and Tisseur (2000) with 2 iterations and t columns (without
+// resampling parallel columns), but the products for all p are chained, so it takes about 3*pTop launches
+// of at most (pTop-1)*t columns instead of O(pTop^2) separate SpMMs:
+//   1. Y_p = B^p X0 for p = 1..pTop: one chain, each step reading the previous block.
+//   2. Z_p = (B^T)^p sign(Y_p): start from [sign(Y_pTop)]; each step multiplies all blocks so far by B^T
+//      and appends the next sign block, so sign(Y_p) is multiplied exactly p times.
+//   3. X_p = the t unit vectors e_i with the largest max_j |Z_p(i,j)|.
+//   4. B^p X_p, by the same appending chain with B.
+// The estimate for p is the largest column 1-norm of Y_p and of B^p X_p.  Everything stays on the
+// device until one copy of the pTop+1 results.  The matrices are row-major (n rows), so that the gathers of a
+// product read contiguous rows.
+template <typename Real>
+struct BlockNormEstimator
+{
+    int n = 0;
+    int t = 0;
+    int pTop = 0;
+
+    Real* X0 = nullptr;          // (n, t)
+    Real* Y = nullptr;           // (n, pTop*t): columns (p-1)*t .. p*t-1 are B^p X0
+    Real* chain[2] = {nullptr, nullptr};  // up to (n, (pTop-1)*t) each
+    Real* sums1 = nullptr;       // pTop*t column sums of Y
+    Real* sums2 = nullptr;       // (pTop-1)*t column sums of step 4
+    int* unitRows = nullptr;     // (pTop-1)*t
+    Real* rowMax = nullptr;      // (pTop-1)*n, for step 3
+    Real* norms = nullptr;       // pTop+1
+
+    void allocate(int n_, int t_, int pTop_)
+    {
+        n = n_;
+        t = std::min(t_, n);
+        pTop = pTop_;
+        assert(t <= 32);   // cuda_select_unit_columns( )
+        X0 = cudaDeviceNew<Real>((size_t) n * t);
+        Y = cudaDeviceNew<Real>((size_t) n * t * pTop);
+        chain[0] = cudaDeviceNew<Real>((size_t) n * t * (pTop - 1));
+        chain[1] = cudaDeviceNew<Real>((size_t) n * t * (pTop - 1));
+        sums1 = cudaDeviceNew<Real>(t * pTop);
+        sums2 = cudaDeviceNew<Real>(t * (pTop - 1));
+        unitRows = cudaDeviceNew<int>(t * (pTop - 1));
+        rowMax = cudaDeviceNew<Real>((size_t) n * (pTop - 1));
+        norms = cudaDeviceNew<Real>(pTop + 1);
+        initialize_norm_x_matrix(X0, n, t);
+    }
+
+    // Returns ||B^p||_1 estimates for p = 2..pTop at index p.  (Indices 0 and 1 are not set.)
+    // B and B^T are (n, n) in CSR.
+    std::vector<Real> estimate(const int* bOffsets, const int* bColumns, const Real* bValues,
+                               const int* btOffsets, const int* btColumns, const Real* btValues, cudaStream_t stream)
+    {
+        const int nBlocks = pTop - 1;
+        const int ldY = pTop * t;
+
+        // 1. Y_p = B^p X0
+        for (int p = 1; p <= pTop; p++)
+        {
+            const Real* x = (p == 1) ? X0 : Y + (p - 2) * t;
+            cuda_norm_chain_step(n, bOffsets, bColumns, bValues, x, (p == 1) ? t : ldY, Y + (p - 1) * t, ldY,
+                                 t, 0, (Real*)nullptr, 0, nullptr, stream);
+        }
+        cuda_column_abs_sums(Y, n, pTop * t, ldY, sums1, stream);
+
+        // 2. Z_p = (B^T)^p sign(Y_p), in block pTop - p.  Each step's output has `columns` columns.
+        Real* in = chain[0];
+        Real* out = chain[1];
+        int columns = t;
+        cuda_norm_chain_step(n, btOffsets, btColumns, btValues, (Real*)nullptr, 0, in, columns, 0, t, Y + (pTop - 1) * t, ldY, nullptr, stream);
+        for (int k = 1; k <= pTop; k++)
+        {
+            const bool append = (k < nBlocks);
+            const Real* sign = append ? Y + (pTop - k - 1) * t : nullptr;
+            const int outColumns = columns + (append ? t : 0);
+            cuda_norm_chain_step(n, btOffsets, btColumns, btValues, in, columns, out, outColumns, columns, append ? t : 0,
+                                 sign, ldY, nullptr, stream);
+            std::swap(in, out);
+            columns = outColumns;
+        }
+        assert(columns == nBlocks * t);
+
+        // 3. Unit vectors for the second iteration.
+        cuda_select_unit_columns(in, n, t, nBlocks, columns, rowMax, unitRows, stream);
+
+        // 4. B^p X_p, in block pTop - p.
+        columns = t;
+        cuda_norm_chain_step(n, bOffsets, bColumns, bValues, (Real*)nullptr, 0, out, columns, 0, t, (Real*)nullptr, 0, unitRows, stream);
+        std::swap(in, out);
+        for (int k = 1; k <= pTop; k++)
+        {
+            const bool append = (k < nBlocks);
+            const int outColumns = columns + (append ? t : 0);
+            cuda_norm_chain_step(n, bOffsets, bColumns, bValues, in, columns, out, outColumns, columns, append ? t : 0,
+                                 (Real*)nullptr, 0, append ? unitRows + k * t : nullptr, stream);
+            std::swap(in, out);
+            columns = outColumns;
+        }
+        cuda_column_abs_sums(in, n, nBlocks * t, columns, sums2, stream);
+
+        cuda_combine_norm_estimates(sums1, sums2, t, pTop, norms, stream);
+
+        std::vector<Real> result(pTop + 1, 0);
+        auto status = cudaMemcpyAsync(result.data(), norms, (pTop + 1) * sizeof(Real), cudaMemcpyDeviceToHost, stream);
+        if (status == cudaSuccess)
+            status = cudaStreamSynchronize(stream);
+        if (status != cudaSuccess)
+            throw std::runtime_error(std::string("BlockNormEstimator: ") + cudaGetErrorString(status));
+        return result;
+    }
+
+    BlockNormEstimator() = default;
+    BlockNormEstimator(const BlockNormEstimator&) = delete;
+    BlockNormEstimator& operator=(const BlockNormEstimator&) = delete;
+
+    ~BlockNormEstimator()
+    {
+        cudaDeviceDelete(X0);
+        cudaDeviceDelete(Y);
+        cudaDeviceDelete(chain[0]);
+        cudaDeviceDelete(chain[1]);
+        cudaDeviceDelete(sums1);
+        cudaDeviceDelete(sums2);
+        cudaDeviceDelete(unitRows);
+        cudaDeviceDelete(rowMax);
+        cudaDeviceDelete(norms);
+    }
+};
+
+
+//template <typename Real>
+//using MapType = DnMatrix<Real>;
+
+namespace beagle {
+namespace gpu {
+
+#ifdef CUDA
+	namespace cuda {
+#else
+	namespace opencl {
+#endif
+
+BEAGLE_GPU_TEMPLATE
+class BeagleGPUActionImpl : public BeagleGPUImpl<BEAGLE_GPU_GENERIC>
+{
+public:
+    const char* getName();
+
+    long long getFlags();
+
+    int getInstanceDetails(BeagleInstanceDetails* retunInfo);
+
+    int createInstance(int tipCount,
+		       int partialsBufferCount,
+		       int compactBufferCount,
+		       int stateCount,
+		       int patternCount,
+		       int eigenDecompositionCount,
+		       int matrixCount,
+		       int categoryCount,
+		       int scaleBufferCount,
+		       int globalResourceNumber,
+		       int pluginResourceNumber,
+		       long long preferenceFlags,
+		       long long requirementFlags);
+
+    int setTipStates(int tipIndex, const int* inStates);
+
+    int setTipPartials(int tipIndex,
+                       const Real* inPartials);
+
+    int setPartials(int bufferIndex,
+                    const Real* inPartials);
+
+    int getPartials(int bufferIndex,
+                    int scaleIndex,
+                    double* outPartials) override;
+
+    // Pre-order partials are the stationary frequencies.  (Only count == 1, as in the CPU implementation.)
+    int setRootPrePartials(const int* bufferIndices, const int* stateFrequenciesIndices, int count) override;
+
+    // A derivative matrix for calculateEdgeDerivatives( ), at an index of its own or replacing setSparseMatrix( )'s Q there.
+    int setSparseDifferentialMatrix(int matrixIndex, const int* rowIndices, const int* colIndices, const double* values,
+                                    int numNonZeros) override;
+
+    int setSparseMatrix(int matrixIndex,
+                        const int* rowIndices,
+                        const int* colIndices,
+                        const Real* values,
+                        int numNonZeros);
+
+    int updatePartials(const int* operations,
+                       int operationCount,
+                       int cumulativeScalingIndex);
+
+    // The base versions read past the end of the scaling buffers unless the pattern count is padded to their
+    // block size, which the action layout does not do.
+    int accumulateScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex) override;
+    int removeScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex) override;
+
+    // Action instances have no dense transition matrices (see createInstance), so these are not available.
+    // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
+    // Pre-order: dest = exp(t Q^T) (exp(t_sibling Q) sibling o parent), see calcPrePartials( ).
+    int updatePrePartials(const int* operations, int operationCount, int cumulativeScalingIndex) override;
+    int updatePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updatePrePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setEigenDecomposition(int, const double*, const double*, const double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setTransitionMatrix(int, const double*, double) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int setTransitionMatrices(const int*, const double*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int getTransitionMatrix(int, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int convolveTransitionMatrices(const int*, const int*, const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int transposeTransitionMatrices(const int*, const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updateTransitionMatricesWithModelCategories(int*, const int*, const int*, const int*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updateTransitionMatricesWithMultipleModels(const int*, const int*, const int*, const int*, const int*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int calculateEdgeLogLikelihoods(const int*, const int*, const int*, const int*, const int*, const int*, const int*, const int*,
+                                    int, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int calculateEdgeLogLikelihoodsByPartition(const int*, const int*, const int*, const int*, const int*, const int*, const int*, const int*,
+                                               const int*, int, int, double*, double*, double*, double*, double*, double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+
+    // Per pattern: sum_c w_c r_c pre^T D post / sum_c w_c pre^T post, with D the derivative matrix (Q itself for
+    // an index set by setSparseMatrix( )).  Categories use rate set 0, as in the CPU implementation.
+    int calculateEdgeDerivatives(const int* postBufferIndices, const int* preBufferIndices, const int* derivativeMatrixIndices,
+                                 const int* categoryWeightsIndices, const int* categoryRatesIndices, const int* cumulativeScaleIndices,
+                                 int count, double* outDerivatives, double* outSumDerivatives, double* outSumSquaredDerivatives) override;
+
+    // Adds sum_p (patternWeight_p / pre^T post) sum_c w_c r_c t pre(c, i, p) post(c, j, p) to outSumDerivatives[i * S + j],
+    // but only for the (i, j) in the sparsity pattern of Q (the union over the eigen indices that are set), which is
+    // where substitution-model derivatives are non-zero.  (The CPU implementation computes all S^2 entries.)
+    // outSumSquaredDerivatives is not used, as in the CPU implementation.
+    int calculateCrossProducts(const int* postBufferIndices, const int* preBufferIndices, const int* categoryRatesIndices,
+                               const int* categoryWeightsIndices, const double* edgeLengths, int count,
+                               double* outSumDerivatives, double* outSumSquaredDerivatives) override;
+
+protected:
+
+    // Per eigen index: B = Q - mu*I.
+    std::vector<HostCsr<Real>> hBs;
+    // ||B^T||_1 and the d_p of B^T, for the actions of pre-order (estimated on first use after setSparseMatrix( )).
+    std::vector<Real> hBt1Norms;
+    std::vector<std::vector<Real>> hdsT;
+    std::vector<bool> hdsTCurrent;
+    std::vector<ShiftedCsrBuilder<Real>> csrBuilders;
+    std::vector<Real> hMuBs;
+    std::vector<Real> hB1Norms;
+    const int mMax = 55;
+    std::vector<std::vector<Real>> hds;
+    std::map<int, double> thetaConstants = {
+            //The first 30 values are from table A.3 of  Computing Matrix Functions.
+            // For double precision, tol = 2^(-53)
+            // TODO: maybe calculate this
+            {1, 2.29E-16},
+            {2, 2.58E-8},
+            {3, 1.39E-5},
+            {4, 3.40E-4},
+            {5, 2.40E-3},
+            {6, 9.07E-3},
+            {7, 2.38E-2},
+            {8, 5.00E-2},
+            {9, 8.96E-2},
+            {10, 1.44E-1},
+            {11, 2.14E-1},
+            {12, 3.00E-1},
+            {13, 4.00E-1},
+            {14, 5.14E-1},
+            {15, 6.41E-1},
+            {16, 7.81E-1},
+            {17, 9.31E-1},
+            {18, 1.09},
+            {19, 1.26},
+            {20, 1.44},
+            {21, 1.62},
+            {22, 1.82},
+            {23, 2.01},
+            {24, 2.22},
+            {25, 2.43},
+            {26, 2.64},
+            {27, 2.86},
+            {28, 3.08},
+            {29, 3.31},
+            {30, 3.54},
+            //The rest are from table 3.1 of Computing the Action of the Matrix Exponential.
+            {35, 4.7},
+            {40, 6.0},
+            {45, 7.2},
+            {50, 8.5},
+            {55, 9.9},
+    };
+
+    // Per eigen index: B = Q - mu*I on the device.  The edge multiplier goes into the term coefficients.
+    std::vector<SpMatrixDevice<Real>> dBs;
+    BlockNormEstimator<Real> normEstimator;
+
+    // Partials are stored pattern-fastest, [category][state][pattern] (see cuda_ops.h); hPartialsTransposed
+    // converts to and from BEAGLE's [category][pattern][state].
+    std::vector<Real> hPartialsTransposed;
+    // Independent operations (e.g. one level of the tree) are computed together, up to maxBatchOperations.
+    int maxBatchOperations = 1;
+    // The actions of both children's edges, [operation][child][category] blocks of (kPaddedStateCount, kPaddedPatternCount).
+    Real* dActionResults = nullptr;
+    // 2 or 3 Horner work matrices; each holds one (kPaddedStateCount, kPaddedPatternCount) block per operation,
+    // child and category (see calcPartialsPartials( )).
+    Real* dActionScratch = nullptr;
+    // Per-pattern partial results of the product and root kernels.
+    Real* dReductionScratch = nullptr;
+
+    // Post-order caches each child's action exp(t Q) partials, which pre-order needs for the sibling.  A cached action
+    // is used only if the buffer, the matrix (edge length, Q) and Q are all unchanged since it was computed; generation
+    // counters track that, so a rejected proposal that BEAST undoes by flipping indices or re-sending edge lengths
+    // cannot leave a stale action behind.
+    std::vector<uint64_t> partialsGenerations;   // per partials buffer: bumped whenever it is written
+    std::vector<uint64_t> matrixGenerations;     // per matrix index: bumped by updateTransitionMatrices( )
+    std::vector<uint64_t> qGenerations;          // per eigen index: bumped by setSparseMatrix( )
+    struct ActionCacheEntry
+    {
+        Real* data = nullptr;   // kCategoryCount matrices
+        bool valid = false;
+        int matrixIndex = -1;
+        uint64_t partialsGeneration = 0;
+        uint64_t matrixGeneration = 0;
+        uint64_t qGeneration = 0;
+    };
+    std::vector<ActionCacheEntry> actionCache;   // per partials buffer
+    bool cacheActions = false;                   // turned on by the first pre-order update
+
+    // Derivative matrices, indexed like setSparseMatrix( ) and setSparseDifferentialMatrix( ).  eigenIndex >= 0 means Q
+    // of that eigen index (B + mu I); otherwise the matrix is stored here.
+    struct DerivativeMatrix
+    {
+        int eigenIndex = -1;
+        int* offsets = nullptr;
+        int* columns = nullptr;
+        Real* values = nullptr;
+    };
+    std::vector<DerivativeMatrix> derivativeMatrices;
+    Real* dDerivativeScratch = nullptr;
+    Real* dDerivativeOutput = nullptr;
+    size_t derivativeOutputSize = 0;
+    std::vector<Real> hDerivativeOutput;
+    // Cross products: the pattern (when it is not one eigen index's) and the values.
+    int* dCrossOffsets = nullptr;
+    int* dCrossColumns = nullptr;
+    Real* dCrossValues = nullptr;
+    size_t crossCapacity = 0;
+
+    // All work is issued on the GPUInterface's stream 0, so it is ordered with the base class's
+    // copies and kernels (two different blocking streams would not be).  See setCudaDevice( ).
+    cudaStream_t stream = nullptr;
+
+    // Per eigen index: B^T in CSR, and the positions in B's values of its values.
+    std::vector<int*> dBtOffsets;
+    std::vector<int*> dBtColumns;
+    std::vector<int*> dBtSlots;
+    std::vector<Real*> dBtValues;
+
+    std::vector<int *> dBsCsrOffsetsCache;
+    std::vector<int *> dBsCsrColumnsCache;
+    std::vector<Real*> dBsCsrValuesCache;
+    std::vector<int> currentCacheNNZs;
+
+    cublasHandle_t cublasHandle = nullptr;
+    cusparseHandle_t cusparseHandle = nullptr;
+
+    std::vector<int> hEigenMaps;
+    std::vector<Real> hEdgeMultipliers;
+
+
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kTipCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPartialsBufferCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kStateCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kEigenDecompCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kCategoryCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kMatrixCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPartialsSize;
+
+
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPaddedStateCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::gpu;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPaddedPatternCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kFlags;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kMatrixSize;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kernels;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dScalingFactors;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kScaleBufferCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPartials;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPartialsOrigin;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::hCategoryRates;
+
+    // For calculateRootLogLikelihoods
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dAccumulatedScalingFactors;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dIntegrationTmp;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dWeights;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dFrequencies;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dSumLogLikelihood;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPatternWeights;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::hLogLikelihoodsCache;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kSumSitesBlockCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kPatternCount;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::kScaleBufferSize;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dPtrQueue;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::hPtrQueue;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dMaxScalingFactors;
+    using BeagleGPUImpl<BEAGLE_GPU_GENERIC>::dIndexMaxScalingFactors;
+
+    int addScaleFactors(const int* scalingIndices, int count, int cumulativeScalingIndex, bool subtract);
+
+    int upPartials(bool byPartition,
+		   const int *operations,
+		   int operationCount,
+		   int cumulativeScalingIndex);
+
+    int upPrePartials(bool byPartition,
+		      const int *operations,
+		      int operationCount,
+		      int cumulativeScalingIndex);
+
+    int calculateRootLogLikelihoods(const int* bufferIndices,
+                                    const int* categoryWeightsIndices,
+                                    const int* stateFrequenciesIndices,
+                                    const int* cumulativeScaleIndices,
+                                    int count,
+                                    double* outSumLogLikelihood);
+
+    ~BeagleGPUActionImpl();
+
+private:
+    char* getInstanceName();
+
+    int updateTransitionMatrices(int eigenIndex,
+				 const int* probabilityIndices,
+				 const int* firstDerivativeIndices,
+				 const int* secondDerivativeIndices,
+				 const Real* edgeLengths,
+				 int count);
+    double getPMax() const;
+
+    // Make CUDA runtime, cuBLAS, cuSPARSE and Thrust calls target this instance's device,
+    // and cuBLAS/cuSPARSE use the GPUInterface's stream.
+    void setCudaDevice();
+
+    // Copy BEAGLE-layout partials (for one category if tipPartials, else for all) into dPartials[bufferIndex].
+    void uploadPartials(int bufferIndex, const Real* inPartials, bool tipPartials);
+
+    // Post-order: destination = action(children[0], edges[0]) o action(children[1], edges[1]).
+    // Pre-order: children[0] is the parent's pre-order buffer and children[1] the sibling's post-order buffer;
+    //   edges[0] is the destination's edge and edges[1] the sibling's.
+    struct PartialsOperation
+    {
+        int destination;
+        int children[2];
+        int edges[2];
+        Real* scalingFactors;   // nullptr means no rescaling
+        Real* fixedScalingFactors = nullptr;   // otherwise, divide by these existing factors (a read scaling index)
+    };
+
+    // Groups operations into batches of independent ones (one tree level, up to maxBatchOperations each), in an
+    // order that respects their dependencies through the partials and scaling buffers.
+    std::vector<std::vector<PartialsOperation>> scheduleBatches(const std::vector<PartialsOperation>& operations) const;
+
+    // The operations must be independent: no operation reads or writes another one's destination.
+    void calcPartialsPartials(const std::vector<PartialsOperation>& operations, Real* cumulativeScalingBuffer);
+    void calcPrePartials(const std::vector<PartialsOperation>& operations, Real* cumulativeScalingBuffer);
+
+    // Whether actionCache[buffer] holds exp(t Q) partials for the buffer's current contents and matrixIndex.
+    bool actionCached(int buffer, int matrixIndex) const;
+    // Where post-order may put a child's action so that it is cached, or nullptr.
+    Real* actionCacheSlot(int buffer, int matrixIndex);
+
+    // Makes hdsT[eigenIndex] current.
+    void estimateTransposedNorms(int eigenIndex);
+
+    // out = exp(multiplier * Q_eigenIndex) * in for one (kPaddedStateCount, kPaddedPatternCount) matrix.
+    // in is not modified; scratch is 2 or 3 matrices of work space with row stride scratchStride.
+    struct ActionGroup
+    {
+        const Real* in;
+        Real* out;
+        Real* scratch[3];
+        int scratchCount;
+        int scratchStride;
+        int eigenIndex;
+        double multiplier;
+        bool transpose;   // use Q^T
+    };
+
+    // Points group.scratch at the work blocks of group number g (< 2 * kCategoryCount * maxBatchOperations).
+    void setActionScratch(ActionGroup& group, size_t g);
+
+    // With fewer than 32 patterns, the Horner work blocks are interleaved (see calcPartialsPartials( )).
+    bool interleavedScratch() const { return kPaddedPatternCount < 32; }
+
+    // Computes all the actions, batching the Taylor terms of the groups that share Q into one launch each.
+    void computeActions(const std::vector<ActionGroup>& groups);
+
+    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
+                                       int eigenIndex, bool transpose = false) const;
+
+    double getDValue(int p, int eigenIndex, bool transpose = false) const;
+
+    int PrintfDeviceVector(Real* dPtr, int length, double checkValue, int *signal, Real r);
+    int PrintfDeviceVector(int* dPtr, int length, double checkValue, int *signal, Real r);
+    int PrintfDeviceVector(cusparseDnMatDescr_t dPtr, int length, double checkValue, int *signal, Real r);
+
+};
+
+BEAGLE_GPU_TEMPLATE
+class BeagleGPUActionImplFactory : public BeagleGPUImplFactory<BEAGLE_GPU_GENERIC> {
+    virtual BeagleImpl* createImpl(int tipCount,
+                                   int partialsBufferCount,
+                                   int compactBufferCount,
+                                   int stateCount,
+                                   int patternCount,
+                                   int eigenBufferCount,
+                                   int matrixBufferCount,
+                                   int categoryCount,
+                                   int scaleBufferCount,
+                                   int resourceNumber,
+                                   int pluginResourceNumber,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
+                                   int* errorCode);
+
+    virtual const char* getName();
+    virtual long long getFlags();
+};
+
+} // namspace device
+}	// namespace gpu
+}	// namespace beagle
+
+#include "libhmsbeagle/GPU/BeagleGPUActionImpl.hpp"
+
+#endif
+

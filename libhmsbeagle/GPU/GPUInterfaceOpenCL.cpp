@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Daniel Ayres
  */
@@ -1051,7 +1041,7 @@ void GPUInterface::GetDeviceName(int deviceNumber,
                             sizeof(cl_uint), &mpCount, NULL));
 
     char mpCountStr[12];
-    sprintf(mpCountStr, "%d", mpCount);
+    snprintf(mpCountStr, 12, "%d", mpCount);
     strcat(deviceName, " (");
     strcat(deviceName, mpCountStr);
     (mpCount==1?strcat(deviceName, " compute unit)"):strcat(deviceName, " compute units)"));
@@ -1098,7 +1088,7 @@ void GPUInterface::GetDeviceDescription(int deviceNumber,
     SAFE_CL(clGetDeviceInfo(tmpOpenClDevice, CL_DEVICE_MAX_COMPUTE_UNITS,
                             sizeof(unsigned int), &mpCount, NULL));
 
-    sprintf(deviceDescription,
+    snprintf(deviceDescription, 128,
             "Global memory (MB): %d | Clock speed (Ghz): %1.2f | Number of compute units: %d",
             int(totalGlobalMemory / 1024.0 / 1024.0), clockSpeed / 1000.0, mpCount);
 

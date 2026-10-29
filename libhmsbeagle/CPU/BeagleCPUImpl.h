@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Andrew Rambaut
  * @author Marc Suchard
@@ -43,6 +33,8 @@
 #include <condition_variable>
 #include <mutex>
 #include <functional>
+
+//#define BEAGLE_CACHE_FRIENDLY
 
 #define BEAGLE_CPU_GENERIC	REALTYPE, T_PAD, P_PAD
 #define BEAGLE_CPU_TEMPLATE	template <typename REALTYPE, int T_PAD, int P_PAD>
@@ -113,8 +105,16 @@ protected:
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     REALTYPE** gPartials;
+    REALTYPE**** gPartialsGrad;
+    REALTYPE*** coalescentGrad;
+    // REALTYPE**** efghGrad;
+    REALTYPE** tempGrad;
     int** gTipStates;
     REALTYPE** gScaleBuffers;
+
+#ifdef BEAGLE_CACHE_FRIENDLY
+    REALTYPE* gPartialsCache;
+#endif
 
     signed short** gAutoScaleBuffers;
 
@@ -124,6 +124,7 @@ protected:
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     REALTYPE** gTransitionMatrices;
+    REALTYPE**** gTransitionMatricesGrad;
 
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
@@ -142,6 +143,12 @@ protected:
 
     REALTYPE* ones;
     REALTYPE* zeros;
+
+    std::vector<REALTYPE> gBastaBuffers;
+    std::vector<REALTYPE> gBastaGradBuffers;
+    std::vector<REALTYPE> gCoalescentBuffers;
+    int kCoalescentBufferLength;
+    int kCoalescentBufferCount;
 
     struct threadData
     {
@@ -204,7 +211,7 @@ public:
 
     // set the pre-order partials for root node
     //
-    // bufferIndices the indices of root nodes (may countain multiple)
+    // bufferIndices the indices of root nodes (may contain multiple)
     // stateFrequenciesIndices the indices of state frequencies at root
     // count number of root nodes
     int setRootPrePartials(const int* bufferIndices,
@@ -228,6 +235,18 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues);
+
+    int setSparseMatrix(int matrixIndex,
+                        const int* rowIndices,
+                        const int* colIndices,
+                        const double* values,
+                        int numNonZeros);
+
+    int setSparseDifferentialMatrix(int matrixIndex,
+                                    const int *rowIndices,
+                                    const int *colIndices,
+                                    const double *values,
+                                    int numNonZeros);
 
     int setStateFrequencies(int stateFrequenciesIndex,
                             const double* inStateFrequencies);
@@ -290,13 +309,16 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateTransitionMatricesGrad(const int* probabilityIndices,
+                                     const double* edgeLengths,
+                                     int count);
+
     int updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
                                  const int* secondDerivativeIndices,
                                  const double* edgeLengths,
                                  int count);
-
 
     int updateTransitionMatricesWithMultipleModels(const int* eigenIndices,
                                                    const int* categoryRateIndices,
@@ -454,6 +476,71 @@ public:
 
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
+                           
+	int updateBastaPartials(const int* operations,
+  							int operationCount,
+  							const int* intervals,
+  							int intervalCount,
+                            int populationSizesIndex,
+                            int coalescentIndex);
+    
+    int updateBastaPartialsGrad(const int* operations,
+                                int operationCount,
+                                const int* intervals,
+                                int intervalCount,
+                                int populationSizesIndex,
+                                int coalescentIndex);
+                           
+	int accumulateBastaPartials(const int* operations,
+	     				  		int operationCount,
+	     				  		const int* segments,
+	     				  		int segmentCount,
+                                const double* intervalLengths,
+                                const int populationSizesIndex,
+                                int coalescentIndex,
+                                double* out);
+
+    int accumulateBastaPartialsGrad(const int *operations, 
+                                    const int operationCount, 
+                                    const int *intervalStarts, 
+                                    const int intervalStartsCount, 
+                                    const double *intervalLengths, 
+                                    const int populationSizesIndex, 
+                                    const int coalescentIndex, 
+                                    double *out);
+
+    int allocateBastaBuffers(int bufferCount,
+                             int bufferLength);
+
+    int getBastaBuffer(int bufferIndex,
+                       double* out);
+
+    void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
+                              REALTYPE* g, REALTYPE* h,
+                              int startBuffer1, int startBuffer2,
+                              int endBuffer1, int endBuffer2,
+                              int interval);
+
+    void reduceWithinIntervalGrad(REALTYPE*** eGrad, REALTYPE*** fGrad,
+                                  REALTYPE*** gGrad, REALTYPE*** hGrad,
+                                  int startBuffer1, int startBuffer2,
+                                  int endBuffer1, int endBuffer2,
+                                  int interval);
+
+    REALTYPE reduceAcrossIntervals(REALTYPE* e, REALTYPE* f, // TODO move to protected
+                                   REALTYPE* g, REALTYPE* h,
+                                   int interval, REALTYPE length,
+                                   const REALTYPE* sizes,
+                                   const REALTYPE* coalescent);
+    
+    void reduceAcrossIntervalsGrad(REALTYPE *e, REALTYPE *f, 
+                                   REALTYPE *g, REALTYPE *h, 
+                                   REALTYPE ***eGrad, REALTYPE ***fGrad, 
+                                   REALTYPE ***gGrad, REALTYPE ***hGrad, 
+                                   REALTYPE **resultGrad, 
+                                   int interval, REALTYPE length, 
+                                   const REALTYPE *sizes, 
+                                   const REALTYPE *coalescent);
 
     int block(void);
 
@@ -472,6 +559,13 @@ protected:
                               int count,
                               int cumulativeScaleIndex);
 
+
+    virtual int calcEdgeLogDerivativesByAutoPartitionAsync(const int *operations,
+                                                           int count,
+                                                           double *siteLogLikelihoods,
+                                                           double *outLogFirstDerivatives,
+                                                           double *outLogDiagonalSecondDerivatives);
+
     virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
                                        const int *preBufferIndices,
                                        const int *firstDerivativeIndices,
@@ -484,16 +578,15 @@ protected:
                                        double *outLogFirstDerivatives,
                                        double *outLogDiagonalSecondDerivatives);
 
-    virtual void calcEdgeLogDerivativesStates(const int *tipStates,
-                                              const REALTYPE *preOrderPartial,
+    virtual void calcEdgeLogDerivativesStates(const int *tipStates, const REALTYPE *preOrderPartial,
                                               const int firstDerivativeIndex,
                                               const int secondDerivativeIndex,
                                               const double *categoryRates,
                                               const REALTYPE *categoryWeights,
-//                                              const REALTYPE *cumulativeScaleBuffer,
                                               double *siteLogLikelihoods,
                                               double *outLogFirstDerivatives,
-                                              double *outLogDiagonalSecondDerivatives);
+                                              double *outLogDiagonalSecondDerivatives,
+                                              int cacheOffset);
 
     virtual void calcEdgeLogDerivativesPartials(const REALTYPE *postOrderPartial,
                                                 const REALTYPE *preOrderPartial,
@@ -502,10 +595,10 @@ protected:
                                                 const double *categoryRates,
                                                 const REALTYPE *categoryWeights,
                                                 const int scalingFactorsIndex,
-//                                                const REALTYPE *cumulativeScaleBuffer,
                                                 double *siteLogLikelihoods,
                                                 double *outLogFirstDerivatives,
-                                                double *outLogDiagonalSecondDerivatives);
+                                                double *outLogDiagonalSecondDerivatives,
+                                                int cacheOffset);
 
     virtual int calcCrossProducts(const int *postBufferIndices,
                                   const int *preBufferIndices,
@@ -532,11 +625,10 @@ protected:
                                            double *outCrossProducts,
                                            double *outSumSquaredDerivatives);
 
-    virtual void resetDerivativeTemporaries();
+    virtual void resetDerivativeTemporaries(int offset);
 
-    virtual void accumulateDerivatives(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    virtual void accumulateDerivatives(double *outDerivatives, double *outSumDerivatives,
+                                       double *outSumSquaredDerivatives, int offset);
 
     virtual void autoPartitionPartialsOperations(const int* operations,
                                                  int* partitionOperations,
@@ -544,6 +636,9 @@ protected:
                                                  int cumulativeScaleIndex);
 
     virtual int upPartialsByPartitionAsync(const int* operations,
+                                           int operationCount);
+
+    virtual int upPrePartialsByPartitionAsync(const int* operations,
                                            int operationCount);
 
     virtual int reorderPatternsByPartition();
@@ -776,22 +871,42 @@ protected:
 
     void threadWaiting(threadData* tData);
 
+    void updateInnerBastaPartials(const int* operations, // TODO make protected
+                                  const int begin,
+                                  const int end,
+                                  const REALTYPE* sizes,
+                                  REALTYPE* coalescent);
+
+    void updateInnerBastaPartials2(const int* operations, // TODO make protected
+                                  const int op,
+                                  const REALTYPE* sizes,
+                                  REALTYPE* coalescent);
+    
+    void updateInnerBastaPartialsGrad(const int* operations,
+                                    const int begin,
+                                    const int end,
+                                    const REALTYPE* sizes,
+                                    const REALTYPE* coalescent);
+    
+    void matrixMultiply(const REALTYPE* matrices1,
+                        const REALTYPE* matrices2,
+                        REALTYPE* output,
+                        int n);
+
 private:
 
     template <bool DoDerivatives>
-    void accumulateDerivativesDispatch1(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void
+    accumulateDerivativesDispatch1(double *outDerivatives, double *outSumDerivatives, double *outSumSquaredDerivatives,
+                                   int offset);
 
     template <bool DoDerivatives, bool DoSum>
-    void accumulateDerivativesDispatch2(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void accumulateDerivativesDispatch2(double *outDerivatives, double *outSumDerivatives,
+                                        double *outSumSquaredDerivatives, int offset);
 
     template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
-    void accumulateDerivativesImpl(double* outDerivatives,
-                               double* outSumDerivatives,
-                               double* outSumSquaredDerivatives);
+    void accumulateDerivativesImpl(double *outDerivatives, double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives, int offset);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE

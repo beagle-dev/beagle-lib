@@ -15,7 +15,7 @@ package beagle;
 
 public class BeagleJNIImpl implements Beagle {
 
-    private int instance = -1;
+    protected int instance = -1;
     private InstanceDetails details = new InstanceDetails();
 
     public BeagleJNIImpl(int tipCount,
@@ -138,6 +138,22 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.setEigenDecomposition(instance, eigenIndex, eigenVectors, inverseEigenValues, eigenValues);
         if (errCode != 0) {
             throw new BeagleException("setEigenDecomposition", errCode);
+        }
+    }
+
+    @Override
+    public void setSparseMatrix(int matrixIndex, int[] inRowIndices, int[] inColIndices, double[] inValues, int numNonZeros) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setSparseMatrix(instance, matrixIndex, inRowIndices, inColIndices, inValues, numNonZeros);
+        if (errCode != 0) {
+            throw new BeagleException("setSparseMatrix", errCode);
+        }
+    }
+
+    @Override
+    public void setSparseDifferentialMatrix(int matrixIndex, int[] inRowIndices, int[] inColIndices, double[] inValues, int numNonZeros) {
+        int errCode = BeagleJNIWrapper.INSTANCE.setSparseDifferentialMatrix(instance, matrixIndex, inRowIndices, inColIndices, inValues, numNonZeros);
+        if (errCode != 0) {
+            throw new BeagleException("setSparseDifferentialMatrix", errCode);
         }
     }
 

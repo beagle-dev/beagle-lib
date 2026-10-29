@@ -4,19 +4,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @brief GPU kernel launcher
  *
@@ -44,7 +34,7 @@ class KernelLauncher {
 
 private:
     GPUInterface* gpu;
-    
+
     GPUFunction fMatrixConvolution;
     GPUFunction fMatrixTranspose;
     GPUFunction fMatrixMulADBMulti;
@@ -87,7 +77,7 @@ private:
     GPUFunction fStatesPartialsEdgeLikelihoods;
     GPUFunction fStatesPartialsEdgeLikelihoodsByPartition;
     GPUFunction fStatesPartialsEdgeLikelihoodsSecondDeriv;
-        
+
     GPUFunction fIntegrateLikelihoodsDynamicScaling;
     GPUFunction fIntegrateLikelihoodsDynamicScalingPartition;
     GPUFunction fIntegrateLikelihoodsDynamicScalingSecondDeriv;
@@ -116,8 +106,15 @@ private:
     GPUFunction fSumSites2;
     GPUFunction fSumSites3;
 
+	GPUFunction fInnerBastaPartialsCoalescent;
+	GPUFunction fReduceWithinInterval;
+	GPUFunction fReduceWithinIntervalSerial;
+	GPUFunction fReduceAcrossInterval;
+	GPUFunction fPreProcessBastaFlags;
+	GPUFunction fAccumulateCarryOut;
+	GPUFunction fAccumulateCarryOutFinal;
     GPUFunction fReorderPatterns;
-    
+
     Dim3Int bgTransitionProbabilitiesBlock;
     Dim3Int bgTransitionProbabilitiesGrid;
     Dim3Int bgPeelingBlock;
@@ -138,26 +135,35 @@ private:
 	Dim3Int bgMultiNodeSumGrid;
 	Dim3Int bgCrossProductBlock;
 	Dim3Int bgCrossProductGrid;
-    
+	Dim3Int bgBastaPeelingBlock;
+	Dim3Int bgBastaPeelingGrid;
+	Dim3Int bgBastaReductionBlock;
+	Dim3Int bgBastaReductionGrid;
+	Dim3Int bgBastaPreBlock;
+	Dim3Int bgBastaPreGrid;
+	Dim3Int bgBastaSumBlock;
+	Dim3Int bgBastaSumGrid;
+
+
     unsigned int kPaddedStateCount;
     unsigned int kCategoryCount;
     unsigned int kPatternCount;
     unsigned int kUnpaddedPatternCount;
     unsigned int kPatternBlockSize;
     unsigned int kMatrixBlockSize;
-    unsigned int kSlowReweighing;  
+    unsigned int kSlowReweighing;
     unsigned int kMultiplyBlockSize;
     unsigned int kSumSitesBlockSize;
     long kFlags;
     bool kCPUImplementation;
     bool kAppleCPUImplementation;
 
-    
+
 public:
     KernelLauncher(GPUInterface* inGpu);
-    
+
     ~KernelLauncher();
-    
+
     // void SetupPartitioningKernelGrid(unsigned int partitionBlockCount);
 
 // Kernel links
@@ -204,8 +210,8 @@ public:
                                                      GPUPtr dIevc,
                                                      GPUPtr dEigenValues,
                                                      GPUPtr distanceQueue,
-                                                     unsigned int totalMatrix);    
-    
+                                                     unsigned int totalMatrix);
+
     void GetTransitionProbabilitiesSquareSecondDeriv(GPUPtr dMatrices,
                                                      GPUPtr dPtrQueue,
                                           GPUPtr dEvec,
@@ -254,7 +260,7 @@ public:
                                                int doRescaling,
                                                int streamIndex,
                                                int waitIndex);
-    
+
     void StatesPartialsPruningMulti(GPUPtr states,
                                     GPUPtr partials,
                                     GPUPtr matrices,
@@ -279,7 +285,7 @@ public:
                                              int doRescaling,
                                              int streamIndex,
                                              int waitIndex);
-    
+
     void StatesStatesPruningMulti(GPUPtr states,
                                   GPUPtr partials,
                                   GPUPtr matrices,
@@ -351,7 +357,7 @@ public:
                                                    GPUPtr partials,
                                                    GPUPtr lengths,
                                                    GPUPtr instructions,
-                                                   GPUPtr categoryWeights,                                                  
+                                                   GPUPtr categoryWeights,
                                                    GPUPtr patternWeights,
                                                    unsigned int instructionOffset,
                                                    unsigned int nodeCount,
@@ -367,10 +373,10 @@ public:
                                                    GPUPtr partials,
                                                    GPUPtr lengths,
                                                    GPUPtr instructions,
-                                                   GPUPtr categoryWeights,                                                  
+                                                   GPUPtr categoryWeights,
                                                    GPUPtr patternWeights,
                                                    unsigned int instructionOffset,
-                                                   unsigned int nodeCount,                                                 
+                                                   unsigned int nodeCount,
                                                    unsigned int rateOffset,
                                                    unsigned int patternCount,
                                                    unsigned int categoryCount,
@@ -409,7 +415,7 @@ public:
                                                      unsigned int patternCount,
                                                      unsigned int categoryCount,
                                                      int gridSize);
-    
+
     void IntegrateLikelihoodsAutoScaling(GPUPtr dResult,
                                             GPUPtr dRootPartials,
                                             GPUPtr dWeights,
@@ -417,7 +423,7 @@ public:
                                             GPUPtr dRootScalingFactors,
                                             unsigned int patternCount,
                                             unsigned int categoryCount);
-    
+
     void IntegrateLikelihoodsDynamicScalingSecondDeriv(GPUPtr dResult,
                                                        GPUPtr dFirstDerivResult,
                                                        GPUPtr dSecondDerivResult,
@@ -429,7 +435,7 @@ public:
                                                        GPUPtr dRootScalingFactors,
                                                        unsigned int patternCount,
                                                        unsigned int categoryCount);
-    
+
     void PartialsPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                          GPUPtr dParentPartials,
                                          GPUPtr dChildParials,
@@ -443,7 +449,7 @@ public:
                                                     GPUPtr dPtrOffsets,
                                                     unsigned int patternCount,
                                                     int gridSize);
-    
+
     void PartialsPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                     GPUPtr dFirstDerivTmp,
                                                     GPUPtr dSecondDerivTmp,
@@ -454,8 +460,8 @@ public:
                                                     GPUPtr dSecondDerivMatrix,
                                                     unsigned int patternCount,
                                                     unsigned int categoryCount);
-    
-    
+
+
     void StatesPartialsEdgeLikelihoods(GPUPtr dPartialsTmp,
                                        GPUPtr dParentPartials,
                                        GPUPtr dChildStates,
@@ -470,7 +476,7 @@ public:
                                                   GPUPtr dPtrOffsets,
                                                   unsigned int patternCount,
                                                   int gridSize);
-    
+
     void StatesPartialsEdgeLikelihoodsSecondDeriv(GPUPtr dPartialsTmp,
                                                   GPUPtr dFirstDerivTmp,
                                                   GPUPtr dSecondDerivTmp,
@@ -481,7 +487,7 @@ public:
                                                   GPUPtr dSecondDerivMatrix,
                                                   unsigned int patternCount,
                                                   unsigned int categoryCount);
-    
+
     void AccumulateFactorsDynamicScaling(GPUPtr dScalingFactors,
                                          GPUPtr dNodePtrQueue,
                                          GPUPtr dRootScalingFactors,
@@ -501,12 +507,12 @@ public:
                                       unsigned int nodeCount,
                                       unsigned int patternCount,
                                       unsigned int scaleBufferSize);
-    
+
     void RemoveFactorsDynamicScaling(GPUPtr dScalingFactors,
                                      GPUPtr dNodePtrQueue,
                                      GPUPtr dRootScalingFactors,
                                      unsigned int nodeCount,
-                                     unsigned int patternCount);    
+                                     unsigned int patternCount);
 
     void RemoveFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
                                                 GPUPtr dNodePtrQueue,
@@ -514,7 +520,7 @@ public:
                                                 unsigned int nodeCount,
                                                 int startPattern,
                                                 int endPattern);
-    
+
     void ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
                                                int startPattern,
                                                int endPattern);
@@ -545,7 +551,7 @@ public:
                               GPUPtr dFrequencies,
                               unsigned int patternCount,
                               unsigned int categoryCount);
-    
+
     void IntegrateLikelihoodsPartition(GPUPtr dResult,
                                        GPUPtr dRootPartials,
                                        GPUPtr dWeights,
@@ -565,7 +571,7 @@ public:
                                          GPUPtr dFrequencies,
                                          unsigned int patternCount,
                                          unsigned int categoryCount);
-    
+
 	void IntegrateLikelihoodsMulti(GPUPtr dResult,
 								   GPUPtr dRootPartials,
 								   GPUPtr dWeights,
@@ -573,7 +579,7 @@ public:
 								   unsigned int patternCount,
 								   unsigned int categoryCount,
 								   unsigned int takeLog);
-	
+
 	void IntegrateLikelihoodsFixedScaleMulti(GPUPtr dResult,
 											 GPUPtr dRootPartials,
 											 GPUPtr dWeights,
@@ -586,7 +592,7 @@ public:
 											 unsigned int categoryCount,
 											 unsigned int subsetCount,
 											 unsigned int subsetIndex);
-    
+
     void SumSites1(GPUPtr dArray1,
                   GPUPtr dSum1,
                   GPUPtr dPatternWeights,
@@ -598,14 +604,14 @@ public:
                             int startPattern,
                             int endPattern,
                             int blockCount);
-    
+
     void SumSites2(GPUPtr dArray1,
                   GPUPtr dSum1,
                   GPUPtr dArray2,
                   GPUPtr dSum2,
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
-    
+
     void SumSites3(GPUPtr dArray1,
                   GPUPtr dSum1,
                   GPUPtr dArray2,
@@ -614,9 +620,23 @@ public:
                   GPUPtr dSum3,
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
-	
+
+    // void InnerBastaPartialsCoalescent(GPUPtr partials1, GPUPtr partials2, GPUPtr partials3, GPUPtr matrices1,
+    // GPUPtr matrices2, GPUPtr accumulation1, GPUPtr accumulation2, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int patternCount, unsigned int child2Index);
+
+	void InnerBastaPartialsCoalescent(GPUPtr partials, GPUPtr matrices,
+GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNumber, unsigned int start, unsigned int numOps, unsigned int patternCount);
+    // void reduceWithinInterval(GPUPtr e, GPUPtr f, GPUPtr g, GPUPtr h, GPUPtr startPartials1, GPUPtr startPartials2,
+    //                           GPUPtr endPartials1, GPUPtr endPartials2, unsigned int intervalNUmber, unsigned int child2PartialIndex, unsigned int renew);
+
+	void reduceWithinInterval(GPUPtr operations, GPUPtr partials, GPUPtr dBastaBlockResMemory, GPUPtr intervals, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numSubinterval);
+	void reduceWithinIntervalSerial(GPUPtr operations, GPUPtr partials, GPUPtr dBastaMemory, unsigned int numOps, unsigned int start, unsigned int end, unsigned int kCoalescentBufferLength);
+    void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
+	void preProcessBastaFlags(GPUPtr dBastaInterval, GPUPtr dBastaFlags, GPUPtr dBlockSegmentKeysEnd, unsigned int operationCount, unsigned int numBlocks);
+	void accumulateCarryOut(GPUPtr dBastaBlockResMemory, GPUPtr dBastaFinalResMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal);
+	void accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory, GPUPtr dBastaMemory, GPUPtr dBastaFlags, unsigned int numSubinterval, unsigned int numSubintervalFinal, unsigned int kCoalescentBufferLength);
     void SetupKernelBlocksAndGrids();
-    
+
 protected:
     void LoadKernels();
 

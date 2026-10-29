@@ -636,6 +636,46 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setEigenDecomposition
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    setSparseMatrix
+ * Signature: (II[I[I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setSparseMatrix
+        (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jintArray inRowIndices, jintArray inColIndices, jdoubleArray inValues, jint numNonZeros) {
+    jint *rowIndices = env->GetIntArrayElements(inRowIndices, NULL);
+    jint *colIndices = env->GetIntArrayElements(inColIndices, NULL);
+    jdouble *values = env->GetDoubleArrayElements(inValues, NULL);
+
+    jint errCode = (jint)beagleSetSparseMatrix(instance, matrixIndex, (int *)rowIndices, (int *)colIndices, (double *)values, numNonZeros);
+
+    env->ReleaseIntArrayElements(inRowIndices, rowIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inColIndices, colIndices, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inValues, values, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    setSparseMatrix
+ * Signature: (II[I[I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setSparseDifferentialMatrix
+        (JNIEnv *env, jobject obj, jint instance, jint matrixIndex, jintArray inRowIndices, jintArray inColIndices, jdoubleArray inValues, jint numNonZeros) {
+    jint *rowIndices = env->GetIntArrayElements(inRowIndices, NULL);
+    jint *colIndices = env->GetIntArrayElements(inColIndices, NULL);
+    jdouble *values = env->GetDoubleArrayElements(inValues, NULL);
+
+    jint errCode = (jint)beagleSetSparseDifferentialMatrix(instance, matrixIndex, (int *)rowIndices, (int *)colIndices, (double *)values, numNonZeros);
+
+    env->ReleaseIntArrayElements(inRowIndices, rowIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(inColIndices, colIndices, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(inValues, values, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setStateFrequencies
  * Signature: (II[D)I
  */

@@ -6,19 +6,9 @@
  *
  * This file is part of BEAGLE.
  *
- * BEAGLE is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation, either version 3 of
- * the License, or (at your option) any later version.
- *
- * BEAGLE is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with BEAGLE.  If not, see
- * <http://www.gnu.org/licenses/>.
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
  *
  * @author Andrew Rambaut
  * @author Marc Suchard
@@ -62,6 +52,9 @@ typedef std::list<IntPair> PairedList;
 typedef std::pair<int, std::pair<int, beagle::BeagleImplFactory*> > RsrcImpl;
 typedef std::list<RsrcImpl> RsrcImplList;
 typedef std::list<BeagleBenchmarkedResource> RsrcBenchPairList;
+
+//std::map<std::string,std::pair<std::chrono::duration<double>, int>> benchmarkDuration;
+//std::map<std::string, unsigned long long int> energyConsumption;
 
 // #define BEAGLE_DEBUG_LOAD
 #define BEAGLE_PREORDER
@@ -178,6 +171,19 @@ void beagleLoadPlugins(void) {
         beagle::plugin::Plugin* actionplug = pm.findPlugin("hmsbeagle-cpu-action");
         plugins->push_back(actionplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-action-cuda" << std::endl;
+#endif
+        beagle::plugin::Plugin* actiongpuplug = pm.findPlugin("hmsbeagle-action-cuda");
+        plugins->push_back(actiongpuplug);
+    }catch(beagle::plugin::SharedLibraryException sle){
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-action-cuda: " << sle.getError() << std::endl;
+#endif
+    }
+
 
     try{
         beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
@@ -334,7 +340,7 @@ BeagleResourceList* beagleGetResourceList() {
     return rsrcList;
 }
 
-int scoreFlags(long flags1, long flags2) {
+int scoreFlags(long long flags1, long long flags2) {
     int score = 0;
     unsigned long trait = 1;
     for(int bits=0; bits<64; bits++) {
@@ -369,7 +375,7 @@ int filterResources(int* resourceList,
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
-            long resourceFlag = rsrcList->list[resource].supportFlags;
+            long long resourceFlag = rsrcList->list[resource].supportFlags;
             if ( (resourceFlag & requirementFlags) < requirementFlags) {
                 if(it==possibleResources->begin()){
                     possibleResources->remove(*(it));
@@ -401,8 +407,8 @@ int rankResourceImplementationPairs(long long preferenceFlags,
     for(PairedList::iterator it = possibleResources->begin();
         it != possibleResources->end(); ++it) {
         int resource = (*it).second;
-        long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
-        long resourceSupportedFlags = rsrcList->list[resource].supportFlags;
+        long long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
+        long long resourceSupportedFlags = rsrcList->list[resource].supportFlags;
         int resourceScore = (*it).first;
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
@@ -410,7 +416,7 @@ int rankResourceImplementationPairs(long long preferenceFlags,
 
         for (std::list<beagle::BeagleImplFactory*>::iterator factory =
              implFactory->begin(); factory != implFactory->end(); factory++) {
-            long factoryFlags = (*factory)->getFlags();
+             long long factoryFlags = (*factory)->getFlags();
 #ifdef BEAGLE_DEBUG_FLOW
             fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
 #endif
@@ -467,7 +473,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 int eigenModelCount,
                                                                 int partitionCount,
                                                                 int calculateDerivatives,
-                                                                long benchmarkFlags) {
+                                                                long long benchmarkFlags) {
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
     debugPatternCount = patternCount;
@@ -518,7 +524,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
 
     int resourceNumber;
     char* implName;
-    long benchedFlags;
+    long long benchedFlags;
     double benchmarkResultCPU;
 
     bool instOnly = false;
@@ -641,8 +647,10 @@ int beagleCreateInstance(int tipCount,
                          BeagleInstanceDetails* returnInfo) {
     DEBUG_CREATE_TIME();
     try {
-        if (instances == NULL)
+        if (instances == NULL) {
+            DEBUG_CREATE_ENERGY();
             instances = new std::vector<beagle::BeagleImpl*>;
+        }
 
         if (rsrcList == NULL)
             beagleGetResourceList();
@@ -739,6 +747,7 @@ int beagleCreateInstance(int tipCount,
 
 int beagleFinalizeInstance(int instance) {
     DEBUG_FINALIZE_TIME();
+    DEBUG_FINALIZE_ENERGY(); // TODO: Figure out why this doesn't work on L248.
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -761,11 +770,13 @@ int beagleFinalizeInstance(int instance) {
 int beagleSetCPUThreadCount(int instance,
                             int threadCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setCPUThreadCount(threadCount);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -773,12 +784,14 @@ int beagleSetTipStates(int instance,
                  int tipIndex,
                  const int* inStates) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->setTipStates(tipIndex, inStates);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -796,12 +809,14 @@ int beagleSetTipPartials(int instance,
                    int tipIndex,
                    const double* inPartials) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->setTipPartials(tipIndex, inPartials);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -819,12 +834,14 @@ int beagleSetPartials(int instance,
                 int bufferIndex,
                 const double* inPartials) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->setPartials(bufferIndex, inPartials);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -843,6 +860,7 @@ int beagleSetRootPrePartials(const int instance,
                              const int *stateFrequenciesIndices,
                              int count){
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -851,6 +869,7 @@ int beagleSetRootPrePartials(const int instance,
                                                              stateFrequenciesIndices,
                                                              count);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -866,12 +885,14 @@ int beagleSetRootPrePartials(const int instance,
 
 int beagleGetPartials(int instance, int bufferIndex, int scaleIndex, double* outPartials) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->getPartials(bufferIndex, scaleIndex, outPartials);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -891,6 +912,7 @@ int beagleSetEigenDecomposition(int instance,
                           const double* inInverseEigenVectors,
                           const double* inEigenValues) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -898,6 +920,7 @@ int beagleSetEigenDecomposition(int instance,
         int returnValue = beagleInstance->setEigenDecomposition(eigenIndex, inEigenVectors,
                                                      inInverseEigenVectors, inEigenValues);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
     catch (std::bad_alloc &) {
@@ -911,15 +934,47 @@ int beagleSetEigenDecomposition(int instance,
     }
 }
 
+int beagleSetSparseMatrix(int instance,
+                          int matrixIndex,
+                          const int* rowIndices,
+                          const int* colIndices,
+                          const double* values,
+                          int numNonZeros) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setSparseMatrix(matrixIndex, rowIndices, colIndices, values, numNonZeros);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
+int beagleSetSparseDifferentialMatrix(int instance,
+                                      int matrixIndex,
+                                      const int *rowIndices,
+                                      const int *colIndices,
+                                      const double *values,
+                                      int numNonZeros) {
+    DEBUG_START_TIME();
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->setSparseDifferentialMatrix(matrixIndex, rowIndices, colIndices, values, numNonZeros);
+    DEBUG_END_TIME();
+    return returnValue;
+}
+
 int beagleSetStateFrequencies(int instance,
                               int stateFrequenciesIndex,
                               const double* inStateFrequencies) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setStateFrequencies(stateFrequenciesIndex, inStateFrequencies);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -927,22 +982,26 @@ int beagleSetCategoryWeights(int instance,
                              int categoryWeightsIndex,
                              const double* inCategoryWeights) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setCategoryWeights(categoryWeightsIndex, inCategoryWeights);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
 int beagleSetPatternWeights(int instance,
                             const double* inPatternWeights) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setPatternWeights(inPatternWeights);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -950,23 +1009,27 @@ int beagleSetPatternPartitions(int instance,
                                int partitionCount,
                                const int* inPatternPartitions) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setPatternPartitions(partitionCount, inPatternPartitions);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
 int beagleSetCategoryRates(int instance,
                      const double* inCategoryRates) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->setCategoryRates(inCategoryRates);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -984,11 +1047,13 @@ int beagleSetCategoryRatesWithIndex(int instance,
                                     int categoryRatesIndex,
                                     const double* inCategoryRates) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setCategoryRatesWithIndex(categoryRatesIndex, inCategoryRates);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -997,12 +1062,14 @@ int beagleSetTransitionMatrix(int instance,
                         const double* inMatrix,
                         double paddedValue) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->setTransitionMatrix(matrixIndex, inMatrix, paddedValue);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1020,12 +1087,14 @@ int beagleSetDifferentialMatrix(int instance,
                                 int matrixIndex,
                                 const double* inMatrix) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setDifferentialMatrix(matrixIndex, inMatrix);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1035,12 +1104,14 @@ int beagleSetTransitionMatrices(int instance,
                               const double* paddedValues,
                               int count) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     //    try {
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->setTransitionMatrices(matrixIndices, inMatrices, paddedValues, count);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
     //    }
     //    catch (std::bad_alloc &) {
@@ -1058,11 +1129,13 @@ int beagleGetTransitionMatrix(int instance,
                               int matrixIndex,
                               double* outMatrix) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getTransitionMatrix(matrixIndex,outMatrix);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1072,6 +1145,7 @@ int beagleConvolveTransitionMatrices(int instance,
                                      const int* resultIndices,
                                      const int matrixCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
 
     if (beagleInstance == NULL) {
@@ -1080,6 +1154,7 @@ int beagleConvolveTransitionMatrices(int instance,
         int returnValue = beagleInstance->convolveTransitionMatrices(firstIndices,
                                            secondIndices, resultIndices, matrixCount);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
 }
@@ -1090,6 +1165,7 @@ int beagleAddTransitionMatrices(int instance,
                                 const int* resultIndices,
                                 int matrixCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
 
     if (beagleInstance == NULL) {
@@ -1099,6 +1175,7 @@ int beagleAddTransitionMatrices(int instance,
                 firstIndices, secondIndices,
                 resultIndices, matrixCount);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
 }
@@ -1108,6 +1185,7 @@ int beagleTransposeTransitionMatrices(int instance,
                                       const int* resultIndices,
                                       int matrixCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
 
     if (beagleInstance == NULL) {
@@ -1116,6 +1194,7 @@ int beagleTransposeTransitionMatrices(int instance,
         int returnValue = beagleInstance->transposeTransitionMatrices(
                 inputIndices, resultIndices, matrixCount);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
     }
 }
@@ -1128,6 +1207,7 @@ int beagleUpdateTransitionMatrices(int instance,
                              const double* edgeLengths,
                              int count) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1136,6 +1216,7 @@ int beagleUpdateTransitionMatrices(int instance,
                                                         firstDerivativeIndices,
                                                         secondDerivativeIndices, edgeLengths, count);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1149,6 +1230,21 @@ int beagleUpdateTransitionMatrices(int instance,
 //    }
 }
 
+int beagleUpdateTransitionMatricesGrad(int instance,
+                                       const int* probabilityIndices,
+                                       const double* edgeLengths,
+                                       int count) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updateTransitionMatricesGrad(probabilityIndices, edgeLengths, count);
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+    return returnValue;
+}
+
 int beagleUpdateTransitionMatricesWithModelCategories(int instance,
                              int* eigenIndices,
                              const int* probabilityIndices,
@@ -1157,6 +1253,7 @@ int beagleUpdateTransitionMatricesWithModelCategories(int instance,
                              const double* edgeLengths,
                              int count) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1165,6 +1262,7 @@ int beagleUpdateTransitionMatricesWithModelCategories(int instance,
                                                         firstDerivativeIndices,
                                                         secondDerivativeIndices, edgeLengths, count);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1188,6 +1286,7 @@ int beagleUpdateTransitionMatricesWithMultipleModels(int instance,
                                                      const double* edgeLengths,
                                                      int count) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
@@ -1195,6 +1294,7 @@ int beagleUpdateTransitionMatricesWithMultipleModels(int instance,
                                                                                  probabilityIndices, firstDerivativeIndices,
                                                                                  secondDerivativeIndices, edgeLengths, count);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1204,12 +1304,14 @@ int beagleUpdatePartials(const int instance,
                          int operationCount,
                          int cumulativeScalingIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->updatePartials((const int*)operations, operationCount, cumulativeScalingIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1228,12 +1330,14 @@ int beagleUpdatePrePartials(const int instance,
                             int operationCount,
                             int cumulativeScalingIndex){
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->updatePrePartials((const int *) operations, operationCount,
                                                         cumulativeScalingIndex);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1241,11 +1345,13 @@ int beagleUpdatePartialsByPartition(const int instance,
                                     const BeagleOperationByPartition* operations,
                                     int operationCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->updatePartialsByPartition((const int*)operations, operationCount);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1253,11 +1359,13 @@ int beagleUpdatePrePartialsByPartition(const int instance,
                                        const BeagleOperationByPartition* operations,
                                        int operationCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->updatePrePartialsByPartition((const int*)operations, operationCount);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
 }
 
@@ -1265,6 +1373,7 @@ int beagleWaitForPartials(const int instance,
                     const int* destinationPartials,
                     int destinationPartialsCount) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1272,6 +1381,7 @@ int beagleWaitForPartials(const int instance,
         int returnValue = beagleInstance->waitForPartials(destinationPartials,
                                                   destinationPartialsCount);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1290,12 +1400,14 @@ int beagleAccumulateScaleFactors(int instance,
 						   int count,
 						   int cumulativeScalingIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
          return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->accumulateScaleFactors(scalingIndices, count, cumulativeScalingIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1315,12 +1427,14 @@ int beagleAccumulateScaleFactorsByPartition(int instance,
                                             int cumulativeScalingIndex,
                                             int partitionIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
          return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->accumulateScaleFactorsByPartition(scalingIndices, count, cumulativeScalingIndex, partitionIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1339,12 +1453,14 @@ int beagleRemoveScaleFactors(int instance,
                            int count,
                            int cumulativeScalingIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->removeScaleFactors(scalingIndices, count, cumulativeScalingIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1364,12 +1480,14 @@ int beagleRemoveScaleFactorsByPartition(int instance,
                                         int cumulativeScalingIndex,
                                         int partitionIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->removeScaleFactorsByPartition(scalingIndices, count, cumulativeScalingIndex, partitionIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1386,12 +1504,14 @@ int beagleRemoveScaleFactorsByPartition(int instance,
 int beagleResetScaleFactors(int instance,
                       int cumulativeScalingIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->resetScaleFactors(cumulativeScalingIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1409,12 +1529,14 @@ int beagleResetScaleFactorsByPartition(int instance,
                                        int cumulativeScalingIndex,
                                        int partitionIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
             return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
         int returnValue = beagleInstance->resetScaleFactorsByPartition(cumulativeScalingIndex, partitionIndex);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
         return returnValue;
 //    }
 //    catch (std::bad_alloc &) {
@@ -1432,12 +1554,14 @@ int beagleCopyScaleFactors(int instance,
                            int destScalingIndex,
                            int srcScalingIndex) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     //    try {
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->copyScaleFactors(destScalingIndex, srcScalingIndex);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
     //    }
     //    catch (std::bad_alloc &) {
@@ -1455,12 +1579,14 @@ int beagleGetScaleFactors(int instance,
                            int srcScalingIndex,
                            double* scaleFactors) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     //    try {
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getScaleFactors(srcScalingIndex, scaleFactors);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
     return returnValue;
     //    }
     //    catch (std::bad_alloc &) {
@@ -1482,6 +1608,7 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                       int count,
                                       double* outSumLogLikelihood) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1492,6 +1619,7 @@ int beagleCalculateRootLogLikelihoods(int instance,
                                                            count,
                                                            outSumLogLikelihood);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1526,6 +1654,7 @@ int beagleCalculateRootLogLikelihoodsByPartition(int instance,
                                                  double* outSumLogLikelihoodByPartition,
                                                  double* outSumLogLikelihood) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1540,6 +1669,7 @@ int beagleCalculateRootLogLikelihoodsByPartition(int instance,
                                                                                  outSumLogLikelihoodByPartition,
                                                                                  outSumLogLikelihood);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1583,6 +1713,7 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                       double* outSumFirstDerivative,
                                       double* outSumSecondDerivative) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1596,6 +1727,7 @@ int beagleCalculateEdgeLogLikelihoods(int instance,
                                                            outSumLogLikelihood, outSumFirstDerivative,
                                                            outSumSecondDerivative);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1642,6 +1774,7 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
                                                  double* outSumSecondDerivativeByPartition,
                                                  double* outSumSecondDerivative) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 //    try {
         beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
         if (beagleInstance == NULL)
@@ -1665,6 +1798,7 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
                                                         outSumSecondDerivativeByPartition,
                                                         outSumSecondDerivative);
         DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1701,11 +1835,13 @@ int beagleCalculateEdgeLogLikelihoodsByPartition(int instance,
 int beagleGetLogLikelihood(int instance,
                             double* outSumLogLikelihood) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getLogLikelihood(outSumLogLikelihood);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1721,12 +1857,14 @@ int beagleGetDerivatives(int instance,
                             double* outSumFirstDerivative,
                             double* outSumSecondDerivative) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getDerivatives(outSumFirstDerivative,
                                                      outSumSecondDerivative);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1744,11 +1882,13 @@ int beagleGetDerivatives(int instance,
 int beagleGetSiteLogLikelihoods(int instance,
                                 double* outLogLikelihoods) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getSiteLogLikelihoods(outLogLikelihoods);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1766,11 +1906,13 @@ int beagleGetSiteDerivatives(int instance,
                              double* outFirstDerivatives,
                              double* outSecondDerivatives) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL)
         return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
     int returnValue = beagleInstance->getSiteDerivatives(outFirstDerivatives, outSecondDerivatives);
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
         union {double f; long l;} dfp;
@@ -1797,6 +1939,7 @@ int beagleCalculateEdgeDerivatives(int instance,
                                    double *outSumDerivatives,
                                    double *outSumSquaredDerivatives) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL) {
@@ -1815,6 +1958,7 @@ int beagleCalculateEdgeDerivatives(int instance,
                                                                outSumSquaredDerivatives);
 
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
     return returnValue;
 }
@@ -1829,6 +1973,7 @@ int beagleCalculateCrossProductDerivative(int instance,
                                    double *outSumDerivatives,
                                    double *outSumSquaredDerivatives) {
     DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
 
     beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
     if (beagleInstance == NULL) {
@@ -1845,6 +1990,7 @@ int beagleCalculateCrossProductDerivative(int instance,
                                                                outSumSquaredDerivatives);
 
     DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
 
     return returnValue;
 }
@@ -1855,7 +2001,151 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
                                   const int categoryWeightsIndex, const int categoryRatesIndex,
                                   const int stateFrequenciesIndex, const int *cumulativeScaleIndices, int count,
                                   double *outFirstDerivative, double *outDiagonalSecondDerivative) {
-    fprintf(stderr, "Depricated");
+    fprintf(stderr, "Function beagleCalculateEdgeDerivative is deprecated.\n");
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
+int beagleAllocateBastaBuffers(const int instance,
+                               const int bufferCount,
+                               const int bufferLength) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength);
+
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+    return returnValue;
+}
+
+
+int beagleGetBastaBuffer(const int instance,
+                         const int bufferIndex,
+                         double* out) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
+
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+    return returnValue;
+}
+
+int beagleUpdateBastaPartials(const int instance,
+                              const BastaOperation* operations,
+                              int operationCount,
+                              const int* intervals,
+                              int intervalCount,
+                              int populationSizesIndex,
+                              int coalescentIndex) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;
+}
+
+int beagleUpdateBastaPartialsGrad(const int instance,
+                                const BastaOperation* operations,
+                                int operationCount,
+                                const int* intervals,
+                                int intervalCount,
+                                int populationSizesIndex,
+                                int coalescentIndex) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartialsGrad((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;
+}
+
+int beagleAccumulateBastaPartials(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;                                  
+                                  
+}
+
+int beagleAccumulateBastaPartialsGrad(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;                                  
+                                  
+}

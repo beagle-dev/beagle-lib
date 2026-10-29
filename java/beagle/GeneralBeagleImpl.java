@@ -229,6 +229,12 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(stateFrequencies, 0, this.stateFrequencies[stateFrequenciesIndex], 0, stateCount);
     }
 
+    public void setSparseMatrix(int maatrixIndex, final int[] inRowIndices, final int[] inColIndices, final double[] inValues, int numNonZeros) {
+    };
+
+    public void setSparseDifferentialMatrix(int maatrixIndex, final int[] inRowIndices, final int[] inColIndices, final double[] inValues, int numNonZeros) {
+    };
+
     public void setCategoryWeights(final int categoryWeightsIndex, final double[] categoryWeights) {
         System.arraycopy(categoryWeights, 0, this.categoryWeights[categoryWeightsIndex], 0, categoryCount);
     }

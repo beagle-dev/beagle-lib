@@ -41,7 +41,10 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int dec
 	size_t mem = ((size_t)kStateCount) * kStateCount * kStateCount;
     	gCMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * mem);
     	if (gCMatrices[i] == NULL)
-    		throw std::bad_alloc();
+        {
+            std::cerr<<"BEAGLE: EigenDecompositionCube: memory allocation failed for "<<mem<<" bytes.\n";
+            throw std::bad_alloc();
+        }
 
     	gEigenValues[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount);
     	if (gEigenValues[i] == NULL)

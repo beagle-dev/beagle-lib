@@ -17,7 +17,7 @@ BeagleCPUPlugin::BeagleCPUPlugin() :
 Plugin("CPU", "CPU")
 {
 	BeagleResource resource;
-#ifdef __ARM64_ARCH_8__
+#ifdef __aarch64__
 	    resource.name = (char*) "CPU (arm64)";
 #else
         resource.name = (char*) "CPU (x86_64)";

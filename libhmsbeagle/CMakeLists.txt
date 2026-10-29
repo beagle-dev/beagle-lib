@@ -86,7 +86,35 @@ if (BUILD_ACTION)
 	target_link_libraries(hmsbeagle Eigen3::Eigen)
 endif(BUILD_ACTION)
 
-set_target_properties(hmsbeagle PROPERTIES PUBLIC_HEADER "beagle.h;platform.h")
+if(BEAGLE_BENCHMARK_ENERGY)
+	find_library(NVIDIA_ML_LIBRARY
+			NAMES nvidia-ml
+			PATHS /usr/lib/x86_64-linux-gnu
+			)
+	target_link_libraries(hmsbeagle nvidia-ml)
+
+	if(NOT NVIDIA_ML_LIBRARY)
+		message(FATAL_ERROR "Nvidia ML library not found")
+	else()
+		message(STATUS "Nvidia ML library found at ${NVIDIA_ML_LIBRARY}")
+	endif()
+
+
+	find_package(CUDA)
+	if(CUDA_FOUND AND BUILD_CUDA)
+		message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
+		target_include_directories(hmsbeagle PRIVATE ${CUDA_INCLUDE_DIRS})
+	endif(CUDA_FOUND AND BUILD_CUDA)
+
+endif()
+
+set_target_properties(hmsbeagle PROPERTIES
+                                PUBLIC_HEADER "beagle.h;platform.h"
+                                VERSION ${GENERIC_API_VERSION})
+
+if(NOT WIN32 AND NOT APPLE)
+	target_link_libraries(hmsbeagle ${CMAKE_DL_LIBS})
+endif(NOT WIN32 AND NOT APPLE)
 
 add_subdirectory(CPU)
 add_subdirectory(GPU)
@@ -94,11 +122,42 @@ if(BUILD_JNI)
     add_subdirectory(JNI)
 endif(BUILD_JNI)
 
+set(PKG "hmsbeagle-${GENERIC_API_VERSION}")
+
 install(TARGETS hmsbeagle
+        EXPORT ${PKG}
 	LIBRARY DESTINATION ${BEAGLE_INSTALL_DIR}
 	PUBLIC_HEADER DESTINATION ${BEAGLE_HEADER_DIR}
 	COMPONENT main
+      )
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+    ${PKG}ConfigVersion.cmake
+    VERSION ${BEAGLE_VERSION}
+    COMPATIBILITY AnyNewerVersion
     )
+
+install(EXPORT ${PKG}
+        FILE ${PKG}Config.cmake
+        NAMESPACE ${PKG}-${BEAGLE_VERSION}::
+        DESTINATION lib/cmake/${PKG}
+      )
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/hmsbeagle-1ConfigVersion.cmake"
+        DESTINATION lib/cmake/${PKG}
+       )
+
+configure_file(
+  ${PKG}.pc.in
+  ${PKG}.pc
+  @ONLY
+)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PKG}.pc"
+        DESTINATION lib/pkg-config
+)
 
 if(WIN32)
     SET_TARGET_PROPERTIES(hmsbeagle

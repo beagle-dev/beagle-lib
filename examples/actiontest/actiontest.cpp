@@ -1,12 +1,13 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <libhmsbeagle/BeagleImpl.h>
 #include <cmath>
 #include <vector>
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
+#include <sstream>
 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatrixXd;
 typedef Eigen::Map<MatrixXd> MapType;
@@ -20,9 +21,9 @@ typedef Eigen::Triplet<double> Triplet;
 
 #include "libhmsbeagle/beagle.h"
 
-char *human = (char*)"GAGT";
-char *chimp = (char*)"GAGG";
-char *gorilla = (char*)"AAAT";
+char *human = (char*)"GAGTC";
+char *chimp = (char*)"GAGGT";
+char *gorilla = (char*)"AAATC";
 
 //char *human = (char*)"G";
 //char *chimp = (char*)"G";
@@ -104,33 +105,66 @@ double* getPartials(char *sequence, int repeats) {
     return partials;
 }
 
-void printFlags(long inFlags) {
-    if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
-    if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      fprintf(stdout, " PROCESSOR_GPU");
-    if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     fprintf(stdout, " PROCESSOR_FPGA");
-    if (inFlags & BEAGLE_FLAG_PROCESSOR_CELL)     fprintf(stdout, " PROCESSOR_CELL");
-    if (inFlags & BEAGLE_FLAG_PRECISION_DOUBLE)   fprintf(stdout, " PRECISION_DOUBLE");
-    if (inFlags & BEAGLE_FLAG_PRECISION_SINGLE)   fprintf(stdout, " PRECISION_SINGLE");
-    if (inFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) fprintf(stdout, " COMPUTATION_ASYNCH");
-    if (inFlags & BEAGLE_FLAG_COMPUTATION_SYNCH)  fprintf(stdout, " COMPUTATION_SYNCH");
-    if (inFlags & BEAGLE_FLAG_EIGEN_REAL)         fprintf(stdout, " EIGEN_REAL");
-    if (inFlags & BEAGLE_FLAG_EIGEN_COMPLEX)      fprintf(stdout, " EIGEN_COMPLEX");
-    if (inFlags & BEAGLE_FLAG_SCALING_MANUAL)     fprintf(stdout, " SCALING_MANUAL");
-    if (inFlags & BEAGLE_FLAG_SCALING_AUTO)       fprintf(stdout, " SCALING_AUTO");
-    if (inFlags & BEAGLE_FLAG_SCALING_ALWAYS)     fprintf(stdout, " SCALING_ALWAYS");
-    if (inFlags & BEAGLE_FLAG_SCALING_DYNAMIC)    fprintf(stdout, " SCALING_DYNAMIC");
-    if (inFlags & BEAGLE_FLAG_SCALERS_RAW)        fprintf(stdout, " SCALERS_RAW");
-    if (inFlags & BEAGLE_FLAG_SCALERS_LOG)        fprintf(stdout, " SCALERS_LOG");
-    if (inFlags & BEAGLE_FLAG_VECTOR_NONE)        fprintf(stdout, " VECTOR_NONE");
-    if (inFlags & BEAGLE_FLAG_VECTOR_SSE)         fprintf(stdout, " VECTOR_SSE");
-    if (inFlags & BEAGLE_FLAG_VECTOR_AVX)         fprintf(stdout, " VECTOR_AVX");
-    if (inFlags & BEAGLE_FLAG_THREADING_NONE)     fprintf(stdout, " THREADING_NONE");
-    if (inFlags & BEAGLE_FLAG_THREADING_CPP)      fprintf(stdout, " THREADING_CPP");
-    if (inFlags & BEAGLE_FLAG_THREADING_OPENMP)   fprintf(stdout, " THREADING_OPENMP");
-    if (inFlags & BEAGLE_FLAG_FRAMEWORK_CPU)      fprintf(stdout, " FRAMEWORK_CPU");
-    if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     fprintf(stdout, " FRAMEWORK_CUDA");
-    if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   fprintf(stdout, " FRAMEWORK_OPENCL");
-    if (inFlags & BEAGLE_FLAG_COMPUTATION_ACTION)   fprintf(stdout, " COMPUTATION_ACTION");
+
+std::ostream& operator<<(std::ostream& o, BeagleFlags inFlags)
+{
+    if (inFlags & BEAGLE_FLAG_PRECISION_SINGLE)   o<<" PRECISION_SINGLE";
+    if (inFlags & BEAGLE_FLAG_PRECISION_DOUBLE)   o<<" PRECISION_DOUBLE";
+    if (inFlags & BEAGLE_FLAG_COMPUTATION_SYNCH)  o<<" COMPUTATION_SYNCH";
+    if (inFlags & BEAGLE_FLAG_COMPUTATION_ASYNCH) o<<" COMPUTATION_ASYNCH";
+    if (inFlags & BEAGLE_FLAG_EIGEN_REAL)         o<<" EIGEN_REAL";
+    if (inFlags & BEAGLE_FLAG_EIGEN_COMPLEX)      o<<" EIGEN_COMPLEX";
+
+    if (inFlags & BEAGLE_FLAG_SCALING_MANUAL)     o<<" SCALING_MANUAL";
+    if (inFlags & BEAGLE_FLAG_SCALING_AUTO)       o<<" SCALING_AUTO";
+    if (inFlags & BEAGLE_FLAG_SCALING_ALWAYS)     o<<" SCALING_ALWAYS";
+    if (inFlags & BEAGLE_FLAG_SCALING_DYNAMIC)    o<<" SCALING_DYNAMIC";
+    if (inFlags & BEAGLE_FLAG_SCALERS_RAW)        o<<" SCALERS_RAW";
+    if (inFlags & BEAGLE_FLAG_SCALERS_LOG)        o<<" SCALERS_LOG";
+
+    if (inFlags & BEAGLE_FLAG_INVEVEC_STANDARD)   o<<" INVENV_STANDARD";
+    if (inFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) o<<" INVENV_STANDARD";
+
+    if (inFlags & BEAGLE_FLAG_VECTOR_SSE)         o<<" VECTOR_SSE";
+    if (inFlags & BEAGLE_FLAG_VECTOR_AVX)         o<<" VECTOR_AVX";
+    if (inFlags & BEAGLE_FLAG_VECTOR_NONE)        o<<" VECTOR_NONE";
+
+    if (inFlags & BEAGLE_FLAG_THREADING_CPP)      o<<" THREADING_CPP";
+    if (inFlags & BEAGLE_FLAG_THREADING_OPENMP)   o<<" THREADING_OPENMP";
+    if (inFlags & BEAGLE_FLAG_THREADING_NONE)     o<<" THREADING_NONE";
+
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      o<<" PROCESSOR_CPU";
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      o<<" PROCESSOR_GPU";
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     o<<" PROCESSOR_FPGA";
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_CELL)     o<<" PROCESSOR_CELL";
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_PHI)      o<<" PROCESSOR_PHI";
+    if (inFlags & BEAGLE_FLAG_PROCESSOR_OTHER)    o<<" PROCESSOR_OTHER";
+
+    if (inFlags & BEAGLE_FLAG_FRAMEWORK_CUDA)     o<<" FRAMEWORK_CUDA";
+    if (inFlags & BEAGLE_FLAG_FRAMEWORK_OPENCL)   o<<" FRAMEWORK_OPENCL";
+    if (inFlags & BEAGLE_FLAG_FRAMEWORK_CPU)      o<<" FRAMEWORK_CPU";
+
+    if (inFlags & BEAGLE_FLAG_PARALLELOPS_STREAMS) o<<" PARALLEL_OPS_STREAMS";
+    if (inFlags & BEAGLE_FLAG_PARALLELOPS_GRID) o<<" PARALLEL_OPS_GRID";
+
+    if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL) o<<" PREORDER_TRANSPOSE_MANUAL";
+    if (inFlags & BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO) o<<" PREORDER_TRANSPOSE_MANUAL";
+
+    if (inFlags & BEAGLE_FLAG_COMPUTATION_ACTION) o<<" COMPUTATION_ACTION";
+
+    return o;
+}
+
+std::string showFlags(BeagleFlags flags)
+{
+    std::ostringstream o;
+    o<<flags;
+    return o.str();
+}
+
+bool has_only_digits(const std::string& s)
+{
+    return s.find_first_not_of( "0123456789" ) == std::string::npos;
 }
 
 int main( int argc, const char* argv[] )
@@ -138,17 +172,13 @@ int main( int argc, const char* argv[] )
     // print resource list
     BeagleResourceList* rList;
     rList = beagleGetResourceList();
-    fprintf(stdout, "Available resources:\n");
+    std::cout<<"Available resources:\n";
     for (int i = 0; i < rList->length; i++) {
-        fprintf(stdout, "\tResource %i:\n\t\tName : %s\n", i, rList->list[i].name);
-        fprintf(stdout, "\t\tDesc : %s\n", rList->list[i].description);
-        fprintf(stdout, "\t\tFlags:");
-        printFlags(rList->list[i].supportFlags);
-        fprintf(stdout, "\n");
+        std::cout<<"\tResource "<<i<<":\n\t\tName : "<<rList->list[i].name<<"\n";
+	std::cout<<"\t\tDesc : "<<rList->list[i].description<<"\n";
+	std::cout<<"\t\tFlags:"<<BeagleFlags(rList->list[i].supportFlags )<<"\n";
     }
-    fprintf(stdout, "\n");
-
-    bool scaling = true;
+    std::cout<<"\n";
 
     bool doJC = true;
 
@@ -167,9 +197,23 @@ int main( int argc, const char* argv[] )
 //    int rateCategoryCount = 4;
     int rateCategoryCount = 2;
 
+    bool scaling = true;
+    for(int i=1;i<argc;i++)
+	if (!strcmp(argv[i],"--noscaling"))
+	    scaling = false;
     int scaleCount = (scaling ? 7 : 0);
 
-    bool useGpu = argc > 1 && strcmp(argv[1] , "--gpu") == 0;
+    int whichDevice = -1;
+    bool useGpu = false;
+    for(int i=1;i<argc;i++)
+    {
+	if (!strcmp(argv[i],"--gpu"))
+	{
+	    useGpu = true;
+	    if (i+1<argc and has_only_digits(argv[i+1]))
+		whichDevice = std::stoi(argv[i+1]);
+	}
+    }
 
     bool useThreading = false;
     for(int i=1;i<argc;i++)
@@ -180,44 +224,37 @@ int main( int argc, const char* argv[] )
 	if (!strcmp(argv[i],"--help"))
 	{
 	    std::cerr<<"Flag: --gpu\n";
+	    std::cerr<<"Flag: --gpu <integer>\n";
 	    std::cerr<<"Flag: --threading\n";
+	    std::cerr<<"Flag: --noscaling\n";
 	    std::exit(1);
 	}
 
     bool useTipStates = false;
 
-    int whichDevice = -1;
-    if (useGpu) {
-        if (argc > 2) {
-            whichDevice = atol(argv[2]);
-            if (whichDevice < 0) {
-                whichDevice = -1;
-            }
-        }
-    }
+    if (useGpu) useSSE = false;
 
     BeagleInstanceDetails instDetails;
 
+//    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
+    long long requirementFlags = 0;
     long long preferenceFlags = BEAGLE_FLAG_COMPUTATION_ACTION;
 
     if (useGpu) {
-        preferenceFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
+        requirementFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
     } else {
-        preferenceFlags |= BEAGLE_FLAG_PROCESSOR_CPU;
+        requirementFlags |= BEAGLE_FLAG_PROCESSOR_CPU;
+	if (useSSE) {
+	  requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
+	} else {
+	  requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
+	}
     }
 
     if (singlePrecision) {
         preferenceFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
     } else {
         preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
-    }
-
-//    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
-    long long requirementFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
-    if (useSSE) {
-        requirementFlags |= BEAGLE_FLAG_VECTOR_SSE;
-    } else {
-        requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
 
     if (useThreading)
@@ -240,17 +277,17 @@ int main( int argc, const char* argv[] )
             requirementFlags, /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
             &instDetails);
     if (instance < 0) {
-        fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
+        std::cerr<<"Failed to obtain BEAGLE instance\n\n";
         exit(1);
     }
 
 
     int rNumber = instDetails.resourceNumber;
-    fprintf(stdout, "Using resource %i:\n", rNumber);
-    fprintf(stdout, "\tRsrc Name : %s\n",instDetails.resourceName);
-    fprintf(stdout, "\tImpl Name : %s\n", instDetails.implName);
-    fprintf(stdout, "\tImpl Desc : %s\n", instDetails.implDescription);
-    fprintf(stdout, "\n");
+    std::cout<<"Using resource "<<rNumber<<":\n";
+    std::cout<<"\tRsrc Name : "<<instDetails.resourceName<<"\n";
+    std::cout<<"\tImpl Name : "<<instDetails.implName<<"\n";
+    std::cout<<"\tImpl Desc : "<<instDetails.implDescription<<"\n";
+    std::cout<<"\n";
 
     if (useTipStates) {
         // set the sequences for each tip using state likelihood arrays
@@ -398,6 +435,43 @@ int main( int argc, const char* argv[] )
             3, 3,
     };
 
+    int rowIndices[16] = {
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+    };
+    int colIndices[16] = {
+            0,
+            1,
+            2,
+            3,
+            0,
+            1,
+            2,
+            3,
+            0,
+            1,
+            2,
+            3,
+            0,
+            1,
+            2,
+            3,
+    };
+
     double ivec[1] = {16};
 
     ///array of real parts + array of imaginary parts
@@ -436,7 +510,8 @@ int main( int argc, const char* argv[] )
 
 
     // set the Eigen decomposition
-    beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
+//    beagleSetEigenDecomposition(instance, 0, evec, ivec, eval);
+    beagleSetSparseMatrix(instance, 0, rowIndices, colIndices, eval, 16);
 
     // a list of indices and edge lengths
     int nodeIndices[4] = { 0, 1, 2, 3 };
@@ -464,7 +539,7 @@ int main( int argc, const char* argv[] )
 
     double * seeprePartials  = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
 
-    beagleGetPartials(instance, 4, BEAGLE_OP_NONE, seeprePartials);
+    beagleGetPartials(instance, 0, BEAGLE_OP_NONE, seeprePartials);
     MapType * testMaps = (MapType *) malloc(sizeof(MapType) * rateCategoryCount);
     for (int i = 0; i < rateCategoryCount; i++) {
         new (& testMaps[i]) MapType(seeprePartials + i * nPatterns * stateCount, stateCount, nPatterns);
@@ -476,7 +551,7 @@ int main( int argc, const char* argv[] )
 
     int l = 0;
     for(int s = 0; s < rateCategoryCount; s++){
-        std::cout<<"See partial"<< 3 <<" rate category"<< s+1<< ": \n";
+        std::cout<<"See partial"<< 0 <<" rate category"<< s+1<< ": \n";
         for(int k = 0; k<nPatterns; k++){
             for(int j=0; j < stateCount; j++){
                 std::cout<<seeprePartials[l++]<<", ";
@@ -492,6 +567,36 @@ int main( int argc, const char* argv[] )
                          operations,     // eigenIndex
                          2,              // operationCount
                          BEAGLE_OP_NONE);          // cumulative scaling index
+
+
+
+    beagleGetPartials(instance, 3, BEAGLE_OP_NONE, seeprePartials);
+
+    l = 0;
+    for(int s = 0; s < rateCategoryCount; s++){
+        std::cout<<"See partial"<< 3 <<" rate category"<< s+1<< ": \n";
+        for(int k = 0; k<nPatterns; k++){
+            for(int j=0; j < stateCount; j++){
+                std::cout<<seeprePartials[l++]<<", ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<std::endl;
+    }
+    beagleGetPartials(instance, 4, BEAGLE_OP_NONE, seeprePartials);
+
+    l = 0;
+    for(int s = 0; s < rateCategoryCount; s++){
+        std::cout<<"See partial"<< 4 <<" rate category"<< s+1<< ": \n";
+        for(int k = 0; k<nPatterns; k++){
+            for(int j=0; j < stateCount; j++){
+                std::cout<<seeprePartials[l++]<<", ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<std::endl;
+    }
+
 
 
     ///XJ: I decided to store the pre-order partials vector in reverse order as those of post-orders
@@ -548,7 +653,7 @@ int main( int argc, const char* argv[] )
 //                             1);                                    // count
 
 
-    fprintf(stdout, "logL = %.5f (R = -18.04619478977292)\n\n", logL);
+    std::cout<<"logL = "<<logL<<" (R = -21.827146738233282)\n\n";
 
     double * seerootPartials = (double*) malloc(sizeof(double) * stateCount * nPatterns * rateCategoryCount);
     int offset = 0;
@@ -643,6 +748,8 @@ int main( int argc, const char* argv[] )
 
     beagleSetDifferentialMatrix(instance, 4, scaledQ.data());
     beagleSetDifferentialMatrix(instance, 5, scaledQ2.data());
+
+    beagleSetSparseDifferentialMatrix(instance, 4, rowIndices, colIndices, eval, 16);
 
 
     std::vector<double> firstBuffer(nPatterns * 5 * 2); // Get both numerator and denominator

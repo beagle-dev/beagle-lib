@@ -44,6 +44,7 @@ public enum BeagleFlag {
 
     PREORDER_TRANSPOSE_MANUAL((long) 1 << 30, "Pre-order transition matrices passed to BEAGLE have been transposed"),
     PREORDER_TRANSPOSE_AUTO((long) 1 << 31, "Automatically transpose pre-order transition matrices"),
+    PREORDER_TRANSPOSE_LOW_MEMORY(1L << 32, "Use low-memory automatic transposition of pre-order transition matrices"),
 
     BEAGLE_FLAG_COMPUTATION_ACTION((long) 1 << 40, "Action computation");
 

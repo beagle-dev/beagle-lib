@@ -35,6 +35,7 @@
 #include <vector>
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
+#include <shared_mutex>
 
 #define T_PAD_DEFAULT   1   // Pad transition matrix rows with an extra 1.0 for ambiguous characters
 #define P_PAD_DEFAULT   0   // No partials padding necessary for non-SSE implementations
@@ -46,7 +47,7 @@
 
 typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> MatrixXd;
 typedef Eigen::Map<MatrixXd> MapType;
-typedef Eigen::SparseMatrix<double> SpMatrix;
+typedef Eigen::SparseMatrix<double, Eigen::StorageOptions::RowMajor> SpMatrix;
 typedef Eigen::Triplet<double> Triplet;
 
 
@@ -63,9 +64,10 @@ namespace beagle {
 
         protected:
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kTipCount;
-//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::integrationTmp;
-//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::firstDerivTmp;
-//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::secondDerivTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kNumThreads;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::integrationTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::firstDerivTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::secondDerivTmp;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kPatternCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kPaddedPatternCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kExtraPatterns;
@@ -78,9 +80,16 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kEigenDecompCount;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gPartials;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryRates;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gCategoryWeights;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gScaleBuffers;
             using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::kFlags;
-//            SpMatrix** gScaledQs;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::grandNumeratorDerivTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::grandDenominatorDerivTmp;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::accumulateDerivatives;
+            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::resetDerivativeTemporaries;
+//            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTransitionMatrices;
+
+            //            SpMatrix** gScaledQs;
             int kPartialsCacheOffset;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gStateFrequencies;
 //            using BeagleCPUImpl<BEAGLE_CPU_ACTION_DOUBLE>::gTipStates;
@@ -94,7 +103,8 @@ namespace beagle {
 	    std::vector<double> gB1Norms;
 	    std::vector<int> gEigenMaps;
 	    std::vector<double> gEdgeMultipliers;
-	    std::vector<std::vector<double>> ds;
+	    mutable std::vector<std::vector<double>> ds;
+            mutable std::shared_mutex ds_mutex;
             SpMatrix identity;
             MapType* gMappedIntegrationTmp;
 //            MapType* gMappedLeftPartialTmp;
@@ -178,6 +188,18 @@ namespace beagle {
 				      int operationCount,
 				      int cumulativeScalingIndex);
 
+            virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
+                                               const int *preBufferIndices,
+                                               const int *firstDerivativeIndices,
+                                               const int *secondDerivativeIndices,
+                                               const int *categoryWeightsIndices,
+                                               const int *categoryRatesIndices,
+                                               const int *cumulativeScaleIndices,
+                                               int count,
+                                               double *siteLogLikelihoods,
+                                               double *outLogFirstDerivatives,
+                                               double *outLogDiagonalSecondDerivatives);
+
 	    inline MapType partialsMap(int index, int category, int startPattern, int endPattern);
 
 	    inline MapType partialsMap(int index, int category);
@@ -189,10 +211,43 @@ namespace beagle {
 //            virtual int getPaddedPatternsModulus();
 
         private:
+            // Divide the patterns [startPattern, endPattern) of a partials buffer by existing scale factors.
+            void applyFixedScaling(int destinationPartialIndex, const double* scalingFactors, int startPattern, int endPattern);
+
+            void calcEdgeLogDerivativesPartials(const int postOrderPartialIndex,
+                                                const int preOrderPartialIndex,
+                                                const int firstDerivativeIndex,
+                                                const int secondDerivativeIndex,
+                                                const double *categoryRates,
+                                                const double *categoryWeights,
+                                                const int scalingFactorsIndex,
+                                                double *siteLogLikelihoods,
+                                                double *outLogFirstDerivatives,
+                                                double *outLogDiagonalSecondDerivatives,
+                                                int offset);
+
+            int calcEdgeLogDerivativesByAutoPartitionAsync(const int *operations,
+                                                           int count,
+                                                           double *outDerivatives,
+                                                           double *outSumDerivatives,
+                                                           double *outSumSquaredDerivatives);
+
             virtual int setEigenDecomposition(int eigenIndex,
                                               const double *inEigenVectors,
                                               const double *inInverseEigenVectors,
                                               const double *inEigenValues);
+
+            virtual int setSparseMatrix(int matrixIndex,
+                                        const int* rowIndices,
+                                        const int* colIndices,
+                                        const double* values,
+                                        int numNonZeros);
+
+            virtual int setSparseDifferentialMatrix(int matrixIndex,
+                                                    const int *rowIndices,
+                                                    const int *colIndices,
+                                                    const double *values,
+                                                    int numNonZeros);
 
             virtual int updateTransitionMatrices(int eigenIndex,
                                                  const int* probabilityIndices,
@@ -223,11 +278,14 @@ namespace beagle {
 					  int startPattern,
 					  int endPattern);
 
+
 	    // Return (m,s)
 	    std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
 					       int eigenIndex) const;
 
             double getDValue(int p, int eigenIndex) const;
+
+            bool hasDValue(int p, int eigenIndex) const;
 
             double getPMax() const;
         };

@@ -90,6 +90,20 @@ public class BeagleJNIWrapper {
                                             final double[] inverseEigenValues,
                                             final double[] eigenValues);
 
+    public native int setSparseMatrix(int instance,
+                                      int matrixIndex,
+                                      final int[] rowIndices,
+                                      final int[] colIndices,
+                                      final double[] values,
+                                      int numNonZeros);
+
+    public native int setSparseDifferentialMatrix(int instance,
+                                                  int matrixIndex,
+                                                  final int[] rowIndices,
+                                                  final int[] colIndices,
+                                                  final double[] values,
+                                                  int numNonZeros);
+
     public native int setStateFrequencies(int instance,
                                           int stateFrequenciesIndex,
                                           final double[] stateFrequencies);

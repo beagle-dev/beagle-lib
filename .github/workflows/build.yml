@@ -3,7 +3,7 @@ name: Build and test
 on:
   push:
     branches:
-      - "*"
+    - "*"
   pull_request:
     branches:
     - "*"
@@ -12,78 +12,134 @@ jobs:
   build:
     strategy:
       matrix:
-        name: [ubuntu-gcc-10,
-               ubuntu-gcc-11,
-               ubuntu-gcc-12,
-               ubuntu-clang-15,
-               macos-xcode-14-intel,
-               macos-xcode-14-arm,
+        name: [ubuntu-gcc-12,
+               ubuntu-gcc-13,
+               ubuntu-gcc-14,
+               ubuntu-gcc-15,
+               ubuntu-gcc-15-debug,
+#               ubuntu-gcc-14-arm,
+               ubuntu-clang-17,
+               ubuntu-clang-19,
+               macos-intel,
+               macos-xcode16-arm,
+               macos-xcode26-arm,
                windows
                ]
 
         include:
-          - name: ubuntu-gcc-10
-            os: ubuntu-20.04
-            compiler: gcc
-            version: "10"
-            buildtype: "release"
-            arch: "linux64"
-
-          - name: ubuntu-gcc-11
-            os: ubuntu-22.04
-            compiler: gcc
-            version: "11"
-            buildtype: "release"
-            arch: "linux64"
 
           - name: ubuntu-gcc-12
             os: ubuntu-22.04
             compiler: gcc
             version: "12"
-            buildtype: "release"
             arch: "linux64"
 
-          - name: ubuntu-clang-15
-            os: ubuntu-22.04
-            compiler: clang
-            version: "15"
-            buildtype: "release"
+          - name: ubuntu-gcc-13
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "13"
             arch: "linux64"
 
-          - name: macos-xcode-14-intel
-            os: macos-12
-            compiler: xcode
+          - name: ubuntu-gcc-14
+            os: ubuntu-24.04
+            compiler: gcc
             version: "14"
-            buildtype: "release"
+            arch: "linux64"
+
+          - name: ubuntu-gcc-15
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "14"
+            buildtype: "Release"
+            arch: "linux64"
+            image: ubuntu:25.04
+
+          - name: ubuntu-gcc-15-debug
+            os: ubuntu-24.04
+            compiler: gcc
+            version: "15"
+            buildtype: "Debug"
+            arch: "linux64"
+            image: ubuntu:25.04
+
+#           "Failed to obtain BEAGLE instance" on some tests.
+#          - name: ubuntu-gcc-14-arm
+#            os: ubuntu-24.04-arm
+#            compiler: gcc
+#            version: "14"
+#            arch: "linux64"
+
+          - name: ubuntu-clang-17
+            os: ubuntu-24.04
+            compiler: clang
+            version: "17"
+            buildtype: "Release"
+            arch: "linux64"
+
+          - name: ubuntu-clang-19
+            os: ubuntu-24.04
+            compiler: clang
+            version: "19"
+            buildtype: "Release"
+            arch: "linux64"
+
+          - name: macos-intel
+            os: macos-15-intel
+            compiler: xcode
+            version: "16"
             arch: "mac-intel64"
 
-          - name: macos-xcode-14-arm
-            os: macos-14
+          - name: macos-xcode16-arm
+            os: macos-15
             compiler: xcode
-            version: "14"
-            buildtype: "release"
+            version: "16"
+            arch: "mac-arm64"
+
+          - name: macos-xcode26-arm
+            os: macos-latest
+            compiler: xcode
+            version: "26"
             arch: "mac-arm64"
 
           - name: windows
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             compiler: mingw
             version: "N/A"
-            buildtype: "release"
             arch: "win64"
 
     runs-on: ${{ matrix.os }}
+    container:
+      image: ${{ matrix.image || '' }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: 3.12.0
+        python-version: 3.12
 
-    - name: Install (Linux)
+    # Caches for different branches are isolated, so we don't need to put the branch name into the key.
+    # The total size for all caches in a repository is 5Gb.
+
+    - name: Set CMake build type
+      run: |
+        # Portable binaries: with -march=native, ccache would reuse objects built on one runner's CPU on
+        # another runner's ("Illegal instruction").
+        CMAKE_ARGS="-DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF"
+        if [ -n "${{ matrix.buildtype }}" ] ; then
+          CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }}"
+        fi
+        echo "CMAKE_ARGS=${CMAKE_ARGS}" >> $GITHUB_ENV
+
+    - name: Install utilities (Linux)
       if: runner.os == 'Linux' && matrix.name != 'windows'
       run: |
+        # If we're running in a docker image, we are already root
+        if [ -n "${{ matrix.image }}" ]  ; then
+          apt-get update && apt-get install -y sudo build-essential git cmake
+        fi
+
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build ccache pkg-config
-        sudo apt-get install -y openjdk-17-jdk libeigen3-dev ocl-icd-opencl-dev
+        sudo apt-get install -y openjdk-17-jdk libeigen3-dev
 
         if [ "${{ matrix.compiler }}" = "gcc" ]; then
           # For newer GCCs, maybe.
@@ -97,21 +153,17 @@ jobs:
           sudo apt-get install -y clang-${{ matrix.version }}
           echo "CC=ccache clang-${{ matrix.version }}" >> $GITHUB_ENV
           echo "CXX=ccache clang++-${{ matrix.version }}" >> $GITHUB_ENV
-          echo "CMAKE_ARGS=-DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
         fi
 
-    - name: Install (Linux -> Windows [cross])
+    - name: Install utilities (Linux -> Windows [cross])
       if: matrix.name == 'windows'
       run: |
-        # For mingw/gcc-12.
-        cat /etc/apt/sources.list
-        sudo sed -i 's/jammy/lunar/g' /etc/apt/sources.list
-
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build ccache pkg-config
         sudo apt-get install -y dos2unix g++-mingw-w64 mingw-w64-tools wine64 zstd
 
-        echo "CMAKE_ARGS=-DBUILD_ACTION=OFF -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
+        echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_ACTION=OFF -DBUILD_JNI=OFF -DBUILD_OPENMP=OFF -DCMAKE_TOOLCHAIN_FILE=scripts/mingw-w64-x86_64.cmake" >> $GITHUB_ENV
 
     - name: Select XCode version (macOS)
       if: runner.os == 'macOS'
@@ -119,44 +171,23 @@ jobs:
       with:
         xcode-version: ${{ matrix.version }}
 
-    - name: Install (macOS)
+    - name: Install utilities (macOS)
       if: runner.os == 'macOS'
       run: |
-          brew install cmake ninja pkg-config ccache coreutils eigen openjdk
+          brew install ninja pkg-config ccache coreutils eigen openjdk
           echo "CC=ccache clang" >> $GITHUB_ENV
           echo "CXX=ccache clang++" >> $GITHUB_ENV
-          echo "CMAKE_ARGS=-DBUILD_OPENMP=OFF" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
 
-    # Caches for different branches are isolated, so we don't need to put the branch name into the key.
-    # The total size for all caches in a repository is 5Gb.
-
-    - name: Prepare ccache timestamp
-      id: ccache_cache_timestamp
-      run: |
-        ccache --set-config=cache_dir=$HOME/.ccache
-
-        if [ "${{ runner.os }}" = "Linux" ]; then
-          stamp=$(date '+%s')
-        else
-          stamp=$(gdate '+%s')
-        fi
-        echo "${stamp}"
-        echo "timestamp=${stamp}" >> $GITHUB_OUTPUT
-
-    - name: ccache cache files
-#      uses: actions/cache@v2
-      uses: pat-s/always-upload-cache@v3.0.11
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
       with:
-         path: ~/.ccache
-         key: ${{ matrix.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+         key: ${{ matrix.name }}-portable
          restore-keys: |
-           ${{ matrix.name }}-ccache-
+           ${{ matrix.name }}-portable
 
     - name: Configure
       run: |
-        if [ "${{ matrix.cxxflags }}" != "" ] ; then
-          CPPARGS="$CPPARGS ${{ matrix.cxxflags }}"
-        fi
         mkdir build
         cd build
         cmake .. -G Ninja -DCMAKE_INSTALL_PREFIX=$HOME/local ${CMAKE_ARGS}
