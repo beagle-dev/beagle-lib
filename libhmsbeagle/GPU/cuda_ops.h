@@ -150,6 +150,7 @@ int cuda_row_chunk_count(int nRows, int nPatterns);
 
 // parent = left * right for (nRows, nPatterns) partials (right == nullptr means 1).  If scalingFactors is non-null,
 // also rescale each pattern by its largest entry m and write m (log m if scalersLog) to scalingFactors[pattern].
+// Otherwise, if fixedScalingFactors is non-null, divide each pattern by its existing factor (exp of it if scalersLog).
 template <typename T>
 struct PartialsProduct
 {
@@ -157,6 +158,7 @@ struct PartialsProduct
     const T* right;
     T* parent;
     T* scalingFactors;
+    const T* fixedScalingFactors = nullptr;
 };
 
 constexpr int kMaxPartialsProducts = 16;

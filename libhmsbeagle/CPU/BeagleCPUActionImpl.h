@@ -211,6 +211,9 @@ namespace beagle {
 //            virtual int getPaddedPatternsModulus();
 
         private:
+            // Divide the patterns [startPattern, endPattern) of a partials buffer by existing scale factors.
+            void applyFixedScaling(int destinationPartialIndex, const double* scalingFactors, int startPattern, int endPattern);
+
             void calcEdgeLogDerivativesPartials(const int postOrderPartialIndex,
                                                 const int preOrderPartialIndex,
                                                 const int firstDerivativeIndex,

@@ -620,6 +620,9 @@ namespace beagle {
                     } else {
                         this->rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
                     }
+                } else if (scalingFactors != NULL) {
+                    // Reuse the existing scale factors (e.g. dynamic rescaling between recomputations).
+                    applyFixedScaling(destinationPartialIndex, scalingFactors, startPattern, endPattern);
                 }
             }
 
@@ -713,6 +716,9 @@ namespace beagle {
                     } else {
                         this->rescalePartials(destPartials, scalingFactors, cumulativeScaleBuffer, 0);
                     }
+                } else if (scalingFactors != NULL) {
+                    // Reuse the existing scale factors (e.g. dynamic rescaling between recomputations).
+                    applyFixedScaling(destinationPartialIndex, scalingFactors, startPattern, endPattern);
                 }
 
                 if (DEBUGGING_OUTPUT) {
@@ -727,6 +733,22 @@ namespace beagle {
             }
 
             return BEAGLE_SUCCESS;
+        }
+
+        BEAGLE_CPU_ACTION_TEMPLATE
+        void BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::applyFixedScaling(int destinationPartialIndex,
+                                                                             const double* scalingFactors,
+                                                                             int startPattern,
+                                                                             int endPattern) {
+            // As BeagleCPUImpl's *FixedScaling functions: divide each pattern by its stored scale factor.
+            const bool scalersLog = (this->kFlags & BEAGLE_FLAG_SCALERS_LOG) != 0;
+            for (int category = 0; category < kCategoryCount; category++) {
+                auto destP = partialsMap(destinationPartialIndex, category, startPattern, endPattern);
+                for (int j = 0; j < endPattern - startPattern; j++) {
+                    const double factor = scalingFactors[startPattern + j];
+                    destP.col(j) *= 1.0 / (scalersLog ? exp(factor) : factor);
+                }
+            }
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE

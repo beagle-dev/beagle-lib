@@ -329,13 +329,28 @@ __device__ T column_reduce(T v, Op op)
     return shared[threadIdx.x];
 }
 
-// parent = left * right for each product of the batch (blockIdx.y)
+// 1 / the existing scale factor of pattern p, or 1 without fixed scaling.
 template <typename T>
-__global__ void partials_product_kernel(const PartialsProductBatch<T> batch, size_t n)
+__device__ T fixed_inverse(const PartialsProduct<T>& product, int p, bool scalersLog)
+{
+    if (not product.fixedScalingFactors)
+        return T(1);
+    const T factor = product.fixedScalingFactors[p];
+    return T(1) / (scalersLog ? exp(factor) : factor);
+}
+
+// parent = left * right for each product of the batch (blockIdx.y), divided by any fixed scale factors.
+template <typename T>
+__global__ void partials_product_kernel(const PartialsProductBatch<T> batch, size_t n, int nPatterns, bool scalersLog)
 {
     const PartialsProduct<T>& product = batch.products[blockIdx.y];
     for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x)
-        product.parent[i] = product.right ? product.left[i] * product.right[i] : product.left[i];
+    {
+        T value = product.right ? product.left[i] * product.right[i] : product.left[i];
+        if (product.fixedScalingFactors)
+            value *= fixed_inverse(product, (int)(i % nPatterns), scalersLog);
+        product.parent[i] = value;
+    }
 }
 
 // chunkMax[product, chunk, p] = max over the chunk's rows r of left[r, p] * right[r, p]  (product = blockIdx.z)
@@ -378,7 +393,7 @@ __global__ void partials_product_scale_kernel(const PartialsProductBatch<T> batc
     __syncthreads();
     if (p >= nPatterns) return;
     const T m = patternMax[threadIdx.x];
-    const T inverse = 1 / m;
+    const T inverse = product.scalingFactors ? 1 / m : fixed_inverse(product, p, scalersLog);
 
     const int rowEnd = min(nRows, (blockIdx.y + 1) * rowsPerChunk);
     for (int r = blockIdx.y * rowsPerChunk + threadIdx.y; r < rowEnd; r += blockDim.y)
@@ -420,7 +435,7 @@ void cuda_partials_products_impl(const PartialsProductBatch<T>& batch, int nRows
     {
         const size_t n = (size_t)nRows * nPatterns;
         const int blocks = (int)std::min<size_t>((n + 255) / 256, 4096 / batch.count + 1);
-        partials_product_kernel<<<dim3(blocks, batch.count), 256, 0, stream>>>(batch, n);
+        partials_product_kernel<<<dim3(blocks, batch.count), 256, 0, stream>>>(batch, n, nPatterns, scalersLog);
         return;
     }
 

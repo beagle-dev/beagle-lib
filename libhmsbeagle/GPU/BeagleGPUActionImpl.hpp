@@ -632,6 +632,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPartials(bool byPartition,
         operation.edges[0] = firstChildSubstitutionMatrixIndex;
         operation.edges[1] = secondChildSubstitutionMatrixIndex;
         operation.scalingFactors = (rescale == 1) ? scalingFactors : nullptr;
+        operation.fixedScalingFactors = (rescale == 0) ? scalingFactors : nullptr;
     }
 
     for (const auto& batch: scheduleBatches(parsed)) {
@@ -684,6 +685,11 @@ BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::scheduleBatches(const std::vector<Parti
         int level = std::max(writeLevel[operation.destination], readLevel[operation.destination]) + 1;
         for (int child: operation.children)
             level = std::max(level, writeLevel[child] + 1);
+        if (operation.fixedScalingFactors) {
+            auto it = scalingWriteLevel.find(operation.fixedScalingFactors);
+            if (it != scalingWriteLevel.end())
+                level = std::max(level, it->second + 1);
+        }
         if (operation.scalingFactors) {
             auto it = scalingWriteLevel.find(operation.scalingFactors);
             if (it != scalingWriteLevel.end())
@@ -738,7 +744,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
         cumulativeScalingBuffer = (Real*)dScalingFactors[cumulativeScalingIndex];
 
     // [dest, writeScaling, readScaling, parent (pre-order), dest's matrix, sibling (post-order), sibling's matrix].
-    // As in the CPU implementation, only a write scaling index rescales.
+    // As in the CPU implementation, only manual scaling indices are used (not automatic or always-rescaling).
     std::vector<PartialsOperation> parsed(operationCount);
     for (int op = 0; op < operationCount; op++) {
         const int* x = operations + op * BEAGLE_OP_COUNT;
@@ -749,6 +755,7 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::upPrePartials(bool byPartition,
         operation.edges[0] = x[4];
         operation.edges[1] = x[6];
         operation.scalingFactors = (x[1] >= 0) ? (Real*)dScalingFactors[x[1]] : nullptr;
+        operation.fixedScalingFactors = (x[1] < 0 and x[2] >= 0) ? (Real*)dScalingFactors[x[2]] : nullptr;
         for (int buffer: {x[0], x[3], x[5]})
             if (buffer < 0 or buffer >= kPartialsBufferCount or dPartials[buffer] == 0)
                 return BEAGLE_ERROR_OUT_OF_RANGE;
@@ -1229,6 +1236,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPartialsPartials(const std::ve
         product.right = actions[op * 2 + 1];
         product.parent = (Real*)dPartials[operations[op].destination];
         product.scalingFactors = operations[op].scalingFactors;
+        product.fixedScalingFactors = operations[op].fixedScalingFactors;
         partialsGenerations[operations[op].destination]++;
     }
     cuda_partials_products(products, kCategoryCount * kPaddedStateCount, kPaddedPatternCount,
@@ -1285,7 +1293,8 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPrePartials(const std::vector<
     for (size_t op = 0; op < operations.size(); op++) {
         const int edgeIndex = operations[op].edges[0];
         estimateTransposedNorms(hEigenMaps[edgeIndex]);
-        Real* out = operations[op].scalingFactors ? block(op, 1) : (Real*) dPartials[operations[op].destination];
+        const bool scaled = operations[op].scalingFactors or operations[op].fixedScalingFactors;
+        Real* out = scaled ? block(op, 1) : (Real*) dPartials[operations[op].destination];
         for (int category = 0; category < kCategoryCount; category++) {
             ActionGroup group;
             group.in = block(op, 0) + category * matrixSize;
@@ -1299,18 +1308,19 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPrePartials(const std::vector<
     }
     computeActions(groups);
 
-    // 4. Rescale where requested.
+    // 4. Rescale where requested, with new or existing scale factors.
     bool scalers_log = (kFlags & BEAGLE_FLAG_SCALERS_LOG)?true:false;
     products.count = 0;
     for (size_t op = 0; op < operations.size(); op++) {
         partialsGenerations[operations[op].destination]++;
-        if (not operations[op].scalingFactors)
+        if (not operations[op].scalingFactors and not operations[op].fixedScalingFactors)
             continue;
         auto& product = products.products[products.count++];
         product.left = block(op, 1);
         product.right = nullptr;
         product.parent = (Real*)dPartials[operations[op].destination];
         product.scalingFactors = operations[op].scalingFactors;
+        product.fixedScalingFactors = operations[op].fixedScalingFactors;
     }
     cuda_partials_products(products, kCategoryCount * kPaddedStateCount, kPaddedPatternCount,
                            cumulativeScalingBuffer, scalers_log, dReductionScratch, stream);

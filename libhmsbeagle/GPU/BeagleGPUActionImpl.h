@@ -1218,6 +1218,7 @@ private:
         int children[2];
         int edges[2];
         Real* scalingFactors;   // nullptr means no rescaling
+        Real* fixedScalingFactors = nullptr;   // otherwise, divide by these existing factors (a read scaling index)
     };
 
     // Groups operations into batches of independent ones (one tree level, up to maxBatchOperations each), in an
