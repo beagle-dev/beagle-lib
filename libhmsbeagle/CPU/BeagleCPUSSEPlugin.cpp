@@ -60,6 +60,9 @@ Plugin("CPU-SSE", "CPU-SSE")
 
 extern "C" {
 
+// check_sse2( ) also requires SSE4.1: the 4-state kernels use _mm_dp_pd.  (CPUID leaf 1: SSE2 is EDX bit 26,
+// SSE4.1 is ECX bit 19.)
+
 #ifdef _WIN32
 bool check_sse2(){
 #ifdef _WIN64
@@ -67,6 +70,7 @@ bool check_sse2(){
     return 1;
 #else
     unsigned int features;
+    unsigned int features2;
 
     __asm
     {
@@ -76,10 +80,11 @@ bool check_sse2(){
         push    ecx
         push    edx
 
-        // Get the feature flags (eax=1) from edx
+        // Get the feature flags (eax=1) from edx and ecx
         mov     eax, 1
         cpuid
         mov     features, edx
+        mov     features2, ecx
 
         // Restore registers
         pop     edx
@@ -88,8 +93,8 @@ bool check_sse2(){
         pop     eax
     }
 
-// Bit 26 for SSE2 support
-    return features & 0x04000000;
+// Bit 26 for SSE2 support, ECX bit 19 for SSE4.1
+    return (features & 0x04000000) && (features2 & 0x00080000);
 #endif
 }
 
@@ -112,8 +117,8 @@ bool check_sse2()
     return false;
   }
 
-  /* Run SSE2 test only if host has SSE2 support.  */
-  if (edx & bit_SSE2)
+  /* Run SSE2 test only if host has SSE2 and SSE4.1 support.  */
+  if ((edx & bit_SSE2) && (ecx & bit_SSE4_1))
 	return true;
   return false;
 #elif defined(__aarch64__)
@@ -157,7 +162,7 @@ bool check_sse2()
               "=d" (result[3])  // EDX register -> result[3]
             : "0" (opcode)
             : "cc");
-    return result[3] & 0x04000000;
+    return (result[3] & 0x04000000) && (result[2] & 0x00080000);
 #endif // HAVE_CPUID.H
 }
 #else
@@ -169,7 +174,7 @@ bool check_sse2(){
       __asm__("cpuid"
         : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
         : "a" (op));
-	return edx & 0x04000000;
+	return (edx & 0x04000000) && (ecx & 0x00080000);
 }
 #endif
 #endif

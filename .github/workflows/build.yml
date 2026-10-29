@@ -121,7 +121,9 @@ jobs:
 
     - name: Set CMake build type
       run: |
-        CMAKE_ARGS=""
+        # Portable binaries: with -march=native, ccache would reuse objects built on one runner's CPU on
+        # another runner's ("Illegal instruction").
+        CMAKE_ARGS="-DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF"
         if [ -n "${{ matrix.buildtype }}" ] ; then
           CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }}"
         fi
@@ -177,28 +179,12 @@ jobs:
           echo "CXX=ccache clang++" >> $GITHUB_ENV
           echo "CMAKE_ARGS=${CMAKE_ARGS} -DBUILD_OPENMP=OFF" >> $GITHUB_ENV
 
-    # The build uses -march=native, but ccache keys on the literal flag, not on the CPU.  Without the
-    # CPU in the cache key, objects built on one runner get reused on a runner with an older CPU
-    # ("Illegal instruction").
-    - name: Identify CPU (for the ccache key)
-      shell: bash
-      run: |
-        # -march=native output depends on the instruction-set extensions, which differ between runners
-        # with the same CPU model, so the key includes them.
-        if [ "$RUNNER_OS" = "macOS" ]; then
-          # (the feature lists exist only on Intel Macs)
-          cpu="$(sysctl -n machdep.cpu.brand_string) $(sysctl -n machdep.cpu.features machdep.cpu.leaf7_features 2>/dev/null || true)"
-        else
-          cpu="$(grep -m1 "model name" /proc/cpuinfo) $(grep -m1 "^flags" /proc/cpuinfo || uname -m)"
-        fi
-        echo "CPU_KEY=$(echo "$cpu" | cksum | cut -d' ' -f1)" >> $GITHUB_ENV
-
     - name: Set up ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-         key: ${{ matrix.name }}-${{ env.CPU_KEY }}
+         key: ${{ matrix.name }}-portable
          restore-keys: |
-           ${{ matrix.name }}-${{ env.CPU_KEY }}
+           ${{ matrix.name }}-portable
 
     - name: Configure
       run: |

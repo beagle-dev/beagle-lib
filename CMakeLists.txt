@@ -14,7 +14,9 @@ set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 message(STATUS "BEAGLE_VERSION = ${BEAGLE_VERSION}")
 message(STATUS "BEAGLE_PLUGIN_VERSION = ${BEAGLE_PLUGIN_VERSION}")
 
-set(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH true)
+# -march=native makes the fastest code for the build machine, but the binaries may not run on other CPUs
+# (Illegal instruction).  Turn it off for binaries that are distributed or cached across machines.
+option(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH "Compile with -march=native (not portable to other CPUs)" ON)
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
