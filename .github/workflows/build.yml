@@ -183,10 +183,12 @@ jobs:
     - name: Identify CPU (for the ccache key)
       shell: bash
       run: |
+        # -march=native output depends on the instruction-set extensions, which differ between runners
+        # with the same CPU model, so the key includes them.
         if [ "$RUNNER_OS" = "macOS" ]; then
-          cpu=$(sysctl -n machdep.cpu.brand_string)
+          cpu="$(sysctl -n machdep.cpu.brand_string) $(sysctl -n machdep.cpu.features machdep.cpu.leaf7_features 2>/dev/null)"
         else
-          cpu=$(grep -m1 "model name" /proc/cpuinfo || uname -m)
+          cpu="$(grep -m1 "model name" /proc/cpuinfo) $(grep -m1 "^flags" /proc/cpuinfo || uname -m)"
         fi
         echo "CPU_KEY=$(echo "$cpu" | cksum | cut -d' ' -f1)" >> $GITHUB_ENV
 
