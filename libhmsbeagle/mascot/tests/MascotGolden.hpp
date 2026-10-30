@@ -1,6 +1,6 @@
 /*
- * MascotGolden.hpp -- reader for the golden cases written by BEAST's MascotGoldenCorpus ("mascot-golden 1").
- * Every double is the 16 hex digits of its raw bits.
+ * MascotGolden.hpp -- reader for the golden cases written by BEAST's MascotGoldenCorpus ("mascot-golden 1" or "2";
+ * version 2 adds the step rule and the per-segment step counts). Every double is the 16 hex digits of its raw bits.
  */
 #ifndef MASCOT_GOLDEN_HPP
 #define MASCOT_GOLDEN_HPP
@@ -23,6 +23,8 @@ struct GoldenCase {
     std::string name;
     int K = 0, lineageCount = 0, intervalCount = 0, initialSampleNode = 0, epochCount = 0;
     double maxStep = 0.0, initialTime = 0.0;
+    int stepRuleKind = STEPS_FIXED, maxStepsPerSegment = 0;
+    double tau = 0.0, minStep = 0.0;
     std::vector<double> boundaries, migration, inversePopulation, theta, branchRates;
     std::vector<double> intervalLengths;
     std::vector<int> eventTypes, sampleNodes, child1, child2, parent;
@@ -30,6 +32,7 @@ struct GoldenCase {
     std::string status;                 /* "ok", "numerical" (a NumericalException in Java), "invalidRates"   */
     double logL = 0.0;
     std::vector<double> thetaGradient, clockGradient, ancestralScores;
+    std::vector<int> stepCounts;          /* version 2 only                                                   */
 
     Problem problem(bool checkProbabilities = false) const {
         Problem p;
@@ -38,7 +41,11 @@ struct GoldenCase {
         p.intervalCount = intervalCount;
         p.initialSampleNode = initialSampleNode;
         p.epochCount = epochCount;
+        p.stepRuleKind = stepRuleKind;
         p.maxStep = maxStep;
+        p.tau = tau;
+        p.minStep = minStep;
+        p.maxStepsPerSegment = maxStepsPerSegment;
         p.initialTime = initialTime;
         p.boundaries = boundaries.data();
         p.migration = migration.data();
@@ -122,7 +129,10 @@ inline GoldenCase readGolden(const std::string& path) {
     GoldenCase g;
     std::string line;
     std::getline(in, line);
-    if (line != "mascot-golden 1") throw std::runtime_error(path + ": not a mascot-golden 1 file");
+    if (line != "mascot-golden 1" && line != "mascot-golden 2") {
+        throw std::runtime_error(path + ": not a mascot-golden 1 or 2 file");
+    }
+    const int version = line == "mascot-golden 2" ? 2 : 1;
     auto expect = [&](const std::string& key) -> std::istringstream {
         if (!std::getline(in, line)) throw std::runtime_error(path + ": missing " + key);
         std::istringstream s(line);
@@ -134,6 +144,15 @@ inline GoldenCase readGolden(const std::string& path) {
     { auto s = expect("name"); s >> g.name; }
     { auto s = expect("dims"); s >> g.K >> g.lineageCount >> g.intervalCount >> g.initialSampleNode >> g.epochCount; }
     { auto s = expect("maxStep"); std::string t; s >> t; g.maxStep = goldenDouble(t); }
+    if (version >= 2) {
+        auto s = expect("stepRule");
+        std::string kind, tau, minStep;
+        s >> kind >> tau >> minStep >> g.maxStepsPerSegment;
+        if (kind != "fixed" && kind != "adaptive") throw std::runtime_error(path + ": unknown step rule " + kind);
+        g.stepRuleKind = kind == "adaptive" ? STEPS_ADAPTIVE : STEPS_FIXED;
+        g.tau = goldenDouble(tau);
+        g.minStep = goldenDouble(minStep);
+    }
     { auto s = expect("initialTime"); std::string t; s >> t; g.initialTime = goldenDouble(t); }
     { auto s = expect("boundaries"); g.boundaries = goldenDoubles(s); }
     { auto s = expect("migration"); g.migration = goldenDoubles(s); }
@@ -182,6 +201,11 @@ inline GoldenCase readGolden(const std::string& path) {
             if (rest != "none") { std::istringstream r(rest); g.clockGradient = goldenDoubles(r); }
         }
         { auto s = expect("ancestralScores"); g.ancestralScores = goldenDoubles(s); }
+        if (version >= 2) {
+            auto s = expect("stepCounts");
+            int n;
+            while (s >> n) g.stepCounts.push_back(n);
+        }
     }
     expect("end");
     return g;

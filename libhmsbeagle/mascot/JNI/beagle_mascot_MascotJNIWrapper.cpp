@@ -161,4 +161,18 @@ JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_evaluate(
     return MASCOT_OK;
 }
 
+JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_getLastStepCounts(JNIEnv* env, jclass, jint instance,
+                                                                              jintArray steps, jintArray count) {
+    if (!steps || !count || env->GetArrayLength(count) < 1) return MASCOT_ERROR_ARGUMENT;
+    jint capacity = env->GetArrayLength(steps);
+    std::vector<int> buffer(capacity > 0 ? capacity : 0);
+    int n = 0;
+    int status = mascotGetLastStepCounts(instance, buffer.data(), capacity, &n);
+    if (status != MASCOT_OK) return status;
+    if (n > 0) env->SetIntArrayRegion(steps, 0, n, reinterpret_cast<const jint*>(buffer.data()));
+    jint out = n;
+    env->SetIntArrayRegion(count, 0, 1, &out);
+    return MASCOT_OK;
+}
+
 } // extern "C"

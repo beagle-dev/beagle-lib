@@ -3,11 +3,12 @@
  *
  * What it computes. The MASCOT structured-coalescent likelihood and its adjoint, operation for operation as BEAST's
  * GenericMascotLikelihoodDelegate (MascotForwardEvaluator / MascotAdjointEvaluator):
- *  - forward: walk the schedule; split each interval at epoch boundaries and integrate every segment with fixed-step
- *    RK4 (steps = max(1, ceil(len / maxStep))), projecting each lineage back onto the simplex after every step; the
- *    log-likelihood integrates -hazard; a coalescence adds log(lambda) and replaces the two children by the
- *    normalized parent. With problem.checkProbabilities, every active lineage is checked after each segment and
- *    after each event, as MascotForwardEvaluator.checkProbabilities.
+ *  - forward: walk the schedule; split each interval at epoch boundaries and integrate every segment with RK4 in equal
+ *    steps, the step count from MascotStepRule (FIXED: max(1, ceil(len / maxStep)); ADAPTIVE: from the stiffness of
+ *    the state at the segment start; recorded for lastStepCounts), projecting each lineage back onto the simplex after
+ *    every step; the log-likelihood integrates -hazard; a coalescence adds log(lambda) and replaces the two children
+ *    by the normalized parent. With problem.checkProbabilities, every active lineage is checked after each segment
+ *    and after each event, as MascotForwardEvaluator.checkProbabilities.
  *  - forwardAndReverse: the same forward pass recording a tape (per step: the four RK4 stage inputs, the post-step
  *    state, the normalization sums and the per-stage deme sums / sums of squares), then the reverse pass: VJP of the
  *    normalization, the four stage VJPs in reverse, and the coalescent VJPs. Gradients with respect to M and Q are
@@ -94,6 +95,19 @@ constexpr double TOL = 1.0e-14;   /* MascotRuntime.TIME_TOLERANCE */
 constexpr double EPS = 1.0e-300;  /* MascotAdjointEvaluator.EPS   */
 
 static inline int roundEven(int a) { return (a + 1) & ~1; }
+
+// Java's Math.max / Math.min on doubles (used by the step rule): NaN if either argument is NaN, and -0.0 < +0.0.
+static inline double javaMax(double a, double b) {
+    if (std::isnan(a)) return a;
+    if (a == 0.0 && b == 0.0 && std::signbit(a)) return b;
+    return a >= b ? a : b;
+}
+
+static inline double javaMin(double a, double b) {
+    if (std::isnan(a)) return a;
+    if (a == 0.0 && b == 0.0 && std::signbit(b)) return b;
+    return a <= b ? a : b;
+}
 
 template <class V>
 static inline double* growTape(V& v, size_t& used, size_t add) {
@@ -446,6 +460,7 @@ struct Workspace {
     std::vector<int> ops;                               // -1 sample, >= 0 interval index, <= -2 coalescent -(index+2)
     std::vector<double> y0, y2, y3, y4, scale, sumsTape, clockTape, coalBuf;
     std::vector<int> idTape;
+    std::vector<int> stepCounts;                        // per segment of the last evaluation
     size_t y0Used = 0, yUsed = 0, scaleUsed = 0, sumsUsed = 0, idUsed = 0, coalUsed = 0;
     // reverse
     std::vector<double> a, b;                           // slot-major adjoint (ping-pong across coalescences)
@@ -508,6 +523,14 @@ public:
         return mascot::OK;
     }
 
+    int lastStepCounts(int* steps, int capacity, int* count) const override {
+        const int n = (int) w.stepCounts.size();
+        *count = n;
+        const int written = std::min(n, std::max(capacity, 0));
+        if (written > 0) std::memcpy(steps, w.stepCounts.data(), sizeof(int) * written);
+        return capacity < n ? mascot::ERROR_ARGUMENT : mascot::OK;
+    }
+
     char name() const override { return 'A'; }
     int simdWidth() const override { return 0; }
     bool fusedMultiplyAdd() const override {
@@ -568,6 +591,41 @@ private:
         return stop;
     }
 
+    // MascotStepRule.stiffness for the segment starting now (slot-major state, active lineages in slot order):
+    // lambda = clock * maxOut + maxLoad. Plain expressions, unfused in both builds, so both take the same steps.
+    double stiffness(int epoch) const {
+        double clock = 1.0;
+        if (in->branchRates) {
+            clock = 0.0;
+            for (int l = 0; l < active; l++) clock = javaMax(clock, w.clock[l]);
+        }
+        const double* M2 = w.M2.data() + (size_t) epoch * K * K * 2;
+        const double* Q = w.Q.data() + (size_t) epoch * K;
+        double maxOut = 0.0;
+        for (int k = 0; k < K; k++) maxOut = javaMax(maxOut, -M2[2 * ((size_t) k * K + k)]);
+        const double* y = w.y.data();
+        double maxLoad = 0.0;
+        for (int k = 0; k < K; k++) {
+            double load = 0.0;
+            for (int l = 0; l < active; l++) load += y[(size_t) l * K + k];
+            maxLoad = javaMax(maxLoad, Q[k] * load);
+        }
+        return clock * maxOut + maxLoad;
+    }
+
+    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch.
+    int stepCount(double len, int epoch) const {
+        if (in->stepRuleKind != mascot::STEPS_ADAPTIVE) return std::max(1, (int) std::ceil(len / in->maxStep));
+        const double largest = 1073741824.0;  // 2^30, MascotStepRule.LARGEST_STEP_COUNT
+        const double target = len * stiffness(epoch) / in->tau;
+        int n = target > 0.0 ? (int) std::ceil(javaMin(target, largest)) : 1;
+        n = std::max(1, n);
+        if (in->maxStep > 0.0) n = std::max(n, (int) std::ceil(javaMin(len / in->maxStep, largest)));
+        if (in->minStep > 0.0) n = std::min(n, std::max(1, (int) std::floor(javaMin(len / in->minStep, largest))));
+        if (in->maxStepsPerSegment > 0) n = std::min(n, in->maxStepsPerSegment);
+        return n;
+    }
+
     // MascotForwardEvaluator.checkProbabilities on the slot-major state.
     bool probabilitiesValid() const {
         const double* y = w.y.data();
@@ -585,6 +643,7 @@ private:
 
     int run(bool tape) {
         taped = tape;
+        w.stepCounts.clear();
         if (taped) {
             w.intervals.clear(); w.coals.clear(); w.ops.clear();
             w.y0Used = w.yUsed = w.scaleUsed = w.sumsUsed = w.idUsed = w.coalUsed = 0;
@@ -712,7 +771,8 @@ private:
     }
 
     void integrate(double start, double end, int epoch) {
-        const int steps = std::max(1, (int) std::ceil((end - start) / in->maxStep));
+        const int steps = stepCount(end - start, epoch);
+        w.stepCounts.push_back(steps);
         const double h = (end - start) / steps;
         const double hh = 0.5 * h;
         const double h6 = h / 6.0;

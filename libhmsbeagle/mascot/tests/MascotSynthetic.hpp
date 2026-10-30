@@ -27,6 +27,10 @@ struct SyntheticOptions {
     bool zeroRates = false;
     bool ambiguousTips = false;
     double logNeShift = 0.0;
+    int stepRuleKind = STEPS_FIXED;   /* ADAPTIVE uses maxStep as its cap (<= 0: none)                          */
+    double tau = 0.25;
+    double minStep = 0.0;
+    int maxStepsPerSegment = 0;
 };
 
 /* Fills migration (diagonal = -row sum, summed in sink order) and inversePopulation = exp(-log Ne) from theta. */
@@ -61,6 +65,12 @@ inline GoldenCase syntheticCase(const std::string& name, uint64_t seed, const Sy
     g.K = o.K;
     g.epochCount = o.epochCount;
     g.maxStep = o.maxStep;
+    g.stepRuleKind = o.stepRuleKind;
+    if (o.stepRuleKind == STEPS_ADAPTIVE) {
+        g.tau = o.tau;
+        g.minStep = o.minStep;
+        g.maxStepsPerSegment = o.maxStepsPerSegment;
+    }
     const int n = o.tipCount, nodes = 2 * n - 1;
     g.lineageCount = nodes;
     g.intervalCount = nodes - 1;

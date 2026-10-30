@@ -10,9 +10,13 @@
  *        dp_l/dt = c_l p_l M - p_l o (h_l - r_l),   h_l = (S - p_l) o Q,   r_l = p_l . h_l,   S = sum_l p_l,
  *        dlogL/dt = -sum_s Q_s (S_s^2 - sum_l p_ls^2) / 2,
  *    where c_l is the lineage's branch rate (1 without branch rates). Each interval is split at epoch boundaries and
- *    each segment is integrated with classical RK4 in max(1, ceil(length / maxStep)) equal steps; after every step each
- *    lineage is renormalized to sum 1. A sample event appends the tip's row. A coalescence of lineages a and b replaces
- *    them by the parent row p_a o p_b o Q / lambda with lambda = sum_s p_as p_bs Q_s, and adds log(lambda) to logL.
+ *    each segment is integrated with classical RK4 in equal steps; after every step each lineage is renormalized to
+ *    sum 1. The step count is BEAST's MascotStepRule, with its operation order: FIXED, max(1, ceil(length / maxStep));
+ *    ADAPTIVE, from the stiffness clock * maxOut + maxLoad of the state at the segment's start (largest active branch
+ *    rate, largest -M_kk, largest Q_k sum_l p_lk), bounded by maxStep, minStep and maxStepsPerSegment. The rule uses
+ *    plain arithmetic in both FP modes, so strict and FMA builds take Java's step counts; they are recorded for
+ *    lastStepCounts. A sample event appends the tip's row. A coalescence of lineages a and b replaces them by the
+ *    parent row p_a o p_b o Q / lambda with lambda = sum_s p_as p_bs Q_s, and adds log(lambda) to logL.
  *  - forwardAndReverse. The forward pass also records a tape: the stage inputs y0, y2, y3, y4 of every RK4 step, the
  *    normalization scales, the lineage sums (S and sum of squares) of every stage input, the active lineage ids and
  *    clock rates of every segment, and the operands of every coalescence. The reverse pass replays it backwards (the
@@ -94,6 +98,19 @@ constexpr int NBMAX = W == 2 ? 8 : 4;  // chunks per forward block: 2 lineages x
 constexpr int NBA = 4;                 // chunks per block of the fused M^T matvec + gram update
 constexpr double TOL = 1.0e-14;        // MascotRuntime.TIME_TOLERANCE
 constexpr double EPS = 1.0e-300;       // MascotAdjointEvaluator.EPS
+constexpr double LARGEST_STEP_COUNT = 1073741824.0;  // MascotStepRule.LARGEST_STEP_COUNT, 2^30
+
+// Java's Math.max / Math.min on doubles: NaN if either argument is NaN, and +0 > -0.
+static inline double javaMax(double a, double b) {
+    if (a != a) return a;
+    if (a == 0.0 && b == 0.0 && std::signbit(a)) return b;
+    return a >= b ? a : b;
+}
+static inline double javaMin(double a, double b) {
+    if (a != a) return a;
+    if (a == 0.0 && b == 0.0 && std::signbit(b)) return b;
+    return a <= b ? a : b;
+}
 
 // ---------------------------------------------------------------------- vector abstraction
 // clang ext_vector_type; a GCC vector_size or MSVC port changes only this block.
@@ -538,6 +555,12 @@ public:
         return mascot::OK;
     }
 
+    int lastStepCounts(int* steps, int capacity, int* count) const override {
+        *count = segments;
+        for (int i = 0; i < std::min(segments, capacity); i++) steps[i] = stepLog[i];
+        return capacity < segments ? mascot::ERROR_ARGUMENT : mascot::OK;
+    }
+
     char name() const override { return 'B'; }
     int simdWidth() const override { return W; }
     bool fusedMultiplyAdd() const override {
@@ -561,6 +584,8 @@ private:
     int active = 0;
     double ell = 0.0;
     int epochCursor = 0;
+    std::vector<int> stepLog;  // step count of each segment of the last evaluation
+    int segments = 0;
 
     struct IntervalRec { int steps, active, epoch; double h; size_t y0Off, yOff, scaleOff, sumOff, idOff; };
     struct CoalRec { int epoch, first, second, parentSlot, movedFrom, movedTo, parentId; size_t pOff; };
@@ -647,11 +672,58 @@ private:
         return true;
     }
 
+    // MascotStepRule.stiffness of the current state (the segment's start) with the segment's epoch rates:
+    // lambda = clock * maxOut + maxLoad, real states only, a plain multiply and add in both FP modes.
+    double stiffness(int epoch) {
+        const int K = d.K, Kp = d.Kp, nc = d.nc, A = active;
+        double c = 1.0;
+        if (inp->branchRates) {
+            c = 0.0;
+            for (int l = 0; l < A; l++) c = javaMax(c, clock[l]);
+        }
+        const double* Me = M.data() + (size_t) epoch * K * Kp;
+        double maxOut = 0.0;
+        for (int k = 0; k < K; k++) maxOut = javaMax(maxOut, -Me[(size_t) k * Kp + k]);
+        // load_k = sum over lineages in slot order from 0.0, lane by lane
+        const double* yy = y.data();
+        double* load = rowb.data();
+        for (int j = 0; j < nc; j++) {
+            vd s = SPL(0.0);
+            for (int l = 0; l < A; l++) s = s + LD(yy + (size_t) l * Kp + j * W);
+            ST(load + j * W, s);
+        }
+        const double* Qe = Q.data() + (size_t) epoch * Kp;
+        double maxLoad = 0.0;
+        for (int k = 0; k < K; k++) maxLoad = javaMax(maxLoad, Qe[k] * load[k]);
+        return c * maxOut + maxLoad;
+    }
+
+    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch; recorded for lastStepCounts.
+    int segmentSteps(double len, int epoch) {
+        const mascot::Problem& in = *inp;
+        int n;
+        if (in.stepRuleKind != mascot::STEPS_ADAPTIVE) {
+            n = std::max(1, (int) std::ceil(len / in.maxStep));
+        } else {
+            const double target = len * stiffness(epoch) / in.tau;
+            n = target > 0.0 ? (int) std::ceil(javaMin(target, LARGEST_STEP_COUNT)) : 1;
+            n = std::max(1, n);
+            if (in.maxStep > 0.0) n = std::max(n, (int) std::ceil(javaMin(len / in.maxStep, LARGEST_STEP_COUNT)));
+            if (in.minStep > 0.0)
+                n = std::min(n, std::max(1, (int) std::floor(javaMin(len / in.minStep, LARGEST_STEP_COUNT))));
+            if (in.maxStepsPerSegment > 0) n = std::min(n, in.maxStepsPerSegment);
+        }
+        if (segments == (int) stepLog.size()) stepLog.resize(std::max((size_t) 64, 2 * stepLog.size()));
+        stepLog[segments++] = n;
+        return n;
+    }
+
     int sweep() {
         const mascot::Problem& in = *inp;
         active = 0;
         ell = 0.0;
         epochCursor = 0;
+        segments = 0;
         sample(in.initialSampleNode);
         double t = in.initialTime;
         for (int i = 0; i < in.intervalCount; i++) {
@@ -741,7 +813,7 @@ private:
     void integrate(double start, double end, int epoch) {
         const Dims dd = d;
         const int Kp = dd.Kp;
-        int steps = std::max(1, (int) std::ceil((end - start) / inp->maxStep));
+        const int steps = segmentSteps(end - start, epoch);
         double h = (end - start) / steps;
         const int A = active;
         size_t n = (size_t) A * Kp;
@@ -779,7 +851,7 @@ private:
     void integrateTape(double start, double end, int epoch) {
         const Dims dd = d;
         const int Kp = dd.Kp;
-        int steps = std::max(1, (int) std::ceil((end - start) / inp->maxStep));
+        const int steps = segmentSteps(end - start, epoch);
         double h = (end - start) / steps;
         const int A = active;
         size_t n = (size_t) A * Kp;

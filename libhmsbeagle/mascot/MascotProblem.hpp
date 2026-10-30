@@ -13,8 +13,11 @@ namespace mascot {
 
 enum EventType { SAMPLE = 1, COALESCENT = 2 };
 
+/* Same values as MascotStepRuleKind in mascot.h. */
+enum StepRuleKind { STEPS_FIXED = 0, STEPS_ADAPTIVE = 1 };
+
 /* Same values as MascotStatus in mascot.h. */
-enum Status { OK = 0, ERROR_COALESCENT_RATE = -2, ERROR_PROBABILITIES = -3 };
+enum Status { OK = 0, ERROR_ARGUMENT = -1, ERROR_COALESCENT_RATE = -2, ERROR_PROBABILITIES = -3 };
 
 struct Problem {
     int K;                          /* states (demes), >= 2                                                  */
@@ -22,7 +25,11 @@ struct Problem {
     int intervalCount;
     int initialSampleNode;
     int epochCount;
-    double maxStep;                 /* fixed step rule: steps = max(1, ceil(len / maxStep))                   */
+    int stepRuleKind;               /* StepRuleKind; the rules are those of BEAST's MascotStepRule:           */
+    double maxStep;                 /*   FIXED: steps = max(1, ceil(len / maxStep)); ADAPTIVE: bound on h (<= 0: none) */
+    double tau;                     /*   ADAPTIVE: target len * lambda per step                               */
+    double minStep;                 /*   ADAPTIVE: lower bound on h (<= 0: none)                              */
+    int maxStepsPerSegment;         /*   ADAPTIVE: upper bound on the step count (<= 0: none)                 */
     double initialTime;
     const double* boundaries;       /* epochCount + 1, first 0, last +inf                                    */
     const double* migration;        /* epochCount x K x K, row = source, diagonal = -row sum                  */
@@ -53,6 +60,12 @@ public:
      */
     virtual int forwardAndReverse(const Problem& problem, double* logL, double* thetaGradient,
                                   double* clockGradient, double* ancestralScores) = 0;
+
+    /*
+     * The step count of each integration segment (an interval split at epoch boundaries) of the last evaluation, in
+     * order. Sets *count and writes min(count, capacity) entries; returns ERROR_ARGUMENT if capacity is too small.
+     */
+    virtual int lastStepCounts(int* steps, int capacity, int* count) const = 0;
 
     virtual char name() const = 0;       /* 'A' or 'B'                                  */
     virtual int simdWidth() const = 0;   /* doubles per vector in B; 0 for A            */

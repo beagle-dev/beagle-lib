@@ -176,8 +176,14 @@ int mascotEvaluate(int instance,
         (wantAncestral && !ancestralStateScores)) {
         return MASCOT_ERROR_ARGUMENT;
     }
-    if (stepRule->kind == MASCOT_STEPS_ADAPTIVE) return MASCOT_ERROR_UNSUPPORTED;   // R3
-    if (stepRule->kind != MASCOT_STEPS_FIXED || !(stepRule->maxStep > 0.0) || !std::isfinite(stepRule->maxStep)) {
+    if (stepRule->kind == MASCOT_STEPS_FIXED) {
+        if (!(stepRule->maxStep > 0.0) || !std::isfinite(stepRule->maxStep)) return MASCOT_ERROR_ARGUMENT;
+    } else if (stepRule->kind == MASCOT_STEPS_ADAPTIVE) {
+        if (!(stepRule->tau > 0.0) || !std::isfinite(stepRule->tau) || std::isnan(stepRule->maxStep) ||
+            std::isnan(stepRule->hMin)) {
+            return MASCOT_ERROR_ARGUMENT;
+        }
+    } else {
         return MASCOT_ERROR_ARGUMENT;
     }
     if (checkpointReadSet >= 0 || checkpointWriteSet >= 0) return MASCOT_ERROR_UNSUPPORTED;     // R4
@@ -188,7 +194,11 @@ int mascotEvaluate(int instance,
     p.intervalCount = intervalCount;
     p.initialSampleNode = initialSampleNode;
     p.epochCount = epochCount;
+    p.stepRuleKind = stepRule->kind == MASCOT_STEPS_ADAPTIVE ? mascot::STEPS_ADAPTIVE : mascot::STEPS_FIXED;
     p.maxStep = stepRule->maxStep;
+    p.tau = stepRule->tau;
+    p.minStep = stepRule->hMin;
+    p.maxStepsPerSegment = stepRule->maxStepsPerInterval;
     p.initialTime = initialTime;
     p.boundaries = boundaries;
     p.migration = migrationMatrices;
@@ -216,11 +226,9 @@ int mascotEvaluate(int instance,
 }
 
 int mascotGetLastStepCounts(int instance, int* steps, int capacity, int* count) {
-    (void) steps;
-    (void) capacity;
-    (void) count;
-    if (!lookup(instance)) return MASCOT_ERROR_ARGUMENT;
-    return MASCOT_ERROR_UNSUPPORTED;   // R3
+    Instance* in = lookup(instance);
+    if (!in || !count || (capacity > 0 && !steps)) return MASCOT_ERROR_ARGUMENT;
+    return in->kernel->lastStepCounts(steps, capacity, count);
 }
 
 } // extern "C"

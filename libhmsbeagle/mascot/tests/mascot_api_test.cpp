@@ -33,6 +33,7 @@ struct Result {
     int statusForward, status;
     double logLForward, logL;
     std::vector<double> theta, clock, ancestral;
+    std::vector<int> stepCounts;
 };
 
 int create(const GoldenCase& g, long flags) {
@@ -43,7 +44,7 @@ int create(const GoldenCase& g, long flags) {
 
 Result evaluate(int instance, const GoldenCase& g) {
     Result r;
-    MascotStepRule rule = {MASCOT_STEPS_FIXED, g.maxStep, 0.0, 0.0, 0};
+    MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment};
     const double* br = g.branchRates.empty() ? nullptr : g.branchRates.data();
     r.theta.assign((size_t) g.epochCount * (g.K * (g.K - 1) + g.K), NAN);
     r.clock.assign(g.lineageCount, NAN);
@@ -58,6 +59,13 @@ Result evaluate(int instance, const GoldenCase& g) {
             g.intervalLengths.data(), g.eventTypes.data(), g.sampleNodes.data(), g.child1.data(), g.child2.data(),
             g.parent.data(), g.epochCount, g.boundaries.data(), g.migration.data(), g.inversePopulation.data(), br,
             &rule, 0, -1, -1, outputs, &r.logL, r.theta.data(), br ? r.clock.data() : nullptr, r.ancestral.data());
+    if (r.status == MASCOT_OK) {
+        std::vector<int> steps(g.intervalCount + g.epochCount + 1);
+        int n = 0;
+        if (mascotGetLastStepCounts(instance, steps.data(), (int) steps.size(), &n) == MASCOT_OK) {
+            r.stepCounts.assign(steps.begin(), steps.begin() + n);
+        }
+    }
     return r;
 }
 
@@ -73,6 +81,7 @@ void compareGolden(const GoldenCase& g, const Result& r, bool strict, double rto
     check(r.statusForward == MASCOT_OK && r.status == MASCOT_OK,
           n + "status " + std::to_string(r.statusForward) + "/" + std::to_string(r.status));
     if (r.status != MASCOT_OK) return;
+    if (!g.stepCounts.empty()) check(r.stepCounts == g.stepCounts, n + "step counts");
     if (strict) {
         check(logLWithinTolerance(r.logLForward, g.logL, g.eventTypes) &&
               logLWithinTolerance(r.logL, g.logL, g.eventTypes), n + "logL");
@@ -105,7 +114,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     int major, minor;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 0, "API version 1.0");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 1, "API version 1.1");
 
     const long flags = fma ? MASCOT_FP_FMA : MASCOT_FP_STRICT;
     std::vector<GoldenCase> cases;

@@ -96,8 +96,18 @@ int main(int argc, char** argv) {
         int statusForward = kernel->forward(p, &logLForward);
         int status = kernel->forwardAndReverse(p, &logL, theta.data(), p.branchRates ? clock.data() : nullptr,
                                                ancestral.data());
+        // the step rule is evaluated in strict arithmetic in every build, so step counts match Java exactly
+        bool stepsMatch = true;
+        if (status == OK && !g.stepCounts.empty()) {
+            std::vector<int> steps(g.stepCounts.size() + g.epochCount + 1);
+            int n = 0;
+            stepsMatch = kernel->lastStepCounts(steps.data(), (int) steps.size(), &n) == OK &&
+                         n == (int) g.stepCounts.size() && std::equal(g.stepCounts.begin(), g.stepCounts.end(),
+                                                                      steps.begin());
+        }
 
         std::string problems;
+        if (!stepsMatch) problems += " step counts differ";
         if (g.status == "numerical") {
             bool ok1 = statusForward == ERROR_COALESCENT_RATE || statusForward == ERROR_PROBABILITIES;
             bool ok2 = status == ERROR_COALESCENT_RATE || status == ERROR_PROBABILITIES;

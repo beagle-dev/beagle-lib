@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
             v.instance = mascotCreateInstance(g.K, g.lineageCount, g.epochCount, v.flags);
             mascotSetTipPartials(v.instance, g.tipPartials.data());
         }
-        MascotStepRule rule = {MASCOT_STEPS_FIXED, g.maxStep, 0.0, 0.0, 0};
+        MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment};
         const double* br = g.branchRates.empty() ? nullptr : g.branchRates.data();
         std::vector<double> theta(g.thetaGradient.size()), clock(g.lineageCount);
         double logL;

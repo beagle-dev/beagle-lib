@@ -4,7 +4,8 @@
  * On generated problems (MascotSynthetic.hpp):
  *  - kernels A and B agree bit for bit in the strict build (each is bitwise equal to BEAST's Java reference, which
  *    the opt-in golden tests check), and each FMA build is within --rtol of its strict build;
- *  - forward() and forwardAndReverse() give the same logL;
+ *  - forward() and forwardAndReverse() give the same logL, and every build takes the same step counts (the step rule,
+ *    fixed or adaptive, is evaluated in strict arithmetic);
  *  - theta and clock gradients match central finite differences;
  *  - lambda = 0 gives ERROR_COALESCENT_RATE, and checkProbabilities is silent on valid problems and fires on invalid tips;
  *  - the C API: version, the K -> kernel table, FP modes, argument and unsupported statuses, instance reuse, partial
@@ -43,7 +44,16 @@ struct Run {
     int statusForward = 0, status = 0;
     double logLForward = NAN, logL = NAN;
     std::vector<double> theta, clock, ancestral;
+    std::vector<int> steps;
 };
+
+std::vector<int> stepCounts(const Kernel& kernel, const GoldenCase& g) {
+    std::vector<int> steps(g.intervalCount + g.epochCount + 1);
+    int n = 0;
+    if (kernel.lastStepCounts(steps.data(), (int) steps.size(), &n) != OK) return {};
+    steps.resize(n);
+    return steps;
+}
 
 Run run(Kernel& kernel, const GoldenCase& g, bool checkProbabilities = false) {
     Run r;
@@ -54,6 +64,7 @@ Run run(Kernel& kernel, const GoldenCase& g, bool checkProbabilities = false) {
     r.statusForward = kernel.forward(p, &r.logLForward);
     r.status = kernel.forwardAndReverse(p, &r.logL, r.theta.data(), p.branchRates ? r.clock.data() : nullptr,
                                         r.ancestral.data());
+    r.steps = stepCounts(kernel, g);
     return r;
 }
 
@@ -74,6 +85,8 @@ void testKernels(const GoldenCase& g, double rtol) {
         check(r->logLForward == r->logL, n + "forward and forwardAndReverse logL differ");
     }
     if (ra.status != OK || rb.status != OK) return;
+    check(!ra.steps.empty() && ra.steps == rb.steps && ra.steps == rfa.steps && ra.steps == rfb.steps,
+          n + "step counts differ between kernels or FP modes");
     check(ra.logL == rb.logL, n + "A and B strict logL differ");
     check(bitwiseMismatches(ra.theta, rb.theta.data()) == 0, n + "A and B strict theta gradients differ");
     if (!g.branchRates.empty()) {
@@ -119,7 +132,11 @@ void testFiniteDifferences(const GoldenCase& g0) {
         down.theta[i] = x - h;
         ratesFromTheta(up);
         ratesFromTheta(down);
-        double numeric = (logLAt(*kernel, up) - logLAt(*kernel, down)) / (2.0 * h);
+        double logLUp = logLAt(*kernel, up);
+        bool sameSteps = stepCounts(*kernel, up) == r.steps;
+        double logLDown = logLAt(*kernel, down);
+        if (!sameSteps || stepCounts(*kernel, down) != r.steps) continue;   // logL jumps where a count changes
+        double numeric = (logLUp - logLDown) / (2.0 * h);
         double error = std::fabs(numeric - r.theta[i]) / std::max(std::fabs(r.theta[i]), 1.0e-2 * scale + 1.0e-8);
         check(error < 1.0e-5, g0.name + ": theta[" + std::to_string(i) + "] analytic " +
                               std::to_string(r.theta[i]) + " numeric " + std::to_string(numeric));
@@ -133,7 +150,11 @@ void testFiniteDifferences(const GoldenCase& g0) {
         GoldenCase up = g0, down = g0;
         up.branchRates[lineage] = x + h;
         down.branchRates[lineage] = x - h;
-        double numeric = (logLAt(*kernel, up) - logLAt(*kernel, down)) / (2.0 * h);
+        double logLUp = logLAt(*kernel, up);
+        bool sameSteps = stepCounts(*kernel, up) == r.steps;
+        double logLDown = logLAt(*kernel, down);
+        if (!sameSteps || stepCounts(*kernel, down) != r.steps) continue;
+        double numeric = (logLUp - logLDown) / (2.0 * h);
         double error = std::fabs(numeric - r.clock[lineage]) /
                        std::max(std::fabs(r.clock[lineage]), 1.0e-2 * clockScale + 1.0e-8);
         check(error < 1.0e-5, g0.name + ": clock[" + std::to_string(lineage) + "] analytic " +
@@ -185,7 +206,7 @@ int evaluate(int instance, const GoldenCase& g, const MascotStepRule* rule, int 
 
 void testApi(const std::vector<GoldenCase>& byK) {
     int major = 0, minor = 0;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 0, "API version 1.0");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 1, "API version 1.1");
 
     for (const GoldenCase& g : byK) {
         const char expected = (g.K <= 7 && g.K != 6) ? 'A' : 'B';
@@ -205,9 +226,12 @@ void testApi(const std::vector<GoldenCase>& byK) {
     double logL;
     MascotStepRule fixed = {MASCOT_STEPS_FIXED, g.maxStep, 0.0, 0.0, 0};
     MascotStepRule adaptive = {MASCOT_STEPS_ADAPTIVE, g.maxStep, 0.25, 0.0, 0};
+    MascotStepRule badTau = {MASCOT_STEPS_ADAPTIVE, g.maxStep, 0.0, 0.0, 0};
     MascotStepRule zeroStep = {MASCOT_STEPS_FIXED, 0.0, 0.0, 0.0, 0};
-    check(evaluate(instance, g, &adaptive, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
-          MASCOT_ERROR_UNSUPPORTED, "ADAPTIVE is unsupported until R3");
+    check(evaluate(instance, g, &adaptive, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) == MASCOT_OK,
+          "ADAPTIVE evaluates (API 1.1)");
+    check(evaluate(instance, g, &badTau, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) == MASCOT_ERROR_ARGUMENT,
+          "ADAPTIVE with tau 0 rejected");
     check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 0, 1) ==
           MASCOT_ERROR_UNSUPPORTED, "checkpoints are unsupported until R4");
     check(evaluate(instance, g, &zeroStep, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
@@ -305,11 +329,27 @@ int main(int argc, char** argv) {
         cases.push_back(syntheticCase("n150K" + std::to_string(K), 9500 + K, o));
     }
 
+    // every problem again under the adaptive rule: uncapped, capped at 0.1, and with each guard
+    const size_t fixedCount = cases.size();
+    for (size_t i = 0; i < fixedCount; i++) {
+        GoldenCase a = cases[i];
+        a.name = "adaptive-" + a.name;
+        a.stepRuleKind = STEPS_ADAPTIVE;
+        a.tau = 0.25;
+        a.maxStep = i % 4 == 1 ? 0.1 : 0.0;
+        a.minStep = i % 4 == 2 ? 0.05 : 0.0;
+        // a guard that binds on the stiffest problems (they want 62-474 steps) but keeps RK4 well inside its
+        // stability limit (about a tenth of the uncapped count here)
+        a.maxStepsPerSegment = i % 4 == 3 ? 64 : 0;
+        cases.push_back(a);
+    }
+
     for (const GoldenCase& g : cases) testKernels(g, rtol);
     for (const GoldenCase& g : cases) {
-        if ((g.lineageCount <= 39 && g.K <= 9) || g.name == "n150K5") testFiniteDifferences(g);
+        bool small = g.lineageCount <= 39 && g.K <= 9;
+        if (small || g.name == "n150K5" || g.name == "adaptive-n150K5") testFiniteDifferences(g);
     }
-    testStatuses(cases[cases.size() - 4]);
+    testStatuses(cases[fixedCount - 4]);   // n150K5, fixed rule
 
     std::vector<GoldenCase> byK;
     for (int K : {2, 3, 4, 5, 6, 7, 8, 9, 12}) {

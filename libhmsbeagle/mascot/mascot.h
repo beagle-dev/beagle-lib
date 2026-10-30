@@ -1,7 +1,7 @@
 /*
  * mascot.h -- C API of the MASCOT component in beagle-lib (libhmsbeagle/mascot/mascot.h).
  *
- * API v1.0 (approved 2026-10-30).
+ * API v1.1 (v1.0 approved 2026-10-30; 1.1 implements MASCOT_STEPS_ADAPTIVE).
  *
  * Contract:
  *  - An instance is not re-entrant; distinct instances are independent (no static or thread_local state).
@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #define MASCOT_API_VERSION_MAJOR 1
-#define MASCOT_API_VERSION_MINOR 0
+#define MASCOT_API_VERSION_MINOR 1   /* 1.1: MASCOT_STEPS_ADAPTIVE implemented */
 
 enum MascotFlags {
     MASCOT_FP_STRICT       = 1 << 0,  /* no fused multiply-add: bitwise with Java on gradients                        */
@@ -49,7 +49,7 @@ enum MascotStatus {
 
 enum MascotStepRuleKind {
     MASCOT_STEPS_FIXED    = 0,  /* steps = max(1, ceil(len / maxStep)), equal sub-steps (today's Java rule)          */
-    MASCOT_STEPS_ADAPTIVE = 1   /* R3; returns MASCOT_ERROR_UNSUPPORTED until implemented. Proposed rule, per segment
+    MASCOT_STEPS_ADAPTIVE = 1   /* R3 (API 1.1; 1.0 returns MASCOT_ERROR_UNSUPPORTED), per segment
                                  * (an interval split at epoch boundaries, as MascotForwardEvaluator.integrateSegment):
                                  *   lambda = c * max_k |M_kk| + max_k q_k * sum_l p_lk   (state at segment start;
                                  *            c = largest branch rate among active lineages, 1 without branch rates)
@@ -57,7 +57,8 @@ enum MascotStepRuleKind {
                                  *   n      = max(n, ceil(len / maxStep))        if maxStep > 0   (h never above maxStep)
                                  *   n      = min(n, floor(len / hMin))          if hMin > 0      (h never below hMin, n >= 1)
                                  *   n      = min(n, maxStepsPerInterval)        if > 0           (guard)
-                                 * equal sub-steps; evaluated in strict FP in every build, identically in Java.        */
+                                 * equal sub-steps; evaluated in strict FP in every build, with the operation order
+                                 * of BEAST's MascotStepRule, so Java and native take identical step counts.            */
 };
 
 typedef struct {
@@ -116,7 +117,8 @@ int mascotEvaluate(int instance,
                    double* clockGradient,
                    double* ancestralStateScores);
 
-/* Tests only: per-interval step counts of the last evaluation (Java/native step-rule parity, R3). */
+/* Tests only: the step count of each segment of the last evaluation, in order (Java/native parity). Sets *count;
+ * MASCOT_ERROR_ARGUMENT if capacity is smaller. */
 int mascotGetLastStepCounts(int instance, int* steps, int capacity, int* count);
 
 #ifdef __cplusplus
