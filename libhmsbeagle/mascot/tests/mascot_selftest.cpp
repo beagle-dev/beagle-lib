@@ -226,7 +226,7 @@ int evaluate(int instance, const GoldenCase& g, const MascotStepRule* rule, int 
 
 void testApi(const std::vector<GoldenCase>& byK) {
     int major = 0, minor = 0;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 2, "API version 1.2");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 3, "API version 1.3");
 
     for (const GoldenCase& g : byK) {
         const char expected = (!MASCOT_HAVE_KERNEL_B || (g.K <= 7 && g.K != 6)) ? 'A' : 'B';
@@ -302,7 +302,8 @@ int firstDifference(const GoldenCase& a, const GoldenCase& b) {
         a.initialSampleNode != b.initialSampleNode || a.boundaries != b.boundaries || a.migration != b.migration ||
         a.inversePopulation != b.inversePopulation || a.branchRates != b.branchRates ||
         a.tipPartials != b.tipPartials || a.stepRuleKind != b.stepRuleKind || a.maxStep != b.maxStep ||
-        a.tau != b.tau || a.minStep != b.minStep || a.maxStepsPerSegment != b.maxStepsPerSegment) {
+        a.tau != b.tau || a.minStep != b.minStep || a.maxStepsPerSegment != b.maxStepsPerSegment ||
+        a.stepBudget != b.stepBudget) {
         return 0;
     }
     for (int i = 0; i < a.intervalCount; i++) {
@@ -341,16 +342,18 @@ void testIncremental(const GoldenCase& g0, std::unique_ptr<Kernel> (*make)()) {
         Problem p = g.problem();
         p.checkpointReadSet = read;
         p.checkpointWriteSet = write;
-        double logL = NAN;
+        double logL = NAN, expected = NAN;
         int status = kernel->forward(p, &logL);
-        double expected = fullLogL(*fresh, g);
-        check(status == OK && logL == expected, n + what + ": logL " + std::to_string(logL) + " vs full " +
-                                               std::to_string(expected));
+        Problem full = g.problem();
+        int expectedStatus = fresh->forward(full, &expected);   // a full pass; may fail (a step budget at its edge)
+        check(status == expectedStatus && (status != OK || logL == expected),
+              n + what + ": status " + std::to_string(status) + " logL " + std::to_string(logL) + " vs full " +
+              std::to_string(expectedStatus) + " " + std::to_string(expected));
         check(kernel->lastRestartInterval() == expectedRestart, n + what + ": restart " +
               std::to_string(kernel->lastRestartInterval()) + ", expected " + std::to_string(expectedRestart));
-        if (write >= 0) {
+        if (write >= 0) {                   // an error status leaves the written set empty
             built[write] = g;
-            written[write] = true;
+            written[write] = status == OK;
         }
     };
 
@@ -428,6 +431,122 @@ void testConcurrentInstances(const GoldenCase& a, const GoldenCase& b) {
     mascotFinalizeInstance(ib);
 }
 
+/*
+ * The step budget (API 1.3) on a stiff problem under the adaptive rule capped at 0.02, with B the smallest budget its
+ * full pass fits: every build returns ERROR_STEP_BUDGET with B - 1 (forward and gradient, and through the C API) and
+ * OK with B; FIXED ignores the budget; and incremental passes at the edge (budget B, random interval changes, some of
+ * which trip it) equal fresh full passes, status included.
+ */
+/* A stiff problem (log Ne - 3) under the adaptive rule capped at 0.02. */
+GoldenCase stiffBudgetCase(uint64_t seed) {
+    SyntheticOptions o;
+    o.tipCount = 40;
+    o.K = 5;
+    o.logNeShift = -3.0;
+    o.stepRuleKind = STEPS_ADAPTIVE;
+    o.maxStep = 0.02;
+    return syntheticCase("budget-n40K5-" + std::to_string(seed), seed, o);
+}
+
+/* The smallest step budget a problem's full pass fits (strict kernel A). */
+int edgeBudget(GoldenCase g) {
+    std::unique_ptr<Kernel> probe = makeKernelAStrict();
+    auto fits = [&](int budget) {
+        g.stepBudget = budget;
+        Problem p = g.problem();
+        double logL;
+        return probe->forward(p, &logL) == OK;
+    };
+    int lo = 1, hi = 1;
+    while (!fits(hi) && hi < (1 << 20)) {
+        lo = hi + 1;
+        hi *= 2;
+    }
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (fits(mid)) hi = mid;
+        else lo = mid + 1;
+    }
+    return lo;
+}
+
+void testStepBudget() {
+    GoldenCase g = stiffBudgetCase(9900);
+    const int edge = edgeBudget(g);
+    auto fits = [&](int budget) {
+        GoldenCase c = g;
+        c.stepBudget = budget;
+        Problem p = c.problem();
+        double logL;
+        return makeKernelAStrict()->forward(p, &logL) == OK;
+    };
+    check(edge >= 2 && fits(edge) && !fits(edge - 1), "budget: the stiff problem needs " + std::to_string(edge));
+    for (auto factory : runnableFactories()) {
+        std::unique_ptr<Kernel> k = factory();
+        const std::string n = std::string("budget (") + k->name() + (k->fusedMultiplyAdd() ? " fma" : "") + "): ";
+        for (int budget : {edge - 1, edge}) {
+            g.stepBudget = budget;
+            Run r = run(*k, g);
+            const int expected = budget < edge ? ERROR_STEP_BUDGET : OK;
+            check(r.statusForward == expected && r.status == expected, n + "budget " + std::to_string(budget) +
+                  " gives " + std::to_string(r.statusForward) + "/" + std::to_string(r.status));
+        }
+        GoldenCase fixed = g;
+        fixed.stepRuleKind = STEPS_FIXED;
+        fixed.stepBudget = 1;
+        check(run(*k, fixed).status == OK, n + "FIXED ignores the budget");
+    }
+
+    g.stepBudget = edge - 1;
+    int instance = create(g, MASCOT_FP_STRICT);
+    MascotStepRule rule = {MASCOT_STEPS_ADAPTIVE, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment, g.stepBudget};
+    double logL;
+    check(evaluate(instance, g, &rule, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) == MASCOT_ERROR_STEP_BUDGET,
+          "budget: the C API returns MASCOT_ERROR_STEP_BUDGET");
+    mascotFinalizeInstance(instance);
+
+    g.stepBudget = edge;
+    for (auto factory : runnableFactories()) testIncremental(g, factory);
+
+    // resumed passes that trip: lengthening every third interval from j adds steps near the edge; a resumed pass must
+    // fail exactly when a full pass does, and a failed pass leaves its write set empty
+    int trips = 0;
+    for (uint64_t seed = 9900; seed < 9906; seed++)
+    for (auto factory : runnableFactories()) {
+        g = stiffBudgetCase(seed);
+        g.stepBudget = edgeBudget(g);
+        std::unique_ptr<Kernel> k = factory(), fresh = factory();
+        const std::string n = std::string("budget resume ") + std::to_string(seed) + " (" + k->name() +
+                              (k->fusedMultiplyAdd() ? " fma" : "") + "): ";
+        for (int trial = 0; trial < 10; trial++) {
+            double logL = NAN, full = NAN;
+            Problem base = g.problem();
+            base.checkpointWriteSet = 0;
+            check(k->forward(base, &logL) == OK, n + "edge pass");
+            GoldenCase moved = g;
+            const int j = g.intervalCount / 3 + (trial * 7) % (2 * g.intervalCount / 3);
+            for (int i = j; i < moved.intervalCount; i += 3) moved.intervalLengths[i] *= 1.0 + 0.15 * (1 + trial % 5);
+            Problem pf = moved.problem();
+            const int fullStatus = fresh->forward(pf, &full);
+            Problem pr = moved.problem();
+            pr.checkpointReadSet = 0;
+            pr.checkpointWriteSet = 1;
+            const int status = k->forward(pr, &logL);
+            check(status == fullStatus && (status != OK || logL == full) && k->lastRestartInterval() == j,
+                  n + "trial " + std::to_string(trial) + ": status " + std::to_string(status) + " vs full " +
+                  std::to_string(fullStatus) + ", restart " + std::to_string(k->lastRestartInterval()));
+            if (fullStatus == ERROR_STEP_BUDGET) {
+                trips++;
+                Problem again = g.problem();
+                again.checkpointReadSet = 1;
+                k->forward(again, &logL);
+                check(k->lastRestartInterval() == 0, n + "a failed pass leaves its write set empty");
+            }
+        }
+    }
+    check(trips > 0, "budget: resumed passes trip (" + std::to_string(trips) + ")");
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -485,6 +604,7 @@ int main(int argc, char** argv) {
         // a guard that binds on the stiffest problems (they want 62-474 steps) but keeps RK4 well inside its
         // stability limit (about a tenth of the uncapped count here)
         a.maxStepsPerSegment = i % 4 == 3 ? 64 : 0;
+        a.stepBudget = i % 4 == 1 ? 100 : 0;  // BEAST's default; it binds only with the 0.1 cap (none of these trip)
         cases.push_back(a);
     }
 
@@ -512,6 +632,7 @@ int main(int argc, char** argv) {
         if (!chosen) continue;
         for (auto factory : runnableFactories()) testIncremental(g, factory);
     }
+    testStepBudget();
 
     std::printf("mascot_selftest: %zu problems, %d checks, %d failures\n", cases.size(), checks, failures);
     return failures == 0 ? 0 : 1;

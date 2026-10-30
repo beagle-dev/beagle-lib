@@ -248,6 +248,7 @@ int mascotEvaluate(int instance,
     p.tau = stepRule->tau;
     p.minStep = stepRule->hMin;
     p.maxStepsPerSegment = stepRule->maxStepsPerInterval;
+    p.stepBudget = stepRule->stepBudget;
     p.initialTime = initialTime;
     p.boundaries = boundaries;
     p.migration = migrationMatrices;

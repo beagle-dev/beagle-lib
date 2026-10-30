@@ -25,7 +25,8 @@ enum EventType { SAMPLE = 1, COALESCENT = 2 };
 enum StepRuleKind { STEPS_FIXED = 0, STEPS_ADAPTIVE = 1 };
 
 /* Same values as MascotStatus in mascot.h. */
-enum Status { OK = 0, ERROR_ARGUMENT = -1, ERROR_COALESCENT_RATE = -2, ERROR_PROBABILITIES = -3 };
+enum Status { OK = 0, ERROR_ARGUMENT = -1, ERROR_COALESCENT_RATE = -2, ERROR_PROBABILITIES = -3,
+              ERROR_STEP_BUDGET = -6 };
 
 struct Problem {
     int K;                          /* states (demes), >= 2                                                  */
@@ -38,6 +39,8 @@ struct Problem {
     double tau;                     /*   ADAPTIVE: target len * lambda per step                               */
     double minStep;                 /*   ADAPTIVE: lower bound on h (<= 0: none)                              */
     int maxStepsPerSegment;         /*   ADAPTIVE: upper bound on the step count (<= 0: none)                 */
+    int stepBudget;                 /*   ADAPTIVE with maxStep > 0: ERROR_STEP_BUDGET once the pass's steps exceed
+                                         stepBudget x its FIXED-maxStep reference steps (mascot.h; <= 0: none) */
     double initialTime;
     const double* boundaries;       /* epochCount + 1, first 0, last +inf                                    */
     const double* migration;        /* epochCount x K x K, row = source, diagonal = -row sum                  */

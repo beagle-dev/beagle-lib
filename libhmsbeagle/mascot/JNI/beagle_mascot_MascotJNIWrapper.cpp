@@ -113,7 +113,7 @@ JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_evaluate(
         jintArray child1, jintArray child2, jintArray parent,
         jint epochCount, jdoubleArray boundaries, jdoubleArray migration, jdoubleArray inversePopulation,
         jdoubleArray branchRates,
-        jint stepRuleKind, jdouble maxStep, jdouble tau, jdouble hMin, jint maxStepsPerInterval,
+        jint stepRuleKind, jdouble maxStep, jdouble tau, jdouble hMin, jint maxStepsPerInterval, jint stepBudget,
         jboolean checkProbabilities, jint checkpointReadSet, jint checkpointWriteSet, jint outputs,
         jdoubleArray logLikelihood, jdoubleArray thetaGradient, jdoubleArray clockGradient,
         jdoubleArray ancestralScores) {
@@ -140,7 +140,7 @@ JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_evaluate(
     if (wantClock && (int) s->clockGradient.size() < L) s->clockGradient.resize(L);
     if (wantAncestral && (int) s->ancestralScores.size() < L * K) s->ancestralScores.resize(L * K);
 
-    MascotStepRule rule = {stepRuleKind, maxStep, tau, hMin, maxStepsPerInterval};
+    MascotStepRule rule = {stepRuleKind, maxStep, tau, hMin, maxStepsPerInterval, stepBudget};
     double logL = 0.0;
     int status = mascotEvaluate(instance, intervalCount, initialTime, initialSampleNode,
             s->intervalLengths.data(), s->eventTypes.data(), s->sampleNodes.data(), s->child1.data(),

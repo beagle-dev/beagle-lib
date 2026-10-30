@@ -28,13 +28,16 @@
  *        into ancestralScores (NaN in every other row).
  *  - Incremental restart (forward() only). Two checkpoint sets each hold the inputs they were written from and the
  *    complete forward state at every interval boundary (active rows in slot layout, ids, clock values, logL so far,
- *    epoch cursor, time, step counts). A forward() that reads a set resumes from the boundary before the first
- *    schedule interval that differs (from 0 if any other input differs); one that writes a set saves every boundary
- *    after that. The sweep from a restored boundary is the same code on the same state, so the result is bitwise that
- *    of a full pass. An error status leaves the written set empty.
+ *    epoch cursor, time, step counts and step-budget totals). A forward() that reads a set resumes from the boundary
+ *    before the first schedule interval that differs (from 0 if any other input differs); one that writes a set saves
+ *    every boundary after that. The sweep from a restored boundary is the same code on the same state, so the result,
+ *    status included, is bitwise that of a full pass. An error status leaves the written set empty.
  *  - Status. A coalescent rate lambda <= 0 or non-finite returns ERROR_COALESCENT_RATE. With
  *    Problem::checkProbabilities, every active lineage is checked after each integrated segment and after each event
- *    (any p < -1e-8 or non-finite, or |sum_s p - 1| > 1e-6) and a violation returns ERROR_PROBABILITIES.
+ *    (any p < -1e-8 or non-finite, or |sum_s p - 1| > 1e-6) and a violation returns ERROR_PROBABILITIES. The step
+ *    budget (ADAPTIVE with maxStep > 0 and stepBudget > 0; mascot.h) adds each segment's steps n and its maxStep-grid
+ *    reference max(1, ceil(min(len / maxStep, 2^30))) to two 64-bit pass totals before the segment is integrated, and
+ *    returns ERROR_STEP_BUDGET once steps > stepBudget * reference, so neither the work nor the tape grows for it.
  *
  * Floating point. Every operation is the one Java performs, with the same operands in the same order:
  *  - elementwise expressions are evaluated as in the Java source;
@@ -629,6 +632,7 @@ private:
     int epochCursor = 0;
     std::vector<int> stepLog;  // step count of each segment of the last evaluation
     int segments = 0;
+    int64_t passSteps = 0, passReference = 0;  // the step budget's totals for the pass (MascotStepRule)
     int restart = -1;          // the interval the last forward() resumed from; -1: it read no checkpoint set
 
     // A checkpoint set: the inputs it was written from, and the forward state at every interval boundary
@@ -636,7 +640,7 @@ private:
     struct CheckpointSet {
         bool written = false;
         int K = 0, lineageCount = 0, intervalCount = 0, initialSampleNode = 0, epochCount = 0;
-        int stepRuleKind = 0, maxStepsPerSegment = 0;
+        int stepRuleKind = 0, maxStepsPerSegment = 0, stepBudget = 0;
         double initialTime = 0.0, maxStep = 0.0, tau = 0.0, minStep = 0.0;
         bool hasBranchRates = false, checkProbabilities = false;
         std::vector<double> boundaries, migration, inversePopulation, branchRates, tipPartials, intervalLengths;
@@ -645,6 +649,7 @@ private:
         // with off = idOff[i]; plus the scalars the sweep carries between intervals
         std::vector<size_t> idOff;                        // intervalCount + 2
         std::vector<int> cpActive, cpEpochCursor, cpSegments;
+        std::vector<int64_t> cpPassSteps, cpPassReference;
         std::vector<double> cpEll, cpTime;
         std::vector<double> rows, clocks;
         std::vector<int> ids;
@@ -763,7 +768,14 @@ private:
         return c * maxOut + maxLoad;
     }
 
-    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch; recorded for lastStepCounts.
+    // ceil(min(len / maxStep, 2^30)): the adaptive rule's maxStep bound, and (at least 1) the step budget's reference.
+    int maxStepGrid(double len) const {
+        return (int) std::ceil(javaMin(len / inp->maxStep, LARGEST_STEP_COUNT));
+    }
+
+    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch, recorded for lastStepCounts.
+    // With a step budget (MascotForwardEvaluator.integrateSegment), first adds n and the reference to the pass totals
+    // and returns 0, recording nothing, if the pass is then over budget.
     int segmentSteps(double len, int epoch) {
         const mascot::Problem& in = *inp;
         int n;
@@ -773,10 +785,16 @@ private:
             const double target = len * stiffness(epoch) / in.tau;
             n = target > 0.0 ? (int) std::ceil(javaMin(target, LARGEST_STEP_COUNT)) : 1;
             n = std::max(1, n);
-            if (in.maxStep > 0.0) n = std::max(n, (int) std::ceil(javaMin(len / in.maxStep, LARGEST_STEP_COUNT)));
+            if (in.maxStep > 0.0) n = std::max(n, maxStepGrid(len));
             if (in.minStep > 0.0)
                 n = std::min(n, std::max(1, (int) std::floor(javaMin(len / in.minStep, LARGEST_STEP_COUNT))));
             if (in.maxStepsPerSegment > 0) n = std::min(n, in.maxStepsPerSegment);
+            if (in.stepBudget > 0 && in.maxStep > 0.0) {
+                passSteps += n;
+                passReference += std::max(1, maxStepGrid(len));
+                // Java's (long) stepBudget * passReferenceSteps, two's complement wrap included
+                if (passSteps > (int64_t) ((uint64_t) (int64_t) in.stepBudget * (uint64_t) passReference)) return 0;
+            }
         }
         if (segments == (int) stepLog.size()) stepLog.resize(std::max((size_t) 64, 2 * stepLog.size()));
         stepLog[segments++] = n;
@@ -793,6 +811,7 @@ private:
             ell = 0.0;
             epochCursor = 0;
             segments = 0;
+            passSteps = passReference = 0;
             sample(in.initialSampleNode);
             t = in.initialTime;
             if (out) saveCheckpoint(*out, 0, t);
@@ -803,7 +822,9 @@ private:
             while (end > t + TOL) {
                 double segEnd = nextBoundaryAfter(t, end);
                 int epoch = epochAt(t + TOL);
-                if (tape) integrateTape(t, segEnd, epoch); else integrate(t, segEnd, epoch);
+                const int steps = segmentSteps(segEnd - t, epoch);
+                if (steps == 0) return mascot::ERROR_STEP_BUDGET;  // before the segment's work or tape
+                if (tape) integrateTape(t, segEnd, epoch, steps); else integrate(t, segEnd, epoch, steps);
                 t = segEnd;
                 if (check && !probabilitiesValid()) return mascot::ERROR_PROBABILITIES;
             }
@@ -839,7 +860,8 @@ private:
             s.initialTime != p.initialTime || s.initialSampleNode != p.initialSampleNode ||
             s.epochCount != p.epochCount || s.stepRuleKind != p.stepRuleKind || s.maxStep != p.maxStep ||
             s.tau != p.tau || s.minStep != p.minStep || s.maxStepsPerSegment != p.maxStepsPerSegment ||
-            s.checkProbabilities != p.checkProbabilities || s.hasBranchRates != (p.branchRates != nullptr)) {
+            s.stepBudget != p.stepBudget || s.checkProbabilities != p.checkProbabilities ||
+            s.hasBranchRates != (p.branchRates != nullptr)) {
             return 0;
         }
         const size_t K = p.K, E = p.epochCount, L = p.lineageCount;
@@ -868,6 +890,7 @@ private:
         s.epochCount = p.epochCount;
         s.stepRuleKind = p.stepRuleKind;
         s.maxStepsPerSegment = p.maxStepsPerSegment;
+        s.stepBudget = p.stepBudget;
         s.initialTime = p.initialTime;
         s.maxStep = p.maxStep;
         s.tau = p.tau;
@@ -893,6 +916,8 @@ private:
         growTo(s.cpActive, n);
         growTo(s.cpEpochCursor, n);
         growTo(s.cpSegments, n);
+        growTo(s.cpPassSteps, n);
+        growTo(s.cpPassReference, n);
         growTo(s.cpEll, n);
         growTo(s.cpTime, n);
         s.idOff[0] = 0;
@@ -905,6 +930,8 @@ private:
         std::copy(from.cpActive.begin(), from.cpActive.begin() + r + 1, to.cpActive.begin());
         std::copy(from.cpEpochCursor.begin(), from.cpEpochCursor.begin() + r + 1, to.cpEpochCursor.begin());
         std::copy(from.cpSegments.begin(), from.cpSegments.begin() + r + 1, to.cpSegments.begin());
+        std::copy(from.cpPassSteps.begin(), from.cpPassSteps.begin() + r + 1, to.cpPassSteps.begin());
+        std::copy(from.cpPassReference.begin(), from.cpPassReference.begin() + r + 1, to.cpPassReference.begin());
         std::copy(from.cpEll.begin(), from.cpEll.begin() + r + 1, to.cpEll.begin());
         std::copy(from.cpTime.begin(), from.cpTime.begin() + r + 1, to.cpTime.begin());
         growTo(to.ids, end);
@@ -928,6 +955,8 @@ private:
         s.cpActive[i] = active;
         s.cpEpochCursor[i] = epochCursor;
         s.cpSegments[i] = segments;
+        s.cpPassSteps[i] = passSteps;
+        s.cpPassReference[i] = passReference;
         s.cpEll[i] = ell;
         s.cpTime[i] = t;
     }
@@ -943,6 +972,8 @@ private:
         ell = s.cpEll[r];
         epochCursor = s.cpEpochCursor[r];
         segments = s.cpSegments[r];
+        passSteps = s.cpPassSteps[r];
+        passReference = s.cpPassReference[r];
         growTo(stepLog, segments);
         std::copy(s.stepLog.begin(), s.stepLog.begin() + segments, stepLog.begin());
         return s.cpTime[r];
@@ -1012,10 +1043,9 @@ private:
         return true;
     }
 
-    void integrate(double start, double end, int epoch) {
+    void integrate(double start, double end, int epoch, int steps) {
         const Dims dd = d;
         const int Kp = dd.Kp;
-        const int steps = segmentSteps(end - start, epoch);
         double h = (end - start) / steps;
         const int A = active;
         size_t n = (size_t) A * Kp;
@@ -1050,10 +1080,9 @@ private:
         if (cur != y.data()) std::memcpy(y.data(), cur, sizeof(double) * n);
     }
 
-    void integrateTape(double start, double end, int epoch) {
+    void integrateTape(double start, double end, int epoch, int steps) {
         const Dims dd = d;
         const int Kp = dd.Kp;
-        const int steps = segmentSteps(end - start, epoch);
         double h = (end - start) / steps;
         const int A = active;
         size_t n = (size_t) A * Kp;
