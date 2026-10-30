@@ -46,6 +46,8 @@ option(BUILD_SSE "Build beagle with SSE library" ON)
 option(BUILD_SPECTRAL "Build beagle with spectral representation" ON)
 option(BUILD_FUSED "TEST fused post-order implementation (hmsbeagle-opencl-fused; fused kernel in TinyGPU modules)" OFF)
 option(BUILD_BIT "Build beagle with basta library" OFF)
+# MASCOT builds with clang, GCC and MSVC (MSVC: kernel A only)
+option(BUILD_MASCOT "Build the MASCOT structured-coalescent component" ON)
 
 # Old config.h settings
 
@@ -212,6 +214,10 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 	endif()
 endif()
 
+# MASCOT registers its golden tests from inside libhmsbeagle
+if(BUILD_MASCOT)
+	enable_testing()
+endif(BUILD_MASCOT)
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
