@@ -1,0 +1,327 @@
+/*
+ * mascot_selftest.cpp -- self-contained MASCOT tests (no data files), for CI.
+ *
+ * On generated problems (MascotSynthetic.hpp):
+ *  - kernels A and B agree bit for bit in the strict build (each is bitwise equal to BEAST's Java reference, which
+ *    the opt-in golden tests check), and each FMA build is within --rtol of its strict build;
+ *  - forward() and forwardAndReverse() give the same logL;
+ *  - theta and clock gradients match central finite differences;
+ *  - lambda = 0 gives ERROR_COALESCENT_RATE, and checkProbabilities is silent on valid problems and fires on invalid tips;
+ *  - the C API: version, the K -> kernel table, FP modes, argument and unsupported statuses, instance reuse, partial
+ *    outputs, and concurrent instances reproducing their serial results.
+ *
+ * Usage: mascot_selftest [--rtol R]
+ */
+#include "../mascot.h"
+#include "MascotSynthetic.hpp"
+
+#include <atomic>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+
+using namespace mascot;
+
+namespace {
+
+int failures = 0;
+int checks = 0;
+
+void check(bool ok, const std::string& what) {
+    checks++;
+    if (!ok) {
+        std::printf("FAIL %s\n", what.c_str());
+        failures++;
+    }
+}
+
+struct Run {
+    int statusForward = 0, status = 0;
+    double logLForward = NAN, logL = NAN;
+    std::vector<double> theta, clock, ancestral;
+};
+
+Run run(Kernel& kernel, const GoldenCase& g, bool checkProbabilities = false) {
+    Run r;
+    Problem p = g.problem(checkProbabilities);
+    r.theta.assign((size_t) g.epochCount * (g.K * (g.K - 1) + g.K), NAN);
+    r.clock.assign(g.lineageCount, NAN);
+    r.ancestral.assign((size_t) g.lineageCount * g.K, 0.0);
+    r.statusForward = kernel.forward(p, &r.logLForward);
+    r.status = kernel.forwardAndReverse(p, &r.logL, r.theta.data(), p.branchRates ? r.clock.data() : nullptr,
+                                        r.ancestral.data());
+    return r;
+}
+
+double logLAt(Kernel& kernel, const GoldenCase& g) {
+    double logL = NAN;
+    Problem p = g.problem();
+    return kernel.forward(p, &logL) == OK ? logL : NAN;
+}
+
+/* Strict A and strict B must agree bit for bit; each FMA build must be within rtol of its strict build. */
+void testKernels(const GoldenCase& g, double rtol) {
+    std::unique_ptr<Kernel> as = makeKernelAStrict(), bs = makeKernelBStrict(), af = makeKernelAFma(),
+                            bf = makeKernelBFma();
+    Run ra = run(*as, g), rb = run(*bs, g), rfa = run(*af, g), rfb = run(*bf, g);
+    const std::string n = g.name + ": ";
+    for (const Run* r : {&ra, &rb, &rfa, &rfb}) {
+        check(r->statusForward == OK && r->status == OK, n + "status");
+        check(r->logLForward == r->logL, n + "forward and forwardAndReverse logL differ");
+    }
+    if (ra.status != OK || rb.status != OK) return;
+    check(ra.logL == rb.logL, n + "A and B strict logL differ");
+    check(bitwiseMismatches(ra.theta, rb.theta.data()) == 0, n + "A and B strict theta gradients differ");
+    if (!g.branchRates.empty()) {
+        check(bitwiseMismatches(ra.clock, rb.clock.data()) == 0, n + "A and B strict clock gradients differ");
+    }
+    check(bitwiseMismatches(ra.ancestral, rb.ancestral.data()) == 0, n + "A and B strict ancestral scores differ");
+    for (const auto& pair : {std::make_pair(&ra, &rfa), std::make_pair(&rb, &rfb)}) {
+        const Run& s = *pair.first;
+        const Run& f = *pair.second;
+        double worst = std::fabs(f.logL - s.logL) / std::fabs(s.logL);
+        worst = std::max(worst, relativeDifference(s.theta, f.theta.data()));
+        if (!g.branchRates.empty()) worst = std::max(worst, relativeDifference(s.clock, f.clock.data()));
+        worst = std::max(worst, relativeDifference(s.ancestral, f.ancestral.data()));
+        check(worst <= rtol, n + "FMA differs from strict by " + std::to_string(worst));
+    }
+}
+
+/* Central differences of logL (strict kernel A) against the analytic theta and clock gradients. */
+void testFiniteDifferences(const GoldenCase& g0) {
+    std::unique_ptr<Kernel> kernel = makeKernelAStrict();
+    Run r = run(*kernel, g0);
+    if (r.status != OK) {
+        check(false, g0.name + ": finite differences need a valid problem");
+        return;
+    }
+    double scale = 0.0;
+    for (double x : r.theta) scale = std::max(scale, std::fabs(x));
+    const int K = g0.K, per = K * (K - 1) + K;
+    std::vector<int> entries;
+    for (int e = 0; e < g0.epochCount; e++) {
+        entries.push_back(e * per);                           // a migration rate
+        entries.push_back(e * per + K * (K - 1) - 1);         // the last migration rate
+        entries.push_back(e * per + K * (K - 1));             // a log Ne
+        entries.push_back(e * per + per - 1);                 // the last log Ne
+    }
+    const double relativeStep = 1.0e-5;
+    for (int i : entries) {
+        double x = g0.theta[i];
+        if (x == 0.0 && i % per < K * (K - 1)) continue;      // an inactive rate cannot be perturbed downwards
+        double h = relativeStep * std::max(std::fabs(x), 1.0);
+        GoldenCase up = g0, down = g0;
+        up.theta[i] = x + h;
+        down.theta[i] = x - h;
+        ratesFromTheta(up);
+        ratesFromTheta(down);
+        double numeric = (logLAt(*kernel, up) - logLAt(*kernel, down)) / (2.0 * h);
+        double error = std::fabs(numeric - r.theta[i]) / std::max(std::fabs(r.theta[i]), 1.0e-2 * scale + 1.0e-8);
+        check(error < 1.0e-5, g0.name + ": theta[" + std::to_string(i) + "] analytic " +
+                              std::to_string(r.theta[i]) + " numeric " + std::to_string(numeric));
+    }
+    if (g0.branchRates.empty()) return;
+    double clockScale = 0.0;
+    for (double x : r.clock) clockScale = std::max(clockScale, std::fabs(x));
+    for (int lineage : {0, g0.lineageCount / 2, g0.lineageCount - 2}) {
+        double x = g0.branchRates[lineage];
+        double h = relativeStep * x;
+        GoldenCase up = g0, down = g0;
+        up.branchRates[lineage] = x + h;
+        down.branchRates[lineage] = x - h;
+        double numeric = (logLAt(*kernel, up) - logLAt(*kernel, down)) / (2.0 * h);
+        double error = std::fabs(numeric - r.clock[lineage]) /
+                       std::max(std::fabs(r.clock[lineage]), 1.0e-2 * clockScale + 1.0e-8);
+        check(error < 1.0e-5, g0.name + ": clock[" + std::to_string(lineage) + "] analytic " +
+                              std::to_string(r.clock[lineage]) + " numeric " + std::to_string(numeric));
+    }
+}
+
+void testStatuses(const GoldenCase& valid) {
+    GoldenCase bad = coalescentRateErrorCase();
+    for (auto make : {makeKernelAStrict, makeKernelBStrict, makeKernelAFma, makeKernelBFma}) {
+        std::unique_ptr<Kernel> kernel = make();
+        const std::string n = std::string("kernel ") + kernel->name() + (kernel->fusedMultiplyAdd() ? " fma" : "");
+        Run r = run(*kernel, bad);
+        check(r.statusForward == ERROR_COALESCENT_RATE && r.status == ERROR_COALESCENT_RATE,
+              n + ": lambda = 0 gives " + std::to_string(r.statusForward) + "/" + std::to_string(r.status));
+
+        Run unchecked = run(*kernel, valid), checked = run(*kernel, valid, true);
+        check(checked.status == OK && checked.logL == unchecked.logL &&
+              bitwiseMismatches(unchecked.theta, checked.theta.data()) == 0,
+              n + ": checkProbabilities changes a valid problem");
+
+        GoldenCase corrupt = valid;
+        int tip = -1;
+        for (int i = 0; i < corrupt.intervalCount && tip < 0; i++)
+            if (corrupt.eventTypes[i] == SAMPLE) tip = corrupt.sampleNodes[i];
+        double* p = corrupt.tipPartials.data() + (size_t) tip * corrupt.K;
+        p[0] = -0.5;
+        p[1] = 1.5;
+        Run c = run(*kernel, corrupt, true);
+        check(c.statusForward == ERROR_PROBABILITIES && c.status == ERROR_PROBABILITIES,
+              n + ": checkProbabilities on a negative tip gives " + std::to_string(c.status));
+    }
+}
+
+int create(const GoldenCase& g, long flags) {
+    int instance = mascotCreateInstance(g.K, g.lineageCount, g.epochCount, flags);
+    if (instance >= 0) mascotSetTipPartials(instance, g.tipPartials.data());
+    return instance;
+}
+
+int evaluate(int instance, const GoldenCase& g, const MascotStepRule* rule, int outputs, double* logL,
+             double* theta, double* clock, double* ancestral, int epochCount = -1, int read = -1, int write = -1) {
+    return mascotEvaluate(instance, g.intervalCount, g.initialTime, g.initialSampleNode, g.intervalLengths.data(),
+            g.eventTypes.data(), g.sampleNodes.data(), g.child1.data(), g.child2.data(), g.parent.data(),
+            epochCount < 0 ? g.epochCount : epochCount, g.boundaries.data(), g.migration.data(),
+            g.inversePopulation.data(), g.branchRates.empty() ? nullptr : g.branchRates.data(), rule, 0, read, write,
+            outputs, logL, theta, clock, ancestral);
+}
+
+void testApi(const std::vector<GoldenCase>& byK) {
+    int major = 0, minor = 0;
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 0, "API version 1.0");
+
+    for (const GoldenCase& g : byK) {
+        const char expected = (g.K <= 7 && g.K != 6) ? 'A' : 'B';
+        for (long fp : {(long) MASCOT_FP_STRICT, 0L}) {
+            int instance = create(g, fp);
+            MascotInstanceDetails d;
+            check(instance >= 0 && mascotGetInstanceDetails(instance, &d) == MASCOT_OK, g.name + ": details");
+            check(d.kernel == expected, g.name + ": kernel " + d.kernel);
+            if (fp == MASCOT_FP_STRICT) check(d.fpMode == MASCOT_FP_STRICT, g.name + ": strict instance not strict");
+            else check(d.fpMode == MASCOT_FP_FMA || d.fpMode == MASCOT_FP_STRICT, g.name + ": default FP mode");
+            mascotFinalizeInstance(instance);
+        }
+    }
+
+    const GoldenCase& g = byK.front();
+    int instance = create(g, MASCOT_FP_STRICT);
+    double logL;
+    MascotStepRule fixed = {MASCOT_STEPS_FIXED, g.maxStep, 0.0, 0.0, 0};
+    MascotStepRule adaptive = {MASCOT_STEPS_ADAPTIVE, g.maxStep, 0.25, 0.0, 0};
+    MascotStepRule zeroStep = {MASCOT_STEPS_FIXED, 0.0, 0.0, 0.0, 0};
+    check(evaluate(instance, g, &adaptive, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
+          MASCOT_ERROR_UNSUPPORTED, "ADAPTIVE is unsupported until R3");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 0, 1) ==
+          MASCOT_ERROR_UNSUPPORTED, "checkpoints are unsupported until R4");
+    check(evaluate(instance, g, &zeroStep, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
+          MASCOT_ERROR_ARGUMENT, "maxStep 0 rejected");
+    check(evaluate(instance, g, nullptr, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
+          MASCOT_ERROR_ARGUMENT, "null step rule rejected");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL | MASCOT_OUT_THETA_GRADIENT, &logL, nullptr, nullptr,
+                   nullptr) == MASCOT_ERROR_ARGUMENT, "gradient requested without a buffer rejected");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, g.epochCount + 1) ==
+          MASCOT_ERROR_ARGUMENT, "more epochs than the instance holds rejected");
+
+    // ancestral scores alone equal those of a full request
+    std::vector<double> theta(g.theta.size()), clock(g.lineageCount), a1((size_t) g.lineageCount * g.K),
+            a2((size_t) g.lineageCount * g.K);
+    int all = MASCOT_OUT_LOGL | MASCOT_OUT_THETA_GRADIENT | MASCOT_OUT_ANCESTRAL_SCORES |
+              (g.branchRates.empty() ? 0 : MASCOT_OUT_CLOCK_GRADIENT);
+    check(evaluate(instance, g, &fixed, all, &logL, theta.data(), clock.data(), a1.data()) == MASCOT_OK, "all outputs");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL | MASCOT_OUT_ANCESTRAL_SCORES, &logL, nullptr, nullptr,
+                   a2.data()) == MASCOT_OK && bitwiseMismatches(a1, a2.data()) == 0,
+          "ancestral scores alone equal those of a full request");
+
+    check(mascotFinalizeInstance(instance) == MASCOT_OK, "finalize");
+    check(mascotFinalizeInstance(instance) == MASCOT_ERROR_ARGUMENT, "double finalize rejected");
+    check(mascotCreateInstance(1, 3, 1, 0) == MASCOT_ERROR_ARGUMENT, "K = 1 rejected");
+    check(mascotCreateInstance(3, 3, 1, MASCOT_FP_STRICT | MASCOT_FP_FMA) == MASCOT_ERROR_ARGUMENT,
+          "both FP modes rejected");
+    check(mascotCreateInstance(3, 3, 1, MASCOT_FORCE_KERNEL_A | MASCOT_FORCE_KERNEL_B) == MASCOT_ERROR_ARGUMENT,
+          "both forced kernels rejected");
+    int reused = mascotCreateInstance(3, 3, 1, 0);
+    check(reused == instance, "finalized slot reused");
+    mascotFinalizeInstance(reused);
+}
+
+/* Two instances evaluated concurrently, many times, must reproduce their serial results bit for bit. */
+void testConcurrentInstances(const GoldenCase& a, const GoldenCase& b) {
+    MascotStepRule fixed = {MASCOT_STEPS_FIXED, a.maxStep, 0.0, 0.0, 0};
+    auto full = [&](int instance, const GoldenCase& g, std::vector<double>& theta) {
+        double logL = NAN;
+        theta.assign(g.theta.size(), NAN);
+        evaluate(instance, g, &fixed, MASCOT_OUT_LOGL | MASCOT_OUT_THETA_GRADIENT, &logL, theta.data(), nullptr,
+                 nullptr);
+        return logL;
+    };
+    int ia = create(a, 0), ib = create(b, 0);
+    std::vector<double> ta, tb;
+    double la = full(ia, a, ta), lb = full(ib, b, tb);
+    std::atomic<bool> same(true);
+    auto loop = [&](int instance, const GoldenCase& g, double logL, const std::vector<double>& theta) {
+        std::vector<double> t;
+        for (int i = 0; i < 20; i++) {
+            if (full(instance, g, t) != logL || bitwiseMismatches(theta, t.data()) != 0) same = false;
+        }
+    };
+    std::thread first(loop, ia, std::cref(a), la, std::cref(ta)), second(loop, ib, std::cref(b), lb, std::cref(tb));
+    first.join();
+    second.join();
+    check(same, "concurrent instances reproduce their serial results");
+    mascotFinalizeInstance(ia);
+    mascotFinalizeInstance(ib);
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    double rtol = 1.0e-11;
+    for (int i = 1; i < argc; i++) {
+        std::string a = argv[i];
+        if (a == "--rtol" && i + 1 < argc) rtol = std::atof(argv[++i]);
+    }
+
+    std::vector<GoldenCase> cases;
+    const double steps[] = {0.02, 0.005, 0.1};
+    int variant = 0;
+    for (int tips : {2, 3, 5, 10, 20, 40}) {
+        for (int K : {2, 3, 4, 5, 6, 7, 8, 9, 12, 17}) {
+            SyntheticOptions o;
+            o.tipCount = tips;
+            o.K = K;
+            o.epochCount = 1 + variant % 3;
+            o.maxStep = steps[variant % 3];
+            o.branchRates = variant % 2 == 0;
+            o.simultaneousSamples = variant % 4 == 1;
+            o.zeroRates = variant % 5 == 2;
+            o.ambiguousTips = variant % 3 == 2;
+            o.logNeShift = variant % 6 == 3 ? -3.0 : 0.0;
+            cases.push_back(syntheticCase("n" + std::to_string(tips) + "K" + std::to_string(K) + "v" +
+                                          std::to_string(variant), 9000 + variant, o));
+            variant++;
+        }
+    }
+    for (int K : {5, 16, 33, 64}) {
+        SyntheticOptions o;
+        o.tipCount = 150;
+        o.K = K;
+        cases.push_back(syntheticCase("n150K" + std::to_string(K), 9500 + K, o));
+    }
+
+    for (const GoldenCase& g : cases) testKernels(g, rtol);
+    for (const GoldenCase& g : cases) {
+        if ((g.lineageCount <= 39 && g.K <= 9) || g.name == "n150K5") testFiniteDifferences(g);
+    }
+    testStatuses(cases[cases.size() - 4]);
+
+    std::vector<GoldenCase> byK;
+    for (int K : {2, 3, 4, 5, 6, 7, 8, 9, 12}) {
+        SyntheticOptions o;
+        o.tipCount = 8;
+        o.K = K;
+        o.epochCount = 2;
+        byK.push_back(syntheticCase("api" + std::to_string(K), 9700 + K, o));
+    }
+    testApi(byK);
+    testConcurrentInstances(byK[3], byK[6]);
+
+    std::printf("mascot_selftest: %zu problems, %d checks, %d failures\n", cases.size(), checks, failures);
+    return failures == 0 ? 0 : 1;
+}

@@ -1,0 +1,70 @@
+/*
+ * MascotProblem.hpp -- internal interface between the MASCOT C API (mascot.cpp) and the kernels.
+ *
+ * A Problem is one evaluation's inputs in the caller's layout (K states, no padding). Kernels A and B each
+ * implement Kernel; every kernel object owns its workspace, so distinct objects are independent.
+ */
+#ifndef MASCOT_PROBLEM_HPP
+#define MASCOT_PROBLEM_HPP
+
+#include <memory>
+
+namespace mascot {
+
+enum EventType { SAMPLE = 1, COALESCENT = 2 };
+
+/* Same values as MascotStatus in mascot.h. */
+enum Status { OK = 0, ERROR_COALESCENT_RATE = -2, ERROR_PROBABILITIES = -3 };
+
+struct Problem {
+    int K;                          /* states (demes), >= 2                                                  */
+    int lineageCount;               /* max lineage id + 1                                                    */
+    int intervalCount;
+    int initialSampleNode;
+    int epochCount;
+    double maxStep;                 /* fixed step rule: steps = max(1, ceil(len / maxStep))                   */
+    double initialTime;
+    const double* boundaries;       /* epochCount + 1, first 0, last +inf                                    */
+    const double* migration;        /* epochCount x K x K, row = source, diagonal = -row sum                  */
+    const double* inversePopulation;/* epochCount x K                                                         */
+    const double* branchRates;      /* lineageCount, or nullptr                                              */
+    const double* intervalLengths;  /* intervalCount                                                         */
+    const int* eventTypes;          /* EventType                                                             */
+    const int* sampleNodes;
+    const int* child1;
+    const int* child2;
+    const int* parent;
+    const double* tipPartials;      /* lineageCount x K; only the rows of sampled nodes are read             */
+    bool checkProbabilities;        /* after every segment and event, as MascotForwardEvaluator               */
+};
+
+class Kernel {
+public:
+    virtual ~Kernel() {}
+
+    /* Forward pass only. Returns a Status; *logL is set when OK. */
+    virtual int forward(const Problem& problem, double* logL) = 0;
+
+    /*
+     * Forward pass with tape, then the reverse pass. Returns a Status; outputs are set when OK.
+     * thetaGradient (required): epochCount x (K(K-1) + K), migration rates then log Ne, zeroed by the kernel.
+     * clockGradient: lineageCount, zeroed by the kernel; nullptr skips it (and must be nullptr without branch rates).
+     * ancestralScores: lineageCount x K; NaN except the rows of coalescent parents; nullptr skips it.
+     */
+    virtual int forwardAndReverse(const Problem& problem, double* logL, double* thetaGradient,
+                                  double* clockGradient, double* ancestralScores) = 0;
+
+    virtual char name() const = 0;       /* 'A' or 'B'                                  */
+    virtual int simdWidth() const = 0;   /* doubles per vector in B; 0 for A            */
+    virtual bool fusedMultiplyAdd() const = 0;
+};
+
+/* Factories, one translation unit per kernel and FP mode. */
+std::unique_ptr<Kernel> makeKernelAStrict();
+std::unique_ptr<Kernel> makeKernelAFma();
+std::unique_ptr<Kernel> makeKernelBStrict();
+std::unique_ptr<Kernel> makeKernelBFma();
+
+} // namespace mascot
+
+#endif
