@@ -110,9 +110,9 @@ static inline double javaMin(double a, double b) {
 }
 
 template <class V>
-static inline double* growTape(V& v, size_t& used, size_t add) {
+static inline typename V::value_type* growTape(V& v, size_t& used, size_t add) {
     if (v.size() < used + add) v.resize(std::max(v.size() * 2, used + add));
-    double* p = v.data() + used;
+    typename V::value_type* p = v.data() + used;
     used += add;
     return p;
 }
@@ -499,13 +499,55 @@ struct Workspace {
     }
 };
 
+// A checkpoint set for incremental restart: the inputs of the forward pass that wrote it and, for every interval
+// boundary i = 0..intervalCount, the forward state just before interval i. Buffers grow on demand and are reused.
+struct CheckpointSet {
+    bool written = false;                               // false until a forward pass completes with status OK
+    int K = 0, lineageCount = 0, intervalCount = 0, initialSampleNode = 0, epochCount = 0;
+    int stepRuleKind = 0, maxStepsPerSegment = 0;
+    double initialTime = 0.0, maxStep = 0.0, tau = 0.0, minStep = 0.0;
+    bool checkProbabilities = false, hasBranchRates = false;
+    std::vector<double> intervalLengths, boundaries, migration, inversePopulation, branchRates, tipPartials;
+    std::vector<int> eventTypes, sampleNodes, child1, child2, parent;
+    // checkpoint i: active count, epoch cursor, segments integrated so far, logL accumulator, time, and the offsets of
+    // the slot-major probabilities (active x K) in y and of the active ids (active) in ids
+    struct Checkpoint { int active, epochCursor, segments; double ell, t; size_t yOff, idOff; };
+    std::vector<Checkpoint> checkpoints;
+    std::vector<double> y;
+    std::vector<int> ids;
+    size_t yUsed = 0, idUsed = 0;
+    std::vector<int> steps;                             // step counts of the pass that wrote the set
+};
+
 class KernelA final : public mascot::Kernel {
 public:
+    // A forward pass, resuming from checkpoint set problem.checkpointReadSet and saving to checkpointWriteSet.
     int forward(const mascot::Problem& problem, double* logL) override {
         begin(problem);
-        const int status = run(false);
-        if (status == mascot::OK) *logL = ell;
-        return status;
+        const int read = problem.checkpointReadSet, write = problem.checkpointWriteSet;
+        int r = 0;
+        double t = 0.0;
+        if (read >= 0) {
+            r = restartInterval(sets[read]);
+            if (r > 0) t = restore(sets[read], r);
+        }
+        restart = read >= 0 ? r : -1;
+        CheckpointSet* save = nullptr;
+        if (write >= 0) {
+            save = &sets[write];
+            copyInputs(*save);   // after the comparison: the set may be the one just read
+            if (r > 0) keepCheckpoints(sets[read], *save, r, K);
+            else save->yUsed = save->idUsed = 0;
+            save->written = false;
+        }
+        const int status = run(false, r, t, save, r > 0 ? r + 1 : 0);
+        if (status != mascot::OK) return status;
+        if (save) {
+            save->steps.assign(w.stepCounts.begin(), w.stepCounts.end());
+            save->written = true;
+        }
+        *logL = ell;
+        return mascot::OK;
     }
 
     int forwardAndReverse(const mascot::Problem& problem, double* logL, double* thetaGradient, double* clockGradient,
@@ -531,6 +573,8 @@ public:
         return capacity < n ? mascot::ERROR_ARGUMENT : mascot::OK;
     }
 
+    int lastRestartInterval() const override { return restart; }
+
     char name() const override { return 'A'; }
     int simdWidth() const override { return 0; }
     bool fusedMultiplyAdd() const override {
@@ -549,6 +593,8 @@ private:
     double ell = 0.0;
     int epochCursor = 0;
     bool taped = false;
+    CheckpointSet sets[2];
+    int restart = -1;                     // lastRestartInterval
 
     void begin(const mascot::Problem& problem) {
         in = &problem;
@@ -641,20 +687,25 @@ private:
         return true;
     }
 
-    int run(bool tape) {
+    // Walks the schedule from interval `first`: 0 starts with the initial sample, otherwise the state was restored from
+    // checkpoint `first` (time t). With save, checkpoint i is saved for every boundary i >= saveFrom.
+    int run(bool tape, int first = 0, double t = 0.0, CheckpointSet* save = nullptr, int saveFrom = 0) {
         taped = tape;
-        w.stepCounts.clear();
         if (taped) {
             w.intervals.clear(); w.coals.clear(); w.ops.clear();
             w.y0Used = w.yUsed = w.scaleUsed = w.sumsUsed = w.idUsed = w.coalUsed = 0;
         }
-        active = 0;
-        ell = 0.0;
-        epochCursor = 0;
+        if (first == 0) {
+            w.stepCounts.clear();
+            active = 0;
+            ell = 0.0;
+            epochCursor = 0;
+            sample(in->initialSampleNode);
+            t = in->initialTime;
+        }
         const bool check = in->checkProbabilities;
-        sample(in->initialSampleNode);
-        double t = in->initialTime;
-        for (int i = 0; i < in->intervalCount; i++) {
+        for (int i = first; i < in->intervalCount; i++) {
+            if (save && i >= saveFrom) saveCheckpoint(*save, i, t);
             double end = t + in->intervalLengths[i];
             while (end > t + TOL) {
                 double segEnd = nextBoundaryAfter(t, end);
@@ -671,7 +722,123 @@ private:
             }
             if (check && !probabilitiesValid()) return mascot::ERROR_PROBABILITIES;
         }
+        if (save && in->intervalCount >= saveFrom) saveCheckpoint(*save, in->intervalCount, t);
         return mascot::OK;
+    }
+
+    // ---------------- incremental restart (mascot.h, "Incremental restart") ----------------
+
+    // The first schedule interval whose inputs differ from those the set was built from; 0 if any other input
+    // differs or the set was never written. Doubles compare with != (so +0 and -0 are equal).
+    int restartInterval(const CheckpointSet& s) const {
+        if (!s.written) return 0;
+        const mascot::Problem& p = *in;
+        auto same = [](const auto* a, const auto& v, size_t n) {
+            if (v.size() != n) return false;
+            for (size_t i = 0; i < n; i++)
+                if (a[i] != v[i]) return false;
+            return true;
+        };
+        const size_t kk = (size_t) K * K, tips = (size_t) p.lineageCount * K;
+        if (s.K != K || s.lineageCount != p.lineageCount || s.intervalCount != p.intervalCount ||
+            s.initialTime != p.initialTime || s.initialSampleNode != p.initialSampleNode ||
+            s.epochCount != p.epochCount || s.stepRuleKind != p.stepRuleKind || s.maxStep != p.maxStep ||
+            s.tau != p.tau || s.minStep != p.minStep || s.maxStepsPerSegment != p.maxStepsPerSegment ||
+            s.checkProbabilities != p.checkProbabilities || s.hasBranchRates != (p.branchRates != nullptr) ||
+            !same(p.boundaries, s.boundaries, (size_t) p.epochCount + 1) ||
+            !same(p.migration, s.migration, (size_t) p.epochCount * kk) ||
+            !same(p.inversePopulation, s.inversePopulation, (size_t) p.epochCount * K) ||
+            (p.branchRates && !same(p.branchRates, s.branchRates, (size_t) p.lineageCount)) ||
+            !same(p.tipPartials, s.tipPartials, tips)) {
+            return 0;
+        }
+        for (int i = 0; i < p.intervalCount; i++) {
+            if (p.intervalLengths[i] != s.intervalLengths[i] || p.eventTypes[i] != s.eventTypes[i] ||
+                p.sampleNodes[i] != s.sampleNodes[i] || p.child1[i] != s.child1[i] || p.child2[i] != s.child2[i] ||
+                p.parent[i] != s.parent[i]) {
+                return i;
+            }
+        }
+        return p.intervalCount;
+    }
+
+    // Copies the inputs into the set and sizes its checkpoint table (no allocation once the buffers are large enough).
+    void copyInputs(CheckpointSet& s) const {
+        const mascot::Problem& p = *in;
+        const size_t n = (size_t) p.intervalCount;
+        s.K = K;
+        s.lineageCount = p.lineageCount;
+        s.intervalCount = p.intervalCount;
+        s.initialTime = p.initialTime;
+        s.initialSampleNode = p.initialSampleNode;
+        s.epochCount = p.epochCount;
+        s.stepRuleKind = p.stepRuleKind;
+        s.maxStep = p.maxStep;
+        s.tau = p.tau;
+        s.minStep = p.minStep;
+        s.maxStepsPerSegment = p.maxStepsPerSegment;
+        s.checkProbabilities = p.checkProbabilities;
+        s.hasBranchRates = p.branchRates != nullptr;
+        s.intervalLengths.assign(p.intervalLengths, p.intervalLengths + n);
+        s.eventTypes.assign(p.eventTypes, p.eventTypes + n);
+        s.sampleNodes.assign(p.sampleNodes, p.sampleNodes + n);
+        s.child1.assign(p.child1, p.child1 + n);
+        s.child2.assign(p.child2, p.child2 + n);
+        s.parent.assign(p.parent, p.parent + n);
+        s.boundaries.assign(p.boundaries, p.boundaries + p.epochCount + 1);
+        s.migration.assign(p.migration, p.migration + (size_t) p.epochCount * K * K);
+        s.inversePopulation.assign(p.inversePopulation, p.inversePopulation + (size_t) p.epochCount * K);
+        if (p.branchRates) s.branchRates.assign(p.branchRates, p.branchRates + p.lineageCount);
+        else s.branchRates.clear();
+        s.tipPartials.assign(p.tipPartials, p.tipPartials + (size_t) p.lineageCount * K);
+        s.checkpoints.resize(n + 1);
+    }
+
+    // Keeps checkpoints 0..r of src in dst (dst may be src: then later checkpoints are dropped).
+    static void keepCheckpoints(const CheckpointSet& src, CheckpointSet& dst, int r, int K) {
+        const CheckpointSet::Checkpoint& c = src.checkpoints[r];
+        const size_t yEnd = c.yOff + (size_t) c.active * K, idEnd = c.idOff + (size_t) c.active;
+        if (&src != &dst) {
+            std::copy(src.checkpoints.begin(), src.checkpoints.begin() + r + 1, dst.checkpoints.begin());
+            if (dst.y.size() < yEnd) dst.y.resize(std::max(dst.y.size() * 2, yEnd));
+            if (dst.ids.size() < idEnd) dst.ids.resize(std::max(dst.ids.size() * 2, idEnd));
+            std::copy(src.y.begin(), src.y.begin() + yEnd, dst.y.begin());
+            std::copy(src.ids.begin(), src.ids.begin() + idEnd, dst.ids.begin());
+        }
+        dst.yUsed = yEnd;
+        dst.idUsed = idEnd;
+    }
+
+    // Saves the forward state before interval i (time t) as checkpoint i of the set.
+    void saveCheckpoint(CheckpointSet& s, int i, double t) {
+        CheckpointSet::Checkpoint& c = s.checkpoints[i];
+        c.active = active;
+        c.epochCursor = epochCursor;
+        c.segments = (int) w.stepCounts.size();
+        c.ell = ell;
+        c.t = t;
+        c.yOff = s.yUsed;
+        c.idOff = s.idUsed;
+        std::memcpy(growTape(s.y, s.yUsed, (size_t) active * K), w.y.data(), sizeof(double) * active * K);
+        std::memcpy(growTape(s.ids, s.idUsed, (size_t) active), w.activeIds.data(), sizeof(int) * active);
+    }
+
+    // Restores the forward state of checkpoint r; returns its time. Slot maps and per-slot clocks follow from the
+    // active ids (sample and coalesce only read the slots of active lineages; a slot's clock is its lineage's rate).
+    double restore(const CheckpointSet& s, int r) {
+        const CheckpointSet::Checkpoint& c = s.checkpoints[r];
+        active = c.active;
+        epochCursor = c.epochCursor;
+        ell = c.ell;
+        std::memcpy(w.y.data(), s.y.data() + c.yOff, sizeof(double) * active * K);
+        std::memcpy(w.activeIds.data(), s.ids.data() + c.idOff, sizeof(int) * active);
+        for (int l = 0; l < active; l++) {
+            const int id = w.activeIds[l];
+            w.slotOf[id] = l;
+            w.clock[l] = in->branchRates ? in->branchRates[id] : 1.0;
+        }
+        w.stepCounts.assign(s.steps.begin(), s.steps.begin() + c.segments);
+        return c.t;
     }
 
     void sample(int node) {

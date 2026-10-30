@@ -43,13 +43,20 @@ struct Problem {
     const int* parent;
     const double* tipPartials;      /* lineageCount x K; only the rows of sampled nodes are read             */
     bool checkProbabilities;        /* after every segment and event, as MascotForwardEvaluator               */
+    int checkpointReadSet;          /* forward() only: 0, 1 or -1 (none); see mascot.h, incremental restart    */
+    int checkpointWriteSet;         /* forward() only: 0, 1 or -1 (none); may equal checkpointReadSet          */
 };
 
 class Kernel {
 public:
     virtual ~Kernel() {}
 
-    /* Forward pass only. Returns a Status; *logL is set when OK. */
+    /*
+     * Forward pass only. Returns a Status; *logL is set when OK. With problem.checkpointReadSet >= 0 it resumes from
+     * the checkpoint before the first schedule interval that differs from that set's saved inputs (any other input
+     * difference: from the beginning); with checkpointWriteSet >= 0 it saves a checkpoint at every interval boundary,
+     * with the inputs. The result is bitwise that of a full pass. forwardAndReverse ignores both sets.
+     */
     virtual int forward(const Problem& problem, double* logL) = 0;
 
     /*
@@ -66,6 +73,9 @@ public:
      * order. Sets *count and writes min(count, capacity) entries; returns ERROR_ARGUMENT if capacity is too small.
      */
     virtual int lastStepCounts(int* steps, int capacity, int* count) const = 0;
+
+    /* The interval the last forward() resumed from (0: the whole pass), or -1 if it read no checkpoint set. */
+    virtual int lastRestartInterval() const = 0;
 
     virtual char name() const = 0;       /* 'A' or 'B'                                  */
     virtual int simdWidth() const = 0;   /* doubles per vector in B; 0 for A            */

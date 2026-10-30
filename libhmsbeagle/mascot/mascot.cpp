@@ -186,7 +186,9 @@ int mascotEvaluate(int instance,
     } else {
         return MASCOT_ERROR_ARGUMENT;
     }
-    if (checkpointReadSet >= 0 || checkpointWriteSet >= 0) return MASCOT_ERROR_UNSUPPORTED;     // R4
+    if (checkpointReadSet < -1 || checkpointReadSet > 1 || checkpointWriteSet < -1 || checkpointWriteSet > 1) {
+        return MASCOT_ERROR_ARGUMENT;
+    }
 
     mascot::Problem p;
     p.K = in->stateCount;
@@ -212,9 +214,13 @@ int mascotEvaluate(int instance,
     p.parent = coalescentParent;
     p.tipPartials = in->tipPartials.data();
     p.checkProbabilities = checkProbabilities != 0;
+    // checkpoints serve forward-only calls; gradient and ancestral-score calls integrate fully
+    const bool forwardOnly = !wantTheta && !wantClock && !wantAncestral;
+    p.checkpointReadSet = forwardOnly ? checkpointReadSet : -1;
+    p.checkpointWriteSet = forwardOnly ? checkpointWriteSet : -1;
 
     try {
-        if (!wantTheta && !wantClock && !wantAncestral) {
+        if (forwardOnly) {
             return in->kernel->forward(p, logLikelihood);
         }
         double* theta = wantTheta ? thetaGradient : in->thetaScratch.data();
@@ -223,6 +229,13 @@ int mascotEvaluate(int instance,
     } catch (const std::bad_alloc&) {
         return MASCOT_ERROR_OUT_OF_MEMORY;
     }
+}
+
+int mascotGetLastRestartInterval(int instance, int* interval) {
+    Instance* in = lookup(instance);
+    if (!in || !interval) return MASCOT_ERROR_ARGUMENT;
+    *interval = in->kernel->lastRestartInterval();
+    return MASCOT_OK;
 }
 
 int mascotGetLastStepCounts(int instance, int* steps, int capacity, int* count) {

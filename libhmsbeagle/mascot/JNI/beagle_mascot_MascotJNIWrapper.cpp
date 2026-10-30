@@ -175,4 +175,15 @@ JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_getLastStepCounts(JNI
     return MASCOT_OK;
 }
 
+JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_getLastRestartInterval(JNIEnv* env, jclass, jint instance,
+                                                                                  jintArray interval) {
+    if (!interval || env->GetArrayLength(interval) < 1) return MASCOT_ERROR_ARGUMENT;
+    int value = 0;
+    int status = mascotGetLastRestartInterval(instance, &value);
+    if (status != MASCOT_OK) return status;
+    jint out = value;
+    env->SetIntArrayRegion(interval, 0, 1, &out);
+    return MASCOT_OK;
+}
+
 } // extern "C"

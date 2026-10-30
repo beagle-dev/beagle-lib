@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -206,7 +207,7 @@ int evaluate(int instance, const GoldenCase& g, const MascotStepRule* rule, int 
 
 void testApi(const std::vector<GoldenCase>& byK) {
     int major = 0, minor = 0;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 1, "API version 1.1");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 2, "API version 1.2");
 
     for (const GoldenCase& g : byK) {
         const char expected = (g.K <= 7 && g.K != 6) ? 'A' : 'B';
@@ -232,8 +233,14 @@ void testApi(const std::vector<GoldenCase>& byK) {
           "ADAPTIVE evaluates (API 1.1)");
     check(evaluate(instance, g, &badTau, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) == MASCOT_ERROR_ARGUMENT,
           "ADAPTIVE with tau 0 rejected");
-    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 0, 1) ==
-          MASCOT_ERROR_UNSUPPORTED, "checkpoints are unsupported until R4");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 0, 1) == MASCOT_OK,
+          "checkpoint sets accepted (API 1.2)");
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 2, 1) ==
+          MASCOT_ERROR_ARGUMENT, "checkpoint set 2 rejected");
+    int restart = -2;
+    check(evaluate(instance, g, &fixed, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr, -1, 1, 0) == MASCOT_OK &&
+          mascotGetLastRestartInterval(instance, &restart) == MASCOT_OK && restart == g.intervalCount,
+          "unchanged inputs resume after the last interval (" + std::to_string(restart) + ")");
     check(evaluate(instance, g, &zeroStep, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
           MASCOT_ERROR_ARGUMENT, "maxStep 0 rejected");
     check(evaluate(instance, g, nullptr, MASCOT_OUT_LOGL, &logL, nullptr, nullptr, nullptr) ==
@@ -266,6 +273,112 @@ void testApi(const std::vector<GoldenCase>& byK) {
 }
 
 /* Two instances evaluated concurrently, many times, must reproduce their serial results bit for bit. */
+
+/* The first schedule interval at which two problems differ, or intervalCount if none; -1 for any global difference. */
+int firstDifference(const GoldenCase& a, const GoldenCase& b) {
+    if (a.K != b.K || a.intervalCount != b.intervalCount || a.initialTime != b.initialTime ||
+        a.initialSampleNode != b.initialSampleNode || a.boundaries != b.boundaries || a.migration != b.migration ||
+        a.inversePopulation != b.inversePopulation || a.branchRates != b.branchRates ||
+        a.tipPartials != b.tipPartials || a.stepRuleKind != b.stepRuleKind || a.maxStep != b.maxStep ||
+        a.tau != b.tau || a.minStep != b.minStep || a.maxStepsPerSegment != b.maxStepsPerSegment) {
+        return 0;
+    }
+    for (int i = 0; i < a.intervalCount; i++) {
+        if (a.intervalLengths[i] != b.intervalLengths[i] || a.eventTypes[i] != b.eventTypes[i] ||
+            a.sampleNodes[i] != b.sampleNodes[i] || a.child1[i] != b.child1[i] || a.child2[i] != b.child2[i] ||
+            a.parent[i] != b.parent[i]) {
+            return i;
+        }
+    }
+    return a.intervalCount;
+}
+
+double fullLogL(Kernel& fresh, const GoldenCase& g) {
+    double logL = NAN;
+    Problem p = g.problem();
+    return fresh.forward(p, &logL) == OK ? logL : NAN;
+}
+
+/*
+ * Incremental restart (R4): random "tree moves" (interval lengths changed from a random interval on) accepted or
+ * rejected, with checkpoint sets used as Java uses them: read the current state's set, write the set the stored state
+ * does not hold. Every pass must resume at the first changed interval and give the bits of a full pass. Then global
+ * changes (rates, tips, step rule) and in-place updates.
+ */
+void testIncremental(const GoldenCase& g0, std::unique_ptr<Kernel> (*make)()) {
+    std::unique_ptr<Kernel> kernel = make(), fresh = make();
+    const std::string n = g0.name + " (" + kernel->name() + (kernel->fusedMultiplyAdd() ? " fma" : "") + "): ";
+    std::mt19937_64 rng(77);
+    std::uniform_real_distribution<double> u(0.0, 1.0);
+    GoldenCase built[2] = {g0, g0};       // the inputs each set was last written from
+    bool written[2] = {false, false};
+    int stored = 0, current = 0;
+    GoldenCase accepted = g0;
+
+    auto evaluate = [&](const GoldenCase& g, int read, int write, int expectedRestart, const std::string& what) {
+        Problem p = g.problem();
+        p.checkpointReadSet = read;
+        p.checkpointWriteSet = write;
+        double logL = NAN;
+        int status = kernel->forward(p, &logL);
+        double expected = fullLogL(*fresh, g);
+        check(status == OK && logL == expected, n + what + ": logL " + std::to_string(logL) + " vs full " +
+                                               std::to_string(expected));
+        check(kernel->lastRestartInterval() == expectedRestart, n + what + ": restart " +
+              std::to_string(kernel->lastRestartInterval()) + ", expected " + std::to_string(expectedRestart));
+        if (write >= 0) {
+            built[write] = g;
+            written[write] = true;
+        }
+    };
+
+    evaluate(g0, -1, 0, -1, "first pass");
+    stored = current = 0;
+    for (int move = 0; move < 12; move++) {
+        GoldenCase proposed = accepted;
+        int j = (int) (u(rng) * proposed.intervalCount);
+        for (int i = j; i < proposed.intervalCount; i++) {
+            if (proposed.intervalLengths[i] > 0.0 && (i == j || u(rng) < 0.3)) proposed.intervalLengths[i] *= 0.9 + 0.2 * u(rng);
+        }
+        int write = 1 - stored;
+        int expected = written[current] ? firstDifference(built[current], proposed) : 0;
+        evaluate(proposed, current, write, expected, "move " + std::to_string(move));
+        current = write;
+        if (u(rng) < 0.5) {                 // accept: the proposal is the new stored state
+            accepted = proposed;
+            stored = current;
+        } else {                            // reject: back to the stored state's set
+            current = stored;
+        }
+    }
+
+    // global changes start from the beginning
+    GoldenCase rates = accepted;
+    rates.inversePopulation[0] *= 1.01;
+    evaluate(rates, current, 1 - stored, 0, "changed inverse population");
+    current = stored;
+    GoldenCase tips = accepted;                 // the first sample becomes one-hot in the state after its likeliest
+    double* first = tips.tipPartials.data() + (size_t) tips.initialSampleNode * tips.K;
+    int likeliest = (int) (std::max_element(first, first + tips.K) - first);
+    std::fill(first, first + tips.K, 0.0);
+    first[(likeliest + 1) % tips.K] = 1.0;
+    evaluate(tips, current, 1 - stored, 0, "changed tips");
+    current = stored;
+    GoldenCase rule = accepted;
+    rule.stepRuleKind = rule.stepRuleKind == STEPS_FIXED ? STEPS_ADAPTIVE : STEPS_FIXED;
+    if (rule.stepRuleKind == STEPS_ADAPTIVE) rule.tau = 0.25;
+    if (rule.stepRuleKind == STEPS_FIXED && !(rule.maxStep > 0.0)) rule.maxStep = 0.05;
+    evaluate(rule, current, 1 - stored, 0, "changed step rule");
+    current = stored;
+
+    // in place: read and write the same set
+    GoldenCase moved = accepted;
+    int j = moved.intervalCount / 2;
+    moved.intervalLengths[j] *= 1.05;
+    evaluate(moved, stored, stored, firstDifference(built[stored], moved), "in place");
+    evaluate(moved, stored, stored, moved.intervalCount, "in place, unchanged");
+}
+
 void testConcurrentInstances(const GoldenCase& a, const GoldenCase& b) {
     MascotStepRule fixed = {MASCOT_STEPS_FIXED, a.maxStep, 0.0, 0.0, 0};
     auto full = [&](int instance, const GoldenCase& g, std::vector<double>& theta) {
@@ -361,6 +474,13 @@ int main(int argc, char** argv) {
     }
     testApi(byK);
     testConcurrentInstances(byK[3], byK[6]);
+
+    for (const GoldenCase& g : cases) {
+        bool chosen = g.name == "n40K3v51" || g.name == "n20K8v46" || g.name == "n150K5" || g.name == "n150K16" ||
+                      g.name == "adaptive-n40K3v51" || g.name == "adaptive-n150K5" || g.name == "n10K5v33" || g.name == "n20K9v47";
+        if (!chosen) continue;
+        for (auto make : {makeKernelAStrict, makeKernelBStrict, makeKernelAFma, makeKernelBFma}) testIncremental(g, make);
+    }
 
     std::printf("mascot_selftest: %zu problems, %d checks, %d failures\n", cases.size(), checks, failures);
     return failures == 0 ? 0 : 1;

@@ -1,7 +1,7 @@
 /*
  * mascot.h -- C API of the MASCOT component in beagle-lib (libhmsbeagle/mascot/mascot.h).
  *
- * API v1.1 (v1.0 approved 2026-10-30; 1.1 implements MASCOT_STEPS_ADAPTIVE).
+ * API v1.2 (v1.0 approved 2026-10-30; 1.1 adaptive steps, 1.2 checkpoints).
  *
  * Contract:
  *  - An instance is not re-entrant; distinct instances are independent (no static or thread_local state).
@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 #define MASCOT_API_VERSION_MAJOR 1
-#define MASCOT_API_VERSION_MINOR 1   /* 1.1: MASCOT_STEPS_ADAPTIVE implemented */
+#define MASCOT_API_VERSION_MINOR 2   /* 1.1: MASCOT_STEPS_ADAPTIVE; 1.2: checkpoint sets (incremental restart) */
 
 enum MascotFlags {
     MASCOT_FP_STRICT       = 1 << 0,  /* no fused multiply-add: bitwise with Java on gradients                        */
@@ -92,8 +92,19 @@ int mascotSetTipPartials(int instance, const double* tipPartials /* lineageCount
  * One evaluation. Forward only when outputs == MASCOT_OUT_LOGL; forward + tape + adjoint otherwise.
  * Schedule arrays are StructuredCoalescentSchedule's public final arrays, passed as they are.
  * Rates come from Java's validated epoch rates (no exp() in native code).
- * Checkpoint sets (R4): Java flips the indices in store/restore (no native call there); -1 disables restart.
- * Until R4 is implemented, any index >= 0 returns MASCOT_ERROR_UNSUPPORTED.
+ *
+ * Incremental restart (R4, API 1.2). An instance holds two checkpoint sets, 0 and 1. In a forward-only call
+ * (outputs == MASCOT_OUT_LOGL):
+ *  - checkpointReadSet >= 0 resumes from the checkpoint before the first schedule interval that differs from the inputs
+ *    that set was built from (schedule arrays compared element by element); any difference in intervalCount, initialTime,
+ *    initialSampleNode, epochs, boundaries, migration matrices, inverse population sizes, branch rates, tip partials,
+ *    step rule or checkProbabilities starts from the beginning;
+ *  - checkpointWriteSet >= 0 saves a checkpoint at every interval boundary into that set, with the inputs (read and
+ *    write may be the same set, which is then updated in place);
+ *  - the result is bitwise that of a full pass. -1 disables either side.
+ * Calls that ask for gradients or ancestral scores always integrate fully and ignore both sets. Java keeps the indices
+ * and flips them in store/restore (no native call there): read the current state's set, write the set the stored
+ * state does not hold.
  */
 int mascotEvaluate(int instance,
                    /* schedule */
@@ -120,6 +131,10 @@ int mascotEvaluate(int instance,
 /* Tests only: the step count of each segment of the last evaluation, in order (Java/native parity). Sets *count;
  * MASCOT_ERROR_ARGUMENT if capacity is smaller. */
 int mascotGetLastStepCounts(int instance, int* steps, int capacity, int* count);
+
+/* Tests only (API 1.2): the schedule interval the last forward-only call resumed from (0: the whole pass), or -1 when
+ * it read no checkpoint set. */
+int mascotGetLastRestartInterval(int instance, int* interval);
 
 #ifdef __cplusplus
 }

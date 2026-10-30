@@ -59,6 +59,8 @@ struct GoldenCase {
         p.parent = parent.data();
         p.tipPartials = tipPartials.data();
         p.checkProbabilities = checkProbabilities;
+        p.checkpointReadSet = -1;
+        p.checkpointWriteSet = -1;
         return p;
     }
 };

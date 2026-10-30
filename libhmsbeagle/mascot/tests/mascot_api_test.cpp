@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     int major, minor;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 1, "API version 1.1");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 2, "API version 1.2");
 
     const long flags = fma ? MASCOT_FP_FMA : MASCOT_FP_STRICT;
     std::vector<GoldenCase> cases;
