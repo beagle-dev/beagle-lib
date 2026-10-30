@@ -94,6 +94,24 @@ def _patched_gsp_init_hw(self):
         _in_gsp_init[0] = False
 NV_GSP.init_hw = _patched_gsp_init_hw
 
+# BEAGLE's Ampere fix (reports/A6000_fix_plan_2026-10-19.md, Phase C; TinyGPUNVBoot.h's nv_ga10x_link_lock): on GA10x, GSP-RM
+# leaves a TB5-bridged link at Gen1 by GSP_INIT_DONE and the link then dies under BAR1 traffic; RMPcieLinkSpeed=0x800002AA
+# (gens 2-6 disabled, locked at load) holds it at Gen1. NV_GSP.rpc_set_registry_table (ip.py:615-627) with that entry
+# appended; BEAGLE_NV_GA10X_LINK_LOCK=0 sends tinygrad's table.
+def _rpc_set_registry_table_ga10x(self):
+    from tinygrad.runtime.autogen import nv
+    table = {'RMForcePcieConfigSave': 0x1, 'RMSecBusResetEnable': 0x1}
+    if self.nvdev.chip_name[:2] == "GA" and os.environ.get("BEAGLE_NV_GA10X_LINK_LOCK") != "0": table['RMPcieLinkSpeed'] = 0x800002AA
+    entries_bytes, data_bytes = bytes(), bytes()
+    hdr_size, entries_size = ctypes.sizeof(nv.PACKED_REGISTRY_TABLE), ctypes.sizeof(nv.PACKED_REGISTRY_ENTRY) * len(table)
+    for k, v in table.items():
+        entries_bytes += bytes(nv.PACKED_REGISTRY_ENTRY(nameOffset=hdr_size + entries_size + len(data_bytes),
+                                                        type=nv.REGISTRY_TABLE_ENTRY_TYPE_DWORD, data=v, length=4))
+        data_bytes += k.encode('utf-8') + b'\x00'
+    header = nv.PACKED_REGISTRY_TABLE(size=hdr_size + len(entries_bytes) + len(data_bytes), numEntries=len(table))
+    self.cmd_q.send_rpc(nv.NV_VGPU_MSG_FUNCTION_SET_REGISTRY, bytes(header) + entries_bytes + data_bytes)
+NV_GSP.rpc_set_registry_table = _rpc_set_registry_table_ga10x
+
 _orig_start_cpu = NV_FLCN.start_cpu
 def _patched_start_cpu(self, base):
     _orig_start_cpu(self, base)

@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -655,10 +656,23 @@ inline void nv_boot_rpc_set_gsp_system_info(NVBootDev& d, NVGspBoot& g) {
     g.cmd_q->send_rpc(nv::NV_VGPU_MSG_FUNCTION_GSP_SET_SYSTEM_INFO, nv_bytes(data));
 }
 
-// rpc_set_registry_table (ip.py:615-627): RMForcePcieConfigSave and RMSecBusResetEnable, 1 each
-inline void nv_boot_rpc_set_registry_table(NVGspBoot& g) {
-    const std::pair<const char*, uint32_t> table[] = {{"RMForcePcieConfigSave", 0x1}, {"RMSecBusResetEnable", 0x1}};
-    const size_t hdr_size = sizeof(nv::struct_PACKED_REGISTRY_TABLE), entries_size = sizeof(nv::struct_PACKED_REGISTRY_ENTRY) * 2;
+// BEAGLE's Ampere fix (reports/A6000_fix_plan_2026-10-19.md, Phase C): on GA10x (architecture 0x17) GSP-RM 570.144 leaves the
+// link at Gen1 x4 by GSP_INIT_DONE through a TB5 bridge (the RTX A6000 in an AG03, JHL9480, which trains at Gen4 x4 cold), and
+// the link then dies under BAR1 traffic: the root port logs AER and a link timeout and disables the port. RMPcieLinkSpeed
+// 0x800002AA (gens 2-6 disabled, locked at load; tinygrad PR #18215's value for Ada and Blackwell behind TB5) holds it at Gen1,
+// and every boot then passed (Phase B3). The lock lasts until the enclosure is power-cycled. BEAGLE_NV_GA10X_LINK_LOCK=0 sends
+// tinygrad's table instead.
+inline bool nv_ga10x_link_lock(uint32_t architecture) {
+    const char* e = getenv("BEAGLE_NV_GA10X_LINK_LOCK");
+    return architecture == 0x17 && !(e && strcmp(e, "0") == 0);
+}
+
+// rpc_set_registry_table (ip.py:615-627): RMForcePcieConfigSave and RMSecBusResetEnable, 1 each, then on GA10x the link lock
+// (nv_init_helper's _rpc_set_registry_table_ga10x)
+inline void nv_boot_rpc_set_registry_table(const NVBootDev& d, NVGspBoot& g) {
+    std::vector<std::pair<const char*, uint32_t>> table = {{"RMForcePcieConfigSave", 0x1}, {"RMSecBusResetEnable", 0x1}};
+    if (nv_ga10x_link_lock(d.architecture)) table.push_back({"RMPcieLinkSpeed", 0x800002AA});
+    const size_t hdr_size = sizeof(nv::struct_PACKED_REGISTRY_TABLE), entries_size = sizeof(nv::struct_PACKED_REGISTRY_ENTRY) * table.size();
     std::vector<uint8_t> entries, data;
     for (const auto& kv : table) {
         nv::struct_PACKED_REGISTRY_ENTRY e{};
@@ -670,7 +684,7 @@ inline void nv_boot_rpc_set_registry_table(NVGspBoot& g) {
     }
     nv::struct_PACKED_REGISTRY_TABLE header{};
     header.size = (uint32_t)(hdr_size + entries.size() + data.size());
-    header.numEntries = 2;
+    header.numEntries = (uint32_t)table.size();
     std::vector<uint8_t> msg = nv_bytes(header);
     msg.insert(msg.end(), entries.begin(), entries.end());
     msg.insert(msg.end(), data.begin(), data.end());
@@ -683,7 +697,7 @@ inline void nv_boot_gsp_init_sw(NVBootDev& d, NVGspBoot& g, const NVFlcnImages* 
     nv_boot_init_libos_args(d, g);
     nv_boot_init_wpr_meta(d, g, flcn);
     nv_boot_rpc_set_gsp_system_info(d, g);
-    nv_boot_rpc_set_registry_table(g);
+    nv_boot_rpc_set_registry_table(d, g);
     g.gpfifo_class = nv_gpu::AMPERE_CHANNEL_GPFIFO_A; g.compute_class = nv_gpu::AMPERE_COMPUTE_B; g.dma_class = nv_gpu::AMPERE_DMA_COPY_B;
     const std::string fam = d.chip_name.substr(0, 2);
     g.viddec_class = fam == "AD" ? nv_gpu::NVC9B0_VIDEO_DECODER : fam == "GB" ? nv_gpu::NVCFB0_VIDEO_DECODER : 0;   // .get(): None
