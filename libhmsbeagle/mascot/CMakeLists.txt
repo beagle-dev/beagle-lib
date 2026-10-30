@@ -58,6 +58,16 @@ if(NOT WIN32)
     target_link_libraries(hmsbeagle-mascot PUBLIC pthread)
 endif()
 
+# JNI library for BEAST (beagle.mascot.MascotJNIWrapper); BEAST loads it from java.library.path or mascot.library.path.
+if(BUILD_JNI AND JNI_FOUND)
+    add_library(hmsbeagle-jni-mascot SHARED JNI/beagle_mascot_MascotJNIWrapper.cpp)
+    set_target_properties(hmsbeagle-jni-mascot PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+    target_compile_options(hmsbeagle-jni-mascot PRIVATE ${MASCOT_STRICT_OPTIONS})
+    target_include_directories(hmsbeagle-jni-mascot PRIVATE ${JNI_INCLUDE_DIRS})
+    target_link_libraries(hmsbeagle-jni-mascot hmsbeagle-mascot)
+    install(TARGETS hmsbeagle-jni-mascot DESTINATION ${BEAGLE_INSTALL_DIR})
+endif()
+
 # Tests run with "ctest -R mascot" (other tests in this tree may use GPUs).
 # FMA tolerance, relative (see tests/MascotGolden.hpp): the explicit-FMA kernels differ from the strict reference by
 # at most 1.9e-13 on the golden corpus (2026-10-30).
