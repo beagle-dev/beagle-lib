@@ -59,8 +59,11 @@ int main(int argc, char** argv) {
         };
         for (Variant& v : variants) {
             v.instance = mascotCreateInstance(g.K, g.lineageCount, g.epochCount, v.flags);
-            mascotSetTipPartials(v.instance, g.tipPartials.data());
+            if (v.instance >= 0) mascotSetTipPartials(v.instance, g.tipPartials.data());
         }
+        // kernel B is not built everywhere (MSVC)
+        variants.erase(std::remove_if(variants.begin(), variants.end(),
+                                      [](const Variant& v) { return v.instance < 0; }), variants.end());
         MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment};
         const double* br = g.branchRates.empty() ? nullptr : g.branchRates.data();
         std::vector<double> theta(g.thetaGradient.size()), clock(g.lineageCount);
@@ -73,7 +76,8 @@ int main(int argc, char** argv) {
                     g.inversePopulation.data(), br, &rule, 0, -1, -1, gradient ? outputs : MASCOT_OUT_LOGL, &logL,
                     gradient ? theta.data() : nullptr, gradient && br ? clock.data() : nullptr, nullptr);
         };
-        std::vector<int> order = {0, 1, 2, 3};
+        std::vector<int> order(variants.size());
+        for (size_t i = 0; i < order.size(); i++) order[i] = (int) i;
         for (int rep = -3; rep < reps; rep++) {
             std::shuffle(order.begin(), order.end(), rng);
             for (int i : order) {

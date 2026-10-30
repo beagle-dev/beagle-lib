@@ -9,6 +9,14 @@
 
 #include <memory>
 
+/* Kernel B needs clang or GCC vector extensions and posix_memalign; elsewhere (MSVC) its factories return nullptr
+ * and kernel A serves every K. */
+#if (defined(__clang__) || defined(__GNUC__)) && !defined(_WIN32)
+#define MASCOT_HAVE_KERNEL_B 1
+#else
+#define MASCOT_HAVE_KERNEL_B 0
+#endif
+
 namespace mascot {
 
 enum EventType { SAMPLE = 1, COALESCENT = 2 };
@@ -82,7 +90,7 @@ public:
     virtual bool fusedMultiplyAdd() const = 0;
 };
 
-/* Factories, one translation unit per kernel and FP mode. */
+/* Factories, one translation unit per kernel and FP mode. Kernel B's return nullptr without MASCOT_HAVE_KERNEL_B. */
 std::unique_ptr<Kernel> makeKernelAStrict();
 std::unique_ptr<Kernel> makeKernelAFma();
 std::unique_ptr<Kernel> makeKernelBStrict();

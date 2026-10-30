@@ -10,6 +10,8 @@
  *  - lambda = 0 gives ERROR_COALESCENT_RATE, and checkProbabilities is silent on valid problems and fires on invalid tips;
  *  - the C API: version, the K -> kernel table, FP modes, argument and unsupported statuses, instance reuse, partial
  *    outputs, and concurrent instances reproducing their serial results.
+ * Where kernel B is not built (MSVC) a second kernel A stands in for it, and on a CPU without FMA (x86 without FMA or
+ * AVX state, Rosetta 2) the strict builds stand in for the FMA builds, which would fault there.
  *
  * Usage: mascot_selftest [--rtol R]
  */
@@ -32,6 +34,23 @@ namespace {
 
 int failures = 0;
 int checks = 0;
+bool fmaUsable = true;   // set in main from the library's own CPU check
+
+// Kernel B or A, FMA or strict, falling back to what this build and CPU run (see above).
+std::unique_ptr<Kernel> make(bool b, bool fma) {
+    b = b && MASCOT_HAVE_KERNEL_B;
+    fma = fma && fmaUsable;
+    return b ? (fma ? makeKernelBFma() : makeKernelBStrict()) : (fma ? makeKernelAFma() : makeKernelAStrict());
+}
+
+// The distinct builds this machine runs.
+std::vector<std::unique_ptr<Kernel> (*)()> runnableFactories() {
+    std::vector<std::unique_ptr<Kernel> (*)()> f = {makeKernelAStrict};
+    if (MASCOT_HAVE_KERNEL_B) f.push_back(makeKernelBStrict);
+    if (fmaUsable) f.push_back(makeKernelAFma);
+    if (fmaUsable && MASCOT_HAVE_KERNEL_B) f.push_back(makeKernelBFma);
+    return f;
+}
 
 void check(bool ok, const std::string& what) {
     checks++;
@@ -77,8 +96,8 @@ double logLAt(Kernel& kernel, const GoldenCase& g) {
 
 /* Strict A and strict B must agree bit for bit; each FMA build must be within rtol of its strict build. */
 void testKernels(const GoldenCase& g, double rtol) {
-    std::unique_ptr<Kernel> as = makeKernelAStrict(), bs = makeKernelBStrict(), af = makeKernelAFma(),
-                            bf = makeKernelBFma();
+    std::unique_ptr<Kernel> as = make(false, false), bs = make(true, false), af = make(false, true),
+                            bf = make(true, true);
     Run ra = run(*as, g), rb = run(*bs, g), rfa = run(*af, g), rfb = run(*bf, g);
     const std::string n = g.name + ": ";
     for (const Run* r : {&ra, &rb, &rfa, &rfb}) {
@@ -165,8 +184,8 @@ void testFiniteDifferences(const GoldenCase& g0) {
 
 void testStatuses(const GoldenCase& valid) {
     GoldenCase bad = coalescentRateErrorCase();
-    for (auto make : {makeKernelAStrict, makeKernelBStrict, makeKernelAFma, makeKernelBFma}) {
-        std::unique_ptr<Kernel> kernel = make();
+    for (auto factory : runnableFactories()) {
+        std::unique_ptr<Kernel> kernel = factory();
         const std::string n = std::string("kernel ") + kernel->name() + (kernel->fusedMultiplyAdd() ? " fma" : "");
         Run r = run(*kernel, bad);
         check(r.statusForward == ERROR_COALESCENT_RATE && r.status == ERROR_COALESCENT_RATE,
@@ -210,7 +229,7 @@ void testApi(const std::vector<GoldenCase>& byK) {
     check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 2, "API version 1.2");
 
     for (const GoldenCase& g : byK) {
-        const char expected = (g.K <= 7 && g.K != 6) ? 'A' : 'B';
+        const char expected = (!MASCOT_HAVE_KERNEL_B || (g.K <= 7 && g.K != 6)) ? 'A' : 'B';
         for (long fp : {(long) MASCOT_FP_STRICT, 0L}) {
             int instance = create(g, fp);
             MascotInstanceDetails d;
@@ -267,6 +286,9 @@ void testApi(const std::vector<GoldenCase>& byK) {
           "both FP modes rejected");
     check(mascotCreateInstance(3, 3, 1, MASCOT_FORCE_KERNEL_A | MASCOT_FORCE_KERNEL_B) == MASCOT_ERROR_ARGUMENT,
           "both forced kernels rejected");
+    int forcedB = mascotCreateInstance(3, 3, 1, MASCOT_FORCE_KERNEL_B);
+    check(MASCOT_HAVE_KERNEL_B ? forcedB >= 0 : forcedB == MASCOT_ERROR_UNSUPPORTED, "forcing kernel B");
+    if (forcedB >= 0) mascotFinalizeInstance(forcedB);
     int reused = mascotCreateInstance(3, 3, 1, 0);
     check(reused == instance, "finalized slot reused");
     mascotFinalizeInstance(reused);
@@ -309,7 +331,7 @@ void testIncremental(const GoldenCase& g0, std::unique_ptr<Kernel> (*make)()) {
     std::unique_ptr<Kernel> kernel = make(), fresh = make();
     const std::string n = g0.name + " (" + kernel->name() + (kernel->fusedMultiplyAdd() ? " fma" : "") + "): ";
     std::mt19937_64 rng(77);
-    std::uniform_real_distribution<double> u(0.0, 1.0);
+    Uniform01 u;
     GoldenCase built[2] = {g0, g0};       // the inputs each set was last written from
     bool written[2] = {false, false};
     int stored = 0, current = 0;
@@ -415,6 +437,15 @@ int main(int argc, char** argv) {
         if (a == "--rtol" && i + 1 < argc) rtol = std::atof(argv[++i]);
     }
 
+    MascotInstanceDetails d = {};
+    int probe = mascotCreateInstance(8, 3, 1, 0);
+    if (probe >= 0) mascotGetInstanceDetails(probe, &d);
+    mascotFinalizeInstance(probe);
+    fmaUsable = d.fpMode == MASCOT_FP_FMA;
+    std::printf("mascot_selftest: kernel B %s; default instance at K = 8: kernel %c, %s, %s\n",
+                MASCOT_HAVE_KERNEL_B ? "built" : "not built", d.kernel ? d.kernel : '?', fmaUsable ? "fma" : "strict",
+                d.isa ? d.isa : "?");
+
     std::vector<GoldenCase> cases;
     const double steps[] = {0.02, 0.005, 0.1};
     int variant = 0;
@@ -479,7 +510,7 @@ int main(int argc, char** argv) {
         bool chosen = g.name == "n40K3v51" || g.name == "n20K8v46" || g.name == "n150K5" || g.name == "n150K16" ||
                       g.name == "adaptive-n40K3v51" || g.name == "adaptive-n150K5" || g.name == "n10K5v33" || g.name == "n20K9v47";
         if (!chosen) continue;
-        for (auto make : {makeKernelAStrict, makeKernelBStrict, makeKernelAFma, makeKernelBFma}) testIncremental(g, make);
+        for (auto factory : runnableFactories()) testIncremental(g, factory);
     }
 
     std::printf("mascot_selftest: %zu problems, %d checks, %d failures\n", cases.size(), checks, failures);

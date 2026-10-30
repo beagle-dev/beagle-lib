@@ -7,6 +7,9 @@
  * The kernel code lives in a namespace that differs per mode (mascot_b_strict / mascot_b_fma), so the linker never
  * merges inline functions compiled for different FP modes.
  */
+#include "MascotProblem.hpp"
+
+#if MASCOT_HAVE_KERNEL_B
 #include "MascotKernelB.hpp"
 
 namespace mascot {
@@ -18,3 +21,17 @@ std::unique_ptr<Kernel> makeKernelBStrict() { return std::unique_ptr<Kernel>(new
 #endif
 
 } // namespace mascot
+
+#else // kernel B is not built here (MSVC): kernel A serves every K
+
+namespace mascot {
+
+#ifdef MASCOT_FP_FMA
+std::unique_ptr<Kernel> makeKernelBFma() { return nullptr; }
+#else
+std::unique_ptr<Kernel> makeKernelBStrict() { return nullptr; }
+#endif
+
+} // namespace mascot
+
+#endif

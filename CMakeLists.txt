@@ -25,13 +25,8 @@ option(BUILD_JNI "Build beagle with JNI library" ON)
 option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
 option(BUILD_SSE "Build beagle with SSE library" ON)
 option(BUILD_BIT "Build beagle with basta library" OFF)
-# MASCOT kernel B uses clang vector extensions until its GCC/MSVC port, so it is on by default only with clang
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-	set(BUILD_MASCOT_DEFAULT ON)
-else()
-	set(BUILD_MASCOT_DEFAULT OFF)
-endif()
-option(BUILD_MASCOT "Build the MASCOT structured-coalescent component" ${BUILD_MASCOT_DEFAULT})
+# MASCOT builds with clang, GCC and MSVC (MSVC: kernel A only)
+option(BUILD_MASCOT "Build the MASCOT structured-coalescent component" ON)
 
 # Old config.h settings
 

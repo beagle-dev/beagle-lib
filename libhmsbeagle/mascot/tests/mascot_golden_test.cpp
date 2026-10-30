@@ -77,6 +77,10 @@ int main(int argc, char** argv) {
     }
     const bool strict = !fma;
     std::unique_ptr<Kernel> kernel = make(kernelName, fma);
+    if (!kernel && kernelName == 'B' && !MASCOT_HAVE_KERNEL_B) {
+        std::printf("kernel B is not built here (MSVC); skipped\n");
+        return 77;   // CTest SKIP_RETURN_CODE
+    }
     if (!kernel) {
         std::fprintf(stderr, "kernel %c is not linked into this build\n", kernelName);
         return 2;

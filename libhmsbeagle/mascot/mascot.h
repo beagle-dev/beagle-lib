@@ -28,7 +28,8 @@ enum MascotFlags {
     MASCOT_FP_STRICT       = 1 << 0,  /* no fused multiply-add: bitwise with Java on gradients                        */
     MASCOT_FP_FMA          = 1 << 1,  /* explicit fused multiply-add where the CPU has it (default if neither is set)  */
     MASCOT_FORCE_KERNEL_A  = 1 << 2,  /* tests only: use kernel A at any K                                             */
-    MASCOT_FORCE_KERNEL_B  = 1 << 3   /* tests only: use kernel B at any K                                             */
+    MASCOT_FORCE_KERNEL_B  = 1 << 3   /* tests only: use kernel B at any K (MASCOT_ERROR_UNSUPPORTED where B is not
+                                         built: MSVC)                                                                  */
 };
 
 enum MascotOutputs {

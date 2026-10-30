@@ -4,7 +4,7 @@
  * Kernel choice depends only on K and the instruction set, never on the FP mode, so a strict instance validates the
  * kernel an FMA instance runs. Measured on NEON (M1 Ultra, FMA build, maxStep 0.02): kernel A, which never pads, is
  * faster for K <= 7 except K = 6; kernel B (SIMD width 2, K padded to even) is faster for K = 6 and K >= 8. x86 uses
- * the same table until it has been timed on AVX2 hardware.
+ * the same table until it has been timed on AVX2 hardware. Where kernel B is not built (MSVC), kernel A serves every K.
  */
 #include "mascot.h"
 #include "MascotProblem.hpp"
@@ -16,15 +16,61 @@
 #include <new>
 #include <vector>
 
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#define MASCOT_X86 1
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <immintrin.h>
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+#endif
+
 namespace {
 
 using mascot::Kernel;
 
+#ifdef MASCOT_X86
+// CPUID leaf, subleaf 0: r = eax, ebx, ecx, edx.
+void cpuid(unsigned leaf, unsigned r[4]) {
+#if defined(_MSC_VER) && !defined(__clang__)
+    int v[4];
+    __cpuidex(v, (int) leaf, 0);
+    for (int i = 0; i < 4; i++) r[i] = (unsigned) v[i];
+#else
+    __cpuid_count(leaf, 0, r[0], r[1], r[2], r[3]);
+#endif
+}
+
+// XCR0, the register state the OS saves (valid only with CPUID.1:ECX.OSXSAVE).
+unsigned long long xcr0() {
+#if defined(_MSC_VER) && !defined(__clang__)
+    return _xgetbv(0);
+#else
+    unsigned eax, edx;
+    __asm__ volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
+    return ((unsigned long long) edx << 32) | eax;
+#endif
+}
+#endif
+
+/*
+ * x86: the FMA build is VEX-encoded (-mfma implies AVX; MSVC's FMA intrinsic is VEX), so it needs the FMA instructions,
+ * AVX, and an OS that saves the AVX register state: CPUID.1:ECX bits FMA (12), OSXSAVE (27) and AVX (28), then XCR0
+ * bits 1 and 2 (XMM and YMM state). Each is tested on its own; a hypervisor or emulator (Rosetta 2 reports none of
+ * them) may hide any one. AVX2 is not needed while kernel B's x86 vectors are 128 bits wide.
+ */
 bool cpuHasFma() {
 #if defined(__aarch64__) || defined(_M_ARM64)
     return true;
-#elif (defined(__x86_64__) || defined(__i386__)) && (defined(__GNUC__) || defined(__clang__))
-    return __builtin_cpu_supports("fma");
+#elif defined(MASCOT_X86)
+    unsigned r[4];
+    cpuid(0, r);
+    if (r[0] < 1) return false;
+    cpuid(1, r);
+    const bool fma = (r[2] >> 12) & 1, osxsave = (r[2] >> 27) & 1, avx = (r[2] >> 28) & 1;
+    if (!fma || !osxsave || !avx) return false;
+    return (xcr0() & 0x6) == 0x6;
 #else
     return false;
 #endif
@@ -43,7 +89,7 @@ const char* isaName(bool fma) {
 }
 
 bool useKernelA(int stateCount) {
-    return stateCount <= 7 && stateCount != 6;
+    return !MASCOT_HAVE_KERNEL_B || (stateCount <= 7 && stateCount != 6);
 }
 
 struct Instance {
@@ -86,6 +132,7 @@ int mascotCreateInstance(int stateCount, int lineageCount, int maxEpochCount, lo
     if (stateCount < 2 || lineageCount < 1 || maxEpochCount < 1) return MASCOT_ERROR_ARGUMENT;
     if ((flags & MASCOT_FP_STRICT) && (flags & MASCOT_FP_FMA)) return MASCOT_ERROR_ARGUMENT;
     if ((flags & MASCOT_FORCE_KERNEL_A) && (flags & MASCOT_FORCE_KERNEL_B)) return MASCOT_ERROR_ARGUMENT;
+    if ((flags & MASCOT_FORCE_KERNEL_B) && !MASCOT_HAVE_KERNEL_B) return MASCOT_ERROR_UNSUPPORTED;
     try {
         std::unique_ptr<Instance> instance(new Instance());
         instance->stateCount = stateCount;

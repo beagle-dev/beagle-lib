@@ -3,6 +3,9 @@
  * reference outputs). Mirrors BEAST's MascotGoldenCorpus generator: a heterochronous tree simulated as a schedule,
  * one-hot or ambiguous tips, 1-3 epochs with one boundary on a coalescence and one between events, optional zero
  * migration rates, branch rates and a log Ne shift (stiff cases).
+ *
+ * The draws use only std::mt19937_64's raw output, never <random>'s distributions or std::shuffle, whose algorithms
+ * differ between standard libraries, so every platform generates the same problems (up to an ulp of std::log).
  */
 #ifndef MASCOT_SYNTHETIC_HPP
 #define MASCOT_SYNTHETIC_HPP
@@ -16,6 +19,11 @@
 #include <vector>
 
 namespace mascot {
+
+/* Uniform on [0, 1) from the top 53 bits: the same sequence on every platform. */
+struct Uniform01 {
+    double operator()(std::mt19937_64& rng) const { return (double) (rng() >> 11) * 0x1.0p-53; }
+};
 
 struct SyntheticOptions {
     int tipCount = 10;
@@ -58,7 +66,7 @@ inline void ratesFromTheta(GoldenCase& g) {
 
 inline GoldenCase syntheticCase(const std::string& name, uint64_t seed, const SyntheticOptions& o) {
     std::mt19937_64 rng(seed);
-    std::uniform_real_distribution<double> u(0.0, 1.0);
+    Uniform01 u;
     GoldenCase g;
     g.name = name;
     g.status = "ok";
@@ -83,7 +91,7 @@ inline GoldenCase syntheticCase(const std::string& name, uint64_t seed, const Sy
     std::sort(sampleTimes.begin(), sampleTimes.end());
     std::vector<int> tipOrder(n);
     for (int i = 0; i < n; i++) tipOrder[i] = i;
-    std::shuffle(tipOrder.begin(), tipOrder.end(), rng);
+    for (int i = n - 1; i > 0; i--) std::swap(tipOrder[i], tipOrder[(size_t) (rng() % (uint64_t) (i + 1))]);
 
     std::vector<int> active = {tipOrder[0]};
     std::vector<double> eventTimes;
@@ -154,7 +162,10 @@ inline GoldenCase syntheticCase(const std::string& name, uint64_t seed, const Sy
     g.theta.assign((size_t) o.epochCount * per, 0.0);
     for (int e = 0; e < o.epochCount; e++) {
         for (int i = 0; i < mig; i++) {
-            bool off = o.zeroRates && u(rng) < 0.3;
+            // zero rates never break the cycle 0 -> 1 -> ... -> K-1 -> 0, so every lineage reaches every deme and a
+            // coalescence always has lambda > 0
+            int source = i / (K - 1), sink = i % (K - 1) + (i % (K - 1) >= source);
+            bool off = o.zeroRates && u(rng) < 0.3 && sink != (source + 1) % K;
             g.theta[(size_t) e * per + i] = off ? 0.0 : (0.5 + u(rng)) * 4.0 / (K - 1);
         }
         for (int s = 0; s < K; s++) g.theta[(size_t) e * per + mig + s] = 0.672 + (u(rng) - 0.5) + o.logNeShift;

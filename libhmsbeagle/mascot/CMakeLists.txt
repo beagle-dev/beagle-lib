@@ -98,6 +98,8 @@ if(MASCOT_GOLDEN_DIR)
                  COMMAND mascot_golden_test --kernel ${kernel} ${MASCOT_GOLDEN_CASES})
         add_test(NAME mascot_golden_${kernel}_fma
                  COMMAND mascot_golden_test --kernel ${kernel} --fma --rtol ${MASCOT_FMA_RTOL} ${MASCOT_GOLDEN_CASES})
+        # kernel B is not built with MSVC (MASCOT_HAVE_KERNEL_B); its golden tests then report a skip
+        set_tests_properties(mascot_golden_${kernel}_strict mascot_golden_${kernel}_fma PROPERTIES SKIP_RETURN_CODE 77)
     endforeach()
     add_test(NAME mascot_api_strict COMMAND mascot_api_test ${MASCOT_GOLDEN_CASES})
     add_test(NAME mascot_api_fma COMMAND mascot_api_test --fma --rtol ${MASCOT_FMA_RTOL} ${MASCOT_GOLDEN_CASES})

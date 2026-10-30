@@ -119,13 +119,27 @@ static inline double javaMin(double a, double b) {
 }
 
 // ---------------------------------------------------------------------- vector abstraction
-// clang ext_vector_type; a GCC vector_size or MSVC port changes only this block.
+// clang ext_vector_type or GCC vector_size (both: lane subscripts, scalar operands broadcast); MSVC builds kernel A
+// only (MASCOT_HAVE_KERNEL_B). Buffers are 64-byte aligned (ABuf), so vectors load and store aligned.
+#if defined(__clang__)
 typedef double vd __attribute__((ext_vector_type(MASCOT_B_SIMD_WIDTH)));
 typedef int64_t vi __attribute__((ext_vector_type(MASCOT_B_SIMD_WIDTH)));
+#else
+typedef double vd __attribute__((vector_size(8 * MASCOT_B_SIMD_WIDTH)));
+typedef int64_t vi __attribute__((vector_size(8 * MASCOT_B_SIMD_WIDTH)));
+#endif
 
 static MASCOT_B_INLINE vd LD(const double* p) { return *(const vd*) p; }
 static MASCOT_B_INLINE void ST(double* p, vd v) { *(vd*) p = v; }
+#if defined(__clang__)
 static MASCOT_B_INLINE vd SPL(double x) { return (vd) x; }
+#else
+static MASCOT_B_INLINE vd SPL(double x) {
+    vd v = {};
+    for (int j = 0; j < W; j++) v[j] = x;
+    return v;
+}
+#endif
 static MASCOT_B_INLINE void addLanes(double& acc, vd v) {
     for (int j = 0; j < W; j++) acc += v[j];
 }
