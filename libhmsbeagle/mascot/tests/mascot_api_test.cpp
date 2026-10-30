@@ -44,7 +44,7 @@ int create(const GoldenCase& g, long flags) {
 
 Result evaluate(int instance, const GoldenCase& g) {
     Result r;
-    MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment};
+    MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment, g.stepBudget};
     const double* br = g.branchRates.empty() ? nullptr : g.branchRates.data();
     r.theta.assign((size_t) g.epochCount * (g.K * (g.K - 1) + g.K), NAN);
     r.clock.assign(g.lineageCount, NAN);
@@ -71,6 +71,11 @@ Result evaluate(int instance, const GoldenCase& g) {
 
 void compareGolden(const GoldenCase& g, const Result& r, bool strict, double rtol) {
     const std::string n = g.name + ": ";
+    if (g.status == "stepBudget") {
+        check(r.statusForward == MASCOT_ERROR_STEP_BUDGET, n + "forward status " + std::to_string(r.statusForward));
+        check(r.status == MASCOT_ERROR_STEP_BUDGET, n + "gradient status " + std::to_string(r.status));
+        return;
+    }
     if (g.status == "numerical") {
         check(r.statusForward == MASCOT_ERROR_COALESCENT_RATE || r.statusForward == MASCOT_ERROR_PROBABILITIES,
               n + "forward status " + std::to_string(r.statusForward));
@@ -114,7 +119,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     int major, minor;
-    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 2, "API version 1.2");
+    check(mascotGetApiVersion(&major, &minor) == MASCOT_OK && major == 1 && minor == 3, "API version 1.3");
 
     const long flags = fma ? MASCOT_FP_FMA : MASCOT_FP_STRICT;
     std::vector<GoldenCase> cases;

@@ -8,7 +8,9 @@
  *    the state at the segment start; recorded for lastStepCounts), projecting each lineage back onto the simplex after
  *    every step; the log-likelihood integrates -hazard; a coalescence adds log(lambda) and replaces the two children
  *    by the normalized parent. With problem.checkProbabilities, every active lineage is checked after each segment
- *    and after each event, as MascotForwardEvaluator.checkProbabilities.
+ *    and after each event, as MascotForwardEvaluator.checkProbabilities. Under ADAPTIVE with maxStep > 0 and a step
+ *    budget, a pass whose total steps exceed stepBudget x its FIXED-maxStep reference steps returns ERROR_STEP_BUDGET,
+ *    checked before each segment is integrated (mascot.h, MascotStepRule.stepBudget).
  *  - forwardAndReverse: the same forward pass recording a tape (per step: the four RK4 stage inputs, the post-step
  *    state, the normalization sums and the per-stage deme sums / sums of squares), then the reverse pass: VJP of the
  *    normalization, the four stage VJPs in reverse, and the coalescent VJPs. Gradients with respect to M and Q are
@@ -68,6 +70,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <type_traits>
@@ -504,14 +507,19 @@ struct Workspace {
 struct CheckpointSet {
     bool written = false;                               // false until a forward pass completes with status OK
     int K = 0, lineageCount = 0, intervalCount = 0, initialSampleNode = 0, epochCount = 0;
-    int stepRuleKind = 0, maxStepsPerSegment = 0;
+    int stepRuleKind = 0, maxStepsPerSegment = 0, stepBudget = 0;
     double initialTime = 0.0, maxStep = 0.0, tau = 0.0, minStep = 0.0;
     bool checkProbabilities = false, hasBranchRates = false;
     std::vector<double> intervalLengths, boundaries, migration, inversePopulation, branchRates, tipPartials;
     std::vector<int> eventTypes, sampleNodes, child1, child2, parent;
-    // checkpoint i: active count, epoch cursor, segments integrated so far, logL accumulator, time, and the offsets of
-    // the slot-major probabilities (active x K) in y and of the active ids (active) in ids
-    struct Checkpoint { int active, epochCursor, segments; double ell, t; size_t yOff, idOff; };
+    // checkpoint i: active count, epoch cursor, segments integrated so far, logL accumulator, time, the step-budget
+    // totals, and the offsets of the slot-major probabilities (active x K) in y and of the active ids (active) in ids
+    struct Checkpoint {
+        int active, epochCursor, segments;
+        double ell, t;
+        int64_t budgetSteps, budgetReference;
+        size_t yOff, idOff;
+    };
     std::vector<Checkpoint> checkpoints;
     std::vector<double> y;
     std::vector<int> ids;
@@ -595,6 +603,7 @@ private:
     bool taped = false;
     CheckpointSet sets[2];
     int restart = -1;                     // lastRestartInterval
+    int64_t budgetSteps = 0, budgetReference = 0;  // step-budget totals of the current pass
 
     void begin(const mascot::Problem& problem) {
         in = &problem;
@@ -659,17 +668,34 @@ private:
         return clock * maxOut + maxLoad;
     }
 
-    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch.
-    int stepCount(double len, int epoch) const {
+    // MascotStepRule.steps for a segment of length len (end - start) in the given epoch. Under ADAPTIVE with
+    // maxStep > 0, *reference is the step-budget reference max(1, ceil(min(len / maxStep, 2^30))) (from the same
+    // expression as the maxStep bound); otherwise 0.
+    int stepCount(double len, int epoch, int* reference) const {
+        *reference = 0;
         if (in->stepRuleKind != mascot::STEPS_ADAPTIVE) return std::max(1, (int) std::ceil(len / in->maxStep));
         const double largest = 1073741824.0;  // 2^30, MascotStepRule.LARGEST_STEP_COUNT
         const double target = len * stiffness(epoch) / in->tau;
         int n = target > 0.0 ? (int) std::ceil(javaMin(target, largest)) : 1;
         n = std::max(1, n);
-        if (in->maxStep > 0.0) n = std::max(n, (int) std::ceil(javaMin(len / in->maxStep, largest)));
+        if (in->maxStep > 0.0) {
+            const int byMaxStep = (int) std::ceil(javaMin(len / in->maxStep, largest));
+            n = std::max(n, byMaxStep);
+            *reference = std::max(1, byMaxStep);
+        }
         if (in->minStep > 0.0) n = std::min(n, std::max(1, (int) std::floor(javaMin(len / in->minStep, largest))));
         if (in->maxStepsPerSegment > 0) n = std::min(n, in->maxStepsPerSegment);
         return n;
+    }
+
+    // The step budget (mascot.h, MascotStepRule.stepBudget): adds a segment's steps and reference to the pass's
+    // totals; true if the steps then exceed stepBudget x reference. Only under ADAPTIVE with maxStep > 0.
+    bool overBudget(int steps, int reference) {
+        budgetSteps += steps;
+        budgetReference += reference;
+        const int64_t budget = in->stepBudget;
+        // budget x reference beyond the int64 range exceeds any reachable step total
+        return budgetReference <= INT64_MAX / budget && budgetSteps > budget * budgetReference;
     }
 
     // MascotForwardEvaluator.checkProbabilities on the slot-major state.
@@ -697,6 +723,7 @@ private:
         }
         if (first == 0) {
             w.stepCounts.clear();
+            budgetSteps = budgetReference = 0;
             active = 0;
             ell = 0.0;
             epochCursor = 0;
@@ -704,13 +731,19 @@ private:
             t = in->initialTime;
         }
         const bool check = in->checkProbabilities;
+        const bool budgeted = in->stepRuleKind == mascot::STEPS_ADAPTIVE && in->stepBudget > 0 && in->maxStep > 0.0;
         for (int i = first; i < in->intervalCount; i++) {
             if (save && i >= saveFrom) saveCheckpoint(*save, i, t);
             double end = t + in->intervalLengths[i];
             while (end > t + TOL) {
                 double segEnd = nextBoundaryAfter(t, end);
                 int epoch = epochAt(t + TOL);
-                integrate(t, segEnd, epoch);
+                int reference;
+                const int steps = stepCount(segEnd - t, epoch, &reference);
+                w.stepCounts.push_back(steps);
+                // checked before the segment is integrated, so neither the work nor the tape grows for it
+                if (budgeted && overBudget(steps, reference)) return mascot::ERROR_STEP_BUDGET;
+                integrate(t, segEnd, epoch, steps);
                 t = segEnd;
                 if (check && !probabilitiesValid()) return mascot::ERROR_PROBABILITIES;
             }
@@ -744,6 +777,7 @@ private:
             s.initialTime != p.initialTime || s.initialSampleNode != p.initialSampleNode ||
             s.epochCount != p.epochCount || s.stepRuleKind != p.stepRuleKind || s.maxStep != p.maxStep ||
             s.tau != p.tau || s.minStep != p.minStep || s.maxStepsPerSegment != p.maxStepsPerSegment ||
+            s.stepBudget != p.stepBudget ||
             s.checkProbabilities != p.checkProbabilities || s.hasBranchRates != (p.branchRates != nullptr) ||
             !same(p.boundaries, s.boundaries, (size_t) p.epochCount + 1) ||
             !same(p.migration, s.migration, (size_t) p.epochCount * kk) ||
@@ -777,6 +811,7 @@ private:
         s.tau = p.tau;
         s.minStep = p.minStep;
         s.maxStepsPerSegment = p.maxStepsPerSegment;
+        s.stepBudget = p.stepBudget;
         s.checkProbabilities = p.checkProbabilities;
         s.hasBranchRates = p.branchRates != nullptr;
         s.intervalLengths.assign(p.intervalLengths, p.intervalLengths + n);
@@ -815,6 +850,8 @@ private:
         c.active = active;
         c.epochCursor = epochCursor;
         c.segments = (int) w.stepCounts.size();
+        c.budgetSteps = budgetSteps;
+        c.budgetReference = budgetReference;
         c.ell = ell;
         c.t = t;
         c.yOff = s.yUsed;
@@ -838,6 +875,8 @@ private:
             w.clock[l] = in->branchRates ? in->branchRates[id] : 1.0;
         }
         w.stepCounts.assign(s.steps.begin(), s.steps.begin() + c.segments);
+        budgetSteps = c.budgetSteps;
+        budgetReference = c.budgetReference;
         return c.t;
     }
 
@@ -937,9 +976,7 @@ private:
         return -hazard;
     }
 
-    void integrate(double start, double end, int epoch) {
-        const int steps = stepCount(end - start, epoch);
-        w.stepCounts.push_back(steps);
+    void integrate(double start, double end, int epoch, const int steps) {
         const double h = (end - start) / steps;
         const double hh = 0.5 * h;
         const double h6 = h / 6.0;

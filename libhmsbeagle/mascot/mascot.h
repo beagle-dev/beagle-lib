@@ -1,7 +1,7 @@
 /*
  * mascot.h -- C API of the MASCOT component in beagle-lib (libhmsbeagle/mascot/mascot.h).
  *
- * API v1.2 (v1.0 approved 2026-10-30; 1.1 adaptive steps, 1.2 checkpoints).
+ * API v1.3 (v1.0 approved 2026-10-30; 1.1 adaptive steps, 1.2 checkpoints, 1.3 step budget).
  *
  * Contract:
  *  - An instance is not re-entrant; distinct instances are independent (no static or thread_local state).
@@ -22,7 +22,8 @@ extern "C" {
 #endif
 
 #define MASCOT_API_VERSION_MAJOR 1
-#define MASCOT_API_VERSION_MINOR 2   /* 1.1: MASCOT_STEPS_ADAPTIVE; 1.2: checkpoint sets (incremental restart) */
+#define MASCOT_API_VERSION_MINOR 3   /* 1.1: MASCOT_STEPS_ADAPTIVE; 1.2: checkpoint sets (incremental restart);
+                                        1.3: MascotStepRule.stepBudget, MASCOT_ERROR_STEP_BUDGET */
 
 enum MascotFlags {
     MASCOT_FP_STRICT       = 1 << 0,  /* no fused multiply-add: bitwise with Java on gradients                        */
@@ -45,7 +46,8 @@ enum MascotStatus {
     MASCOT_ERROR_COALESCENT_RATE = -2,  /* lambda <= 0 or non-finite: Java -> NumericalException -> -inf             */
     MASCOT_ERROR_PROBABILITIES   = -3,  /* checkProbabilities violation: same mapping                                */
     MASCOT_ERROR_UNSUPPORTED     = -4,  /* feature not available in this build (e.g. ADAPTIVE before R3): Java falls back */
-    MASCOT_ERROR_OUT_OF_MEMORY   = -5
+    MASCOT_ERROR_OUT_OF_MEMORY   = -5,
+    MASCOT_ERROR_STEP_BUDGET     = -6   /* the pass exceeded MascotStepRule.stepBudget (API 1.3): Java -> NumericalException */
 };
 
 enum MascotStepRuleKind {
@@ -68,6 +70,13 @@ typedef struct {
     double tau;                   /* ADAPTIVE only (default 0.25)                                                     */
     double hMin;                  /* ADAPTIVE only: lower bound on h (<= 0: none)                                     */
     int    maxStepsPerInterval;   /* ADAPTIVE only: guard against pathological lambda (<= 0: none)                    */
+    int    stepBudget;            /* ADAPTIVE with maxStep > 0 only (API 1.3; <= 0: none). Over the segments of a pass,
+                                   * in order, keep two 64-bit totals from 0: the steps n taken (after every rule above)
+                                   * and the reference ref = max(1, ceil(min(len / maxStep, 2^30))), the count of a
+                                   * FIXED maxStep grid. Before integrating a segment, add its n and ref; if then
+                                   * steps > stepBudget * ref, return MASCOT_ERROR_STEP_BUDGET. A resumed pass (API 1.2)
+                                   * continues the totals of its checkpoint. So time and tape memory stay within
+                                   * stepBudget times those of the FIXED maxStep pass. BEAST's default is 100.          */
 } MascotStepRule;
 
 typedef struct {

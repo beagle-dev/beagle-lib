@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
         // kernel B is not built everywhere (MSVC)
         variants.erase(std::remove_if(variants.begin(), variants.end(),
                                       [](const Variant& v) { return v.instance < 0; }), variants.end());
-        MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment};
+        MascotStepRule rule = {g.stepRuleKind, g.maxStep, g.tau, g.minStep, g.maxStepsPerSegment, g.stepBudget};
         const double* br = g.branchRates.empty() ? nullptr : g.branchRates.data();
         std::vector<double> theta(g.thetaGradient.size()), clock(g.lineageCount);
         double logL;

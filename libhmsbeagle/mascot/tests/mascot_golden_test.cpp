@@ -8,7 +8,8 @@
  * the kernel's log() is the platform's, which may differ from Java's by an ulp of log(lambda).
  * FMA builds (--fma): every output must be within the relative tolerance R (default 1e-9) of Java's, as measured
  * by relativeDifference (MascotGolden.hpp).
- * Golden cases with status "numerical" must return ERROR_COALESCENT_RATE or ERROR_PROBABILITIES.
+ * Golden cases with status "numerical" must return ERROR_COALESCENT_RATE or ERROR_PROBABILITIES, and those with status
+ * "stepBudget" (format 3) ERROR_STEP_BUDGET.
  */
 #include "MascotGolden.hpp"
 
@@ -112,9 +113,13 @@ int main(int argc, char** argv) {
 
         std::string problems;
         if (!stepsMatch) problems += " step counts differ";
-        if (g.status == "numerical") {
-            bool ok1 = statusForward == ERROR_COALESCENT_RATE || statusForward == ERROR_PROBABILITIES;
-            bool ok2 = status == ERROR_COALESCENT_RATE || status == ERROR_PROBABILITIES;
+        if (g.status == "numerical" || g.status == "stepBudget") {
+            auto expected = [&](int s) {
+                return g.status == "stepBudget" ? s == ERROR_STEP_BUDGET
+                                                : s == ERROR_COALESCENT_RATE || s == ERROR_PROBABILITIES;
+            };
+            bool ok1 = expected(statusForward);
+            bool ok2 = expected(status);
             if (!ok1 || !ok2) problems += " expected an error status, got " + std::to_string(statusForward) + "/" +
                                           std::to_string(status);
             std::printf("%-28s %s%s\n", g.name.c_str(), problems.empty() ? "ok (error status)" : "FAIL",

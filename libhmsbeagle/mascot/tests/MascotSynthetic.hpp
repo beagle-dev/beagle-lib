@@ -39,6 +39,7 @@ struct SyntheticOptions {
     double tau = 0.25;
     double minStep = 0.0;
     int maxStepsPerSegment = 0;
+    int stepBudget = 0;
 };
 
 /* Fills migration (diagonal = -row sum, summed in sink order) and inversePopulation = exp(-log Ne) from theta. */
@@ -78,6 +79,7 @@ inline GoldenCase syntheticCase(const std::string& name, uint64_t seed, const Sy
         g.tau = o.tau;
         g.minStep = o.minStep;
         g.maxStepsPerSegment = o.maxStepsPerSegment;
+        g.stepBudget = o.stepBudget;
     }
     const int n = o.tipCount, nodes = 2 * n - 1;
     g.lineageCount = nodes;
