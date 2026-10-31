@@ -800,8 +800,13 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeHostMemory(hBastaOperationQueue);
         gpu->FreeHostMemory(hBastaLogL);
 
+#ifdef FW_OPENCL // OpenCL's AllocatePinnedHostMemory returns a cl_mem, not host memory: these come from MallocHost there
+        if (hBastaDistance != NULL) gpu->FreeHostMemory(hBastaDistance);
+        if (hBastazeroes != NULL) gpu->FreeHostMemory(hBastazeroes);
+#else
         if (hBastaDistance != NULL) gpu->FreePinnedHostMemory(hBastaDistance);
         if (hBastazeroes != NULL) gpu->FreePinnedHostMemory(hBastazeroes);
+#endif
 
         if (hPopSizeGradHost != NULL) gpu->FreeHostMemory(hPopSizeGradHost);
     }
@@ -3489,6 +3494,17 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                     gpu->FreeHostMemory(hBastaLogL);
                     hBastaLogL =NULL;
                 }
+#ifdef FW_OPENCL
+                if (hBastaDistance != NULL) {
+                    gpu->FreeHostMemory(hBastaDistance);
+                    hBastaDistance = NULL;
+                }
+
+                if (hBastazeroes != NULL) {
+                    gpu->FreeHostMemory(hBastazeroes);
+                    hBastazeroes = NULL;
+                }
+#else
                 if (hBastaDistance != NULL) {
                     gpu->FreePinnedHostMemory(hBastaDistance);
                     hBastaDistance = NULL;
@@ -3498,6 +3514,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
                     gpu->FreePinnedHostMemory(hBastazeroes);
                     hBastazeroes = NULL;
                 }
+#endif
 
                 dCoalescentBuffers = (GPUPtr)NULL;
                 dBastaMemory = (GPUPtr)NULL;
@@ -3512,13 +3529,21 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 
 
             size_t zeroBytes = sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength;
+#ifdef FW_OPENCL // OpenCL's AllocatePinnedHostMemory returns a cl_mem, not host memory
+            hBastazeroes = (Real*) gpu->MallocHost(zeroBytes);
+#else
             hBastazeroes = (Real*) gpu->AllocatePinnedHostMemory(zeroBytes, false, false);
+#endif
             memset(hBastazeroes, 0, zeroBytes);
 
             hBastaLogL = (Real*) gpu->CallocHost(sizeof(Real), kBastaIntervalBlockCount);
 
             size_t distBytes = sizeof(Real) * kCoalescentBufferLength;
+#ifdef FW_OPENCL
+            hBastaDistance = (Real*) gpu->MallocHost(distBytes);
+#else
             hBastaDistance = (Real*) gpu->AllocatePinnedHostMemory(distBytes, false, false);
+#endif
             memset(hBastaDistance, 0, distBytes);
 
 
