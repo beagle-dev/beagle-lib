@@ -53,7 +53,7 @@
     }
 #endif
 
-#if (defined FW_OPENCL) && (defined DOUBLE_PRECISION)
+#if (defined FW_OPENCL) && (defined DOUBLE_PRECISION) && !defined(FW_TINYGPU_AMD)
     double atomicAdd(__global double* address, double val) {
     __global long* address_as_ull =
         (__global long*)address;
@@ -76,7 +76,7 @@
 //        sum = old+val;
 //    } while(atomic_cmpxchg((volatile global int*)addr, as_int(old), as_int(sum))!=as_int(old));
 //}
-#elif defined(FW_OPENCL)
+#elif defined(FW_OPENCL) && !defined(FW_TINYGPU_AMD)
     float atomicAdd(__global float* address, float val) {
     __global int* address_as_int =
         (__global int*)address;
@@ -2125,6 +2125,7 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
     KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child2TransIndex;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE_SCA) {
@@ -2265,6 +2266,7 @@ KW_GLOBAL_KERNEL void kernelBastaPartialsWithPrecomputedDiag(
     REAL temp1 = 0, temp2 = 0;
     
     KW_GLOBAL_VAR REAL* KW_RESTRICT evecRow = evec + state * PADDED_STATE_COUNT;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
         if (patIdx < BLOCK_PEELING_SIZE_SCA) {
             sMatrix[patIdx][state] = evecRow[i + patIdx];
@@ -2290,6 +2292,7 @@ KW_GLOBAL_KERNEL void kernelBastaPartialsWithPrecomputedDiag(
     REAL sum1 = 0, sum2 = 0;
     
     KW_GLOBAL_VAR REAL* KW_RESTRICT ievcRow = ievc + state * PADDED_STATE_COUNT;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
         if (patIdx < BLOCK_PEELING_SIZE_SCA) {
             sMatrix[patIdx][state] = ievcRow[i + patIdx];
