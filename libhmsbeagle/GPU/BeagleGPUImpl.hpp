@@ -570,10 +570,10 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         freeWithSubPointers(dWeightsOrigin);
         freeWithSubPointers(dFrequenciesOrigin);
 
-        if (dRawEvecOrigin != (GPUPtr)NULL) gpu->FreeMemory(dRawEvecOrigin);
-        if (dRawIevcOrigin != (GPUPtr)NULL) gpu->FreeMemory(dRawIevcOrigin);
-        if (dEvecTOrigin != (GPUPtr)NULL) gpu->FreeMemory(dEvecTOrigin);
-        if (dInverseEvecTOrigin != (GPUPtr)NULL) gpu->FreeMemory(dInverseEvecTOrigin);
+        if (dRawEvecOrigin != (GPUPtr)NULL) freeWithSubPointers(dRawEvecOrigin);
+        if (dRawIevcOrigin != (GPUPtr)NULL) freeWithSubPointers(dRawIevcOrigin);
+        if (dEvecTOrigin != (GPUPtr)NULL) freeWithSubPointers(dEvecTOrigin);
+        if (dInverseEvecTOrigin != (GPUPtr)NULL) freeWithSubPointers(dInverseEvecTOrigin);
         if (dRawEvec != NULL) { free(dRawEvec); dRawEvec = NULL; }
         if (dRawIevc != NULL) { free(dRawIevc); dRawIevc = NULL; }
         if (dEvecT != NULL) { free(dEvecT); dEvecT = NULL; }
@@ -1229,10 +1229,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     dEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
     dInverseEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
     for (int i = 0; i < kEigenDecompCount; i++) {
-        dRawEvec[i] = gpu->CreateSubPointer(dRawEvecOrigin, ptrIncrement * i, ptrIncrement);
-        dRawIevc[i] = gpu->CreateSubPointer(dRawIevcOrigin, ptrIncrement * i, ptrIncrement);
-        dEvecT[i] = gpu->CreateSubPointer(dEvecTOrigin, ptrIncrement * i, ptrIncrement);
-        dInverseEvecT[i] = gpu->CreateSubPointer(dInverseEvecTOrigin, ptrIncrement * i, ptrIncrement);
+        dRawEvec[i] = createSubPointer(dRawEvecOrigin, ptrIncrement * i, ptrIncrement);
+        dRawIevc[i] = createSubPointer(dRawIevcOrigin, ptrIncrement * i, ptrIncrement);
+        dEvecT[i] = createSubPointer(dEvecTOrigin, ptrIncrement * i, ptrIncrement);
+        dInverseEvecT[i] = createSubPointer(dInverseEvecTOrigin, ptrIncrement * i, ptrIncrement);
     }
 
     hStashedEval = (double**) calloc(sizeof(double*), kEigenDecompCount);
