@@ -3423,46 +3423,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
      if (partialsCount > kBufferCount || initial == 1) {
             if (initial == 0) {
 
-            size_t ptrIncrement = gpu->AlignMemOffset(kPartialsSize * sizeof(Real));
-            size_t newTotalSize = partialsCount * ptrIncrement;
-
-            if (dPartialsOrigin != (GPUPtr)NULL) {
-                gpu->FreeMemory(dPartialsOrigin);
-                dPartialsOrigin = (GPUPtr)NULL;
-            }
-
-            GPUPtr new_dPartialsTmpOrigin = gpu->AllocateMemory(newTotalSize);
-
-            GPUPtr new_dPartialsOrigin = gpu->CreateSubPointer(new_dPartialsTmpOrigin, 0, ptrIncrement);
-
-            kBufferCount = partialsCount;
-            dPartialsOrigin = new_dPartialsOrigin;
-
-            if (dPartials != NULL) {
-                free(dPartials);
-                dPartials = NULL;
-            }
-            if (hPartialsOffsets != NULL) {
-                free(hPartialsOffsets);
-                hPartialsOffsets = NULL;
-            }
-
-            dPartials = (GPUPtr*) calloc(kBufferCount, sizeof(GPUPtr));
-            hPartialsOffsets = (unsigned int*) calloc(kBufferCount, sizeof(unsigned int));
-
-            for (int i = 0; i < kBufferCount; i++) {
-                if (i < kTipCount) { // For the tips
-                    if (i < kTipPartialsBufferCount) {
-                        dTipPartialsBuffers[i] = gpu->CreateSubPointer(
-                            new_dPartialsTmpOrigin, ptrIncrement * i, ptrIncrement);
-                    }
-                } else {
-                    int partialsSubIndex = i - (kTipCount - kTipPartialsBufferCount);
-                    dPartials[i] = gpu->CreateSubPointer(
-                        new_dPartialsTmpOrigin, ptrIncrement * partialsSubIndex, ptrIncrement);
-                    hPartialsOffsets[i] = kIndexOffsetPat * partialsSubIndex;
-                }
-            }
+            // the partials pool, its handles and the arrays sized by the buffer count grow as in
+            // beagleEnsureBufferCounts, with the pool's bookkeeping (registered sub-buffers, capacity); through
+            // growBufferCounts, since ensureBufferCounts refuses an instance that has BASTA buffers
+            int returnCode = growBufferCounts(partialsCount - kCompactBufferCount, 0, 0);
+            if (returnCode != BEAGLE_SUCCESS)
+                return returnCode;
 
                 if (dBastaOperationQueue != (GPUPtr)NULL) {
                     gpu->FreeMemory(dBastaOperationQueue);
