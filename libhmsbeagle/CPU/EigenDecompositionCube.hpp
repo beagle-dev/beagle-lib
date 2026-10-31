@@ -10,6 +10,8 @@
 #include <algorithm>
 
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
+#include "libhmsbeagle/CPU/Precision.h"
+#include "libhmsbeagle/beagle.h"
 
 
 namespace beagle {
@@ -40,9 +42,25 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int dec
     if (gCMatrices == NULL)
     	throw std::bad_alloc();
 
+    gRawEMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    if (gRawEMatrices == NULL)
+        throw std::bad_alloc();
+
+    gRawIMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    if (gRawIMatrices == NULL)
+        throw std::bad_alloc();
+
     for (int i = 0; i < kEigenDecompCount; i++) {
     	gCMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount * kStateCount);
     	if (gCMatrices[i] == NULL)
+    		throw std::bad_alloc();
+
+    	gRawEMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
+    	if (gRawEMatrices[i] == NULL)
+    		throw std::bad_alloc();
+
+    	gRawIMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
+    	if (gRawIMatrices[i] == NULL)
     		throw std::bad_alloc();
 
     	gEigenValues[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount);
@@ -60,9 +78,13 @@ EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionCube() {
 
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gCMatrices[i]);
+		free(gRawEMatrices[i]);
+		free(gRawIMatrices[i]);
 		free(gEigenValues[i]);
 	}
 	free(gCMatrices);
+	free(gRawEMatrices);
+	free(gRawIMatrices);
 	free(gEigenValues);
 	free(matrixTmp);
 	free(firstDerivTmp);
@@ -109,6 +131,19 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(int
     std::copy(inInverseEigenVectors, inInverseEigenVectors + size, input.begin() + size);
     std::copy(inEigenValues, inEigenValues + kStateCount, input.begin() + 2 * size);
     gAdjointStale[eigenIndex] = true;
+
+    const int S2 = kStateCount * kStateCount;
+    beagleMemCpy(gRawEMatrices[eigenIndex], inEigenVectors, S2);
+    if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
+        beagleMemCpy(gRawIMatrices[eigenIndex], inInverseEigenVectors, S2);
+    } else {
+        for (int i = 0; i < kStateCount; ++i) {
+            for (int j = 0; j < kStateCount; ++j) {
+                gRawIMatrices[eigenIndex][i * kStateCount + j] =
+                        inInverseEigenVectors[j * kStateCount + i];
+            }
+        }
+    }
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
@@ -125,6 +160,21 @@ void EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::prepareAdjoint(int eigenI
     setStandardEigenDecomposition(*gAdjointStorage, eigenIndex, kStateCount, input, input + size,
                                   !(kFlags & BEAGLE_FLAG_INVEVEC_STANDARD), input + 2 * size);
     gAdjointStale[eigenIndex] = false;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+int EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::getRawEigenDecomposition(
+        int eigenIndex,
+        const REALTYPE** outEigenVectors,
+        const REALTYPE** outInverseEigenVectors,
+        const REALTYPE** outEigenValues) {
+    if (eigenIndex < 0 || eigenIndex >= kEigenDecompCount) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    if (outEigenVectors != NULL) *outEigenVectors = gRawEMatrices[eigenIndex];
+    if (outInverseEigenVectors != NULL) *outInverseEigenVectors = gRawIMatrices[eigenIndex];
+    if (outEigenValues != NULL) *outEigenValues = gEigenValues[eigenIndex];
+    return BEAGLE_SUCCESS;
 }
 
 #define UNROLL

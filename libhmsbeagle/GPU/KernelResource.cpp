@@ -30,6 +30,11 @@ KernelResource::KernelResource(
         int inSumIntervalBlockSize,
         int inSumAcrossBlockSize,
         int inBlockPeelingSizeSCA,
+        int inSlabOpsPerBlock,
+        int inHazardMaxIntervalsPerBlock,
+        int inProjectOpsPerBlock,
+        int inHeigOpsPerBlock,
+        int inCoalEventsPerBlock,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
@@ -45,6 +50,11 @@ KernelResource::KernelResource(
     sumIntervalBlockSize = inSumIntervalBlockSize;
     sumAcrossBlockSize = inSumAcrossBlockSize;
     blockPeelingSizeSCA = inBlockPeelingSizeSCA;
+    slabOpsPerBlock = inSlabOpsPerBlock;
+    hazardMaxIntervalsPerBlock = inHazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = inProjectOpsPerBlock;
+    heigOpsPerBlock = inHeigOpsPerBlock;
+    coalEventsPerBlock = inCoalEventsPerBlock;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
     unpaddedPatternCount = inUnpaddedPatternCount;
@@ -63,6 +73,11 @@ KernelResource::KernelResource(const KernelResource& krIn,
     sumIntervalBlockSize= krIn.sumIntervalBlockSize;
     sumAcrossBlockSize= krIn.sumAcrossBlockSize;
     blockPeelingSizeSCA = krIn.blockPeelingSizeSCA;
+    slabOpsPerBlock = krIn.slabOpsPerBlock;
+    hazardMaxIntervalsPerBlock = krIn.hazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = krIn.projectOpsPerBlock;
+    heigOpsPerBlock = krIn.heigOpsPerBlock;
+    coalEventsPerBlock = krIn.coalEventsPerBlock;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
     unpaddedPatternCount = krIn.unpaddedPatternCount;
@@ -84,6 +99,11 @@ KernelResource* KernelResource::copy(void) {
             sumIntervalBlockSize,
             sumAcrossBlockSize,
             blockPeelingSizeSCA,
+            slabOpsPerBlock,
+            hazardMaxIntervalsPerBlock,
+            projectOpsPerBlock,
+            heigOpsPerBlock,
+            coalEventsPerBlock,
             categoryCount,
             patternCount,
             unpaddedPatternCount,

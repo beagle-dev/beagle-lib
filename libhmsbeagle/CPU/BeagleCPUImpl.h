@@ -117,10 +117,8 @@ protected:
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     REALTYPE** gPartials;
-    REALTYPE**** gPartialsGrad;
-    REALTYPE*** coalescentGrad;
-    // REALTYPE**** efghGrad;
-    REALTYPE** tempGrad;
+    REALTYPE* gPartialsGrad;      // Flat layout: [node][ab][state] = (node * S² + a*S + b) * S_pad + i
+    REALTYPE* coalescentGrad;     // Flat layout: [ab][interval] = (a*S + b) * L + interval
     int** gTipStates;
     REALTYPE** gScaleBuffers;
 
@@ -136,7 +134,6 @@ protected:
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     REALTYPE** gTransitionMatrices;
-    REALTYPE**** gTransitionMatricesGrad;
 
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
@@ -207,8 +204,37 @@ protected:
     std::vector<REALTYPE> gBastaBuffers;
     std::vector<REALTYPE> gBastaGradBuffers;
     std::vector<REALTYPE> gCoalescentBuffers;
+    std::vector<REALTYPE> gEdgeLengthsGrad;
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
+    int kCoalescentGradLength;
+
+    struct CoalescentDetail {
+        int outputBuffer;
+        int inputBuffer1;
+        int inputBuffer2;
+        int inputMatrix1;
+        int inputMatrix2;
+        int accBuffer1;
+        int accBuffer2;
+        int intervalNumber;
+        REALTYPE j;
+    };
+
+
+    std::vector<CoalescentDetail> gCoalescentDetails;
+    std::vector<double> gExpmKernels;
+    bool kAdjointBuffersAllocated;
+    bool kUseAdjointGradient;
+    bool kAdjointReversePassDone;
+    bool kUnclampedForwardDone;
+    std::vector<double> gCachedIntervalLengths;
+
+    std::vector<REALTYPE> gAdjointWorkE, gAdjointWorkF, gAdjointWorkG, gAdjointWorkH;
+    std::vector<REALTYPE> gAdjointWorkW;
+    std::vector<REALTYPE> gAdjointWorkIexp;
+    std::vector<REALTYPE> gAdjointWorkTemp;
+    std::vector<REALTYPE> gAdjointYBar;
 
     struct threadData
     {
@@ -587,20 +613,34 @@ public:
                                 int coalescentIndex,
                                 double* out);
 
-    int accumulateBastaPartialsGrad(const int *operations, 
-                                    const int operationCount, 
-                                    const int *intervalStarts, 
-                                    const int intervalStartsCount, 
-                                    const double *intervalLengths, 
-                                    const int populationSizesIndex, 
-                                    const int coalescentIndex, 
+    int accumulateBastaPartialsGrad(const int *operations,
+                                    const int operationCount,
+                                    const int *intervalStarts,
+                                    const int intervalStartsCount,
+                                    const double *intervalLengths,
+                                    const int populationSizesIndex,
+                                    const int coalescentIndex,
+                                    int eigenIndex,
+                                    int partialAdjointBufferBase,
+                                    int matrixAdjointBufferBase,
+                                    double *popSizeGradOut,
                                     double *out);
 
+    int uploadBastaSlabMetadata(const int* packed, int packedLen);
+
+    int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
 
     int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial, int numThreads);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);
+
+    int accumulateEigenBasisGradient(int eigenIndex,
+                                     int matrixAdjointBufferBase,
+                                     const double* branchLengths,
+                                     int matrixCount,
+                                     int hasComplexEigenvalues,
+                                     double* outRateGradient);
 
     void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
                               REALTYPE* g, REALTYPE* h,
@@ -608,8 +648,8 @@ public:
                               int endBuffer1, int endBuffer2,
                               int interval);
 
-    void reduceWithinIntervalGrad(REALTYPE*** eGrad, REALTYPE*** fGrad,
-                                  REALTYPE*** gGrad, REALTYPE*** hGrad,
+    void reduceWithinIntervalGrad(REALTYPE* eGrad, REALTYPE* fGrad,
+                                  REALTYPE* gGrad, REALTYPE* hGrad,
                                   int startBuffer1, int startBuffer2,
                                   int endBuffer1, int endBuffer2,
                                   int interval);
@@ -622,9 +662,9 @@ public:
     
     void reduceAcrossIntervalsGrad(REALTYPE *e, REALTYPE *f, 
                                    REALTYPE *g, REALTYPE *h, 
-                                   REALTYPE ***eGrad, REALTYPE ***fGrad, 
-                                   REALTYPE ***gGrad, REALTYPE ***hGrad, 
-                                   REALTYPE **resultGrad, 
+                                   REALTYPE *eGrad, REALTYPE *fGrad, 
+                                   REALTYPE *gGrad, REALTYPE *hGrad, 
+                                   REALTYPE *resultGrad, 
                                    int interval, REALTYPE length, 
                                    const REALTYPE *sizes, 
                                    const REALTYPE *coalescent);
@@ -1196,11 +1236,35 @@ protected:
                                     const int end,
                                     const REALTYPE* sizes,
                                     const REALTYPE* coalescent);
-    
+
     void matrixMultiply(const REALTYPE* matrices1,
                         const REALTYPE* matrices2,
                         REALTYPE* output,
                         int n);
+
+    int allocateBastaGradBuffers(int partialsCount);
+
+    void adjointPushReductionAdjoints(const REALTYPE* partials, REALTYPE* partialAdj,
+                                      const REALTYPE* adjSum, const REALTYPE* adjSq);
+
+    void adjointAddMatTVecAndOuterInPlace(REALTYPE* transposeVecTarget, REALTYPE* outerTarget,
+                                          const REALTYPE* matrix, const REALTYPE* left, const REALTYPE* right,
+                                          int matrixIncr);
+
+    void adjointAddMatTVecInPlace(REALTYPE* transposeVecTarget, const REALTYPE* matrix,
+                                  const REALTYPE* left, int matrixIncr);
+
+    void adjointAddOuterInPlace(REALTYPE* outerTarget, const REALTYPE* left, const REALTYPE* right,
+                                int matrixIncr);
+
+    void adjointReversePass(const int* operations, int count,
+                            const int* intervals, int intervalCount,
+                            const double* intervalLengths,
+                            const REALTYPE* sizes, const REALTYPE* coalescent,
+                            int eigenIndex,
+                            int partialAdjointBufferBase,
+                            int matrixAdjointBufferBase,
+                            REALTYPE* popSizeGradOut);
 
 private:
 

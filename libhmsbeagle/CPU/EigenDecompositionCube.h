@@ -31,6 +31,8 @@ class EigenDecompositionCube : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERI
 
 protected:
     REALTYPE** gCMatrices;
+    REALTYPE** gRawEMatrices;
+    REALTYPE** gRawIMatrices;
 
     // V, V^{-1}, their transposes and the integral plan in the layout of the spectral representation, which
     // BeagleCPUImpl's adjoint gradient reads. Built on the first gradient after setEigenDecomposition
@@ -100,6 +102,11 @@ public:
     }
 
     virtual void prepareAdjoint(int eigenIndex);
+
+	virtual int getRawEigenDecomposition(int eigenIndex,
+	                                     const REALTYPE** outEigenVectors,
+	                                     const REALTYPE** outInverseEigenVectors,
+	                                     const REALTYPE** outEigenValues);
 };
 
 }

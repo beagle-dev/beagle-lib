@@ -333,7 +333,17 @@ public:
                                         const double* intervalLengths,
                                         const int populationSizesIndex,
                                         int coalescentIndex,
+                                        int eigenIndex,
+                                        int partialAdjointBufferBase,
+                                        int matrixAdjointBufferBase,
+                                        double* popSizeGradOut,
                                         double* out) = 0;
+
+    virtual int uploadBastaSlabMetadata(const int* packed,
+                                        int packedLen) = 0;
+
+    virtual int getBastaSlabConstants(int* opsPerBlock,
+                                      int* indexOffsetPat) = 0;
 
     virtual int allocateBastaBuffers(int bufferCount,
                                      int bufferLength,
@@ -341,8 +351,17 @@ public:
                                      int initial,
                                      int numThreads) = 0;
 
+    virtual int allocateBastaGradBuffers(int partialsCount) = 0;
+
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;
+
+    virtual int accumulateEigenBasisGradient(int eigenIndex,
+                                             int matrixAdjointBufferBase,
+                                             const double* branchLengths,
+                                             int matrixCount,
+                                             int hasComplexEigenvalues,
+                                             double* outRateGradient) = 0;
                                    
 //protected:
     int resourceNumber;

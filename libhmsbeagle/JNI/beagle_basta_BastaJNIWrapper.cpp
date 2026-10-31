@@ -145,6 +145,10 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
    jdoubleArray inIntervalLengths,
    jint populationSizesIndex,
    jint coalescentIndex,
+   jint eigenIndex,
+   jint partialAdjointBufferBase,
+   jint matrixAdjointBufferBase,
+   jdoubleArray popSizeGradOut,
    jdoubleArray out) {
 
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
@@ -152,13 +156,21 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
 
     jdouble *array = env->GetDoubleArrayElements(out, NULL);
     jdouble *intervalLengths = env->GetDoubleArrayElements(inIntervalLengths, NULL);
+    jdouble *popSizeArray = (popSizeGradOut == NULL)
+            ? NULL
+            : env->GetDoubleArrayElements(popSizeGradOut, NULL);
 
     jint errCode = beagleAccumulateBastaPartialsGrad(instance,
                                                  (const BastaOperation*) operations, operationCount,
                                                  (const int*) intervals, intervalCount,
                                                  (double *)intervalLengths,
                                                  populationSizesIndex,
-                                                 coalescentIndex, (double *)array);
+                                                 coalescentIndex,
+                                                 eigenIndex,
+                                                 partialAdjointBufferBase,
+                                                 matrixAdjointBufferBase,
+                                                 (double *)popSizeArray,
+                                                 (double *)array);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
     env->ReleaseIntArrayElements(inIntervals, intervals, JNI_ABORT);
@@ -166,7 +178,71 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
 
     // not using JNI_ABORT flag here because we want the values to be copied back...
     env->ReleaseDoubleArrayElements(out, array, 0);
+    if (popSizeArray != NULL) {
+        env->ReleaseDoubleArrayElements(popSizeGradOut, popSizeArray, 0);
+    }
 
   	return errCode;
-  
+
+  }
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_allocateCoalescentGradBuffers
+        (JNIEnv *env, jobject obj, jint instance, jint partialsCount) {
+    return (jint)beagleAllocateBastaGradBuffers(instance, partialsCount);
+}
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateEigenBasisGradient
+  (JNIEnv *env, jobject object, jint instance,
+   jint eigenIndex, jint matrixAdjointBufferBase,
+   jdoubleArray inBranchLengths,
+   jint matrixCount, jint hasComplex, jdoubleArray out) {
+
+    jdouble *branchLengths = env->GetDoubleArrayElements(inBranchLengths, NULL);
+    jdouble *array = env->GetDoubleArrayElements(out, NULL);
+    jint errCode = beagleAccumulateEigenBasisGradient(instance,
+                                                      eigenIndex,
+                                                      matrixAdjointBufferBase,
+                                                      (const double *)branchLengths,
+                                                      matrixCount, hasComplex,
+                                                      (double *)array);
+
+    env->ReleaseDoubleArrayElements(inBranchLengths, branchLengths, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(out, array, 0);
+    return errCode;
+  }
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_uploadBastaSlabMetadata
+  (JNIEnv *env, jobject object, jint instance, jintArray inPacked, jint packedLen) {
+
+    jint *packed = env->GetIntArrayElements(inPacked, NULL);
+    jint errCode = (jint) beagleUploadBastaSlabMetadata(instance,
+                                                        (const int*) packed,
+                                                        packedLen);
+
+    env->ReleaseIntArrayElements(inPacked, packed, JNI_ABORT);
+    return errCode;
+  }
+
+
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getBastaSlabConstants
+  (JNIEnv *env, jobject object, jint instance, jintArray inOut) {
+
+    jsize outLen = env->GetArrayLength(inOut);
+    if (outLen < 2) {
+        return (jint) BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+
+    int opsPerBlock = 0;
+    int indexOffsetPat = 0;
+    jint errCode = (jint) beagleGetBastaSlabConstants(instance,
+                                                      &opsPerBlock,
+                                                      &indexOffsetPat);
+
+    if (errCode == BEAGLE_SUCCESS) {
+        jint *out = env->GetIntArrayElements(inOut, NULL);
+        out[0] = (jint) opsPerBlock;
+        out[1] = (jint) indexOffsetPat;
+        env->ReleaseIntArrayElements(inOut, out, 0);
+    }
+    return errCode;
   }

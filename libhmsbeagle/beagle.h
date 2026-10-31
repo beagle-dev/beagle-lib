@@ -1703,7 +1703,22 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
+                                                   int eigenIndex,
+                                                   int partialAdjointBufferBase,
+                                                   int matrixAdjointBufferBase,
+                                                   double* popSizeGradOut,
                                                    double* out);
+
+BEAGLE_DLLEXPORT int beagleUploadBastaSlabMetadata(const int instance,
+                                                   const int* packed,
+                                                   int packedLen);
+
+BEAGLE_DLLEXPORT int beagleGetBastaSlabConstants(const int instance,
+                                                 int* opsPerBlock,
+                                                 int* indexOffsetPat);
+
+BEAGLE_DLLEXPORT int beagleAllocateBastaGradBuffers(const int instance,
+                                                    const int partialsCount);
 
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
                                                 const int bufferCount,
@@ -1715,6 +1730,15 @@ BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,
                                           double* out);
+
+
+BEAGLE_DLLEXPORT int beagleAccumulateEigenBasisGradient(const int instance,
+                                                         int eigenIndex,
+                                                         int matrixAdjointBufferBase,
+                                                         const double* branchLengths,
+                                                         const int matrixCount,
+                                                         const int hasComplexEigenvalues,
+                                                         double* outRateGradient);
 
 // END OF BASTA
 

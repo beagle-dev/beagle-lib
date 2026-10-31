@@ -28,8 +28,9 @@ class EigenDecompositionSquare: public EigenDecomposition<BEAGLE_CPU_EIGEN_GENER
 	using EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>::kFlags;
 
 protected:
-    REALTYPE** gEMatrices; // kStateCount^2 flattened array
-    REALTYPE** gIMatrices; // kStateCount^2 flattened array
+    REALTYPE** gEMatrices;
+    REALTYPE** gIMatrices;
+    REALTYPE** gRawIMatrices;
     bool isComplex;
     int kEigenValuesSize;
 
@@ -89,6 +90,11 @@ public:
     virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const;
 
     virtual void prepareAdjoint(int eigenIndex);
+
+	virtual int getRawEigenDecomposition(int eigenIndex,
+	                                     const REALTYPE** outEigenVectors,
+	                                     const REALTYPE** outInverseEigenVectors,
+	                                     const REALTYPE** outEigenValues);
 };
 
 }

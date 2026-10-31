@@ -66,6 +66,11 @@ static constexpr uint16_t PCI_VENDOR_AMD    = 0x1002;
             BASTA_SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
             BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
             BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
+            BASTA_SLAB_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK_##prec##_##state, \
+            BASTA_PROJECT_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HEIG_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_COAL_EVENTS_PER_BLOCK_##prec##_##state, \
             0,0,0,0);
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -352,6 +357,16 @@ void GPUInterface::MemsetZero(GPUPtr dst, size_t sz) {
     std::vector<uint8_t> buf(sz, 0);
     MemcpyHostToDevice(dst, buf.data(), sz);
 }
+
+void GPUInterface::MemsetZeroAsync(GPUPtr dst, size_t sz) { MemsetZero(dst, sz); }
+
+// CUDA Graphs API: stubs, as in OpenCL (no graph capture here)
+bool GPUInterface::SupportsGraphCapture() { return false; }
+bool GPUInterface::BeginGraphCapture()    { return false; }
+void* GPUInterface::EndGraphCapture()     { return NULL;  }
+bool GPUInterface::LaunchGraph(void*)     { return false; }
+void GPUInterface::SynchronizeGraph()     { }
+void GPUInterface::DestroyGraph(void*)    { }
 
 // ── Host memory (simple malloc wrappers) ─────────────────────────────────────
 

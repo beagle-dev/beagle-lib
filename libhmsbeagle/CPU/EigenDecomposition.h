@@ -16,6 +16,7 @@
 #include <cassert>
 #include <vector>
 
+#include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/CPU/AdjointMethods.h"
 
 #define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE, T_PAD
@@ -110,6 +111,14 @@ public:
     // Builds what the adjoint gradient reads for eigenIndex (the accessors above) if a decomposition builds it
     // on first use; called once per gradient, before any thread starts
     virtual void prepareAdjoint(int eigenIndex) { };
+
+    // Return raw eigen-decomposition pointers for
+    // a given eigenIndex.
+    // (BEAGLE_ERROR_NO_IMPLEMENTATION for a decomposition that does not keep them, e.g. EigenDecompositionSpectral)
+    virtual int getRawEigenDecomposition(int eigenIndex,
+                                         const REALTYPE** outEigenVectors,
+                                         const REALTYPE** outInverseEigenVectors,
+                                         const REALTYPE** outEigenValues) { return BEAGLE_ERROR_NO_IMPLEMENTATION; };
 };
 
 }

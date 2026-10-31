@@ -51,6 +51,11 @@
             BASTA_SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
             BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
 			BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
+            BASTA_SLAB_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK_##prec##_##state, \
+            BASTA_PROJECT_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HEIG_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_COAL_EVENTS_PER_BLOCK_##prec##_##state, \
             0,0,0,0);
 
 namespace opencl_device {
@@ -827,6 +832,14 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
 #endif
 }
 
+// CUDA Graphs API: stubs (OpenCL has no equivalent abstraction).
+bool GPUInterface::SupportsGraphCapture() { return false; }
+bool GPUInterface::BeginGraphCapture()    { return false; }
+void* GPUInterface::EndGraphCapture()     { return NULL;  }
+bool GPUInterface::LaunchGraph(void*)     { return false; }
+void GPUInterface::SynchronizeGraph()     { }
+void GPUInterface::DestroyGraph(void*)    { }
+
 void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::MallocHost\n");
@@ -1131,6 +1144,10 @@ void GPUInterface::MemsetZero(GPUPtr dest,
 #endif
 }
 
+void GPUInterface::MemsetZeroAsync(GPUPtr dest,
+                                   size_t byteCount) {
+    MemsetZero(dest, byteCount);
+}
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
