@@ -498,8 +498,9 @@ BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
  *         pool that cannot grow is put back through host memory on a best-effort basis, and if that fails too,
  *         beagleEnsureBufferCounts(instance, 0, 0, 0) also returns BEAGLE_ERROR_OUT_OF_MEMORY and the instance
  *         must be finalized; on OpenCL a lazily committed allocation can still fail later and exit);
- *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, or for more scale buffers
- *         under BEAGLE_FLAG_SCALING_DYNAMIC on a GPU other than CUDA (instance unchanged);
+ *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, for more scale buffers
+ *         under BEAGLE_FLAG_SCALING_DYNAMIC on a GPU other than CUDA, or for a growth once the instance has
+ *         BASTA buffers (beagleAllocateBastaBuffers, beagleAllocateBastaGradBuffers) (instance unchanged);
  *         BEAGLE_ERROR_UNINITIALIZED_INSTANCE for an invalid instance.
  */
 BEAGLE_DLLEXPORT int beagleEnsureBufferCounts(int instance,

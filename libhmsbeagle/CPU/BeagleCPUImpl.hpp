@@ -714,6 +714,11 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::ensureBufferCounts(int partialsBufferCoun
     if (!growPartials && !growMatrices && !growScale)
         return BEAGLE_SUCCESS;
 
+    // BASTA's gEdgeLengthsGrad and gPartialsGrad are sized by these counts and do not grow with them: once
+    // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
+    if (!gEdgeLengthsGrad.empty())
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+
     // counts whose sizes overflow, here or in later int arithmetic (the operation arrays of the threads)
     const long long operationsLength = (long long) BEAGLE_PARTITION_OP_COUNT * newBuffer * kPartitionCount;
     if ((growPartials && (operationsLength > INT_MAX || (size_t) operationsLength > SIZE_MAX / sizeof(int) ||

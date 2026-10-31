@@ -1498,6 +1498,19 @@ BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
                                                           int matrixBufferCount,
                                                           int scaleBufferCount) {
+    // BASTA's arrays sized by these counts (hEdgeLengthsGrad, dEdgeLengthsGrad, dTransformedAdjoints,
+    // hTransformedAdjointsHost, the BASTA operation queue) and its captured CUDA graphs do not grow with them: once
+    // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
+    if (hEdgeLengthsGrad != NULL) {
+        BufferCounts counts;
+        int ruleCode;
+        if (ensureBufferCountsRule(partialsBufferCount, matrixBufferCount, scaleBufferCount, kTipCount,
+                                   kCompactBufferCount, kBufferCount, kMatrixCount, kScaleBufferCount, kFlags,
+                                   &counts, &ruleCode)) {
+            gpu->SynchronizeHost(); // as on every path (beagle.h)
+            return BEAGLE_ERROR_NO_IMPLEMENTATION;
+        }
+    }
 #ifdef BEAGLE_DEBUG_MEMORY
     // BEAGLE_DEBUG_MEMORY_FAIL=<k1,k2,...>: the k-th device allocation of this call fails, counting from 1
     hDebugFailAllocations.clear();
