@@ -2869,8 +2869,12 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
         }
     }
 
+// above 128 states a 16-column tile keeps kernelAdjointBastaPartials' shared memory under 32 KB at SP 256 (M1 OpenCL)
+// and under CUDA's 48 KB of static shared memory at DP 192 and 256
 #if PADDED_STATE_COUNT < 32
     #define BASTA_MATVEC_K_TILE PADDED_STATE_COUNT
+#elif PADDED_STATE_COUNT >= 192
+    #define BASTA_MATVEC_K_TILE 16
 #else
     #define BASTA_MATVEC_K_TILE 32
 #endif
@@ -3207,6 +3211,7 @@ KW_GLOBAL_KERNEL void kernelTiledBatchGemmABt(
     int S2 = S * S;
     REAL acc = 0.0;
 
+    KW_NO_UNROLL
     for (int k = 0; k < S; k += EIGEN_TILE) {
         // Load A[m][row, k+ty] into shared memory
         sA[tx][ty] = (row < S && (k + ty) < S) ? A[m * S2 + row * S + k + ty] : 0.0;
@@ -3248,6 +3253,7 @@ KW_GLOBAL_KERNEL void kernelTiledBatchGemmAtB(
     int S2 = S * S;
     REAL acc = 0.0;
 
+    KW_NO_UNROLL
     for (int k = 0; k < S; k += EIGEN_TILE) {
         // Load A^T[row, k+ty] = A[k+ty, row]  (transpose read from row-major A)
         sA[tx][ty] = (row < S && (k + ty) < S) ? A[(k + ty) * S + row] : 0.0;
@@ -3671,6 +3677,7 @@ KW_GLOBAL_KERNEL void kernelTiledSingleGemmAtB(
     int S = PADDED_STATE_COUNT;
     REAL acc = 0.0;
 
+    KW_NO_UNROLL
     for (int k = 0; k < S; k += EIGEN_TILE) {
         sA[tx][ty] = (row < S && (k + ty) < S) ? A[(k + ty) * S + row] : 0.0;
         sB[tx][ty] = (col < S && (k + tx) < S) ? B[(k + tx) * S + col] : 0.0;
@@ -3705,6 +3712,7 @@ KW_GLOBAL_KERNEL void kernelTiledSingleGemmABt(
     int S = PADDED_STATE_COUNT;
     REAL acc = 0.0;
 
+    KW_NO_UNROLL
     for (int k = 0; k < S; k += EIGEN_TILE) {
         sA[tx][ty] = (row < S && (k + ty) < S) ? A[row * S + k + ty] : 0.0;
         sB[tx][ty] = (col < S && (k + tx) < S) ? B[col * S + k + tx] : 0.0;
