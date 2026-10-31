@@ -952,6 +952,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScalePartition(KW_GLOBAL_VAR REAL*
 #endif // FW_OPENCL_CPU
 }
 
+#ifndef CUDA_TENSOR_CORES // kernels4TensorCore.cu has the tensor-core version of this kernel
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -979,6 +980,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
            matrix, pattern, tx, state, u);
 #endif
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleMulti(
                                              KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
@@ -2634,7 +2636,15 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
 }
 
 #ifdef CUDA
+#ifdef CUDA_TENSOR_CORES
+    #include "kernels4TensorCore.cu"
+#endif
+
     #include "kernels4Derivatives.cu"
+
+#ifdef CUDA_TENSOR_CORES
+    #include "kernels4DerivativesTensorCore.cu"
+#endif
 #endif // CUDA
 
 #ifdef CUDA_SPECTRAL

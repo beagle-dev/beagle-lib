@@ -89,6 +89,16 @@ public:
                                   REALTYPE** transitionMatrices,
                                   int count) override;
 
+    void updateTransitionMatricesParallel(int eigenIndex,
+                                          const int* probabilityIndices,
+                                          const int* firstDerivativeIndices,
+                                          const int* secondDerivativeIndices,
+                                          const double* edgeLengths,
+                                          const double* categoryRates,
+                                          REALTYPE** transitionMatrices,
+                                          int count,
+                                          int numThreads) override;
+
     void updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                                      const int* probabilityIndices,
                                                      const int* firstDerivativeIndices,

@@ -15,6 +15,10 @@
 #ifdef CUDA
     #include "libhmsbeagle/GPU/GPUImplDefs.h"
     #include "libhmsbeagle/GPU/kernels/kernelsAll.cu" // This file includes the non-state-count specific kernels
+#ifdef CUDA_TENSOR_CORES
+    #include <mma.h>
+    #include "libhmsbeagle/GPU/kernels/kernelsTensorCoreMacros.h"
+#endif
     extern "C" {
 #endif
 
@@ -478,6 +482,7 @@
 //#endif
 //}
 
+#ifndef CUDA_TENSOR_CORES // kernelsXTensorCore.cu has the tensor-core version of this kernel
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -495,6 +500,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScale(KW_GLOBAL_VAR REAL* KW_RESTR
         partials3[u] = sum1 * sum2;
 #endif // FW_OPENCL_CPU
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
@@ -516,6 +522,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RE
 #endif // FW_OPENCL_CPU
 }
 
+#ifndef CUDA_TENSOR_CORES // kernelsXTensorCore.cu has the tensor-core version of this kernel
 KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                   KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -533,6 +540,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsNoScale(KW_GLOBAL_VAR int* KW_RESTRICT
         partials3[u] = sum1 * sum2;
 #endif // FW_OPENCL_CPU
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTRICT states1,
                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
@@ -1335,7 +1343,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsAutoScale(KW_GLOBAL_VAR REAL* partia
     }
 
     KW_LOCAL_FENCE;
-
+    
     if (scalingActive)
         partials3[u] = ldexp(sigTmp, expTmp - sPartials1[patIdx][0]);
 
@@ -1406,8 +1414,19 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsAutoScaling(KW_GLOBAL_VAR REAL* 
         dResult[pattern] = (log(sum[state]) + (M_LN2 * maxScaleFactor));
 }
 
+
+
+
 #ifdef CUDA
+#ifdef CUDA_TENSOR_CORES
+    #include "kernelsXTensorCore.cu"
+#endif
+
     #include "kernelsXDerivatives.cu"
+
+#ifdef CUDA_TENSOR_CORES
+    #include "kernelsXDerivativesTensorCore.cu"
+#endif
 #endif // CUDA
 
 #ifdef CUDA_SPECTRAL

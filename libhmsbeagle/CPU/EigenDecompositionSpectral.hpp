@@ -145,6 +145,21 @@ void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatri
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesParallel(
+        int eigenIndex,
+        const int* probabilityIndices,
+        const int* firstDerivativeIndices,
+        const int* secondDerivativeIndices,
+        const double* edgeLengths,
+        const double* categoryRates,
+        REALTYPE** transitionMatrices,
+        int count,
+        int numThreads) {
+    fprintf(stderr, "EigenDecompositionSpectral::updateTransitionMatricesParallel should not be called\n");
+    exit(-1);
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
 void EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesWithModelCategories(
         int* eigenIndices,
         const int* probabilityIndices,

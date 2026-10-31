@@ -33,6 +33,12 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <cassert>
+
+#ifdef BEAGLE_DEBUG_FLOW
+#include <bitset>
+#endif
+
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BeagleImpl.h"
@@ -117,6 +123,27 @@ void beagleLoadPlugins(void) {
 
     beagle::plugin::PluginManager& pm = beagle::plugin::PluginManager::instance();
 
+    // Check if threading is explicitly disabled
+    bool skipOpenMP = false;
+    const char* threadingType = getenv("BEAGLE_THREADING_TYPE");
+    if (threadingType && strcmp(threadingType, "none") == 0) {
+        skipOpenMP = true;
+    }
+
+    if (!skipOpenMP) {
+        try{
+#ifdef BEAGLE_DEBUG_LOAD
+            std::cerr << "Loading hmsbeagle-cpu-omp" << std::endl;
+#endif
+            beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-omp");
+            plugins->push_back(openmpplug);
+        }catch(beagle::plugin::SharedLibraryException sle){
+#ifdef BEAGLE_DEBUG_LOAD
+            std::cerr << "Unable to load hmsbeagle-cpu-omp: " << sle.getError() << std::endl;
+#endif
+        }
+    }
+
     try{
 #ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-cpu-sse" << std::endl;
@@ -177,6 +204,18 @@ void beagleLoadPlugins(void) {
 
     try{
 #ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-tensor-cores" << std::endl;
+#endif
+        beagle::plugin::Plugin* tensorCoresPlug = pm.findPlugin("hmsbeagle-tensor-cores");
+        plugins->push_back(tensorCoresPlug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-tensor-cores: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
+#ifdef BEAGLE_DEBUG_LOAD
         std::cerr << "Loading hmsbeagle-opencl-spectral" << std::endl;
 #endif
         beagle::plugin::Plugin* openclplug = pm.findPlugin("hmsbeagle-opencl-spectral");
@@ -231,11 +270,6 @@ void beagleLoadPlugins(void) {
     try{
         beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
         plugins->push_back(avxplug);
-    }catch(beagle::plugin::SharedLibraryException sle){}
-
-    try{
-        beagle::plugin::Plugin* openmpplug = pm.findPlugin("hmsbeagle-cpu-openmp");
-        plugins->push_back(openmpplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
 }
 
@@ -401,6 +435,19 @@ int filterResources(int* resourceList,
                     long requirementFlags,
                     PairedList* possibleResources) {
 
+    const long THREADING_FLAGS = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP | BEAGLE_FLAG_THREADING_OPENMP;
+
+    if (preferenceFlags & BEAGLE_FLAG_THREADING_NONE) {
+        // User explicitly requested no threading
+        requirementFlags |= BEAGLE_FLAG_THREADING_NONE;
+    } else if (preferenceFlags & BEAGLE_FLAG_THREADING_OPENMP) {
+        // User explicitly requested OpenMP threading
+        requirementFlags |= BEAGLE_FLAG_THREADING_OPENMP;
+    } else if ((preferenceFlags & THREADING_FLAGS) == 0) {
+        // User did not specify any threading preference -> assume they want single-threaded
+        requirementFlags |= BEAGLE_FLAG_THREADING_NONE;
+    }
+
     // First determine a list of possible resources
     if (resourceList == NULL || resourceCount == 0) { // No list given
         for(int i=0; i<rsrcList->length; i++)
@@ -415,6 +462,8 @@ int filterResources(int* resourceList,
     }
 
     if (requirementFlags != 0) { // If requirements given do restriction
+        bool openMPResourceFound = false;
+        
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
@@ -425,9 +474,16 @@ int filterResources(int* resourceList,
                     it=possibleResources->begin();
                 }else
                     possibleResources->remove(*(it--));
+            } else {
+                if (resourceFlag & BEAGLE_FLAG_THREADING_OPENMP) {
+                    openMPResourceFound = true;
+                }
             }
             if(it==possibleResources->end())
                 break;
+        }
+        if ((requirementFlags & BEAGLE_FLAG_THREADING_OPENMP) && !openMPResourceFound) {
+            return BEAGLE_ERROR_NO_RESOURCE;
         }
     }
 
@@ -483,6 +539,14 @@ int rankResourceImplementationPairs(long preferenceFlags,
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tPossible implementation: %s (%d = %d + %d + %d)\n",
                         (*factory)->getName(),totalScore, resourceScore, implementationScore, penalty);
+                std::bitset<64> tmpFlag(factoryFlags);
+                fprintf(stderr, "Factory flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(preferenceFlags);
+                fprintf(stderr, "Preference flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(resourceRequiredFlags);
+                fprintf(stderr, "Resource required flags: %s \n", tmpFlag.to_string().c_str());
+                tmpFlag = std::bitset<64>(resourceSupportedFlags);
+                fprintf(stderr, "Resource supported flags: %s \n", tmpFlag.to_string().c_str());
 #endif
 
                 possibleResourceImplementations->push_back(std::make_pair(totalScore, std::make_pair(resource, (*factory))));
@@ -699,7 +763,6 @@ int beagleCreateInstance(int tipCount,
                          long preferenceFlags,
                          long requirementFlags,
                          BeagleInstanceDetails* returnInfo) {
-    DEBUG_CREATE_TIME();
     try {
         if (instances == NULL) {
             DEBUG_CREATE_ENERGY();
@@ -771,6 +834,7 @@ int beagleCreateInstance(int tipCount,
 
             int instance = instances->size();
             instances->push_back(bestBeagle);
+            DEBUG_CREATE_TIME();
 
             int returnValue = bestBeagle->getInstanceDetails(returnInfo);
             if (returnValue == BEAGLE_SUCCESS) {
@@ -1298,6 +1362,21 @@ int beagleUpdateTransitionMatrices(int instance,
 //    catch (...) {
 //        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
 //    }
+}
+
+int beagleUpdateTransitionMatricesGrad(int instance,
+                                       const int* probabilityIndices,
+                                       const double* edgeLengths,
+                                       int count) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL)
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    int returnValue = beagleInstance->updateTransitionMatricesGrad(probabilityIndices, edgeLengths, count);
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+    return returnValue;
 }
 
 int beagleUpdateTransitionMatricesWithModelCategories(int instance,
@@ -2145,7 +2224,154 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
                                   const int categoryWeightsIndex, const int categoryRatesIndex,
                                   const int stateFrequenciesIndex, const int *cumulativeScaleIndices, int count,
                                   double *outFirstDerivative, double *outDiagonalSecondDerivative) {
-    fprintf(stderr, "Depricated");
+    fprintf(stderr, "Function beagleCalculateEdgeDerivative is deprecated.\n");
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
+int beagleAllocateBastaBuffers(const int instance,
+                                int bufferCount,
+                                int bufferLength,
+                                int partialsCount,
+                                int initial,
+                                int numThreads) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial, numThreads);
+
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+    return returnValue;
+}
+
+
+int beagleGetBastaBuffer(const int instance,
+                         const int bufferIndex,
+                         double* out) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+
+    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+    if (beagleInstance == NULL) {
+        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    }
+
+    int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
+
+    DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+    return returnValue;
+}
+
+int beagleUpdateBastaPartials(const int instance,
+                              const BastaOperation* operations,
+                              int operationCount,
+                              const int* intervals,
+                              int intervalCount,
+                              int populationSizesIndex,
+                              int coalescentIndex) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;
+}
+
+int beagleUpdateBastaPartialsGrad(const int instance,
+                                const BastaOperation* operations,
+                                int operationCount,
+                                const int* intervals,
+                                int intervalCount,
+                                int populationSizesIndex,
+                                int coalescentIndex) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->updateBastaPartialsGrad((const int*) operations, 
+		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;
+}
+
+int beagleAccumulateBastaPartials(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;                                  
+                                  
+}
+
+int beagleAccumulateBastaPartialsGrad(const int instance,
+                                  const BastaOperation* operations,
+                                  int operationCount,
+                                  const int* intervalStarts,
+                                  int intervalCount,
+                                  const double* intervalLengths,
+                                  const int populationSizesIndex,
+                                  int coalescentIndex,
+                                  double* out) {
+	DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+	
+	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
+	if (beagleInstance == NULL) {
+		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+	}
+	
+	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
+															  intervalStarts, intervalCount, intervalLengths,
+                                                              populationSizesIndex, coalescentIndex,
+                                                              out);
+	
+	DEBUG_END_TIME();
+    DEBUG_END_ENERGY();
+
+	return returnValue;                                  
+                                  
+}

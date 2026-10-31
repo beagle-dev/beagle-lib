@@ -115,3 +115,7 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-spectral
 
 target_compile_options(hmsbeagle-cpu-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
 endif(BUILD_SPECTRAL)
+
+if(BUILD_OPENMP)
+	add_subdirectory("CMake_OpenMP")
+endif(BUILD_OPENMP)

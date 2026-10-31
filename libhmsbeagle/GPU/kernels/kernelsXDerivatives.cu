@@ -1,3 +1,12 @@
+#ifdef CUDA_TENSOR_CORES
+}
+
+#include <mma.h>
+
+extern "C" {
+#endif
+
+#ifndef CUDA_TENSOR_CORES // kernelsXDerivativesTensorCore.cu has the tensor-core versions of the next four kernels
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -412,6 +421,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 
 #endif
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
                                                         const KW_GLOBAL_VAR int*  KW_RESTRICT states0,

@@ -13,6 +13,21 @@ add_executable(adjointbench
 add_executable(prunebench
 		hmctest/prunebench.cpp)
 
+add_executable(tensorcores_4_state
+		tensor_cores/test_4_state.cpp)
+
+add_executable(tensorcores_4_state_postOrder
+		tensor_cores/test_4_state_postOrder.cpp)
+
+add_executable(tensorcores_X_state
+		tensor_cores/test_X_state.cpp)
+
+add_executable(tensorcores_X_state_postOrder
+		tensor_cores/test_X_state_postOrder.cpp)
+
+add_executable(test_plugin
+		tensor_cores/test_plugin.cpp)
+
 #add_executable(hmcGaptest
 #    	hmctest/hmcGapTest.cpp)
 

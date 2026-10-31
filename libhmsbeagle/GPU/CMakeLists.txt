@@ -102,6 +102,11 @@ if(BUILD_CUDA)
 	endif(CUDAToolkit_FOUND)
 endif(BUILD_CUDA)
 
+if(CUDAToolkit_FOUND AND BUILD_CUDA AND BEAGLE_TENSOR_CORES)
+    message(STATUS "CUDA Includes: ${CUDA_INCLUDE_DIRS}")
+    add_subdirectory("CMake_TensorCores")
+endif()
+
 if(BUILD_TINYGPU)
 	# kernels/BeagleTinyGPU_kernels.h, generated here, is the PTX the cubins
 	# below are compiled from. The plugin includes only its stamp
@@ -146,7 +151,7 @@ if(BUILD_TINYGPU)
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleTinyGPU_kernels.h" ${TINYGPU_PTX}
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/make_tinygpu_kernels.sh" "${TINYGPU_NVCC}" "${TINYGPU_NVCCFLAGS}" "-I${CMAKE_SOURCE_DIR}" ${TINYGPU_SPECTRAL} ${TINYGPU_FUSED}
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh" ${TINYGPU_SPECTRAL_SOURCES} ${TINYGPU_FUSED_SOURCES}
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernelsAll.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "kernels/kernels4CudaCore.cu" "kernels/kernels4DerivativesCudaCore.cu" "kernels/kernelsXCudaCore.cu" "kernels/kernelsXDerivativesCudaCore.cu" "GPUImplDefs.h" "kernels/make_tinygpu_kernels.sh" ${TINYGPU_SPECTRAL_SOURCES} ${TINYGPU_FUSED_SOURCES}
 			COMMENT "Building TinyGPU-specific kernel PTX (-DCUDA -DFW_TINYGPU)"
 			VERBATIM)
 	add_custom_command(

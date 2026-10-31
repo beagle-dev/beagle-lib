@@ -33,15 +33,24 @@
 
 #include <cmath>
 
+#ifdef CUDA_TENSOR_CORES
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec) TENSOR_CORE_PATTERN_BLOCK_SIZE_##prec##_##state
+#else
+#define LOAD_PATTERN_BLOCK_SIZE(state, prec)  PATTERN_BLOCK_SIZE_##prec##_##state
+#endif
+
 #define LOAD_KERNEL_INTO_RESOURCE(state, prec, id) \
         kernelResource = new KernelResource( \
             state, \
             (char*) KERNELS_STRING_##prec##_##state, \
-            PATTERN_BLOCK_SIZE_##prec##_##state, \
+            LOAD_PATTERN_BLOCK_SIZE(state, prec), \
             MATRIX_BLOCK_SIZE_##prec##_##state, \
             BLOCK_PEELING_SIZE_##prec##_##state, \
             SLOW_REWEIGHING_##prec##_##state, \
             MULTIPLY_BLOCK_SIZE_##prec, \
+            BASTA_SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
+            BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
+            BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
             0,0,0,0);
 
 namespace cuda_device {
@@ -243,15 +252,15 @@ void GPUInterface::InitializeKernelResource(int paddedStateCount,
         case -128: LOAD_KERNEL_INTO_RESOURCE(128, DP, 128); break;
         case -192: LOAD_KERNEL_INTO_RESOURCE(192, DP, 192); break;
         case -256: LOAD_KERNEL_INTO_RESOURCE(256, DP, 256); break;
-        case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
-        case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
-        case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
-        case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48); break;
-        case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64); break;
-        case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
-        case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
-        case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
-        case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256); break;
+//        case    4: LOAD_KERNEL_INTO_RESOURCE(  4, SP,   4); break;
+//        case   16: LOAD_KERNEL_INTO_RESOURCE( 16, SP,  16); break;
+//        case   32: LOAD_KERNEL_INTO_RESOURCE( 32, SP,  32); break;
+//        case   48: LOAD_KERNEL_INTO_RESOURCE( 48, SP,  48); break;
+//        case   64: LOAD_KERNEL_INTO_RESOURCE( 64, SP,  64); break;
+//        case   80: LOAD_KERNEL_INTO_RESOURCE( 80, SP,  80); break;
+//        case  128: LOAD_KERNEL_INTO_RESOURCE(128, SP, 128); break;
+//        case  192: LOAD_KERNEL_INTO_RESOURCE(192, SP, 192); break;
+//        case  256: LOAD_KERNEL_INTO_RESOURCE(256, SP, 256); break;
     }
 }
 
@@ -401,6 +410,7 @@ void GPUInterface::SynchronizeDeviceWithIndex(int streamRecordIndex, int streamW
 GPUFunction GPUInterface::GetFunction(const char* functionName) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::GetFunction\n");
+    fprintf(stderr,"\t\t\t\tFunction name: %s\n", functionName);
 #endif
 
     GPUFunction cudaFunction;

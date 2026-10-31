@@ -117,12 +117,12 @@ JNIEXPORT jobjectArray JNICALL Java_beagle_BeagleJNIWrapper_getBenchmarkedResour
                                                                categoryCount,
                                                                (int *)resourceList,
                                                                resourceCount,
-                                                               preferenceFlags,
-                                                               requirementFlags,
+                                                               (long) preferenceFlags,
+                                                               (long) requirementFlags,
                                                                eigenModelCount,
                                                                partitionCount,
                                                                calculateDerivatives,
-                                                               benchmarkFlags);
+                                                               (long) benchmarkFlags);
 
     if (brl == NULL) {
         return NULL;
@@ -264,8 +264,8 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_createInstance
                                     scaleBufferCount,
                                     (int *)resourceList,
                                     resourceCount,
-                                    preferenceFlags,
-                                    requirementFlags,
+                                    (long) preferenceFlags,
+                                    (long) requirementFlags,
 									&instanceDetails);
 
     if(inResourceList != NULL)

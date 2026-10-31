@@ -55,6 +55,7 @@ OPTION(BEAGLE_BENCHMARK "Print runtimes" OFF)
 OPTION(BEAGLE_DEBUG_FLOW "Print flow" OFF)
 OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
 OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
+OPTION(BEAGLE_TENSOR_CORES "Compile with support for tensor cores" OFF)
 OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
 OPTION(BEAGLE_BASTA_CPU_ACCUM "Use CPU for final accumulation for reduction" OFF)
 OPTION(BEAGLE_INDEX_CHECKS "Range-check partials, matrix and scale indices on the CPU (BEAGLE_ERROR_OUT_OF_RANGE); for CI and testing" OFF)
@@ -76,6 +77,10 @@ IF(BEAGLE_DEBUG_VALUES)
     ADD_DEFINITIONS(-DBEAGLE_DEBUG_VALUES)
 ENDIF(BEAGLE_DEBUG_VALUES)
 
+IF(BEAGLE_TENSOR_CORES)
+	ADD_DEFINITIONS(-DBEAGLE_TENSOR_CORES)
+ENDIF(BEAGLE_TENSOR_CORES)
+
 IF(BEAGLE_DEBUG_SYNCH)
 	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
 ENDIF(BEAGLE_DEBUG_SYNCH)
@@ -92,6 +97,10 @@ ENDIF(BEAGLE_INDEX_CHECKS)
 IF(BEAGLE_DEBUG_MEMORY)
 	ADD_DEFINITIONS(-DBEAGLE_DEBUG_MEMORY)
 ENDIF(BEAGLE_DEBUG_MEMORY)
+
+IF(BEAGLE_DEBUG_LOAD)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_LOAD)
+ENDIF(BEAGLE_DEBUG_LOAD)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"
@@ -227,7 +236,8 @@ enable_testing()
 add_subdirectory(examples)
 
 IF(BEAGLE_DEBUG_KERNELS)
-	add_subdirectory(tests/basta)
+    add_subdirectory(tests/tensor_cores)
+    add_subdirectory(tests/basta)
 ENDIF(BEAGLE_DEBUG_KERNELS)
 
 set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")
@@ -339,6 +349,10 @@ if(APPLE)
   	cpack_add_component(cuda
   			DISPLAY_NAME "CUDA plugin"
   			DESCRIPTION "CUDA plugin")
+
+	cpack_add_component(cuda_tensor_cores
+			DISPLAY_NAME "Tensor Cores plugin"
+			DESCRIPTION "Tensor Cores plugin")
 
   	cpack_add_component(opencl
   			DISPLAY_NAME "OpenCL plugin"
