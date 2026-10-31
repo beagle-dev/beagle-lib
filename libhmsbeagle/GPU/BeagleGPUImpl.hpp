@@ -37,7 +37,6 @@
 #include "libhmsbeagle/GPU/GPUInterface.h"
 #include "libhmsbeagle/GPU/Precision.h"
 #include "BeagleGPUImpl.h"
-#include "libhmsbeagle/benchmark/BenchmarkHelper.h"
 
 // TinyGPU (TODO.md plan step C12): an instance whose GPU is lost, or whose setup failed, copies back NaN instead of results, so
 // createInstance and each call that copies results back return an error then (GPUInterface::GetDeviceLost):

@@ -24,7 +24,6 @@
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
-#include "libhmsbeagle/benchmark/BenchmarkHelper.h"
 
 /**************CODE***********/
 
