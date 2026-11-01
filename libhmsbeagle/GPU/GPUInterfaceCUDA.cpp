@@ -631,7 +631,12 @@ void* GPUInterface::EndGraphCapture() {
     }
 
     CUgraphExec exec = NULL;
+#if CUDA_VERSION >= 11040
     r = cuGraphInstantiateWithFlags(&exec, graph, 0);
+#else
+    // cuGraphInstantiateWithFlags is new in CUDA 11.4; CUDA 12 redefines cuGraphInstantiate with its signature
+    r = cuGraphInstantiate(&exec, graph, NULL, NULL, 0);
+#endif
     cuGraphDestroy(graph);
 
     if (r != CUDA_SUCCESS || exec == NULL) {
