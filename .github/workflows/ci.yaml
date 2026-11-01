@@ -72,7 +72,12 @@ jobs:
       # CPU plugins, JNI and BIT; MASCOT as in mascot.yaml's Windows job (MSVC builds kernel A only); no GPU frameworks
       run: cmake -S . -B build -DBUILD_OPENCL=OFF -DBUILD_CUDA=OFF -DBUILD_SSE=ON -DBUILD_JNI=ON -DBUILD_BIT=ON -DBUILD_MASCOT=ON
     - name: Build
-      run: cmake --build build --config Release --parallel 4
+      # C4293, C4334 and C4309 (a shift count too large, a 32-bit shift result widened to 64 bits, a truncated constant)
+      # are errors: a flag at bit 32 or above written as 1L << n (long is 32 bits here) gives one. Through CL, which
+      # cl.exe adds to its command line, so CMake's default compiler flags stay
+      run: |
+        $env:CL = '/we4293 /we4334 /we4309'
+        cmake --build build --config Release --parallel 4
     - name: Test
       # the examples link hmsbeagle64.dll and the CPU plugins, and BEAGLE loads its plugins with LoadLibrary: both
       # search PATH for the per-configuration directories the Visual Studio generator writes the DLLs to
