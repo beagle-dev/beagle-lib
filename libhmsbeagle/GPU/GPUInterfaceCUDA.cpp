@@ -393,6 +393,7 @@ void GPUInterface::SynchronizeDevice() {
     // Orders on the device; the host does not wait. An event recorded in the legacy NULL stream follows all earlier work
     // in the context's blocking streams (all of cudaStreams are blocking), and their later work waits for it. While
     // capturing, the legacy stream may not be used, and the captured launches are ordered in the one capture stream.
+    // Another instance's capture stream is non-blocking (BeginGraphCapture), so its capture does not forbid this.
     if (!isCapturing) {
         SAFE_CUDA(cuEventRecord(cudaEvent, 0));
         SAFE_CUDA(cuStreamWaitEvent(0, cudaEvent, 0));
@@ -567,7 +568,10 @@ bool GPUInterface::BeginGraphCapture() {
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
 
     if (cudaCaptureStream == NULL) {
-        CUresult r = cuStreamCreate(&cudaCaptureStream, CU_STREAM_DEFAULT);
+        // Non-blocking: while a blocking stream captures, any use of the legacy stream in its context fails, and all
+        // instances on a device share the primary context, where SynchronizeDevice uses the legacy stream. Capture runs
+        // nothing, and the graph is launched on cudaStreams[0], a blocking stream.
+        CUresult r = cuStreamCreate(&cudaCaptureStream, CU_STREAM_NON_BLOCKING);
         if (r != CUDA_SUCCESS) {
             fprintf(stderr, "GPUInterface::BeginGraphCapture: cuStreamCreate failed (%d)\n", (int)r);
             cudaCaptureStream = NULL;
