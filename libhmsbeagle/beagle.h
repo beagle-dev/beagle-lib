@@ -127,7 +127,8 @@ enum BeagleReturnCodes {
  * @brief Hardware and implementation capability flags
  *
  * This enumerates all possible hardware and implementation capability flags.
- * Each capability is a bit in a 'long'
+ * Each capability is a bit in a 'long'. The flags at bit 31 and above are not in this enum: they are
+ * the 64-bit constants defined right after it.
  */
 enum BeagleFlags {
     BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< Single precision computation */
@@ -152,7 +153,7 @@ enum BeagleFlags {
 
     BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
     BEAGLE_FLAG_VECTOR_AVX          = 1 << 24,   /**< AVX computation */
-    BEAGLE_FLAG_VECTOR_TENSOR       = 1L << 33,   /**< Tensor cores */
+    /*  BEAGLE_FLAG_VECTOR_TENSOR           (1LL << 33), defined after this enum */
     BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
 
     BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
@@ -169,35 +170,49 @@ enum BeagleFlags {
     BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
     BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,   /**< Use OpenCL implementation with GPU resources */
     BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27,   /**< Use CPU implementation */
-    BEAGLE_FLAG_FRAMEWORK_TINYGPU   = 1L << 45,   /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
+    /*  BEAGLE_FLAG_FRAMEWORK_TINYGPU       (1LL << 45), defined after this enum */
 
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
-    BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
-    BEAGLE_FLAG_PARALLELOPS_FUSED   = 1L << 46,   /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
+    BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29    /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    /*  BEAGLE_FLAG_PARALLELOPS_FUSED       (1LL << 46), defined after this enum */
 
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1L << 34, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1L << 31, /**< Automatically transpose pre-order transition matrices */
+    /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL (1LL << 34), defined after this enum */
+    /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31), defined after this enum */
 
-    /**
-     * Use spectral representation for transition probability calculation.
-     *
-     * A matrix buffer then holds a branch's eigen-system and time, set by beagleUpdateTransitionMatrices. Dense
-     * stateCount x stateCount storage for an index exists only once the index is written densely: by
-     * beagleSetTransitionMatrix, beagleSetTransitionMatrices or beagleSetDifferentialMatrix, or, on CPU, as the
-     * destination of beagleConvolveTransitionMatrices or beagleTransposeTransitionMatrices. A dense read of an index
-     * without dense contents returns BEAGLE_ERROR_OUT_OF_RANGE; the dense reads are beagleCalculateEdgeDerivatives,
-     * the beagleCalculateEdgeLogLikelihoods family, and the inputs of convolve and transpose.
-     * beagleGetTransitionMatrix returns the dense contents if present; otherwise the matrix of the eigen-system on
-     * CPU (BEAGLE_ERROR_OUT_OF_RANGE on GPU), and BEAGLE_ERROR_OUT_OF_RANGE for an index with neither. Writing one
-     * index both ways is unsupported.
-     *
-     * On GPU, beagleCalculateEdgeDerivatives is the only dense read: the beagleCalculateEdgeLogLikelihoods family,
-     * convolve, transpose, beagleUpdateTransitionMatricesWithModelCategories and ...WithMultipleModels, and pattern
-     * partitions (beagleSetPatternPartitions and the ...ByPartition updates) return BEAGLE_ERROR_NO_IMPLEMENTATION,
-     * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
-     */
-    BEAGLE_FLAG_SPECTRAL_REPRESENTATION   = 1L << 40
+    /*  BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40), defined after this enum */
 };
+
+/*
+ * The flags at bit 31 and above. MSVC gives an enum the underlying type int, in C and in C++, so a
+ * value at bit 31 or above cannot be an enumerator there; and long is 32 bits on Windows, so these
+ * are long long constants.
+ */
+#define BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31) /**< Automatically transpose pre-order transition matrices */
+#define BEAGLE_FLAG_VECTOR_TENSOR             (1LL << 33) /**< Tensor cores */
+#define BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL (1LL << 34) /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+
+/**
+ * Use spectral representation for transition probability calculation.
+ *
+ * A matrix buffer then holds a branch's eigen-system and time, set by beagleUpdateTransitionMatrices. Dense
+ * stateCount x stateCount storage for an index exists only once the index is written densely: by
+ * beagleSetTransitionMatrix, beagleSetTransitionMatrices or beagleSetDifferentialMatrix, or, on CPU, as the
+ * destination of beagleConvolveTransitionMatrices or beagleTransposeTransitionMatrices. A dense read of an index
+ * without dense contents returns BEAGLE_ERROR_OUT_OF_RANGE; the dense reads are beagleCalculateEdgeDerivatives,
+ * the beagleCalculateEdgeLogLikelihoods family, and the inputs of convolve and transpose.
+ * beagleGetTransitionMatrix returns the dense contents if present; otherwise the matrix of the eigen-system on
+ * CPU (BEAGLE_ERROR_OUT_OF_RANGE on GPU), and BEAGLE_ERROR_OUT_OF_RANGE for an index with neither. Writing one
+ * index both ways is unsupported.
+ *
+ * On GPU, beagleCalculateEdgeDerivatives is the only dense read: the beagleCalculateEdgeLogLikelihoods family,
+ * convolve, transpose, beagleUpdateTransitionMatricesWithModelCategories and ...WithMultipleModels, and pattern
+ * partitions (beagleSetPatternPartitions and the ...ByPartition updates) return BEAGLE_ERROR_NO_IMPLEMENTATION,
+ * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
+ */
+#define BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40)
+
+#define BEAGLE_FLAG_FRAMEWORK_TINYGPU         (1LL << 45) /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
+#define BEAGLE_FLAG_PARALLELOPS_FUSED         (1LL << 46) /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
 
 
 /**
