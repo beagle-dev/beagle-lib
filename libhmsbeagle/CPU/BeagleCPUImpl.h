@@ -118,6 +118,7 @@ protected:
     //      memory management less error prone
     REALTYPE** gPartials;
     REALTYPE* gPartialsGrad;      // Flat layout: [node][ab][state] = (node * S² + a*S + b) * S_pad + i
+    int kPartialsGradCount;       // the buffers gPartialsGrad holds
     REALTYPE* coalescentGrad;     // Flat layout: [ab][interval] = (a*S + b) * L + interval
     int** gTipStates;
     REALTYPE** gScaleBuffers;
@@ -1244,6 +1245,9 @@ protected:
                         int n);
 
     int allocateBastaGradBuffers(int partialsCount);
+
+    // ensureBufferCounts' growth, without its refusal once BASTA buffers exist (for allocateBastaBuffers' regrow)
+    int growBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
 
     void adjointPushReductionAdjoints(const REALTYPE* partials, REALTYPE* partialAdj,
                                       const REALTYPE* adjSum, const REALTYPE* adjSq);

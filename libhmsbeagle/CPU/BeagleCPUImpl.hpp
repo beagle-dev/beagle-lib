@@ -76,6 +76,7 @@
 #include <chrono>
 
 #include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/BufferCountRule.h"
 #include "libhmsbeagle/CPU/Precision.h"
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/EigenDecompositionCube.h"
@@ -412,6 +413,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
 
     gPartialsGrad = NULL;
+    kPartialsGradCount = 0;
     coalescentGrad = NULL;
     kCoalescentGradLength = 0;
     kBastaBuffersAllocated = false;
@@ -689,6 +691,23 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::ensureBufferCounts(int partialsBufferCount,
                                                           int matrixBufferCount,
                                                           int scaleBufferCount) {
+    // BASTA's arrays sized by these counts (gEdgeLengthsGrad, the legacy gPartialsGrad) do not grow with them: once
+    // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
+    if (kBastaBuffersAllocated) {
+        BufferCounts counts;
+        int ruleCode;
+        if (ensureBufferCountsRule(partialsBufferCount, matrixBufferCount, scaleBufferCount, kTipCount,
+                                   kCompactBufferCount, kBufferCount, kMatrixCount, kScaleBufferCount, kFlags,
+                                   &counts, &ruleCode))
+            return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+    return growBufferCounts(partialsBufferCount, matrixBufferCount, scaleBufferCount);
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::growBufferCounts(int partialsBufferCount,
+                                                        int matrixBufferCount,
+                                                        int scaleBufferCount) {
     if (partialsBufferCount < 0 || matrixBufferCount < 0 || scaleBufferCount < 0)
         return BEAGLE_ERROR_OUT_OF_RANGE;
 
@@ -714,11 +733,6 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::ensureBufferCounts(int partialsBufferCoun
     const bool growScale = newScale > kScaleBufferCount;
     if (!growPartials && !growMatrices && !growScale)
         return BEAGLE_SUCCESS;
-
-    // BASTA's gEdgeLengthsGrad and gPartialsGrad are sized by these counts and do not grow with them: once
-    // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
-    if (kBastaBuffersAllocated)
-        return BEAGLE_ERROR_NO_IMPLEMENTATION;
 
     // counts whose sizes overflow, here or in later int arithmetic (the operation arrays of the threads)
     const long long operationsLength = (long long) BEAGLE_PARTITION_OP_COUNT * newBuffer * kPartitionCount;
@@ -1861,41 +1875,23 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     gEdgeLengthsGrad.resize(kMatrixCount, 0);
 
     if (partialsCount > kBufferCount) {
-        int oldBufferCount = kBufferCount;
-        kBufferCount = partialsCount;
-        gPartials = (REALTYPE**) realloc(gPartials, kBufferCount * sizeof(REALTYPE*));
-
-        for (int i = oldBufferCount; i < kBufferCount; i++) {
-            gPartials[i] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
+        // the legacy gradient's partials (allocateBastaGradBuffers) follow the buffer count; they grow first, so
+        // that a failure below leaves them large enough
+        if (gPartialsGrad != NULL && kPartialsGradCount < partialsCount) {
+            REALTYPE* temp = (REALTYPE*) realloc(gPartialsGrad, sizeof(REALTYPE) * (size_t) partialsCount *
+                                                 kStateCount * kStateCount * kPartialsPaddedStateCount);
+            if (temp == NULL)
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            gPartialsGrad = temp;
+            kPartialsGradCount = partialsCount;
         }
 
-        // for (int i = 0; i < kStateCount; i++) {
-        //     for (int j = 0; j < kStateCount; j++) {
-        //         // Reallocate gPartialsGrad[i][j] to new size kBufferCount
-        //         REALTYPE** temp = (REALTYPE**) realloc(gPartialsGrad[i][j], sizeof(REALTYPE*) * kBufferCount);
-        //         if (temp == NULL) {
-        //             // Handle allocation failure
-        //             throw std::bad_alloc();
-        //         }
-        //         gPartialsGrad[i][j] = temp;
-        //
-        //         // Initialize new entries from oldBufferCount to new kBufferCount
-        //         for (int k = oldBufferCount; k < kBufferCount; k++) {
-        //             gPartialsGrad[i][j][k] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * kPartialsSize);
-        //             if (gPartialsGrad[i][j][k] == NULL) {
-        //                 // Handle allocation failure
-        //                 throw std::bad_alloc();
-        //             }
-        //         }
-        //     }
-        // }
-
-        gTipStates = (int**) realloc(gTipStates, sizeof(int*) * kBufferCount);
-
-        for (int i = oldBufferCount; i < kBufferCount; i++) {
-            gTipStates[i] = NULL;
-        }
-
+        // the partials, tip states, scale buffers (they follow the partials under SCALING_AUTO and SCALING_ALWAYS),
+        // operation lists and counts grow as in beagleEnsureBufferCounts; through growBufferCounts, since
+        // ensureBufferCounts refuses an instance that has BASTA buffers
+        int returnCode = growBufferCounts(partialsCount - kCompactBufferCount, 0, 0);
+        if (returnCode != BEAGLE_SUCCESS)
+            return returnCode;
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -2367,11 +2363,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
         if (gPartialsGrad == NULL) {
             gPartialsGrad = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * partialsGradSize);
             if (gPartialsGrad == NULL) throw std::bad_alloc();
-        } else if (partialsCount > kBufferCount) {
+            kPartialsGradCount = kBufferCount;
+        } else if (partialsCount > kPartialsGradCount) {
             const size_t newSize = (size_t)partialsCount * S2 * S_pad;
             REALTYPE* temp = (REALTYPE*) realloc(gPartialsGrad, sizeof(REALTYPE) * newSize);
             if (temp == NULL) throw std::bad_alloc();
             gPartialsGrad = temp;
+            kPartialsGradCount = partialsCount;
         }
 
         if (coalescentGrad == NULL) {
