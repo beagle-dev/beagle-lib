@@ -1370,13 +1370,24 @@ int beagleUpdateTransitionMatricesGrad(int instance,
                                        int count) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-    beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL)
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-    int returnValue = beagleInstance->updateTransitionMatricesGrad(probabilityIndices, edgeLengths, count);
-    DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-    return returnValue;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->updateTransitionMatricesGrad(probabilityIndices, edgeLengths, count);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleUpdateTransitionMatricesWithModelCategories(int instance,
@@ -2236,11 +2247,22 @@ int beagleCalculateEdgeDerivative(int instance, const int *postBufferIndices, co
 
 int beagleAllocateBastaGradBuffers(const int instance,
                                     int partialsCount) {
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	return beagleInstance->allocateBastaGradBuffers(partialsCount);
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->allocateBastaGradBuffers(partialsCount);
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleAllocateBastaBuffers(const int instance,
@@ -2251,18 +2273,25 @@ int beagleAllocateBastaBuffers(const int instance,
                                 int numThreads) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial,
+                                                               numThreads);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
     }
-
-    int returnValue = beagleInstance->allocateBastaBuffers(bufferCount, bufferLength, partialsCount, initial, numThreads);
-
-    DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-    return returnValue;
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 
@@ -2271,18 +2300,24 @@ int beagleGetBastaBuffer(const int instance,
                          double* out) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
     }
-
-    int returnValue = beagleInstance->getBastaBuffer(bufferIndex, out);
-
-    DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-    return returnValue;
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleAccumulateEigenBasisGradient(const int instance,
@@ -2293,17 +2328,27 @@ int beagleAccumulateEigenBasisGradient(const int instance,
                                        const int hasComplexEigenvalues,
                                        double* outRateGradient) {
     DEBUG_START_TIME();
-    beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-    if (beagleInstance == NULL) {
-        return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->accumulateEigenBasisGradient(eigenIndex,
+                                                                       matrixAdjointBufferBase,
+                                                                       branchLengths,
+                                                                       matrixCount, hasComplexEigenvalues,
+                                                                       outRateGradient);
+        DEBUG_END_TIME();
+        return returnValue;
     }
-    int returnValue = beagleInstance->accumulateEigenBasisGradient(eigenIndex,
-                                                       matrixAdjointBufferBase,
-                                                       branchLengths,
-                                                       matrixCount, hasComplexEigenvalues,
-                                                       outRateGradient);
-    DEBUG_END_TIME();
-    return returnValue;
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleUpdateBastaPartials(const int instance,
@@ -2313,21 +2358,27 @@ int beagleUpdateBastaPartials(const int instance,
                               int intervalCount,
                               int populationSizesIndex,
                               int coalescentIndex) {
-	DEBUG_START_TIME();
+    DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-	
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	
-	int returnValue = beagleInstance->updateBastaPartials((const int*) operations, 
-		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
-	
-	DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-	return returnValue;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->updateBastaPartials((const int*) operations,
+            operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleUpdateBastaPartialsGrad(const int instance,
@@ -2337,21 +2388,27 @@ int beagleUpdateBastaPartialsGrad(const int instance,
                                 int intervalCount,
                                 int populationSizesIndex,
                                 int coalescentIndex) {
-	DEBUG_START_TIME();
+    DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-	
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	
-	int returnValue = beagleInstance->updateBastaPartialsGrad((const int*) operations, 
-		operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
-	
-	DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-	return returnValue;
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->updateBastaPartialsGrad((const int*) operations,
+            operationCount, intervals, intervalCount, populationSizesIndex, coalescentIndex);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleAccumulateBastaPartials(const int instance,
@@ -2363,24 +2420,29 @@ int beagleAccumulateBastaPartials(const int instance,
                                   const int populationSizesIndex,
                                   int coalescentIndex,
                                   double* out) {
-	DEBUG_START_TIME();
+    DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-	
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	
-	int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
-															  intervalStarts, intervalCount, intervalLengths,
-                                                              populationSizesIndex, coalescentIndex,
-                                                              out);
-	
-	DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-	return returnValue;                                  
-                                  
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->accumulateBastaPartials((const int*) operations, operationCount,
+                                                                  intervalStarts, intervalCount, intervalLengths,
+                                                                  populationSizesIndex, coalescentIndex,
+                                                                  out);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleAccumulateBastaPartialsGrad(const int instance,
@@ -2396,46 +2458,73 @@ int beagleAccumulateBastaPartialsGrad(const int instance,
                                   int matrixAdjointBufferBase,
                                   double* popSizeGradOut,
                                   double* out) {
-	DEBUG_START_TIME();
+    DEBUG_START_TIME();
     DEBUG_START_ENERGY();
-
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-
-	int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
-															  intervalStarts, intervalCount, intervalLengths,
-                                                              populationSizesIndex, coalescentIndex,
-                                                              eigenIndex,
-                                                              partialAdjointBufferBase,
-                                                              matrixAdjointBufferBase,
-                                                              popSizeGradOut,
-                                                              out);
-
-	DEBUG_END_TIME();
-    DEBUG_END_ENERGY();
-
-	return returnValue;
-
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->accumulateBastaPartialsGrad((const int*) operations, operationCount,
+                                                                      intervalStarts, intervalCount, intervalLengths,
+                                                                      populationSizesIndex, coalescentIndex,
+                                                                      eigenIndex,
+                                                                      partialAdjointBufferBase,
+                                                                      matrixAdjointBufferBase,
+                                                                      popSizeGradOut,
+                                                                      out);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleUploadBastaSlabMetadata(const int instance,
                                   const int* packed,
                                   int packedLen) {
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	return beagleInstance->uploadBastaSlabMetadata(packed, packedLen);
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->uploadBastaSlabMetadata(packed, packedLen);
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
 
 int beagleGetBastaSlabConstants(const int instance,
                                 int* opsPerBlock,
                                 int* indexOffsetPat) {
-	beagle::BeagleImpl *beagleInstance = beagle::getBeagleInstance(instance);
-	if (beagleInstance == NULL) {
-		return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
-	}
-	return beagleInstance->getBastaSlabConstants(opsPerBlock, indexOffsetPat);
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->getBastaSlabConstants(opsPerBlock, indexOffsetPat);
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
 }
