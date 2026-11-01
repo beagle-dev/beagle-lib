@@ -47,7 +47,7 @@ Plugin("GPU-OpenCL-Fused", "GPU-OpenCL-Fused")
                                     BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS |
                                     BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
-            long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
+            long long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
             resource.supportFlags |= deviceTypeFlag;
 
             // the fused kernel is compiled out for OpenCL CPU devices (FW_OPENCL_CPU): FUSED on GPU devices only

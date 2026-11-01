@@ -232,7 +232,7 @@ static void buildEqualRateN(int N, std::vector<double>& evec, std::vector<double
     }
 }
 
-static void printFlags(long f) {
+static void printFlags(long long f) {
     if (f & BEAGLE_FLAG_PROCESSOR_CPU)     printf(" CPU");
     if (f & BEAGLE_FLAG_PROCESSOR_GPU)     printf(" GPU");
     if (f & BEAGLE_FLAG_PRECISION_DOUBLE)  printf(" DOUBLE");
@@ -303,8 +303,8 @@ static volatile sig_atomic_t gStopSignal = 0;
 // precision's in double)
 static bool gDouble = false;
 static double gTolScale = 1.0;
-static long tinygpuPreference() { return (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) | BEAGLE_FLAG_PROCESSOR_GPU; }
-static long tinygpuRequirement(bool forced) { return (forced ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU) | (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : 0); }
+static long long tinygpuPreference() { return (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE) | BEAGLE_FLAG_PROCESSOR_GPU; }
+static long long tinygpuRequirement(bool forced) { return (forced ? 0 : BEAGLE_FLAG_FRAMEWORK_TINYGPU) | (gDouble ? BEAGLE_FLAG_PRECISION_DOUBLE : 0); }
 // double precision's logL check: within 1e-9 (relative) of the CPU reference's; true in single precision
 static bool dpLogLOk(double logL, double cpuLogL, FILE* out) {
     if (!gDouble) return true;

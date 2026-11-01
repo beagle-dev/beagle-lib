@@ -20,7 +20,7 @@ namespace cpu {
 
 // Flags for an EigenDecompositionSpectral that another decomposition fills with the inverse eigenvectors in the
 // standard layout, whatever the instance's layout
-inline long standardInverseFlags(const long flags) {
+inline long long standardInverseFlags(const long long flags) {
     return (flags & ~BEAGLE_FLAG_INVEVEC_TRANSPOSED) | BEAGLE_FLAG_INVEVEC_STANDARD;
 }
 
@@ -71,7 +71,7 @@ public:
     EigenDecompositionSpectral(int decompositionCount,
                                int stateCount,
                                int categoryCount,
-                               long flags);
+                               long long flags);
 
     ~EigenDecompositionSpectral() override;
 

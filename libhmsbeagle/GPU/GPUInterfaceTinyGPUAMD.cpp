@@ -601,7 +601,7 @@ int AmdAttachShared(GPUInterface* self) {
 }
 
 void AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
-                   int patternCount, int unpaddedPatternCount, int tipCount, long flags) {
+                   int patternCount, int unpaddedPatternCount, int tipCount, long long flags) {
     std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
     // The first instance's boot takes Initialize()'s TinyGPU.app connection (self->tgpuSock, plan step C3: tg_transport()),
     // which the card then keeps until exit; later instances share that boot (AmdAttachShared, plan step A5).

@@ -89,7 +89,7 @@ typedef struct {
 int mascotGetApiVersion(int* major, int* minor);
 
 /* Returns an instance id >= 0, or a negative MascotStatus. lineageCount = max lineage id + 1. */
-int mascotCreateInstance(int stateCount, int lineageCount, int maxEpochCount, long flags);
+int mascotCreateInstance(int stateCount, int lineageCount, int maxEpochCount, long long flags);
 int mascotFinalizeInstance(int instance);
 
 /* For the startup log line: which kernel, SIMD width, FP mode and ISA this instance uses. */

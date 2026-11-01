@@ -100,11 +100,11 @@ static void buildCirculantN(
 
 static int createInstance(bool useGpu, int whichDevice, int S, int R,
                            int nPatterns, int nCats, bool singlePrec) {
-    long prefFlags = BEAGLE_FLAG_SCALERS_RAW;
+    long long prefFlags = BEAGLE_FLAG_SCALERS_RAW;
     prefFlags |= useGpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU;
     prefFlags |= singlePrec ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE;
 
-    long reqFlags = BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+    long long reqFlags = BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                     BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
 
     const int tipCount = 3 * R;

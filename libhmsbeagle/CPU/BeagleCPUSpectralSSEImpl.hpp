@@ -74,7 +74,7 @@ const char* BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::getName() {
 }
 
 template <int T_PAD, int P_PAD>
-const long BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::getFlags() {
+const long long BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -94,8 +94,8 @@ int BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::createInstance(int tipCount,
                                                           int scaleBufferCount,
                                                           int resourceNumber,
                                                           int pluginResourceNumber,
-                                                          long preferenceFlags,
-                                                          long requirementFlags) {
+                                                          long long preferenceFlags,
+                                                          long long requirementFlags) {
 
     const int returnCode = Base::createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                                 patternCount, eigenDecompositionCount, matrixCount, categoryCount,
@@ -388,8 +388,8 @@ inline BeagleImpl* BeagleCPUSpectralSSEImplFactory::createImpl(int tipCount,
                                                                int scaleBufferCount,
                                                                int resourceNumber,
                                                                int pluginResourceNumber,
-                                                               long preferenceFlags,
-                                                               long requirementFlags,
+                                                               long long preferenceFlags,
+                                                               long long requirementFlags,
                                                                int* errorCode) {
 
     if (!CPUSupportsSSE()) {
@@ -422,7 +422,7 @@ inline const char* BeagleCPUSpectralSSEImplFactory::getName() {
     return "CPU-Spectral-SSE-Double";
 }
 
-inline const long BeagleCPUSpectralSSEImplFactory::getFlags() {
+inline const long long BeagleCPUSpectralSSEImplFactory::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |

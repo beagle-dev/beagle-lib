@@ -123,7 +123,7 @@ double* getPartials(std::vector<std::string> sequence, int repeats) {
     return partials;
 }
 
-void printFlags(long inFlags) {
+void printFlags(long long inFlags) {
     if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      fprintf(stdout, " PROCESSOR_GPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     fprintf(stdout, " PROCESSOR_FPGA");
@@ -205,7 +205,7 @@ int main( int argc, const char* argv[] )
 
     BeagleInstanceDetails instDetails;
 
-    long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;
+    long long preferenceFlags = BEAGLE_FLAG_SCALERS_RAW;
 
     if (useGpu) {
         preferenceFlags |= BEAGLE_FLAG_PROCESSOR_GPU;
@@ -219,7 +219,7 @@ int main( int argc, const char* argv[] )
         preferenceFlags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     }
 
-    long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
+    long long requirementFlags = BEAGLE_FLAG_EIGEN_REAL;
     if(useGpu && useTensorCores) {
         requirementFlags |= BEAGLE_FLAG_VECTOR_TENSOR;
         requirementFlags |= BEAGLE_FLAG_FRAMEWORK_CUDA;

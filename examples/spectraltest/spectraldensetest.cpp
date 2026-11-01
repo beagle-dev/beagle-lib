@@ -135,10 +135,10 @@ struct Result {
 };
 
 // tree ((0,1)4,(2,3)5)6; tip 0 has compact states, the others partials; tips 0 and 2 use the complex model
-static bool evaluate(bool spectral, long vector, int n, Result& result) {
+static bool evaluate(bool spectral, long long vector, int n, Result& result) {
     const int tips = 4, patterns = 7, categories = 2;
     const int nodes = 7, root = 6, preBase = nodes; // pre-order buffers follow the post-order buffers
-    const long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PRECISION_DOUBLE |
+    const long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PRECISION_DOUBLE |
                               BEAGLE_FLAG_SCALING_MANUAL | vector |
                               (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0);
 
@@ -324,7 +324,7 @@ static bool evaluate(bool spectral, long vector, int n, Result& result) {
 }
 
 int main() {
-    for (long vector : {BEAGLE_FLAG_VECTOR_NONE, BEAGLE_FLAG_VECTOR_SSE}) {
+    for (long long vector : {BEAGLE_FLAG_VECTOR_NONE, BEAGLE_FLAG_VECTOR_SSE}) {
         for (int n : {4, 17}) {
             Result standard, spectral;
             const bool reference = evaluate(false, BEAGLE_FLAG_VECTOR_SSE, n, standard) ||

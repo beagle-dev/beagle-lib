@@ -44,8 +44,8 @@ int BeagleCPUAdjoint4StateSSE<BaseImpl>::createInstance(int tipCount,
                                                         int scaleBufferCount,
                                                         int resourceNumber,
                                                         int pluginResourceNumber,
-                                                        long preferenceFlags,
-                                                        long requirementFlags) {
+                                                        long long preferenceFlags,
+                                                        long long requirementFlags) {
     const int returnCode = Base::createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                                 patternCount, eigenDecompositionCount, matrixCount, categoryCount,
                                                 scaleBufferCount, resourceNumber, pluginResourceNumber,

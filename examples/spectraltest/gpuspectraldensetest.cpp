@@ -132,7 +132,7 @@ enum { kQComplex = 6, kQReal = 7, kDenseA = 8, kDenseB = 9, kSpare = 10, kUnwrit
 // With BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL and more than 4 states, the GPU takes the caller's transposes (as in
 // hmctest5): Q^T for setDifferentialMatrix and, in the standard implementation, transposed matrices in pre-order
 // operations. The CPU and the 4-state GPU kernels take Q and the matrices as they are.
-static bool callerTransposes(bool gpu, int n, long transposeFlag) {
+static bool callerTransposes(bool gpu, int n, long long transposeFlag) {
     return gpu && n > 4 && transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL;
 }
 
@@ -143,9 +143,9 @@ static std::vector<double> qComplexMatrix(int n, bool transposed) {
 
 // tree ((0,1)4,(2,3)5)6 as in spectraldensetest; returns the instance, or a negative code. A standard instance has
 // 6 more matrices, kMatrixCount + i holding the transpose of branch i's matrix when callerTransposes.
-static int setUp(bool gpu, bool spectral, int resource, long transposeFlag, int n, const char** implName) {
+static int setUp(bool gpu, bool spectral, int resource, long long transposeFlag, int n, const char** implName) {
     const int tips = 4, patterns = 7, categories = 2, nodes = 7, root = 6, preBase = nodes;
-    const long requirements = (gpu ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE
+    const long long requirements = (gpu ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE
                                    : BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE) |
                               BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_SCALING_MANUAL |
                               (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0) | transposeFlag;
@@ -251,7 +251,7 @@ static int crossProducts(int instance, int n, std::vector<double>& out) {
 // edge derivatives (as BEAST's branch-rate gradient uses them) and cross products, GPU against CPU; returns the
 // relative differences {derivatives, cross products}
 static std::pair<double, double> compareDerivatives(int cpu, int gpu, const char* cpuName, const char* gpuName, int n,
-                                                    long transposeFlag, const char* transpose) {
+                                                    long long transposeFlag, const char* transpose) {
     std::vector<double> cpuDerivatives, gpuDerivatives, cpuCross, gpuCross;
     expect(derivatives(cpu, n, false, cpuDerivatives) == BEAGLE_SUCCESS, "CPU derivatives", cpuName, n, transpose);
     expect(derivatives(gpu, n, callerTransposes(true, n, transposeFlag), gpuDerivatives) == BEAGLE_SUCCESS,
@@ -265,7 +265,7 @@ static std::pair<double, double> compareDerivatives(int cpu, int gpu, const char
     return {derivativeError, crossError};
 }
 
-static void runCase(int resource, int n, long transposeFlag) {
+static void runCase(int resource, int n, long long transposeFlag) {
     const char* transpose = transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO ? "AUTO" : "MANUAL";
     const int categories = 2, size = n * n * categories;
     const char* cpuName = "";
@@ -376,7 +376,7 @@ static void runCase(int resource, int n, long transposeFlag) {
 }
 
 // the standard implementations on the same tree: edge derivatives and cross products only
-static void runStandardCase(int resource, int n, long transposeFlag) {
+static void runStandardCase(int resource, int n, long long transposeFlag) {
     const char* transpose = transposeFlag == BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO ? "AUTO" : "MANUAL";
     const char* cpuName = "";
     const char* gpuName = "";
@@ -414,7 +414,7 @@ int main(int argc, const char* argv[]) {
     }
 
     for (int n : {4, 17}) {
-        for (long transposeFlag : {BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL, BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}) {
+        for (long long transposeFlag : {BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL, BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}) {
             runCase(resource, n, transposeFlag);
             runStandardCase(resource, n, transposeFlag);
         }
@@ -422,7 +422,7 @@ int main(int argc, const char* argv[]) {
 
     // BEAGLE's dynamic scaling passes transition matrices, which spectral never computes. Without scale buffers,
     // so that OpenCL's own refusal of dynamic scaling with scale buffers cannot be what refuses it.
-    const long gpuSpectral = BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE |
+    const long long gpuSpectral = BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE |
                              BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
     BeagleInstanceDetails details;
     const int plain = beagleCreateInstance(4, 14, 1, 4, 7, 1, kMatrixCount, 2, 0, &resource, 1, 0, gpuSpectral,

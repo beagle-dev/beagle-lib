@@ -59,7 +59,7 @@ class BeagleGPUImpl : public BeagleImpl {
 
 
 protected:
-    long kFlags;
+    long long kFlags;
 
     int kStateCount;
     int kPaddedStateCount;     //   * kPaddedStateCount is a multiple of 16
@@ -183,7 +183,7 @@ private:
     unsigned int* hStatesOffsets;
     int* hTipOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
-    long kDeviceType;
+    long long kDeviceType;
     int kPartitionCount;
     int kMaxPartitionCount;
     int kPaddedPartitionBlocks;
@@ -598,8 +598,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags);
+                       long long preferenceFlags,
+                       long long requirementFlags);
 
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
@@ -1023,16 +1023,16 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual const long long getFlags();
 };
 
 template <typename Real>
-void modifyFlagsForPrecision(long* flags, Real r);
+void modifyFlagsForPrecision(long long* flags, Real r);
 
 } // namspace device
 }	// namespace gpu

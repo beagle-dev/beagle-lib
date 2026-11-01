@@ -373,17 +373,17 @@ struct Inst {
     std::string name;      // REF, A, A2, B (or a stress case's own)
     int id = -1;
     std::string implName;
-    long flags = 0;
+    long long flags = 0;
     int partialsCount = 0;
 };
 
-long frameworkFlag() {
+long long frameworkFlag() {
     if (gOpt.framework == "tinygpu") return BEAGLE_FLAG_FRAMEWORK_TINYGPU;
     if (gOpt.framework == "cpu") return BEAGLE_FLAG_FRAMEWORK_CPU;
     return BEAGLE_FLAG_FRAMEWORK_OPENCL;
 }
 
-void flagsFor(const std::string& name, bool logScalers, int* resource, long* pref, long* req) {
+void flagsFor(const std::string& name, bool logScalers, int* resource, long long* pref, long long* req) {
     *pref = BEAGLE_FLAG_SCALING_MANUAL | (logScalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW);
     if (name == "REF") {
         *resource = 0;
@@ -428,7 +428,7 @@ bool poisonable(const Problem& p) {
 }
 
 // an instance of p with the given flags, loaded; its number, or a negative BEAGLE error code
-int createRaw(const Problem& p, int resource, long pref, long req, Inst& in) {
+int createRaw(const Problem& p, int resource, long long pref, long long req, Inst& in) {
     if (resource < 0) return BEAGLE_ERROR_NO_RESOURCE;
     const int st = p.stateTips();
     in.partialsCount = poisonable(p) ? p.nodes() : (p.n - st) + (p.nodes() - p.n);
@@ -445,7 +445,7 @@ int createRaw(const Problem& p, int resource, long pref, long req, Inst& in) {
 
 int create(const Problem& p, Inst& in) {
     int resource;
-    long pref, req;
+    long long pref, req;
     flagsFor(in.name, p.cfg.logScalers, &resource, &pref, &req);
     return createRaw(p, resource, pref, req, in);
 }
@@ -1055,7 +1055,7 @@ void stressSelection() {
     if (gOpt.bRequire != "fused") { printf("%s: skipped (--b-require none)\n", label.c_str()); return; }
     const Problem p = makeProblem(stressConfig(4, 4, "balanced", 5, 9, 9), gOpt.seed);
     int resource;
-    long pref, req;
+    long long pref, req;
     flagsFor("A", false, &resource, &pref, &req);
     Inst b;
     b.name = "B";
@@ -1086,7 +1086,7 @@ void stressSelection() {
     }
     const BeagleResourceList* rl = beagleGetResourceList();
     for (int i = 0; why.empty() && i < rl->length; ++i) {
-        const long f = rl->list[i].supportFlags;
+        const long long f = rl->list[i].supportFlags;
         if ((f & BEAGLE_FLAG_PARALLELOPS_FUSED) && !(f & BEAGLE_FLAG_PROCESSOR_GPU))
             why = std::string("resource ") + std::to_string(i) + " (" + rl->list[i].name + ") offers FUSED but is no GPU";
     }
@@ -1344,7 +1344,7 @@ int resolveResource() {
     if (gOpt.framework == "cpu") return 0;
     const BeagleResourceList* rl = beagleGetResourceList();
     for (int i = 0; i < rl->length; ++i) {
-        const long f = rl->list[i].supportFlags;
+        const long long f = rl->list[i].supportFlags;
         if ((f & frameworkFlag()) && (f & BEAGLE_FLAG_PROCESSOR_GPU)) return i;
     }
     return -1;

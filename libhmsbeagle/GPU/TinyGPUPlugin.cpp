@@ -29,13 +29,13 @@ class TinyGPUImplFactory : public BeagleImplFactory {
     Factory<double> dp_;
     const bool double_;
     const char* const name_;
-    const long hidden_;   // flags the factory does not offer here (plan decision D9)
+    const long long hidden_;   // flags the factory does not offer here (plan decision D9)
 public:
-    TinyGPUImplFactory(bool supportsDouble, const char* name, long hidden)
+    TinyGPUImplFactory(bool supportsDouble, const char* name, long long hidden)
         : double_(supportsDouble), name_(name), hidden_(hidden) {}
     BeagleImpl* createImpl(int tipCount, int partialsBufferCount, int compactBufferCount, int stateCount, int patternCount,
                            int eigenBufferCount, int matrixBufferCount, int categoryCount, int scaleBufferCount,
-                           int resourceNumber, int pluginResourceNumber, long preferenceFlags, long requirementFlags,
+                           int resourceNumber, int pluginResourceNumber, long long preferenceFlags, long long requirementFlags,
                            int* errorCode) {
         // SetDevice picks the spectral modules from SPECTRAL in kFlags, which BeagleGPUImpl copies from the request even
         // when spectral is only preferred: the standard implementation never takes such a request. NULL, *errorCode
@@ -52,7 +52,7 @@ public:
                             preferenceFlags, requirementFlags, errorCode);
     }
     const char* getName() { return double_ ? name_ : sp_.getName(); }
-    const long getFlags() { return (sp_.getFlags() | (double_ ? dp_.getFlags() : 0)) & ~hidden_; }
+    const long long getFlags() { return (sp_.getFlags() | (double_ ? dp_.getFlags() : 0)) & ~hidden_; }
 };
 }  // namespace
 
@@ -116,7 +116,7 @@ TinyGPUPlugin::TinyGPUPlugin() :
 
     // the standard implementation keeps today's reach: with a spectral device the resource offers the pre-order transposes,
     // which the standard factory hides, so requests that require them still do not reach it (plan decision D9)
-    const long transposes = BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
+    const long long transposes = BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     if (anyGPUFound)
         beagleFactories.push_back(new TinyGPUImplFactory<tinygpu::BeagleGPUImplFactory>(anyGPUSupDP, "GPU-SP-DP-TinyGPU",
                                                                                        anyGPUSpectral ? transposes : 0));

@@ -20,7 +20,7 @@ namespace tinygpu_device {
 
 int        AmdAttachShared(GPUInterface* self);   // TODO.md plan step A5: 1 if it shares the card another instance booted
 void       AmdSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
-                         int patternCount, int unpaddedPatternCount, int tipCount, long flags);
+                         int patternCount, int unpaddedPatternCount, int tipCount, long long flags);
 GPUFunction AmdGetFunction(GPUInterface* self, const char* name);
 void       AmdLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                                 int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);

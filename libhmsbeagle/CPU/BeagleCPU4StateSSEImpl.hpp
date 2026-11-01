@@ -1642,7 +1642,7 @@ const char* BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getName() {
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
+const long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_SINGLE |
@@ -1651,7 +1651,7 @@ const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-const long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getFlags() {
+const long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getFlags() {
     return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -1676,8 +1676,8 @@ BeagleImpl* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImp
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             long long preferenceFlags,
+                                             long long requirementFlags,
                                              int* errorCode) {
 
     if (stateCount != 4) {
@@ -1718,8 +1718,8 @@ const char* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName()
 }
 
 template <>
-const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+const long long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
@@ -1737,8 +1737,8 @@ const long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
 }
 
 template <>
-const long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
+const long long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |

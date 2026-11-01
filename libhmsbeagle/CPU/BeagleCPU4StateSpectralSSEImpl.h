@@ -62,8 +62,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags) override;
+                       long long preferenceFlags,
+                       long long requirementFlags) override;
 
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,
@@ -149,12 +149,12 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual const long long getFlags();
 };
 
 } // namespace cpu

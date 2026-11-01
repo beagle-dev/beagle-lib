@@ -60,8 +60,8 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                   int scaleBufferCount,
                                   int resourceNumber,
                                   int pluginResourceNumber,
-                                  long preferenceFlags,
-                                  long requirementFlags) {
+                                  long long preferenceFlags,
+                                  long long requirementFlags) {
 
     // EigenDecompositionSpectral reads the inverse eigenvectors in the standard layout only
     if (requirementFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) {
@@ -1365,7 +1365,7 @@ EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* BeagleCPUSpectralImpl<BEAGLE_CPU_G
         int decompositionCount,
         int stateCount,
         int categoryCount,
-        long flags) {
+        long long flags) {
 
     return new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
         decompositionCount, stateCount, categoryCount, flags);
@@ -1391,8 +1391,8 @@ BeagleImpl* BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl
                                              int scaleBufferCount,
                                              int resourceNumber,
                                              int pluginResourceNumber,
-                                             long preferenceFlags,
-                                             long requirementFlags,
+                                             long long preferenceFlags,
+                                             long long requirementFlags,
                                              int* errorCode) {
 
     BeagleImpl* impl = new BeagleCPUSpectralImpl<REALTYPE, T_PAD_DEFAULT, P_PAD_DEFAULT>();
@@ -1423,8 +1423,8 @@ const char* BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() 
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-const long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
-    long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
+const long long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+    long long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
                   BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                   BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
                   BEAGLE_FLAG_PROCESSOR_CPU |

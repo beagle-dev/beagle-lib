@@ -215,7 +215,7 @@ private:
 	unsigned int kSumAcrossBlockSize;
     unsigned int kSumSitesBlockSize;
     unsigned int kAdjointBlockSizeN;
-    long kFlags;
+    long long kFlags;
     bool kCPUImplementation;
     bool kAppleCPUImplementation;
 

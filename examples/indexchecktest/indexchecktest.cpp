@@ -46,7 +46,7 @@ static void expect(bool ok, const char* what, const char* impl, const char* mode
 
 struct Mode {
     const char* name;
-    long flag;
+    long long flag;
 };
 
 struct LogLikelihoods {
@@ -56,7 +56,7 @@ struct LogLikelihoods {
 };
 
 // one instance: valid calls, then (if reject) out-of-range calls, then the valid likelihood again
-static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
+static LogLikelihoods run(long long implementation, const Mode& mode, bool reject) {
     const bool manualOrDynamic = mode.flag == BEAGLE_FLAG_SCALING_MANUAL || mode.flag == BEAGLE_FLAG_SCALING_DYNAMIC;
     BeagleInstanceDetails details;
     const int instance = beagleCreateInstance(kTips, kPartialsCount, 0, kStates, kPatterns, 1, kMatrixCount,
@@ -282,10 +282,10 @@ static LogLikelihoods run(long implementation, const Mode& mode, bool reject) {
 int main() {
     const Mode manual = {"MANUAL", BEAGLE_FLAG_SCALING_MANUAL}, dynamic = {"DYNAMIC", BEAGLE_FLAG_SCALING_DYNAMIC},
                autoScaling = {"AUTO", BEAGLE_FLAG_SCALING_AUTO}, always = {"ALWAYS", BEAGLE_FLAG_SCALING_ALWAYS};
-    const long cpu = BEAGLE_FLAG_VECTOR_NONE, sse = BEAGLE_FLAG_VECTOR_SSE,
+    const long long cpu = BEAGLE_FLAG_VECTOR_NONE, sse = BEAGLE_FLAG_VECTOR_SSE,
                spectral = BEAGLE_FLAG_VECTOR_NONE | BEAGLE_FLAG_SPECTRAL_REPRESENTATION,
                spectralSSE = BEAGLE_FLAG_VECTOR_SSE | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
-    struct Case { long implementation; Mode mode; };
+    struct Case { long long implementation; Mode mode; };
     const Case cases[] = {{cpu, manual}, {cpu, dynamic}, {cpu, autoScaling}, {cpu, always}, {sse, manual},
                           {spectral, manual}, {spectralSSE, manual}, {spectral, always}};
     double first = 0;

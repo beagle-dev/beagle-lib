@@ -69,7 +69,7 @@ JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_getApiVersion(JNIEnv*
 JNIEXPORT jint JNICALL Java_beagle_mascot_MascotJNIWrapper_createInstance(JNIEnv*, jclass, jint stateCount,
                                                                            jint lineageCount, jint maxEpochCount,
                                                                            jlong flags) {
-    int instance = mascotCreateInstance(stateCount, lineageCount, maxEpochCount, (long) flags);
+    int instance = mascotCreateInstance(stateCount, lineageCount, maxEpochCount, flags);
     if (instance < 0) return instance;
     std::unique_ptr<Staging> s(new Staging());
     s->stateCount = stateCount;

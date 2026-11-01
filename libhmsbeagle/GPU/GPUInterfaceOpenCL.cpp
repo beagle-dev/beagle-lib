@@ -346,7 +346,7 @@ void GPUInterface::SetDevice(int deviceNumber,
                              int paddedPatternCount,
                              int unpaddedPatternCount,
                              int tipCount,
-                             long flags) {
+                             long long flags) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
@@ -1423,7 +1423,7 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     free(hPtr);
 }
 
-long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
+long long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceTypeFlag\n");
 #endif
@@ -1439,7 +1439,7 @@ long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
     SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,
                             sizeof(cl_device_type), &deviceType, NULL));
 
-    long deviceTypeFlag;
+    long long deviceTypeFlag;
     if (deviceType == CL_DEVICE_TYPE_GPU)
         deviceTypeFlag = BEAGLE_FLAG_PROCESSOR_GPU;
     else if (deviceType == CL_DEVICE_TYPE_CPU)
@@ -1477,7 +1477,7 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
                             sizeof(cl_platform_id), &platform, NULL));
     SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, param_size, platform_string, NULL));
 
-    long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
+    long long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
 
     if (!strncmp("Intel", platform_string, strlen("Intel"))) {
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)

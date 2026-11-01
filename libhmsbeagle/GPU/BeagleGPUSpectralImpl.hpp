@@ -78,8 +78,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
         int scaleBufferCount,
         int resourceNumber,
         int pluginResourceNumber,
-        long preferenceFlags,
-        long requirementFlags) {
+        long long preferenceFlags,
+        long long requirementFlags) {
     // BEAGLE's dynamic scaling passes transition matrices, which spectral never computes
     if (requirementFlags & BEAGLE_FLAG_SCALING_DYNAMIC) return BEAGLE_ERROR_NO_IMPLEMENTATION;
     preferenceFlags &= ~BEAGLE_FLAG_SCALING_DYNAMIC;
@@ -587,8 +587,8 @@ BeagleImpl* BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::createImpl(
         int scaleBufferCount,
         int resourceNumber,
         int pluginResourceNumber,
-        long preferenceFlags,
-        long requirementFlags,
+        long long preferenceFlags,
+        long long requirementFlags,
         int* errorCode) {
     BeagleImpl* impl = new BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>();
     try {
@@ -646,8 +646,8 @@ const char* BeagleGPUSpectralImplFactory<float>::getName() {
 #endif
 
 BEAGLE_GPU_TEMPLATE
-const long BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
-    long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
+const long long BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS |
                  BEAGLE_FLAG_SCALING_AUTO |
                  BEAGLE_FLAG_THREADING_NONE |

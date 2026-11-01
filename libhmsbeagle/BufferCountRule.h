@@ -41,7 +41,7 @@ struct BufferCounts {
 // the partials count, as at creation.
 inline bool ensureBufferCountsRule(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount,
                                    int tipCount, int compactBufferCount, int bufferCount, int matrixCount,
-                                   int scaleCount, long flags, BufferCounts* newCounts, int* returnCode) {
+                                   int scaleCount, long long flags, BufferCounts* newCounts, int* returnCode) {
     *returnCode = BEAGLE_SUCCESS;
     if (partialsBufferCount < 0 || matrixBufferCount < 0 || scaleBufferCount < 0) {
         *returnCode = BEAGLE_ERROR_OUT_OF_RANGE;

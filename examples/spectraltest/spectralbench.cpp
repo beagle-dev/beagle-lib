@@ -239,14 +239,14 @@ int main(int argc, char** argv) {
     const int nodes = 2 * N - 1;
     auto pre = [N](int node) { return 2 * N - 1 + node; }; // pre-order buffers follow the post-order ones
 
-    long requirements = (o.gpu >= 0) ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_DOUBLE
+    long long requirements = (o.gpu >= 0) ? BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_DOUBLE
                                      : BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
                                        (o.vector == "sse" ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE);
     if (o.gpu >= 0) o.vector = "gpu";
     if (o.gradient) requirements |= BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     if (o.impl == "spectral") requirements |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
     if (o.complexModel) requirements |= BEAGLE_FLAG_EIGEN_COMPLEX;
-    const long preferences = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_SCALING_MANUAL;
+    const long long preferences = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_SCALING_MANUAL;
 
     BeagleInstanceDetails details;
     const int instance = beagleCreateInstance(N, 4 * N - 2, o.tipPartials ? 0 : N, S, C, 1, nodes, K, 0,

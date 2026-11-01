@@ -25,7 +25,7 @@ BEAGLE_CPU_EIGEN_TEMPLATE
 EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int decompositionCount,
 											       int stateCount,
 											       int categoryCount,
-											       long flags)
+											       long long flags)
 	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags),
 	  gAdjointStale(decompositionCount, false) {
 

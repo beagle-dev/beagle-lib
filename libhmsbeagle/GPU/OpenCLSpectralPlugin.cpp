@@ -48,7 +48,7 @@ Plugin("GPU-OpenCL-Spectral", "GPU-OpenCL-Spectral")
                                     BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                     BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
-            long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
+            long long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
             resource.supportFlags |= deviceTypeFlag;
 
             if (gpu.GetSupportsDoublePrecision(i)) {

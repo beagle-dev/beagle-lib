@@ -63,8 +63,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags) override;
+                       long long preferenceFlags,
+                       long long requirementFlags) override;
 
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,

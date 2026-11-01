@@ -126,7 +126,7 @@ private:
     // (defined once, in GPUInterfaceTinyGPU.cpp) branch on isNVIDIA and
     // call out to them. They need private/protected member access the same
     // way GPUInterfaceTinyGPU.cpp's own method bodies already do.
-    friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long);
+    friend void AmdSetDevice(GPUInterface*, int, int, int, int, int, long long);
     // Their per-instance state is amdInstance (TODO.md plan step A5)
     friend int AmdAttachShared(GPUInterface*);
     friend GPUFunction AmdGetFunction(GPUInterface*, const char*);
@@ -143,7 +143,7 @@ private:
     // Same for the NV path (GPUInterfaceTinyGPUNV.cpp: the daemon by
     // default, C++ dispatch or the C++ runtime by environment variable), whose
     // per-instance state is nvGspState (TODO.md plan step P5).
-    friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long);
+    friend void NvSetDevice(GPUInterface*, int, int, int, int, int, long long);
     friend int NvAttachShared(GPUInterface*);
     friend GPUFunction NvGetFunction(GPUInterface*, const char*);
     friend void NvLaunchKernelImpl(GPUInterface*, GPUFunction, Dim3Int, Dim3Int, int, int, GPUPtr*, unsigned int*);
@@ -199,7 +199,7 @@ public:
                    int patternCount,
                    int unpaddedPatternCount,
                    int tipCount,
-                   long flags);
+                   long long flags);
 
     void ResizeStreamCount(int newStreamCount);
 
@@ -340,7 +340,7 @@ public:
     void GetDeviceDescription(int deviceNumber,
                               char* deviceDescription);
 
-    long GetDeviceTypeFlag(int deviceNumber);
+    long long GetDeviceTypeFlag(int deviceNumber);
 
     BeagleDeviceImplementationCodes GetDeviceImplementationCode(int deviceNumber);
 

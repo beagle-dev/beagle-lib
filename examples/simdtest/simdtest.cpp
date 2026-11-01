@@ -187,14 +187,14 @@ bool evaluate(const Config& c, bool simd, Result& out) {
     auto bottom = [M](int n) { return M + n; };
     auto top = [M](int n) { return 2 * M + n; };
 
-    long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
+    long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE |
                         (simd ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE) |
                         BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                         (c.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0) |
                         (c.complexModel ? BEAGLE_FLAG_EIGEN_COMPLEX : 0);
     const bool threaded = simd && c.threads > 1;
     if (threaded) requirements |= BEAGLE_FLAG_THREADING_CPP;
-    const long preferences = BEAGLE_FLAG_SCALING_MANUAL | (threaded ? 0 : BEAGLE_FLAG_THREADING_NONE);
+    const long long preferences = BEAGLE_FLAG_SCALING_MANUAL | (threaded ? 0 : BEAGLE_FLAG_THREADING_NONE);
 
     BeagleInstanceDetails details;
     const int instance = beagleCreateInstance(N, 3 * M, N - 1, S, C, 1, M, K, 0, NULL, 0, preferences,

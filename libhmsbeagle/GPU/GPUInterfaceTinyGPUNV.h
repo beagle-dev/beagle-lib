@@ -23,7 +23,7 @@ namespace tinygpu_device {
 // -1 when another instance's GPU cannot be shared (refused, with a message).
 int        NvAttachShared(GPUInterface* self);
 void       NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
-                        int patternCount, int unpaddedPatternCount, int tipCount, long flags);
+                        int patternCount, int unpaddedPatternCount, int tipCount, long long flags);
 GPUFunction NvGetFunction(GPUInterface* self, const char* name);
 void       NvLaunchKernelImpl(GPUInterface* self, GPUFunction fn, Dim3Int block, Dim3Int grid,
                                int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);

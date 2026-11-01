@@ -67,10 +67,10 @@ struct Result {
 };
 
 // tree ((0,1)4,(2,3)5)6; tips 0 and 2 use the complex model, 1 and 3 the real one, so siblings differ
-static bool evaluate(bool spectral, long vector, int n, Result& result) {
+static bool evaluate(bool spectral, long long vector, int n, Result& result) {
     const int tips = 4, patterns = 5, categories = 3;
     const int nodes = 7, root = 6, preBase = nodes; // pre-order buffers follow the post-order buffers
-    const long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PRECISION_DOUBLE |
+    const long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_PRECISION_DOUBLE |
                               (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION | vector : 0);
 
     BeagleInstanceDetails details;
@@ -150,7 +150,7 @@ static bool evaluate(bool spectral, long vector, int n, Result& result) {
 
 int main() {
     int failures = 0;
-    for (long vector : {BEAGLE_FLAG_VECTOR_NONE, BEAGLE_FLAG_VECTOR_SSE}) {
+    for (long long vector : {BEAGLE_FLAG_VECTOR_NONE, BEAGLE_FLAG_VECTOR_SSE}) {
         for (int n : {3, 4, 5, 8, 9, 20, 21}) {
             Result standard, spectral;
             if (!evaluate(false, 0, n, standard) || !evaluate(true, vector, n, spectral)) {

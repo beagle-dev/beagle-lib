@@ -65,8 +65,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags) override;
+                       long long preferenceFlags,
+                       long long requirementFlags) override;
 
     int setPatternPartitions(int partitionCount, const int* inPatternPartitions) override;
 

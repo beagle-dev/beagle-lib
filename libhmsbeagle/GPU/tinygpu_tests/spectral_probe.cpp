@@ -27,15 +27,15 @@
 
 namespace {
 
-long parseFlags(const char* s) {
+long long parseFlags(const char* s) {
     if (!strncmp(s, "0x", 2)) return strtol(s, NULL, 16);
-    static const struct { const char* name; long flag; } names[] = {
+    static const struct { const char* name; long long flag; } names[] = {
         {"GPU", BEAGLE_FLAG_PROCESSOR_GPU}, {"CPU", BEAGLE_FLAG_PROCESSOR_CPU},
         {"TINYGPU", BEAGLE_FLAG_FRAMEWORK_TINYGPU}, {"SINGLE", BEAGLE_FLAG_PRECISION_SINGLE},
         {"DOUBLE", BEAGLE_FLAG_PRECISION_DOUBLE}, {"SPECTRAL", BEAGLE_FLAG_SPECTRAL_REPRESENTATION},
         {"TRANSPOSE_AUTO", BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO}, {"TRANSPOSE_MANUAL", BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL},
         {"DYNAMIC", BEAGLE_FLAG_SCALING_DYNAMIC}};
-    long flags = 0;
+    long long flags = 0;
     std::string rest(s);
     while (!rest.empty()) {
         const size_t bar = rest.find('|');
@@ -83,7 +83,7 @@ void setUpAdjoint(int instance, int S, int C) {
 
 int main(int argc, char** argv) {
     int resource = -1, eigenCount = 1, adjointReps = 0;
-    long pref = 0, req = 0;
+    long long pref = 0, req = 0;
     std::vector<std::string> items;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--resource") && i + 1 < argc) resource = atoi(argv[++i]);
@@ -110,8 +110,8 @@ int main(int argc, char** argv) {
             return 2;
         }
         const bool spectral = !strcmp(kind, "spec");
-        const long itemPref = pref | (p == 's' ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
-        const long itemReq = req | (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO : 0);
+        const long long itemPref = pref | (p == 's' ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
+        const long long itemReq = req | (spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO : 0);
         BeagleInstanceDetails details;
         const int rc = beagleCreateInstance(3, 10, 3, S, C, eigenCount, 5, 1, 0, resource < 0 ? NULL : &resource,
                                             resource < 0 ? 0 : 1, itemPref, itemReq, &details);

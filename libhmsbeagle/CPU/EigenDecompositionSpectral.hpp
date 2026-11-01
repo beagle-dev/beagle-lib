@@ -18,7 +18,7 @@ EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSpectral
         int decompositionCount,
         int stateCount,
         int categoryCount,
-        long flags)
+        long long flags)
     : EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount, stateCount,
                                                    categoryCount, flags),
                                                    isComplex(kFlags & BEAGLE_FLAG_EIGEN_COMPLEX),

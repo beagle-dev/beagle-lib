@@ -88,7 +88,7 @@ double* getPartials(char *sequence) {
 	return partials;
 }
 
-void printFlags(long inFlags) {
+void printFlags(long long inFlags) {
     if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      fprintf(stdout, " PROCESSOR_GPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     fprintf(stdout, " PROCESSOR_FPGA");

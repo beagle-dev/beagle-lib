@@ -128,7 +128,7 @@ int mascotGetApiVersion(int* major, int* minor) {
     return MASCOT_OK;
 }
 
-int mascotCreateInstance(int stateCount, int lineageCount, int maxEpochCount, long flags) {
+int mascotCreateInstance(int stateCount, int lineageCount, int maxEpochCount, long long flags) {
     if (stateCount < 2 || lineageCount < 1 || maxEpochCount < 1) return MASCOT_ERROR_ARGUMENT;
     if ((flags & MASCOT_FP_STRICT) && (flags & MASCOT_FP_FMA)) return MASCOT_ERROR_ARGUMENT;
     if ((flags & MASCOT_FORCE_KERNEL_A) && (flags & MASCOT_FORCE_KERNEL_B)) return MASCOT_ERROR_ARGUMENT;

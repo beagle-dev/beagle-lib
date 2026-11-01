@@ -417,9 +417,9 @@ BeagleResourceList* beagleGetResourceList() {
     return rsrcList;
 }
 
-int scoreFlags(long flags1, long flags2) {
+int scoreFlags(long long flags1, long long flags2) {
     int score = 0;
-    long trait = 1;
+    long long trait = 1;
     for(int bits=0; bits<62; bits++) {
         if ( (flags1 & trait) &&
              (flags2 & trait) )
@@ -431,11 +431,11 @@ int scoreFlags(long flags1, long flags2) {
 
 int filterResources(int* resourceList,
                     int resourceCount,
-                    long preferenceFlags,
-                    long requirementFlags,
+                    long long preferenceFlags,
+                    long long requirementFlags,
                     PairedList* possibleResources) {
 
-    const long THREADING_FLAGS = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP | BEAGLE_FLAG_THREADING_OPENMP;
+    const long long THREADING_FLAGS = BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP | BEAGLE_FLAG_THREADING_OPENMP;
 
     if (preferenceFlags & BEAGLE_FLAG_THREADING_NONE) {
         // User explicitly requested no threading
@@ -467,7 +467,7 @@ int filterResources(int* resourceList,
         for(PairedList::iterator it = possibleResources->begin();
             it != possibleResources->end(); ++it) {
             int resource = (*it).second;
-            long resourceFlag = rsrcList->list[resource].supportFlags;
+            long long resourceFlag = rsrcList->list[resource].supportFlags;
             if ( (resourceFlag & requirementFlags) < requirementFlags) {
                 if(it==possibleResources->begin()){
                     possibleResources->remove(*(it));
@@ -494,8 +494,8 @@ int filterResources(int* resourceList,
     return BEAGLE_SUCCESS;
 }
 
-int rankResourceImplementationPairs(long preferenceFlags,
-                                    long requirementFlags,
+int rankResourceImplementationPairs(long long preferenceFlags,
+                                    long long requirementFlags,
                                     PairedList* possibleResources,
                                     RsrcImplList* possibleResourceImplementations) {
 
@@ -511,8 +511,8 @@ int rankResourceImplementationPairs(long preferenceFlags,
     for(PairedList::iterator it = possibleResources->begin();
         it != possibleResources->end(); ++it) {
         int resource = (*it).second;
-        long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
-        long resourceSupportedFlags = rsrcList->list[resource].supportFlags;
+        long long resourceRequiredFlags = rsrcList->list[resource].requiredFlags;
+        long long resourceSupportedFlags = rsrcList->list[resource].supportFlags;
         int resourceScore = (*it).first;
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr,"Possible resource: %s (%d)\n",rsrcList->list[resource].name,resourceScore);
@@ -520,7 +520,7 @@ int rankResourceImplementationPairs(long preferenceFlags,
 
         for (std::list<beagle::BeagleImplFactory*>::iterator factory =
              implFactory->begin(); factory != implFactory->end(); factory++) {
-            long factoryFlags = (*factory)->getFlags();
+            long long factoryFlags = (*factory)->getFlags();
 #ifdef BEAGLE_DEBUG_FLOW
             fprintf(stderr,"\tExamining implementation: %s\n",(*factory)->getName());
 #endif
@@ -532,9 +532,9 @@ int rankResourceImplementationPairs(long preferenceFlags,
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                 // Penalize unrequested factory capabilities so a minimal
                 // factory beats a more-capable one when they otherwise tie.
-                long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags);
+                long long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags);
                 int penalty = 0;
-                for (long f = unneeded; f; f &= (f - 1)) penalty++;
+                for (long long f = unneeded; f; f &= (f - 1)) penalty++;
                 int totalScore = 2 * resourceScore + implementationScore + penalty / 2;
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tPossible implementation: %s (%d = %d + %d + %d)\n",
@@ -586,12 +586,12 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
                                                                 int categoryCount,
                                                                 int* resourceList,
                                                                 int resourceCount,
-                                                                long preferenceFlags,
-                                                                long requirementFlags,
+                                                                long long preferenceFlags,
+                                                                long long requirementFlags,
                                                                 int eigenModelCount,
                                                                 int partitionCount,
                                                                 int calculateDerivatives,
-                                                                long benchmarkFlags) {
+                                                                long long benchmarkFlags) {
 
 #ifdef BEAGLE_DEBUG_FP_REDUCED_PRECISION
     debugPatternCount = patternCount;
@@ -642,7 +642,7 @@ BeagleBenchmarkedResourceList* beagleGetBenchmarkedResourceList(int tipCount,
 
     int resourceNumber;
     char* implName;
-    long benchedFlags;
+    long long benchedFlags;
     double benchmarkResultCPU;
 
     bool instOnly = false;
@@ -760,8 +760,8 @@ int beagleCreateInstance(int tipCount,
                          int scaleBufferCount,
                          int* resourceList,
                          int resourceCount,
-                         long preferenceFlags,
-                         long requirementFlags,
+                         long long preferenceFlags,
+                         long long requirementFlags,
                          BeagleInstanceDetails* returnInfo) {
     try {
         if (instances == NULL) {

@@ -46,7 +46,7 @@ Plugin("GPU-OpenCL", "GPU-OpenCL")
                                         BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS |
                                         BEAGLE_FLAG_FRAMEWORK_OPENCL;
 
-                long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
+                long long deviceTypeFlag = gpu.GetDeviceTypeFlag(i);
                 
                 resource.supportFlags |= deviceTypeFlag;
 

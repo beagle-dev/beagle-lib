@@ -401,12 +401,12 @@ private:
     int preCumulative() const { return (c.scaling == DYNAMIC) ? kCumulative : BEAGLE_OP_NONE; }
 
     int create(int partialsCount, int matrixCount, int scaleCount) {
-        long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+        long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                             (c.single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE) |
                             (c.sse ? BEAGLE_FLAG_VECTOR_SSE : BEAGLE_FLAG_VECTOR_NONE) |
                             (c.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0) |
                             (c.threads > 1 ? BEAGLE_FLAG_THREADING_CPP : 0);
-        long preferences = (c.threads > 1) ? 0 : BEAGLE_FLAG_THREADING_NONE;
+        long long preferences = (c.threads > 1) ? 0 : BEAGLE_FLAG_THREADING_NONE;
         switch (c.scaling) {
             case NONE: case MANUAL: preferences |= BEAGLE_FLAG_SCALING_MANUAL; break;
             case DYNAMIC: preferences |= BEAGLE_FLAG_SCALING_DYNAMIC; break; // the spectral factories omit it
@@ -647,7 +647,7 @@ private:
 // The GPU resource of --gpu, which every GPU instance requires, by number and by framework
 struct GpuResource {
     int number = -1;
-    long framework = 0;  // BEAGLE_FLAG_FRAMEWORK_CUDA, _OPENCL or _TINYGPU
+    long long framework = 0;  // BEAGLE_FLAG_FRAMEWORK_CUDA, _OPENCL or _TINYGPU
     std::string prefix;  // how its implementation names start: CUDA, OpenCL or TinyGPU
     bool doublePrecision = false;
     unsigned long align = 1; // the offset alignment a debug-memory library reports: BEAGLE_DEBUG_OPENCL_ALIGN's, or
@@ -776,7 +776,7 @@ struct GpuConfig {
     int S, P, C;
     int T, K;             // tips, and compact tips (tips 0..K-1 hold states)
     Scaling scaling;
-    long preferences;     // PREORDER_TRANSPOSE_AUTO, PARALLELOPS_*: preferences, as TinyGPU's resource lacks the flags
+    long long preferences; // PREORDER_TRANSPOSE_AUTO, PARALLELOPS_*: preferences, as TinyGPU's resource lacks the flags
     int late;             // the last partials tips, set only after the partials pool moved
     int partitions;       // pattern partitions (0: none), set before the growth, or after the late tips
     bool reorder;         // partitions that are not contiguous, so that the patterns are reordered
@@ -1122,9 +1122,9 @@ private:
             matrixCount = M1;
             scaleCount = S1;
         }
-        const long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework |
+        const long long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework |
                                   (c.single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
-        long preferences = c.preferences;
+        long long preferences = c.preferences;
         switch (c.scaling) {
             case NONE: case MANUAL: preferences |= BEAGLE_FLAG_SCALING_MANUAL; break;
             case DYNAMIC: preferences |= BEAGLE_FLAG_SCALING_DYNAMIC; break;
@@ -1670,7 +1670,7 @@ private:
     unsigned long aligned(unsigned long bytes) const { return (bytes + gpu.align - 1) / gpu.align * gpu.align; }
 
     int create(int partialsCount, int matrixCount, int scaleCount) {
-        const long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework | BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
+        const long long requirements = BEAGLE_FLAG_PROCESSOR_GPU | gpu.framework | BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                   (single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
         int resource = gpu.number;
         BeagleInstanceDetails details;
@@ -1996,7 +1996,7 @@ int gpuAxis(int number, const std::string& precision, const std::string& only) {
     printf("GPU resource %d: %s, %s%s; memory counters %s\n", number, resource.name, gpu.prefix.c_str(),
            gpu.doublePrecision ? ", double precision" : "", debugMemory ? "on" : "off");
 
-    const long transpose = BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
+    const long long transpose = BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
     int cases = 0, checks = 0, skipped = 0;
     for (bool single : {true, false}) {
         if (!precision.empty() && precision != (single ? "single" : "double")) continue;

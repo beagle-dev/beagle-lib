@@ -84,8 +84,8 @@ int BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::createInstance(int tipCount,
                                                                 int scaleBufferCount,
                                                                 int resourceNumber,
                                                                 int pluginResourceNumber,
-                                                                long preferenceFlags,
-                                                                long requirementFlags) {
+                                                                long long preferenceFlags,
+                                                                long long requirementFlags) {
     if (stateCount != 4) {
         return BEAGLE_ERROR_OUT_OF_RANGE;
     }
@@ -360,8 +360,8 @@ inline BeagleImpl* BeagleCPU4StateSpectralSSEImplFactory::createImpl(int tipCoun
                                                                      int scaleBufferCount,
                                                                      int resourceNumber,
                                                                      int pluginResourceNumber,
-                                                                     long preferenceFlags,
-                                                                     long requirementFlags,
+                                                                     long long preferenceFlags,
+                                                                     long long requirementFlags,
                                                                      int* errorCode) {
 
     if (stateCount != 4 || !CPUSupportsSSE()) {
@@ -394,7 +394,7 @@ inline const char* BeagleCPU4StateSpectralSSEImplFactory::getName() {
     return "CPU-4State-Spectral-SSE-Double";
 }
 
-inline const long BeagleCPU4StateSpectralSSEImplFactory::getFlags() {
+inline const long long BeagleCPU4StateSpectralSSEImplFactory::getFlags() {
     return BeagleCPUSpectralSSEImplFactory().getFlags();
 }
 

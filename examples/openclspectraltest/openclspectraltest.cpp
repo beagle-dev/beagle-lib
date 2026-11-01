@@ -120,7 +120,7 @@ static void makeJCEigen(int k, std::vector<double>& evec,
         ivec[j * k + j] = (1.0 - k) / k;
 }
 
-static void printFlags(long f) {
+static void printFlags(long long f) {
     if (f & BEAGLE_FLAG_PROCESSOR_CPU)            printf(" CPU");
     if (f & BEAGLE_FLAG_PROCESSOR_GPU)            printf(" GPU");
     if (f & BEAGLE_FLAG_PRECISION_DOUBLE)         printf(" DOUBLE");
@@ -137,7 +137,7 @@ struct Options {
     int  forceResource   = -1;
     bool doublePrecision = false;
     int  reps            = 1;
-    long prefFlags       = 0;
+    long long prefFlags       = 0;
     bool spectral        = true;
     int  stateCount      = 4;
 };
@@ -147,11 +147,11 @@ static int createInstance(const Options& opts, int nTips, int nPartBufs,
     int  resourceBuf = opts.forceResource;
     int* resources   = (opts.forceResource >= 0) ? &resourceBuf : nullptr;
     int  nResources  = (opts.forceResource >= 0) ? 1 : 0;
-    long prec = opts.doublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE
+    long long prec = opts.doublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE
                                      : BEAGLE_FLAG_PRECISION_SINGLE;
 
-    long spectralFlag = opts.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0;
-    long prefFlags = (opts.prefFlags | prec) & ~(opts.spectral ? 0 : BEAGLE_FLAG_SPECTRAL_REPRESENTATION);
+    long long spectralFlag = opts.spectral ? BEAGLE_FLAG_SPECTRAL_REPRESENTATION : 0;
+    long long prefFlags = (opts.prefFlags | prec) & ~(opts.spectral ? 0 : BEAGLE_FLAG_SPECTRAL_REPRESENTATION);
 
     return beagleCreateInstance(
         nTips,
@@ -210,15 +210,15 @@ int main(int argc, char** argv) {
     int nPartBufs = 5;  // 0=human, 1=chimp, 2=gorilla, 3=internal, 4=root
 
     // ── Backend cascade ───────────────────────────────────────────────────────
-    const long kOpenCLSpectral = BEAGLE_FLAG_FRAMEWORK_OPENCL |
+    const long long kOpenCLSpectral = BEAGLE_FLAG_FRAMEWORK_OPENCL |
                                  BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                  BEAGLE_FLAG_PROCESSOR_GPU;
-    const long kCPUSpectral    = BEAGLE_FLAG_FRAMEWORK_CPU |
+    const long long kCPUSpectral    = BEAGLE_FLAG_FRAMEWORK_CPU |
                                  BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                  BEAGLE_FLAG_PROCESSOR_CPU;
-    const long kCPU            = BEAGLE_FLAG_PROCESSOR_CPU;
+    const long long kCPU            = BEAGLE_FLAG_PROCESSOR_CPU;
 
-    std::vector<long> cascade;
+    std::vector<long long> cascade;
     if      (forceOpenCL)              cascade = { kOpenCLSpectral };
     else if (forceCPU)                 cascade = { kCPUSpectral };
     else if (opts.forceResource >= 0)  cascade = { 0 };
@@ -226,7 +226,7 @@ int main(int argc, char** argv) {
 
     BeagleInstanceDetails det;
     int instance = -1;
-    for (long pref : cascade) {
+    for (long long pref : cascade) {
         opts.prefFlags = pref;
         instance = createInstance(opts, nTips, nPartBufs, nPatterns, &det);
         if (instance >= 0) break;

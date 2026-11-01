@@ -54,7 +54,7 @@ protected:
 public:
     const char* getName() override;
 
-    const long getFlags() override;
+    const long long getFlags() override;
 
     int createInstance(int tipCount,
                        int partialsBufferCount,
@@ -67,8 +67,8 @@ public:
                        int scaleBufferCount,
                        int resourceNumber,
                        int pluginResourceNumber,
-                       long preferenceFlags,
-                       long requirementFlags) override;
+                       long long preferenceFlags,
+                       long long requirementFlags) override;
 
     int setPatternPartitions(int partitionCount, const int* inPatternPartitions) override;
 
@@ -159,12 +159,12 @@ public:
                                    int scaleBufferCount,
                                    int resourceNumber,
                                    int pluginResourceNumber,
-                                   long preferenceFlags,
-                                   long requirementFlags,
+                                   long long preferenceFlags,
+                                   long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual const long getFlags();
+    virtual const long long getFlags();
 };
 
 } // namespace cpu

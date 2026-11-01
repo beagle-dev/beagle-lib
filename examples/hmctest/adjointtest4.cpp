@@ -258,12 +258,12 @@ static void printResources() {
 static int createInstance(bool useGpu, int whichDevice, bool singlePrec,
                           int stateCount, int nPatterns, int nCats,
                           bool complexEigen = false) {
-    long prefFlags = BEAGLE_FLAG_SCALERS_RAW;
+    long long prefFlags = BEAGLE_FLAG_SCALERS_RAW;
     prefFlags |= useGpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU;
     prefFlags |= singlePrec ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE;
 
-    long eigenFlag = complexEigen ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL;
-    long reqFlags = eigenFlag | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+    long long eigenFlag = complexEigen ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL;
+    long long reqFlags = eigenFlag | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                     BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
 
     BeagleInstanceDetails det;

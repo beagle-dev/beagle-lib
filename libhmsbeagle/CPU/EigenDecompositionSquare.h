@@ -44,7 +44,7 @@ public:
 	EigenDecompositionSquare(int decompositionCount,
 						     int stateCount,
 						     int categoryCount,
-						     long flags);
+						     long long flags);
 
 	virtual ~EigenDecompositionSquare();
 

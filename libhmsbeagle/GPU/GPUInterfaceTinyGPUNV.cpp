@@ -1148,7 +1148,7 @@ int NvAttachShared(GPUInterface* self) {
 }
 
 void NvSetDevice(GPUInterface* self, int paddedStateCount, int categoryCount,
-                  int patternCount, int unpaddedPatternCount, int tipCount, long flags) {
+                  int patternCount, int unpaddedPatternCount, int tipCount, long long flags) {
     std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
     NVInstance* shared = (NVInstance*)self->nvGspState;   // NvAttachShared's: the GPU is booted already (plan step P5)
     // The boot takes Initialize()'s TinyGPU.app connection, which the GPU then keeps until exit (plan step P5; the GPUInterface

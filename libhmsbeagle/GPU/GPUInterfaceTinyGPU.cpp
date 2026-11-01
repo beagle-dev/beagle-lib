@@ -177,7 +177,7 @@ int GPUInterface::GetDeviceCount() { return (tgpuSock >= 0 || nvGspState || amdI
 
 void GPUInterface::SetDevice(int deviceNumber, int paddedStateCount,
                               int categoryCount, int patternCount,
-                              int unpaddedPatternCount, int tipCount, long flags) {
+                              int unpaddedPatternCount, int tipCount, long long flags) {
     if (!isNVIDIA) {
         AmdSetDevice(this, paddedStateCount, categoryCount, patternCount,
                      unpaddedPatternCount, tipCount, flags);
@@ -448,7 +448,7 @@ void GPUInterface::GetDeviceDescription(int, char* desc) {
     else
         snprintf(desc, 128, "PCI id %04x:%04x: not in the TinyGPU card table", g_tgVendorId, g_tgDeviceId);
 }
-long GPUInterface::GetDeviceTypeFlag(int) { return BEAGLE_FLAG_PROCESSOR_GPU; }
+long long GPUInterface::GetDeviceTypeFlag(int) { return BEAGLE_FLAG_PROCESSOR_GPU; }
 BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int) {
     return isNVIDIA ? BEAGLE_TINYGPU_DEVICE_NVIDIA_GPU : BEAGLE_TINYGPU_DEVICE_AMD_GPU;
 }

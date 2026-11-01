@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
     if (stateCounts.empty()) stateCounts = {4, 17, 61, 70, 150, 256};
 
     BeagleResourceList* resources = beagleGetResourceList();
-    const long gpuSpectral = BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+    const long long gpuSpectral = BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
     if (gpuResource < 0)   // the first GPU resource that offers the spectral representation
         for (int r = 0; r < resources->length && gpuResource < 0; r++)
             if ((resources->list[r].supportFlags & gpuSpectral) == gpuSpectral) gpuResource = r;
@@ -338,8 +338,8 @@ int main(int argc, char** argv) {
         for (const BeagleOperation& op : postOnes) internalOnes.push_back(op.destinationPartials);
 
         for (const Model& model : models) {
-            auto create = [&](bool gpu, std::string& name, long scaling = BEAGLE_FLAG_SCALING_MANUAL) -> int {
-                const long flags = (model.complex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
+            auto create = [&](bool gpu, std::string& name, long long scaling = BEAGLE_FLAG_SCALING_MANUAL) -> int {
+                const long long flags = (model.complex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
                                    BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                    (gpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU) |
                                    (gpu && !gpuDouble ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
@@ -575,7 +575,7 @@ int main(int argc, char** argv) {
             // BeagleCPUSpectralImpl.hpp:337-343)
             if (&model == &models.front())
                 for (const bool onesEncoding : {false, true})
-                for (const long scaling : {BEAGLE_FLAG_SCALING_ALWAYS, BEAGLE_FLAG_SCALING_AUTO}) {
+                for (const long long scaling : {BEAGLE_FLAG_SCALING_ALWAYS, BEAGLE_FLAG_SCALING_AUTO}) {
                     std::string name;
                     const int scaled = create(true, name, scaling);
                     const int rootBuffer = onesEncoding ? shift(root) : root;

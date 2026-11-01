@@ -23,7 +23,7 @@ static const int MATRIX_COUNT = 12;
 
 static int createInstance(int stateCount, int categoryCount, int resource, bool gpu) {
     BeagleInstanceDetails details;
-    long preference = gpu ? (BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE)
+    long long preference = gpu ? (BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PRECISION_SINGLE)
                           : (BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PRECISION_DOUBLE);
     int instance = beagleCreateInstance(2, 4, 0, stateCount, 8, 1, MATRIX_COUNT, categoryCount, 0,
                                         &resource, 1, preference, BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL, &details);

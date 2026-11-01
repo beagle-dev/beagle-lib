@@ -27,7 +27,7 @@ BEAGLE_CPU_EIGEN_TEMPLATE
 EigenDecompositionCube<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionCube(int decompositionCount,
 											         int stateCount,
 											         int categoryCount,
-                                                     long flags)
+                                                     long long flags)
 											         : EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,
 																				stateCount,
 																				categoryCount,
