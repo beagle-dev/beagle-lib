@@ -1521,6 +1521,9 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCoun
                                    kCompactBufferCount, kBufferCount, kMatrixCount, kScaleBufferCount, kFlags,
                                    &counts, &ruleCode)) {
             gpu->SynchronizeHost(); // as on every path (beagle.h)
+            BEAGLE_GPU_RETURN_IF_LOST(); // a lost instance reports its loss first, as growBufferCounts does
+            if (kPoolLost)
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
             return BEAGLE_ERROR_NO_IMPLEMENTATION;
         }
     }
