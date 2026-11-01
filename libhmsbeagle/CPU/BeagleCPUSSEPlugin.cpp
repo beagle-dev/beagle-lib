@@ -176,7 +176,7 @@ bool check_sse2(){
 #endif
 
 
-__attribute__((visibility("default"))) void* plugin_init(void){
+BEAGLE_PLUGIN_EXPORT void* plugin_init(void){
 	if(!check_sse2()){
 		return NULL;	// no SSE no plugin?!
 	}

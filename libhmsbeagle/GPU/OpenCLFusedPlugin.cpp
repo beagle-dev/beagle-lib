@@ -87,7 +87,7 @@ OpenCLFusedPlugin::~OpenCLFusedPlugin()
 
 
 extern "C" {
-__attribute__((visibility("default"))) void* plugin_init(void) {
+BEAGLE_PLUGIN_EXPORT void* plugin_init(void) {
     return new beagle::gpu::OpenCLFusedPlugin();
 }
 }
