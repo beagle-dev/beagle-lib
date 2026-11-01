@@ -1010,11 +1010,11 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
  * Signature: (I[II)I
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
-  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint preorderType)
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount)
 {
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
-    jint errCode = (jint)beagleUpdatePrePartialsByPartition_v5(instance, (BeagleOperationByPartition*)operations, operationCount, (BeaglePartialsType)preorderType);
+    jint errCode = (jint)beagleUpdatePrePartialsByPartition(instance, (BeagleOperationByPartition*)operations, operationCount);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
