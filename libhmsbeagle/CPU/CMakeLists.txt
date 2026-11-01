@@ -25,7 +25,9 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 
-target_compile_options(hmsbeagle-cpu PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+if(NOT MSVC)
+	target_compile_options(hmsbeagle-cpu PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+endif(NOT MSVC)
 
 if(BUILD_SSE)
 add_library(hmsbeagle-cpu-sse SHARED
@@ -64,7 +66,9 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-sse
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 
-target_compile_options(hmsbeagle-cpu-sse PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+if(NOT MSVC)
+	target_compile_options(hmsbeagle-cpu-sse PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+endif(NOT MSVC)
 endif(BUILD_SSE)
 
 if(BUILD_SPECTRAL)
@@ -113,7 +117,9 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-spectral
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 
-target_compile_options(hmsbeagle-cpu-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+if(NOT MSVC)
+	target_compile_options(hmsbeagle-cpu-spectral PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+endif(NOT MSVC)
 endif(BUILD_SPECTRAL)
 
 if(BUILD_OPENMP)

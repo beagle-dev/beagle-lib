@@ -43,7 +43,7 @@ bool copyIn(JNIEnv* env, jdoubleArray array, int n, std::vector<double>& v) {
 bool copyIn(JNIEnv* env, jintArray array, int n, std::vector<int>& v) {
     if (!array || env->GetArrayLength(array) < n) return false;
     if ((int) v.size() < n) v.resize(n);
-    if (n > 0) env->GetIntArrayRegion(array, 0, n, v.data());
+    if (n > 0) env->GetIntArrayRegion(array, 0, n, reinterpret_cast<jint*>(v.data()));
     return true;
 }
 
