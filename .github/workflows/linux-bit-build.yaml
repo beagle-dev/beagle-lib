@@ -13,8 +13,7 @@ on:
 jobs:
   build:
     name: Build on Linux x86_64
-    # ubuntu-latest is now Ubuntu 26.04, which has no apt-key; the CUDA repository below is NVIDIA's for 24.04
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout
