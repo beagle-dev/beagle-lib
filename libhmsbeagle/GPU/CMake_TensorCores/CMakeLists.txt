@@ -63,3 +63,7 @@ SET_TARGET_PROPERTIES(hmsbeagle-tensor-cores
     SOVERSION "${BEAGLE_PLUGIN_VERSION_EXTENDED}"
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
+
+if(NOT MSVC)
+	target_compile_options(hmsbeagle-tensor-cores PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+endif(NOT MSVC)
