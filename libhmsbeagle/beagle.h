@@ -1501,8 +1501,8 @@ BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
                                                   double *outSumDerivatives,
                                                   double *outSumSquaredDerivatives,
 #ifdef __cplusplus
-                                                  const int *postScaleIndices = nullptr,
-                                                  const int *preScaleIndices = nullptr,
+                                                  const int *postScaleIndices = 0,
+                                                  const int *preScaleIndices = 0,
                                                   const int cumulativeScaleIndex = BEAGLE_OP_NONE);
 #else
                                                   const int *postScaleIndices,
