@@ -32,20 +32,20 @@
 namespace beagle {
 namespace cpu {
 
-template <typename Base>
-int BeagleCPUAdjoint4StateSSE<Base>::createInstance(int tipCount,
-                                                    int partialsBufferCount,
-                                                    int compactBufferCount,
-                                                    int stateCount,
-                                                    int patternCount,
-                                                    int eigenDecompositionCount,
-                                                    int matrixCount,
-                                                    int categoryCount,
-                                                    int scaleBufferCount,
-                                                    int resourceNumber,
-                                                    int pluginResourceNumber,
-                                                    long preferenceFlags,
-                                                    long requirementFlags) {
+template <typename BaseImpl>
+int BeagleCPUAdjoint4StateSSE<BaseImpl>::createInstance(int tipCount,
+                                                        int partialsBufferCount,
+                                                        int compactBufferCount,
+                                                        int stateCount,
+                                                        int patternCount,
+                                                        int eigenDecompositionCount,
+                                                        int matrixCount,
+                                                        int categoryCount,
+                                                        int scaleBufferCount,
+                                                        int resourceNumber,
+                                                        int pluginResourceNumber,
+                                                        long preferenceFlags,
+                                                        long requirementFlags) {
     const int returnCode = Base::createInstance(tipCount, partialsBufferCount, compactBufferCount, stateCount,
                                                 patternCount, eigenDecompositionCount, matrixCount, categoryCount,
                                                 scaleBufferCount, resourceNumber, pluginResourceNumber,
@@ -56,11 +56,11 @@ int BeagleCPUAdjoint4StateSSE<Base>::createInstance(int tipCount,
     return returnCode;
 }
 
-template <typename Base>
-int BeagleCPUAdjoint4StateSSE<Base>::setEigenDecomposition(int eigenIndex,
-                                                           const double* inEigenVectors,
-                                                           const double* inInverseEigenVectors,
-                                                           const double* inEigenValues) {
+template <typename BaseImpl>
+int BeagleCPUAdjoint4StateSSE<BaseImpl>::setEigenDecomposition(int eigenIndex,
+                                                               const double* inEigenVectors,
+                                                               const double* inInverseEigenVectors,
+                                                               const double* inEigenValues) {
     const int returnCode = Base::setEigenDecomposition(eigenIndex, inEigenVectors, inInverseEigenVectors,
                                                        inEigenValues);
     if (returnCode == BEAGLE_SUCCESS) {
@@ -69,8 +69,8 @@ int BeagleCPUAdjoint4StateSSE<Base>::setEigenDecomposition(int eigenIndex,
     return returnCode;
 }
 
-template <typename Base>
-void BeagleCPUAdjoint4StateSSE<Base>::prepareAdjoint(const int* branchEigenIndices, int count) {
+template <typename BaseImpl>
+void BeagleCPUAdjoint4StateSSE<BaseImpl>::prepareAdjoint(const int* branchEigenIndices, int count) {
     Base::prepareAdjoint(branchEigenIndices, count); // also readies the matrices of the spectral representation
     // those matrices have rows of stride 4 + T_PAD; V^{-1}'s pad column holds its row sums
     const int stride = kTransPaddedStateCount;
@@ -119,8 +119,8 @@ void BeagleCPUAdjoint4StateSSE<Base>::prepareAdjoint(const int* branchEigenIndic
  * O = sum_k scale_k (V^T pre_k) (V^{-1} post_k)^T over the patterns, then gradient += O * K(t) entrywise with
  * K_lr = (e_l - e_r) / (lambda_l - lambda_r), or t e_l where t |lambda_l - lambda_r| < 1e-12
  */
-template <typename Base>
-void BeagleCPUAdjoint4StateSSE<Base>::calcAdjointCrossProductsRange(const int* postBufferIndices,
+template <typename BaseImpl>
+void BeagleCPUAdjoint4StateSSE<BaseImpl>::calcAdjointCrossProductsRange(const int* postBufferIndices,
         const int* preBufferIndices,
         const int* branchEigenIndices,
         const double* categoryRates,

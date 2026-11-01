@@ -27,11 +27,15 @@ namespace cpu {
 
 /*
  * The adjoint gradient of the rate matrix for 4 states and real eigenvalues, double precision, SSE2 / NEON: the
- * 4 x 4 gradient and each branch's outer product stay in vector registers. Base is a BeagleCPUAdjointSSE (or
+ * 4 x 4 gradient and each branch's outer product stay in vector registers. BaseImpl is a BeagleCPUAdjointSSE (or
  * derives from one), whose adjoint gradient is used for complex eigenvalues and rescaled partials.
  */
-template <typename Base>
-class BeagleCPUAdjoint4StateSSE : public Base {
+template <typename BaseImpl>
+class BeagleCPUAdjoint4StateSSE : public BaseImpl {
+
+    // A typedef, not the template parameter's name: MSVC looks Base up in BaseImpl first, and BaseImpl may have a Base
+    // of its own (BeagleCPUSpectralSSEImpl does)
+    typedef BaseImpl Base;
 
 protected:
     using Base::gEigenDecomposition;
