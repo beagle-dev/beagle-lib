@@ -205,6 +205,7 @@ protected:
     std::vector<REALTYPE> gBastaGradBuffers;
     std::vector<REALTYPE> gCoalescentBuffers;
     std::vector<REALTYPE> gEdgeLengthsGrad;
+    bool kBastaBuffersAllocated; // allocateBastaBuffers or allocateBastaGradBuffers has run: ensureBufferCounts refuses to grow
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
     int kCoalescentGradLength;

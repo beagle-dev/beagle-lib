@@ -414,6 +414,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gPartialsGrad = NULL;
     coalescentGrad = NULL;
     kCoalescentGradLength = 0;
+    kBastaBuffersAllocated = false;
     kAdjointBuffersAllocated = false;
     kUseAdjointGradient = false;
     kAdjointReversePassDone = false;
@@ -716,7 +717,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::ensureBufferCounts(int partialsBufferCoun
 
     // BASTA's gEdgeLengthsGrad and gPartialsGrad are sized by these counts and do not grow with them: once
     // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
-    if (!gEdgeLengthsGrad.empty())
+    if (kBastaBuffersAllocated)
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
 
     // counts whose sizes overflow, here or in later int arithmetic (the operation arrays of the threads)
@@ -1847,6 +1848,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     fprintf(stderr, "\tEntering BeagleCPUImpl::allocateBastaBuffers\n");
 #endif
 
+    kBastaBuffersAllocated = true;
     kCoalescentBufferLength = bufferLength;
     kCoalescentBufferCount = bufferCount;
     kBastaNumThreads = numThreads;
@@ -2337,6 +2339,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
     const int S_pad = kPartialsPaddedStateCount;
     const int bufferLength = kCoalescentBufferLength;
 
+    kBastaBuffersAllocated = true;
     gEdgeLengthsGrad.resize(kMatrixCount, 0);
 
     if (kUseAdjointGradient) {

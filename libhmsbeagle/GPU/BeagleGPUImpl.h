@@ -244,6 +244,7 @@ private:
 	size_t kGradZerosSize;
 
 	bool kGradBuffersAllocated;
+	bool kBastaBuffersAllocated; // allocateBastaBuffers or allocateBastaGradBuffers has run: ensureBufferCounts refuses to grow
 	bool kBastaOpsUploaded;
 	int  kBastaOpsCount;
 

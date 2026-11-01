@@ -165,6 +165,7 @@ namespace gpu {
     hGradZeros = NULL;
     kGradZerosSize = 0;
     kGradBuffersAllocated = false;
+    kBastaBuffersAllocated = false;
     kBastaOpsUploaded = false;
     kBastaOpsCount = 0;
     dAdjointPopSizeGrad = (GPUPtr)NULL;
@@ -1513,7 +1514,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBufferCounts(int partialsBufferCoun
     // BASTA's arrays sized by these counts (hEdgeLengthsGrad, dEdgeLengthsGrad, dTransformedAdjoints,
     // hTransformedAdjointsHost, the BASTA operation queue) and its captured CUDA graphs do not grow with them: once
     // allocateBastaBuffers or allocateBastaGradBuffers has run, a growth is refused and changes nothing
-    if (hEdgeLengthsGrad != NULL) {
+    if (kBastaBuffersAllocated) {
         BufferCounts counts;
         int ruleCode;
         if (ensureBufferCountsRule(partialsBufferCount, matrixBufferCount, scaleBufferCount, kTipCount,
@@ -3476,6 +3477,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
         kBastaOpsUploaded = false;
         kBastaOpsCount = 0;
     }
+    kBastaBuffersAllocated = true;
 
      if (partialsCount > kBufferCount || initial == 1) {
             if (initial == 0) {
@@ -3606,6 +3608,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaGradBuffers(int partialsCoun
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaGradBuffers\n");
 #endif
+
+    kBastaBuffersAllocated = true;
 
     const int S = kPaddedStateCount;
     const int S2 = S * S;
