@@ -3457,7 +3457,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
     fprintf(stderr, "\tEntering BeagleGPUImpl::allocateBastaBuffers\n");
 #endif
 
-    if (initial == 0) {
+    // a regrow (initial == 0) or a repeated initial allocation replaces buffers that the captured CUDA graphs and
+    // the uploaded operation queue refer to, and frees the old ones first
+    const bool replacing = (initial == 0 || kBastaBuffersAllocated);
+    if (replacing) {
         if (kForwardGraphExec != NULL) {
             gpu->DestroyGraph(kForwardGraphExec);
             kForwardGraphExec = NULL;
@@ -3496,6 +3499,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
             int returnCode = growBufferCounts(partialsCount - kCompactBufferCount, 0, 0);
             if (returnCode != BEAGLE_SUCCESS)
                 return returnCode;
+            }
+            if (replacing) {
 
                 if (dBastaOperationQueue != (GPUPtr)NULL) {
                     gpu->FreeMemory(dBastaOperationQueue);
@@ -3517,7 +3522,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
         if (bufferLength > kCoalescentBufferLength || initial == 1) {
             kCoalescentBufferLength = bufferLength;
             kBastaIntervalBlockCount = kCoalescentBufferLength / kSumAcrossBlockSize + 1;
-            if (initial == 0) {
+            if (replacing) {
                 if (dCoalescentBuffers != (GPUPtr)NULL) {
                     gpu->FreeMemory(dCoalescentBuffers);
                     dCoalescentBuffers = (GPUPtr)NULL;
