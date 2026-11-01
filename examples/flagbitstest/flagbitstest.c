@@ -13,7 +13,10 @@
  *     (no sign extension); a CPU instance that requires PREORDER_TRANSPOSE_MANUAL and SPECTRAL_REPRESENTATION
  *     (bit 40) is a spectral implementation (so both bits reached the selection; a CPU instance does not report
  *     them in its flags), with nothing above bit 46 and no undefined bit in its flags; and one that requires
- *     PREORDER_TRANSPOSE_AUTO is created (a sign-extended bit 31 would require bits 31-63 and match no resource).
+ *     PREORDER_TRANSPOSE_AUTO is created (a sign-extended bit 31 would require bits 31-63 and match no resource);
+ *   - beagleGetBenchmarkedResourceList on the CPU resource, with the spectral requirement and AUTO preferred,
+ *     benchmarks a spectral implementation, returns the resource's supportFlags and requiredFlags unchanged, and
+ *     benchedFlags with nothing above bit 46 and no undefined bit.
  * Being C, it also checks that beagle.h compiles as C. Exits non-zero on a failed check.
  */
 
@@ -86,6 +89,7 @@ int main(void) {
     const long long aboveBit46 = ~((1LL << 47) - 1);
     BeagleResourceList* resources = beagleGetResourceList();
     BeagleInstanceDetails details;
+    BeagleBenchmarkedResourceList* benchmarked;
     int cpu = -1, i, instance;
 
     for (i = 0; resources != NULL && i < resources->length; i++) {
@@ -125,6 +129,25 @@ int main(void) {
     if (instance >= 0) {
         printf("instance %d: %s on resource %d\n", instance, details.implName, details.resourceNumber);
         beagleFinalizeInstance(instance);
+    }
+
+    /* the flag parameters of beagleGetBenchmarkedResourceList and the flag fields of BeagleBenchmarkedResource */
+    benchmarked = beagleGetBenchmarkedResourceList(3, 3, 4, 10, 1, &cpu, 1, BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO,
+                                                   required, 1, 1, 0, 0);
+    check(benchmarked != NULL && benchmarked->length == 1,
+          "benchmarked CPU resource list, requiring PREORDER_TRANSPOSE_MANUAL | SPECTRAL_REPRESENTATION", required);
+    if (benchmarked != NULL && benchmarked->length == 1) {
+        const BeagleBenchmarkedResource* b = &benchmarked->list[0];
+        printf("benchmarked resource %d: return code %d, %s\n", b->number, b->returnCode,
+               b->returnCode == BEAGLE_SUCCESS ? b->implName : "-");
+        check(b->returnCode == BEAGLE_SUCCESS && strstr(b->implName, "Spectral") != NULL,
+              "it benchmarked a spectral implementation", b->benchedFlags);
+        check(b->supportFlags == resources->list[cpu].supportFlags, "its supportFlags are the resource's",
+              b->supportFlags);
+        check(b->requiredFlags == resources->list[cpu].requiredFlags, "its requiredFlags are the resource's",
+              b->requiredFlags);
+        check((b->benchedFlags & aboveBit46) == 0, "its benchedFlags have nothing above bit 46", b->benchedFlags);
+        check((b->benchedFlags & ~DEFINED_FLAGS) == 0, "its benchedFlags have no undefined bit", b->benchedFlags);
     }
 
     printf("%s\n", failures ? "FAILED" : "PASSED");
