@@ -1132,17 +1132,23 @@ BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
  *
- * @param instance                  Instance number (input)
+ * beagleUpdatePrePartialsByPartition(), without partialsType, computes BEAGLE_PARTIALS_BOTTOM.
+ *
+ * @param instance                 Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param partialsType              Type of pre-order partial calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition_v5(const int instance,
+                                                           const BeagleOperationByPartition* operations,
+                                                           int operationCount,
+                                                           BeaglePartialsType partialsType);
+
 BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition(const int instance,
                                                         const BeagleOperationByPartition* operations,
-                                                        int operationCount,
-                                                        BeaglePartialsType partialsType);
+                                                        int operationCount);
 
 /**
  * @brief Block until all calculations that write to the specified partials have completed.

@@ -118,6 +118,16 @@ endif(BUILD_SSE)
 
 add_test(hmctest hmctest)
 
+# beagleUpdatePrePartialsByPartition (3 arguments, BOTTOM) and its _v5 against the whole-pattern pre-order updates on
+# the CPU; written in C, so that it also compiles beagle.h as C
+add_executable(prepartialstest
+		prepartialstest/prepartialstest.c)
+target_link_libraries(prepartialstest
+		hmsbeagle
+		hmsbeagle-cpu
+		${CMAKE_DL_LIBS})
+add_test(prepartialstest prepartialstest)
+
 # setTransitionMatrices, getTransitionMatrix, convolve and transpose on a GPU against the CPU; skipped without a GPU
 add_executable(gpumatrixtest
 		gpumatrixtest/gpumatrixtest.cpp)

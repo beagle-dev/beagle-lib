@@ -364,9 +364,9 @@ static void runCase(int resource, int n, long transposeFlag) {
         const BeagleOperationByPartition operation = {4, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1, 0, BEAGLE_OP_NONE};
         expect(beagleUpdatePartialsByPartition(gpu, &operation, 1) == BEAGLE_ERROR_NO_IMPLEMENTATION,
                "updatePartialsByPartition", gpuName, n, transpose);
-        expect(beagleUpdatePrePartialsByPartition(gpu, &operation, 1, BEAGLE_PARTIALS_BOTTOM) ==
+        expect(beagleUpdatePrePartialsByPartition_v5(gpu, &operation, 1, BEAGLE_PARTIALS_BOTTOM) ==
                BEAGLE_ERROR_NO_IMPLEMENTATION,
-               "updatePrePartialsByPartition", gpuName, n, transpose);
+               "updatePrePartialsByPartition_v5", gpuName, n, transpose);
     }
 
     printf("%-24s vs %-28s %2d states, %-6s: derivatives %.1e, cross products %.1e, dense round trips %.1e\n",

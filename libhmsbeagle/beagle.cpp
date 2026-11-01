@@ -1507,8 +1507,14 @@ int beagleUpdatePartialsByPartition(const int instance,
 
 int beagleUpdatePrePartialsByPartition(const int instance,
                                        const BeagleOperationByPartition* operations,
-                                       int operationCount,
-                                       BeaglePartialsType partialsType) {
+                                       int operationCount) {
+    return beagleUpdatePrePartialsByPartition_v5(instance, operations, operationCount, BEAGLE_PARTIALS_BOTTOM);
+}
+
+int beagleUpdatePrePartialsByPartition_v5(const int instance,
+                                          const BeagleOperationByPartition* operations,
+                                          int operationCount,
+                                          BeaglePartialsType partialsType) {
     DEBUG_START_TIME();
     DEBUG_START_ENERGY();
     beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
