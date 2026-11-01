@@ -251,6 +251,7 @@ private:
 	GPUPtr dHazardAdjoints;
 	GPUPtr dTransformedAdjoints;
 
+	// dRawEvec, dRawIevc, dEvecT and dInverseEvecT: NULL until ensureBastaEigenBuffers
 	GPUPtr* dRawEvec;
 	GPUPtr* dRawIevc;
 	GPUPtr  dRawEvecOrigin;
@@ -876,6 +877,13 @@ public:
     int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
 
     int ensureLoewnerInfoUploaded(int eigenIndex);
+
+    // BASTA's per-eigen raw and transposed eigenvectors (dRawEvec, dRawIevc, dEvecT, dInverseEvecT), which only the
+    // BASTA calls read: allocated by the first call that reads them, and filled there for the decompositions already
+    // set; from then on setEigenDecomposition uploads them too. Evec and Ievc are setEigenDecomposition's padded,
+    // untransposed matrices.
+    void ensureBastaEigenBuffers();
+    void uploadBastaEigenBuffers(int eigenIndex, const Real* Evec, const Real* Ievc);
 
 	int updateBastaPartials(const int* operations,
                             int operationCount,

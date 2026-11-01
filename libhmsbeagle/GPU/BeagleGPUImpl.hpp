@@ -1220,22 +1220,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
         dEvec[i] = createSubPointer(dEvecOrigin, ptrIncrement*i, ptrIncrement);
         dIevc[i] = createSubPointer(dIevcOrigin, ptrIncrement*i, ptrIncrement);
     }
-
-
-    dRawEvec = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
-    dRawIevc = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
-    dEvecT = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
-    dInverseEvecT = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
-    dRawEvecOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    dRawIevcOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    dEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    dInverseEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
-    for (int i = 0; i < kEigenDecompCount; i++) {
-        dRawEvec[i] = createSubPointer(dRawEvecOrigin, ptrIncrement * i, ptrIncrement);
-        dRawIevc[i] = createSubPointer(dRawIevcOrigin, ptrIncrement * i, ptrIncrement);
-        dEvecT[i] = createSubPointer(dEvecTOrigin, ptrIncrement * i, ptrIncrement);
-        dInverseEvecT[i] = createSubPointer(dInverseEvecTOrigin, ptrIncrement * i, ptrIncrement);
-    }
+    // BASTA's dRawEvec, dRawIevc, dEvecT and dInverseEvecT come later, from ensureBastaEigenBuffers
 
     hStashedEval = (double**) calloc(sizeof(double*), kEigenDecompCount);
     kStashedEvalSize = (int*) calloc(sizeof(int), kEigenDecompCount);
@@ -2165,21 +2150,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
         tmpEvec += kPaddedStateCount;
     }
 
-    gpu->MemcpyHostToDevice(dRawEvec[eigenIndex], Evec, sizeof(Real) * kMatrixSize);
-    gpu->MemcpyHostToDevice(dRawIevc[eigenIndex], Ievc, sizeof(Real) * kMatrixSize);
-    {
-        const int Sx = kPaddedStateCount;
-        std::vector<Real> evecTbuf((size_t)Sx * Sx, (Real) 0.0);
-        std::vector<Real> ievcTbuf((size_t)Sx * Sx, (Real) 0.0);
-        for (int ii = 0; ii < Sx; ++ii) {
-            for (int jj = 0; jj < Sx; ++jj) {
-                evecTbuf[(size_t)jj * Sx + ii] = Evec[(size_t)ii * Sx + jj];
-                ievcTbuf[(size_t)jj * Sx + ii] = Ievc[(size_t)ii * Sx + jj];
-            }
-        }
-        gpu->MemcpyHostToDevice(dEvecT[eigenIndex],        evecTbuf.data(), sizeof(Real) * Sx * Sx);
-        gpu->MemcpyHostToDevice(dInverseEvecT[eigenIndex], ievcTbuf.data(), sizeof(Real) * Sx * Sx);
-    }
+    if (dRawEvecOrigin != (GPUPtr)NULL) // once a BASTA call has read them (ensureBastaEigenBuffers)
+        uploadBastaEigenBuffers(eigenIndex, Evec, Ievc);
 
     {
         bool hasComplex = (kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) != 0;
@@ -2254,6 +2226,64 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(int eigenIndex,
 #endif
 
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaEigenBuffers(int eigenIndex,
+                                                                const Real* Evec,
+                                                                const Real* Ievc) {
+    gpu->MemcpyHostToDevice(dRawEvec[eigenIndex], Evec, sizeof(Real) * kMatrixSize);
+    gpu->MemcpyHostToDevice(dRawIevc[eigenIndex], Ievc, sizeof(Real) * kMatrixSize);
+    {
+        const int Sx = kPaddedStateCount;
+        std::vector<Real> evecTbuf((size_t)Sx * Sx, (Real) 0.0);
+        std::vector<Real> ievcTbuf((size_t)Sx * Sx, (Real) 0.0);
+        for (int ii = 0; ii < Sx; ++ii) {
+            for (int jj = 0; jj < Sx; ++jj) {
+                evecTbuf[(size_t)jj * Sx + ii] = Evec[(size_t)ii * Sx + jj];
+                ievcTbuf[(size_t)jj * Sx + ii] = Ievc[(size_t)ii * Sx + jj];
+            }
+        }
+        gpu->MemcpyHostToDevice(dEvecT[eigenIndex],        evecTbuf.data(), sizeof(Real) * Sx * Sx);
+        gpu->MemcpyHostToDevice(dInverseEvecT[eigenIndex], ievcTbuf.data(), sizeof(Real) * Sx * Sx);
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBastaEigenBuffers() {
+    if (dRawEvecOrigin != (GPUPtr)NULL)
+        return;
+
+    const size_t ptrIncrement = kEvecOffset * sizeof(Real); // the stride of dEvec and dIevc
+    dRawEvec = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
+    dRawIevc = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
+    dEvecT = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
+    dInverseEvecT = (GPUPtr*) calloc(sizeof(GPUPtr), kEigenDecompCount);
+    dRawEvecOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    dRawIevcOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    dEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    dInverseEvecTOrigin = gpu->AllocateMemory(kEigenDecompCount * ptrIncrement);
+    for (int i = 0; i < kEigenDecompCount; i++) {
+        dRawEvec[i] = createSubPointer(dRawEvecOrigin, ptrIncrement * i, ptrIncrement);
+        dRawIevc[i] = createSubPointer(dRawIevcOrigin, ptrIncrement * i, ptrIncrement);
+        dEvecT[i] = createSubPointer(dEvecTOrigin, ptrIncrement * i, ptrIncrement);
+        dInverseEvecT[i] = createSubPointer(dInverseEvecTOrigin, ptrIncrement * i, ptrIncrement);
+    }
+
+    // the decompositions set so far (hStashedEval), recovered from what setEigenDecomposition uploaded: dEvec holds
+    // Evec transposed, and dIevc holds Ievc, transposed under BEAGLE_FLAG_INVEVEC_STANDARD
+    std::vector<Real> Evec(kMatrixSize), Ievc(kMatrixSize);
+    for (int i = 0; i < kEigenDecompCount; i++) {
+        if (hStashedEval[i] == NULL)
+            continue;
+        gpu->MemcpyDeviceToHost(Evec.data(), dEvec[i], sizeof(Real) * kMatrixSize);
+        gpu->MemcpyDeviceToHost(Ievc.data(), dIevc[i], sizeof(Real) * kMatrixSize);
+        gpu->SynchronizeHost();
+        transposeSquareMatrix(Evec.data(), kPaddedStateCount);
+        if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD)
+            transposeSquareMatrix(Ievc.data(), kPaddedStateCount);
+        uploadBastaEigenBuffers(i, Evec.data(), Ievc.data());
+    }
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -3651,6 +3681,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
     }
     const double* eigenValues = hStashedEval[eigenIndex];
 
+    ensureBastaEigenBuffers();
     const GPUPtr dRawEvec_e = dRawEvec[eigenIndex];
     const GPUPtr dRawIevc_e = dRawIevc[eigenIndex];
 
@@ -3895,6 +3926,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateInnerBastaPartials(const int* opera
 
 
                 const int eigenIndexFwd = kActiveEigenIndexFwd;
+                ensureBastaEigenBuffers();
                 const GPUPtr dEvecTFwd = dEvecT[eigenIndexFwd];
                 const GPUPtr dInverseEvecTFwd = dInverseEvecT[eigenIndexFwd];
 
@@ -4916,6 +4948,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
         return BEAGLE_ERROR_GENERAL;
     }
 
+    ensureBastaEigenBuffers();
     const GPUPtr dRawEvec_e = dRawEvec[eigenIndex];
     const GPUPtr dRawIevc_e = dRawIevc[eigenIndex];
     const GPUPtr dEvecT_e = dEvecT[eigenIndex];
