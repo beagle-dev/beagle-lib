@@ -1631,6 +1631,8 @@ BEAGLE_CPU_TEMPLATE
 int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatricesGrad(const int* probabilityIndices,
                                                                     const double* edgeLengths,
                                                                     int count) {
+    if (!kAdjointBuffersAllocated && gPartialsGrad == NULL) // allocateBastaGradBuffers has not run, as on the GPU
+        return BEAGLE_ERROR_GENERAL;
 
     std::fill(gEdgeLengthsGrad.begin(), gEdgeLengthsGrad.end(), 0.0);
     for (int u = 0; u < count; u++) {
@@ -2395,6 +2397,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBastaPartialsGrad(const int* operat
                                                            const int populationSizesIndex,
                                                            const int coalescentIndex) {
 	int returnCode = BEAGLE_SUCCESS;
+    if (!kAdjointBuffersAllocated && gPartialsGrad == NULL) // allocateBastaGradBuffers has not run, as on the GPU
+        return BEAGLE_ERROR_GENERAL;
 
     const REALTYPE* coalescent = gCoalescentBuffers.data() + kCoalescentBufferLength * coalescentIndex;
     const REALTYPE* sizes = gStateFrequencies[populationSizesIndex];
@@ -3213,6 +3217,8 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::accumulateBastaPartialsGrad(const int* op
                                                                double* popSizeGradOut,
                                                                double* out) {
 	int returnCode = BEAGLE_SUCCESS;
+    if (!kAdjointBuffersAllocated && gPartialsGrad == NULL) // allocateBastaGradBuffers has not run, as on the GPU
+        return BEAGLE_ERROR_GENERAL;
 
     const int S = kStateCount;
     const int S2 = S * S;
