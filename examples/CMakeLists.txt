@@ -1,3 +1,7 @@
+if(WIN32)
+	add_definitions(-D_USE_MATH_DEFINES) # M_PI from MSVC's <cmath>
+endif(WIN32)
+
 add_executable(hmctest
         hmctest/hmctest.cpp)
 
