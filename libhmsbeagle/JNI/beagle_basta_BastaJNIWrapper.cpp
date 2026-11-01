@@ -138,7 +138,33 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
   
   }
 
-JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartialsGrad
+ * Signature: (I[II[II[DII[D)I
+ *
+ * BEAGLE 4.1's 9-parameter form, which BEAST 10.5.0 and the 10.6.0 betas declare. Not supported: it returns
+ * BEAGLE_ERROR_NO_IMPLEMENTATION without touching its arguments, so that BEAST gets an error, not a call of the
+ * 13-parameter form with arguments missing.
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad__I_3II_3II_3DII_3D
+  (JNIEnv *env, jobject object, jint instance,
+   jintArray inOperations, jint operationCount,
+   jintArray inIntervals, jint intervalCount,
+   jdoubleArray inIntervalLengths,
+   jint populationSizesIndex,
+   jint coalescentIndex,
+   jdoubleArray out) {
+
+    return (jint) BEAGLE_ERROR_NO_IMPLEMENTATION;
+  }
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartialsGrad
+ * Signature: (I[II[II[DIIIII[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad__I_3II_3II_3DIIIII_3D_3D
   (JNIEnv *env, jobject object, jint instance,
    jintArray inOperations, jint operationCount,
    jintArray inIntervals, jint intervalCount,

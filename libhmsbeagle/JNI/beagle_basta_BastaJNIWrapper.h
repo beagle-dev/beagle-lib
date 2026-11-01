@@ -39,9 +39,27 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
   (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
 
-JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad
-  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint,
-   jint, jint, jint, jdoubleArray, jdoubleArray);
+/*
+ * accumulateBastaPartialsGrad has two Java declarations: BEAGLE 4.1's 9 parameters (BEAST 10.5.0, the 10.6.0 betas)
+ * and 13 since. Both are exported under JNI's long names (with the argument signature) and neither under the short
+ * name, so the JVM binds each declaration to the function with its own signature.
+ */
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartialsGrad
+ * Signature: (I[II[II[DII[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad__I_3II_3II_3DII_3D
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartialsGrad
+ * Signature: (I[II[II[DIIIII[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad__I_3II_3II_3DIIIII_3D_3D
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jint, jint, jint, jdoubleArray, jdoubleArray);
 
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad
   (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
