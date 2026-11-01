@@ -3699,6 +3699,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
 
     const size_t adjMatSize = (size_t)(kMatrixCount - matrixAdjointBufferBase)
                               * (size_t)kIndexOffsetMat * sizeof(Real);
+    // a view for this call only (on OpenCL a sub-buffer, a cl_mem): released before every return below
     GPUPtr dMatrixAdjoint = gpu->CreateSubPointer(
         dMatricesOrigin,
         (size_t)matrixAdjointBufferBase * (size_t)kIndexOffsetMat * sizeof(Real),
@@ -3812,6 +3813,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
     }
 
     if (kAdjointSlabPipelineEnabled) {
+        gpu->ReleaseSubPointer(dMatrixAdjoint, dMatricesOrigin);
         if (dLoewnerOutRateGrad == (GPUPtr)NULL) {
             std::fill(outRateGradient, outRateGradient + Su * Su, 0.0);
             return BEAGLE_SUCCESS;
@@ -3841,6 +3843,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
 
     gpu->MemcpyDeviceToHost(hTransformedAdjointsHost, dLoewnerOutRateGrad, sizeof(Real) * S2);
     gpu->SynchronizeHost();
+    gpu->ReleaseSubPointer(dMatrixAdjoint, dMatricesOrigin);
     for (int i = 0; i < Su; i++)
         for (int j = 0; j < Su; j++)
             outRateGradient[i * Su + j] = (double)hTransformedAdjointsHost[j * S + i];
@@ -4994,6 +4997,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
         const size_t adjMatrixCount = (size_t)(kMatrixCount - matrixAdjointBufferBase);
         const size_t adjPartSize  = adjPartialCount * (size_t)kIndexOffsetPat * sizeof(Real);
         const size_t adjMatSize = adjMatrixCount  * (size_t)kIndexOffsetMat * sizeof(Real);
+        // views for this call only (on OpenCL sub-buffers, cl_mem objects): released before every return below
         GPUPtr dPartialAdjoint = gpu->CreateSubPointer(
             dPartialsOrigin,
             (size_t)partialAdjointBufferBase * (size_t)kIndexOffsetPat * sizeof(Real),
@@ -5002,6 +5006,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
             dMatricesOrigin,
             (size_t)matrixAdjointBufferBase * (size_t)kIndexOffsetMat * sizeof(Real),
             adjMatSize);
+        auto releaseAdjointViews = [&]() {
+            gpu->ReleaseSubPointer(dPartialAdjoint, dPartialsOrigin);
+            gpu->ReleaseSubPointer(dMatrixAdjoint, dMatricesOrigin);
+        };
 
         const bool skipOpQueueUpload =
             kAdjointSlabPipelineEnabled && kBastaSlabMetadataUploaded;
@@ -5130,7 +5138,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
             if (kAdjointSlabPipelineEnabled) {
                 if (!kLoewnerInfoBootstrapped) {
                     int rc = ensureLoewnerInfoUploaded(eigenIndex);
-                    if (rc != BEAGLE_SUCCESS) return rc;
+                    if (rc != BEAGLE_SUCCESS) { releaseAdjointViews(); return rc; }
                 }
 
                 if (!kBastaSlabMetadataUploaded) {
@@ -5159,7 +5167,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
         if (kAdjointSlabPipelineEnabled) {
 
             int eigenRc = ensureLoewnerInfoUploaded(eigenIndex);
-            if (eigenRc != BEAGLE_SUCCESS) return eigenRc;
+            if (eigenRc != BEAGLE_SUCCESS) { releaseAdjointViews(); return eigenRc; }
 
             kSlabNumEvBlocks = kLoewnerNumBlocks;
 
@@ -5526,6 +5534,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
             }
 
             writeBackPopSizeGrad();
+            releaseAdjointViews();
 
 #ifdef BEAGLE_DEBUG_FLOW
             fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad (slab)\n");
@@ -5632,6 +5641,7 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
         }
 
         writeBackPopSizeGrad();
+        releaseAdjointViews();
 
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartialsGrad (adjoint)\n");
