@@ -1004,7 +1004,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
 #ifdef CUDA
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  atomicAdd((ptr), (REAL)(val))
 #elif defined(FW_TINYGPU_AMD)   /* HIP: GPUImplDefs.h's CAS atomicAdd, kept out of line as the OpenCL helpers below are */
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointAtomicAddTinyGPUAMD(REAL* p, REAL v) { atomicAdd(p, v); }
+KW_DEVICE_FUNC KW_NOINLINE void adjointAtomicAddTinyGPUAMD(REAL* p, REAL v) { atomicAdd(p, v); }
 #define ADJOINT_ATOMIC_ADD_GPU(ptr, val)  adjointAtomicAddTinyGPUAMD((ptr), (REAL)(val))
 #elif defined(DOUBLE_PRECISION)
 __attribute__((noinline)) void adjointAtomicAddGpuDPHelper(__global long* _anp, double val) {
@@ -1063,7 +1063,7 @@ __attribute__((noinline)) void adjointAtomicAddGpuSPHelper(__global int* _anp, f
  * own function/register-allocation scope is a diagnostic for whether it is
  * the specific miscompiled hot spot behind the PADDED_STATE_COUNT=32
  * get_local_id(0) corruption documented in CLUSTER_AGENT_FINDINGS.md §3. */
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointAccumRowRaw(
+KW_DEVICE_FUNC KW_NOINLINE void adjointAccumRowRaw(
         int tid, KW_LOCAL_VAR REAL* evectCol, bool isStates,
         REAL* regOp, KW_LOCAL_VAR REAL* rawRow,
         KW_GLOBAL_VAR REAL* prePartials, KW_GLOBAL_VAR REAL* postPartials,
@@ -1116,7 +1116,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointAccumRowRaw(
 /* Extracted into its own noinline helper for the same reason and as part of
  * the same §5.4 diagnostic as adjointAccumRowRaw() above — smaller than that
  * one but shares the `tid`-indexed pattern with its own KW_LOCAL_FENCE. */
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointRotateRow(
+KW_DEVICE_FUNC KW_NOINLINE void adjointRotateRow(
         int tid, KW_LOCAL_VAR REAL* rawRow, KW_GLOBAL_VAR REAL* ievc, KW_LOCAL_VAR REAL* rotated) {
     const int _rrpt = (PADDED_STATE_COUNT + ADJOINT_BLOCK_SP_N - 1) / ADJOINT_BLOCK_SP_N;
     for (int _m = 0; _m < _rrpt; _m++) {
@@ -1167,7 +1167,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointRotateRow(
  * class documented above, not a BEAGLE logic bug. Keeping only the cheap
  * loop control (the `for` and the `_ri` branch dispatch) inlined and moving
  * the heavy arithmetic out-of-line avoids it, matching the CAS-loop fix. */
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonRealStep(
+KW_DEVICE_FUNC KW_NOINLINE void adjointSingletonRealStep(
         KW_GLOBAL_VAR REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
         REAL _ea_c, REAL _la_c,
         KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat, KW_LOCAL_VAR REAL* sOpRow0) {
@@ -1176,7 +1176,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonRealStep(
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c], sOpRow0[_rs_c] * _co_c);
 }
 
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonComplexStep(
+KW_DEVICE_FUNC KW_NOINLINE void adjointSingletonComplexStep(
         KW_GLOBAL_VAR REAL* dGradient, int _S_c, int ls, int _rs_c, REAL t,
         REAL _ea_c, REAL _la_c, REAL _ri_c,
         KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat, KW_LOCAL_VAR REAL* sCosbt,
@@ -1196,7 +1196,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonComplexStep(
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[ls*_S_c+_rs_c+1], -_c1_c*_n0_c+_c0_c*_n1_c);
 }
 
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonLoop(
+KW_DEVICE_FUNC KW_NOINLINE void adjointSingletonLoop(
         int tid, int ls, REAL t, KW_GLOBAL_VAR REAL* dGradient,
         KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sEvalI, KW_LOCAL_VAR REAL* sExpat,
         KW_LOCAL_VAR REAL* sCosbt, KW_LOCAL_VAR REAL* sSinbt, KW_LOCAL_VAR REAL* sOpRow0) {
@@ -1220,7 +1220,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointSingletonLoop(
 #define ADJOINTN_APPLY_COMPLEX_SINGLETON() \
     adjointSingletonLoop(tid, ls, t, dGradient, sEvalR, sEvalI, sExpat, sCosbt, sSinbt, sOpRow0);
 
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointPairleaderRealStep(
+KW_DEVICE_FUNC KW_NOINLINE void adjointPairleaderRealStep(
         KW_GLOBAL_VAR REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
         REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
         KW_LOCAL_VAR REAL* sEvalR, KW_LOCAL_VAR REAL* sExpat,
@@ -1241,7 +1241,7 @@ KW_DEVICE_FUNC __attribute__((noinline)) void adjointPairleaderRealStep(
     ADJOINT_ATOMIC_ADD_GPU(&dGradient[(ls+1)*_S_q+_rs_q], _p2_q*_n0_q+_p3_q*_n1_q);
 }
 
-KW_DEVICE_FUNC __attribute__((noinline)) void adjointPairleaderComplexStep(
+KW_DEVICE_FUNC KW_NOINLINE void adjointPairleaderComplexStep(
         KW_GLOBAL_VAR REAL* dGradient, int _S_q, int ls, int _rs_q, REAL t,
         REAL _lr_q, REAL _li_q, REAL _ec_q, REAL _es_q, REAL _cI_q, REAL _sI_q, REAL _ea_q,
         REAL _ri_q,
