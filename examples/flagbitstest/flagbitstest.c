@@ -8,8 +8,9 @@
  * The flags at bit 31 and above are 64-bit, from C, on every platform (long is 32 bits on Windows):
  *   - at compile time, each of them is 1LL << n and positive, no two flags share a bit, and every flag field of the
  *     API structs is 8 bytes;
- *   - at run time, the CPU resource offers PREORDER_TRANSPOSE_MANUAL (bit 34) and _AUTO (bit 31) with no undefined
- *     bit set (no sign extension); a CPU instance that requires PREORDER_TRANSPOSE_MANUAL and SPECTRAL_REPRESENTATION
+ *   - at run time, the CPU resource's flags from bit 31 up are exactly PREORDER_TRANSPOSE_AUTO (bit 31), _MANUAL
+ *     (bit 34) and SPECTRAL_REPRESENTATION (bit 40) (its lower bits depend on the build), with no undefined bit set
+ *     (no sign extension); a CPU instance that requires PREORDER_TRANSPOSE_MANUAL and SPECTRAL_REPRESENTATION
  *     (bit 40) is a spectral implementation (so both bits reached the selection; a CPU instance does not report
  *     them in its flags), with nothing above bit 46 and no undefined bit in its flags; and one that requires
  *     PREORDER_TRANSPOSE_AUTO is created (a sign-extended bit 31 would require bits 31-63 and match no resource).
@@ -77,7 +78,9 @@ static void check(int ok, const char* what, long long flags) {
 }
 
 int main(void) {
-    const long long transposes = BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO;
+    const long long cpuHighFlags = BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO | BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL |
+                                   BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+    const long long fromBit31 = ~((1LL << 31) - 1);
     const long long required = BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                BEAGLE_FLAG_FRAMEWORK_CPU;
     const long long aboveBit46 = ~((1LL << 47) - 1);
@@ -96,8 +99,9 @@ int main(void) {
         return 1;
     }
     printf("CPU resource %d: %s\n", cpu, resources->list[cpu].name);
-    check((resources->list[cpu].supportFlags & transposes) == transposes,
-          "CPU resource supportFlags have PREORDER_TRANSPOSE_MANUAL and _AUTO", resources->list[cpu].supportFlags);
+    check((resources->list[cpu].supportFlags & fromBit31) == cpuHighFlags,
+          "CPU resource supportFlags from bit 31 up are PREORDER_TRANSPOSE_AUTO, _MANUAL and SPECTRAL_REPRESENTATION",
+          resources->list[cpu].supportFlags);
     check((resources->list[cpu].supportFlags & ~DEFINED_FLAGS) == 0,
           "CPU resource supportFlags have no undefined bit", resources->list[cpu].supportFlags);
     check((resources->list[cpu].requiredFlags & ~DEFINED_FLAGS) == 0,
