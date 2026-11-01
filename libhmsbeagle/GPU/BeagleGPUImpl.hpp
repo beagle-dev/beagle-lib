@@ -2297,14 +2297,14 @@ void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::ensureBastaEigenBuffers() {
     }
 
     // the decompositions set so far (hStashedEval), recovered from what setEigenDecomposition uploaded: dEvec holds
-    // Evec transposed, and dIevc holds Ievc, transposed under BEAGLE_FLAG_INVEVEC_STANDARD
+    // Evec transposed, and dIevc holds Ievc, transposed under BEAGLE_FLAG_INVEVEC_STANDARD (MemcpyDeviceToHost returns
+    // with the copy done on every framework)
     std::vector<Real> Evec(kMatrixSize), Ievc(kMatrixSize);
     for (int i = 0; i < kEigenDecompCount; i++) {
         if (hStashedEval[i] == NULL)
             continue;
         gpu->MemcpyDeviceToHost(Evec.data(), dEvec[i], sizeof(Real) * kMatrixSize);
         gpu->MemcpyDeviceToHost(Ievc.data(), dIevc[i], sizeof(Real) * kMatrixSize);
-        gpu->SynchronizeHost();
         transposeSquareMatrix(Evec.data(), kPaddedStateCount);
         if (kFlags & BEAGLE_FLAG_INVEVEC_STANDARD)
             transposeSquareMatrix(Ievc.data(), kPaddedStateCount);
