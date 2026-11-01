@@ -54,7 +54,7 @@ void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv, const REALTYPE rv,
         const REALTYPE scale,
-        REALTYPE* __restrict__ eigenBasisGrad,
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad,
         const int S) {
 
     const REALTYPE la    = eval[ls];
@@ -71,7 +71,7 @@ template <typename C>
 void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByOneBlock(
         const C& collector,
         const int ls, const int rs,
-        REALTYPE* __restrict__ eigenBasisGrad,
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad,
         const int S) {
 
     const REALTYPE la    = eval[ls];
@@ -89,7 +89,7 @@ void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE rv1, const REALTYPE rv2,
         const REALTYPE sc,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE la  = eval[ls];
     const REALTYPE rr  = eval[rs];
@@ -123,7 +123,7 @@ template <typename C>
 void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeOneByTwoBlock(
         const C& collector,
         const int ls, const int rs,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE la  = eval[ls];
     const REALTYPE rr  = eval[rs];
@@ -158,7 +158,7 @@ void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const int ls, const int rs,
         const REALTYPE lv1, const REALTYPE lv2, const REALTYPE rv1,
         const REALTYPE sc,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE lr  = eval[ls];
     const REALTYPE li  = eval[stateCount + ls];
@@ -200,7 +200,7 @@ template <typename C>
 void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByOneBlock(
         const C& collector,
         const int ls, const int rs,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE lr  = eval[ls];
     const REALTYPE li  = eval[stateCount + ls];
@@ -246,7 +246,7 @@ void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const REALTYPE lv1, const REALTYPE lv2,
         const REALTYPE rv1, const REALTYPE rv2,
         const REALTYPE sc,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE lr = eval[ls];
     const REALTYPE li = eval[stateCount + ls];
@@ -328,7 +328,7 @@ template <typename CC>
 void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
         const CC& collector,
         const int ls, const int rs,
-        REALTYPE* __restrict__ eigenBasisGrad, const int S) {
+        REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S) {
 
     const REALTYPE lr = eval[ls];
     const REALTYPE li = eval[stateCount + ls];
@@ -410,10 +410,10 @@ void AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::computeTwoByTwoBlock(
 BEAGLE_CPU_ADJOINT3_TEMPLATE
 int AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         const int       M,
-        const REALTYPE* __restrict__ lhs,
-        const REALTYPE* __restrict__ rhs,
+        const REALTYPE* BEAGLE_RESTRICT lhs,
+        const REALTYPE* BEAGLE_RESTRICT rhs,
         const REALTYPE  scale,
-        REALTYPE*       __restrict__ outRateGradient,
+        REALTYPE*       BEAGLE_RESTRICT outRateGradient,
         const int       S) {
 
     REALTYPE* eigenBasisGrad = outRateGradient;
@@ -480,7 +480,7 @@ BEAGLE_CPU_ADJOINT3_TEMPLATE
 template <typename C>
 int AdjointIntegralPlan<BEAGLE_CPU_ADJOINT3_GENERIC>::accumulateEigenBasisGradient(
         const C& collector,
-        REALTYPE* __restrict__ outRateGradient,
+        REALTYPE* BEAGLE_RESTRICT outRateGradient,
         const int S) {
 
     REALTYPE* eigenBasisGrad = outRateGradient;

@@ -1659,13 +1659,13 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updateBranchEigenInfo(int eigenIndex,
         const int slot = index & ((1 << kEigenInfoChunkShift) - 1);
         const size_t slotOffset = size_t(slot) * (kCategoryCount * kPartialsPaddedStateCount);
 
-        REALTYPE* __restrict__ times = chunk + kEigenInfoChunkOffset[0] + size_t(slot) * kCategoryCount;
-        REALTYPE* __restrict__ expat = chunk + kEigenInfoChunkOffset[1] + slotOffset;
-        REALTYPE* __restrict__ cosbt = chunk + kEigenInfoChunkOffset[2] + slotOffset;
-        REALTYPE* __restrict__ sinbt = chunk + kEigenInfoChunkOffset[3] + slotOffset;
-        REALTYPE* __restrict__ expatcosbt = chunk + kEigenInfoChunkOffset[4] + slotOffset;
-        REALTYPE* __restrict__ expatsinbt = chunk + kEigenInfoChunkOffset[5] + slotOffset;
-        const REALTYPE* __restrict__ eval = gEigenDecomposition->getEigenValuesPtr(eigenIndex);
+        REALTYPE* BEAGLE_RESTRICT times = chunk + kEigenInfoChunkOffset[0] + size_t(slot) * kCategoryCount;
+        REALTYPE* BEAGLE_RESTRICT expat = chunk + kEigenInfoChunkOffset[1] + slotOffset;
+        REALTYPE* BEAGLE_RESTRICT cosbt = chunk + kEigenInfoChunkOffset[2] + slotOffset;
+        REALTYPE* BEAGLE_RESTRICT sinbt = chunk + kEigenInfoChunkOffset[3] + slotOffset;
+        REALTYPE* BEAGLE_RESTRICT expatcosbt = chunk + kEigenInfoChunkOffset[4] + slotOffset;
+        REALTYPE* BEAGLE_RESTRICT expatsinbt = chunk + kEigenInfoChunkOffset[5] + slotOffset;
+        const REALTYPE* BEAGLE_RESTRICT eval = gEigenDecomposition->getEigenValuesPtr(eigenIndex);
 
         const bool isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
@@ -3571,9 +3571,9 @@ inline double proportionRepeated(const int* branchEigenIndices, const int start,
 
 template <typename REALTYPE>
 void computePerSiteLikelihoods(
-        const REALTYPE* __restrict__ rootPostOrderPartial,
-        const REALTYPE* __restrict__ stateFrequencies,
-        const REALTYPE* __restrict__ categoryWeights,
+        const REALTYPE* BEAGLE_RESTRICT rootPostOrderPartial,
+        const REALTYPE* BEAGLE_RESTRICT stateFrequencies,
+        const REALTYPE* BEAGLE_RESTRICT categoryWeights,
         const int kStateCount,
         const int kStateCountModFour,
         const int patternStart,
@@ -3581,7 +3581,7 @@ void computePerSiteLikelihoods(
         const int kPatternCount,
         const int kCategoryCount,
         const int kPartialsPaddedStateCount,
-        REALTYPE* __restrict__ perSiteLikelihoods) {
+        REALTYPE* BEAGLE_RESTRICT perSiteLikelihoods) {
 
     for (int pattern = patternStart; pattern < patternEnd; ++pattern) {
 
@@ -4198,8 +4198,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointBranchMarginalLikelihoods(
 
 BEAGLE_CPU_TEMPLATE template <typename First, typename Second, typename Body>
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::matVecDual(
-        const REALTYPE* __restrict__ mat1, const REALTYPE* __restrict__ vec1, const int state1,
-        const REALTYPE* __restrict__ mat2, const REALTYPE* __restrict__ vec2, const int state2,
+        const REALTYPE* BEAGLE_RESTRICT mat1, const REALTYPE* BEAGLE_RESTRICT vec1, const int state1,
+        const REALTYPE* BEAGLE_RESTRICT mat2, const REALTYPE* BEAGLE_RESTRICT vec2, const int state2,
         const int matrixIncr,
         Body body) {
 
@@ -4214,8 +4214,8 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::matVecDual(
 
     for (int i = 0; i < kStateCount; i++) {
 
-        const REALTYPE* __restrict__ row1 = mat1 + i * matrixIncr;
-        const REALTYPE* __restrict__ row2 = mat2 + i * matrixIncr;
+        const REALTYPE* BEAGLE_RESTRICT row1 = mat1 + i * matrixIncr;
+        const REALTYPE* BEAGLE_RESTRICT row2 = mat2 + i * matrixIncr;
 
         REALTYPE sum1A, sum1B, sum2A, sum2B;
         if constexpr (std::is_same_v<First, States>) {

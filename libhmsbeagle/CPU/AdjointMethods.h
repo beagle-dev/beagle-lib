@@ -11,6 +11,13 @@
 #include <cmath>
 #include <vector>
 
+// GCC and clang spell restrict __restrict__ (macOS <sys/cdefs.h> defines __restrict to nothing in C++), MSVC __restrict
+#if defined(__GNUC__) || defined(__clang__)
+#define BEAGLE_RESTRICT __restrict__
+#else
+#define BEAGLE_RESTRICT __restrict
+#endif
+
 #define BEAGLE_CPU_ADJOINT3_TEMPLATE template <typename REALTYPE>
 #define BEAGLE_CPU_ADJOINT3_GENERIC  REALTYPE
 
@@ -90,50 +97,50 @@ private:
             const int ls, const int rs,
             const REALTYPE lv, const REALTYPE rv,
             const REALTYPE scale,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     inline void computeOneByTwoBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE rv1, const REALTYPE rv2,
             const REALTYPE scale,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     inline void computeTwoByOneBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE lv2, const REALTYPE rv1,
             const REALTYPE scale,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     inline void computeTwoByTwoBlock(
             const int ls, const int rs,
             const REALTYPE lv1, const REALTYPE lv2,
             const REALTYPE rv1, const REALTYPE rv2,
             const REALTYPE sc,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeOneByOneBlock(
             const C& collector,
             const int ls, const int rs,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeOneByTwoBlock(
             const C& collector,
             const int ls, const int rs,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeTwoByOneBlock(
             const C& collector,
             const int ls, const int rs,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     template <typename C>
     inline void computeTwoByTwoBlock(
             const C& collector,
             const int ls, const int rs,
-            REALTYPE* __restrict__ eigenBasisGrad, const int S);
+            REALTYPE* BEAGLE_RESTRICT eigenBasisGrad, const int S);
 
     static bool containsImagineryValues(const REALTYPE* eval, const int stateCount) {
         for (int i = 0; i < stateCount; ++i) {
@@ -232,8 +239,8 @@ struct MultipleCollector : CollectorBase<REALTYPE> {
     }
 
     inline void accumulateScaledOuterProducts(
-            const REALTYPE*  __restrict__ lhs,
-            const REALTYPE*  __restrict__ rhs,
+            const REALTYPE*  BEAGLE_RESTRICT lhs,
+            const REALTYPE*  BEAGLE_RESTRICT rhs,
             const REALTYPE scale) {
         for (int i = 0; i < stateCount; ++i) {
             const int row_i = i * stride;

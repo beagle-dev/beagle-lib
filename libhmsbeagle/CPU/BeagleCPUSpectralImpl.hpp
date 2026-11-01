@@ -877,8 +877,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
 
         for (int k = startPattern; k < endPattern; k++) {
 
-            REALTYPE* __restrict__ tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
-            REALTYPE* __restrict__ tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+            REALTYPE* BEAGLE_RESTRICT tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+            REALTYPE* BEAGLE_RESTRICT tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
 
             expScaledMatrixVectorMultiple2<Partials,Partials,Forward>(
                 tmp1, tmp2,
@@ -948,8 +948,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
 
             const int state1 = states1[k];
 
-            REALTYPE* __restrict__ tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
-            REALTYPE* __restrict__ tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+            REALTYPE* BEAGLE_RESTRICT tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+            REALTYPE* BEAGLE_RESTRICT tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
 
             expScaledMatrixVectorMultiple2<States,Partials,Forward>(
                 tmp1, tmp2,
@@ -1012,10 +1012,10 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
         // const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
         // const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
 
-        REALTYPE* __restrict__ destPtr = &destPartials[v];
+        REALTYPE* BEAGLE_RESTRICT destPtr = &destPartials[v];
 
-        REALTYPE* __restrict__ tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
-        REALTYPE* __restrict__ tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT tmp2 = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
 
         for (int k = startPattern; k < endPattern; k++) {
 
@@ -1080,12 +1080,12 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
         const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
         const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
 
-        const REALTYPE* __restrict__ partials1Ptr = &partials1[v];
-        const REALTYPE* __restrict__ partials2Ptr = &partials2[v];
-        REALTYPE* __restrict__ destPtr = &destPartials[v];
+        const REALTYPE* BEAGLE_RESTRICT partials1Ptr = &partials1[v];
+        const REALTYPE* BEAGLE_RESTRICT partials2Ptr = &partials2[v];
+        REALTYPE* BEAGLE_RESTRICT destPtr = &destPartials[v];
 
-        REALTYPE* __restrict__ intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
-        REALTYPE* __restrict__ parent = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT parent = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
 
         for (int k = startPattern; k < endPattern; k++) {
 
@@ -1182,11 +1182,11 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
         const REALTYPE scaledBranchLength1 = static_cast<REALTYPE>(categoryRate1[l]) * branchLength1;
         const REALTYPE scaledBranchLength2 = static_cast<REALTYPE>(categoryRate2[l]) * branchLength2;
 
-        const REALTYPE* __restrict__ partials1Ptr = &partials1[v];
-        REALTYPE* __restrict__ destPtr = &destPartials[v];
+        const REALTYPE* BEAGLE_RESTRICT partials1Ptr = &partials1[v];
+        REALTYPE* BEAGLE_RESTRICT destPtr = &destPartials[v];
 
-        REALTYPE* __restrict__ intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
-        REALTYPE* __restrict__ parent = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT parent = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
 
         for (int k = startPattern; k < endPattern; k++) {
 
@@ -1282,7 +1282,7 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcDegree2Partials(
         const REALTYPE* partials1Ptr = std::is_same_v<First, Partials> ? &partials1[v] : nullptr;
         REALTYPE* destPtr = &destPartials[v];
 
-        REALTYPE* __restrict__ tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT tmp1 = gPartialTmp1.data() + currentPartition * kPartialsPaddedStateCount;
 
         for (int k = startPattern; k < endPattern; k++) {
 
@@ -1339,10 +1339,10 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcDegree2PrePartials(
     for (int l = 0; l < kCategoryCount; l++) {
         int v = l * kPartialsPaddedStateCount * kPaddedPatternCount + kPartialsPaddedStateCount * startPattern;
 
-        const REALTYPE* __restrict__ partials1Ptr = &partials1[v];
-        REALTYPE* __restrict__ destPtr = &destPartials[v];
+        const REALTYPE* BEAGLE_RESTRICT partials1Ptr = &partials1[v];
+        REALTYPE* BEAGLE_RESTRICT destPtr = &destPartials[v];
 
-        REALTYPE* __restrict__ intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
+        REALTYPE* BEAGLE_RESTRICT intermediate = gPartialTmp2.data() + currentPartition * kPartialsPaddedStateCount;
 
         for (int k = startPattern; k < endPattern; k++) {
 
