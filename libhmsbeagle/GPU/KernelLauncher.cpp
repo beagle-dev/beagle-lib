@@ -1454,7 +1454,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           partials1, partials2, partials3, matrices1, matrices2, dRescalingTrigger,
                           patternCount);
 
-        gpu->SynchronizeDevice();
+        gpu->SynchronizeHost(); // the kernel writes the trigger into mapped host memory, read just below
 //        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
@@ -1487,7 +1487,7 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           dScalingFactors[readScalingIndex], dRescalingTrigger,
                           patternCount);
 
-        gpu->SynchronizeDevice();
+        gpu->SynchronizeHost(); // the kernel writes the trigger into mapped host memory, read just below
 //        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
