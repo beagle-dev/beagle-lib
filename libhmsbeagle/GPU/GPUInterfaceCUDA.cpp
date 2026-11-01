@@ -390,11 +390,12 @@ void GPUInterface::SynchronizeDevice() {
 
     SAFE_CUDA(cuCtxPushCurrent(cudaContext));
 
+    // Orders on the device; the host does not wait. An event recorded in the legacy NULL stream follows all earlier work
+    // in the context's blocking streams (all of cudaStreams are blocking), and their later work waits for it. While
+    // capturing, the legacy stream may not be used, and the captured launches are ordered in the one capture stream.
     if (!isCapturing) {
-        // Drain every stream OWNED BY THIS BEAGLE INSTANCE.
-        for (int i = 0; i < numStreams; i++) {
-            SAFE_CUDA(cuStreamSynchronize(cudaStreams[i]));
-        }
+        SAFE_CUDA(cuEventRecord(cudaEvent, 0));
+        SAFE_CUDA(cuStreamWaitEvent(0, cudaEvent, 0));
     }
 
     SAFE_CUDA(cuCtxPopCurrent(&cudaContext));
