@@ -89,7 +89,7 @@ IF(BEAGLE_BASTA_CPU_ACCUM)
 	ADD_DEFINITIONS(-DBEAGLE_BASTA_CPU_ACCUM)
 ENDIF(BEAGLE_BASTA_CPU_ACCUM)
 
-# a compile definition, so it applies whatever CMAKE_BUILD_TYPE is (the build type below is fixed to RelWithDebInfo)
+# a compile definition, so it applies whatever CMAKE_BUILD_TYPE is
 IF(BEAGLE_INDEX_CHECKS)
 	ADD_DEFINITIONS(-DBEAGLE_INDEX_CHECKS)
 ENDIF(BEAGLE_INDEX_CHECKS)
