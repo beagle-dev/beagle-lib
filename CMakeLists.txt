@@ -236,10 +236,8 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 	endif()
 endif()
 
-# MASCOT registers its golden tests from inside libhmsbeagle
-if(BUILD_MASCOT)
-	enable_testing()
-endif(BUILD_MASCOT)
+# MASCOT's golden tests and tests/opencl (added by libhmsbeagle/GPU) are registered from inside libhmsbeagle
+enable_testing()
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
