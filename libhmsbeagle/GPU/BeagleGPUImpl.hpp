@@ -712,6 +712,31 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         if (dCoalescentBuffers != (GPUPtr)NULL)
             gpu->FreeMemory(dCoalescentBuffers);
 
+        // the gradient's buffers, from allocateBastaGradBuffers and the gradient calls
+        if (dEdgeLengthsGrad != (GPUPtr)NULL) gpu->FreeMemory(dEdgeLengthsGrad);
+        if (dAdjointPopSizeGrad != (GPUPtr)NULL) gpu->FreeMemory(dAdjointPopSizeGrad);
+        if (dHazardAdjoints != (GPUPtr)NULL) gpu->FreeMemory(dHazardAdjoints);
+        if (dTransformedAdjoints != (GPUPtr)NULL) gpu->FreeMemory(dTransformedAdjoints);
+        if (dAdjointIntervalNumbers != (GPUPtr)NULL) gpu->FreeMemory(dAdjointIntervalNumbers);
+        if (dAdjointIntervalStarts != (GPUPtr)NULL) gpu->FreeMemory(dAdjointIntervalStarts);
+        if (dAdjointMatTransIndices != (GPUPtr)NULL) gpu->FreeMemory(dAdjointMatTransIndices);
+        if (dAdjointCoalOps != (GPUPtr)NULL) gpu->FreeMemory(dAdjointCoalOps);
+        if (dLoewnerEigenValues != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerEigenValues);
+        if (dLoewnerBranchLengths != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerBranchLengths);
+        if (dLoewnerBlockStarts != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerBlockStarts);
+        if (dLoewnerBlockDims != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerBlockDims);
+        if (dLoewnerOutRateGrad != (GPUPtr)NULL) gpu->FreeMemory(dLoewnerOutRateGrad);
+        if (hEdgeLengthsGrad != NULL) gpu->FreeHostMemory(hEdgeLengthsGrad);
+        if (hGradZeros != NULL) gpu->FreeHostMemory(hGradZeros);
+        if (hTransformedAdjointsHost != NULL) gpu->FreeHostMemory(hTransformedAdjointsHost);
+        if (hAdjointIntervalNumbers != NULL) gpu->FreeHostMemory(hAdjointIntervalNumbers);
+        if (hAdjointIntervalStarts != NULL) gpu->FreeHostMemory(hAdjointIntervalStarts);
+        if (hAdjointMatTransIndices != NULL) gpu->FreeHostMemory(hAdjointMatTransIndices);
+        if (hAdjointCoalOps != NULL) gpu->FreeHostMemory(hAdjointCoalOps);
+        if (hLoewnerEigenValues != NULL) gpu->FreeHostMemory(hLoewnerEigenValues);
+        if (hLoewnerBranchLengths != NULL) gpu->FreeHostMemory(hLoewnerBranchLengths);
+        if (hLoewnerBlockStarts != NULL) gpu->FreeHostMemory(hLoewnerBlockStarts);
+        if (hLoewnerBlockDims != NULL) gpu->FreeHostMemory(hLoewnerBlockDims);
 
         if (dScratchYBar != (GPUPtr)NULL) gpu->FreeMemory(dScratchYBar);
         if (dScratchX != (GPUPtr)NULL) gpu->FreeMemory(dScratchX);
