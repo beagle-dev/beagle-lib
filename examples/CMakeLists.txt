@@ -159,6 +159,18 @@ if(BUILD_SPECTRAL)
             ${CMAKE_DL_LIBS})
     add_test(spectralcomplextest spectralcomplextest)
 
+    # the flags at bit 31 and above are 64-bit, from C (so beagle.h must compile as C), and reach the CPU resource
+    # and instances without truncation or sign extension; see flagbitstest/flagbitstest.c
+    add_executable(flagbitstest
+            flagbitstest/flagbitstest.c)
+    set_target_properties(flagbitstest PROPERTIES C_STANDARD 99)
+    target_link_libraries(flagbitstest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-spectral
+            ${CMAKE_DL_LIBS})
+    add_test(flagbitstest flagbitstest)
+
     # every GPU spectral kernel against CPU spectral; skipped (77) without a GPU resource that offers spectral
     add_executable(gpuspectraltest
             spectraltest/gpuspectraltest.cpp)
