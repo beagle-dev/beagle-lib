@@ -24,8 +24,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake file
-          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
-        sudo add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
+        repo=ubuntu$(. /etc/os-release && echo "${VERSION_ID//./}")
+        curl -fsSL -o "$RUNNER_TEMP/cuda-keyring.deb" https://developer.download.nvidia.com/compute/cuda/repos/$repo/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i "$RUNNER_TEMP/cuda-keyring.deb"
+        sudo apt-get update
         sudo apt-get install -y cuda
 
 #     - uses: Jimver/cuda-toolkit@master
