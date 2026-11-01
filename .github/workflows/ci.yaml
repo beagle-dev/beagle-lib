@@ -51,7 +51,7 @@ jobs:
 
   opencl-discovery-macos-arm64:
     name: OpenCL discovery on macOS arm64
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
     - name: Checkout
       uses: actions/checkout@v4
