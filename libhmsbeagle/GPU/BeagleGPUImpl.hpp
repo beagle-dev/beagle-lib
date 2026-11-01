@@ -3474,6 +3474,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::allocateBastaBuffers(int bufferCount,
         kForwardSlabGraphFingerprint = 0;
         kForwardSlabGraphIntervalCount = 0;
         kForwardSlabGraphNumEvBlocks = -1;
+        if (kAdjointGraphExec != NULL) {
+            gpu->DestroyGraph(kAdjointGraphExec);
+            kAdjointGraphExec = NULL;
+        }
+        kAdjointGraphValid = false;
+        kAdjointGraphFingerprint = 0;
+        kAdjointGraphIntervalCount = 0;
+        kAdjointGraphNumEvBlocks = -1;
         kBastaOpsUploaded = false;
         kBastaOpsCount = 0;
     }
