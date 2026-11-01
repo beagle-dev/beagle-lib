@@ -1,11 +1,3 @@
-#ifdef CUDA_TENSOR_CORES
-}
-
-#include <mma.h>
-
-extern "C" {
-#endif
-
 #define multBy4(x)  ((x) << 2)
 #define multBy16(x) ((x) << 4)
 

@@ -709,6 +709,8 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             gpu->FreeMemory(dBastaDistance);
         if (dBastaOperationQueue != (GPUPtr)NULL)
             gpu->FreeMemory(dBastaOperationQueue);
+        if (dCoalescentBuffers != (GPUPtr)NULL)
+            gpu->FreeMemory(dCoalescentBuffers);
 
 
         if (dScratchYBar != (GPUPtr)NULL) gpu->FreeMemory(dScratchYBar);

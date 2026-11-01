@@ -80,6 +80,9 @@
                             <mainClass>beagle.BeagleFactory</mainClass>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
+                        <manifestEntries>
+                            <Automatic-Module-Name>beagle</Automatic-Module-Name>
+                        </manifestEntries>
                     </archive>
                     <includes>
                         <include>**/*.class</include>

@@ -8,6 +8,7 @@ add_definitions(-DCUDA -DCUDA_TENSOR_CORES)
 link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib
      ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
      ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+     ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs # libcuda.so stub, for building without an NVIDIA driver
      )
 
 if(WIN32)

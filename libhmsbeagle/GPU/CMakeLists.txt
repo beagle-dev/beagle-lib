@@ -32,7 +32,7 @@ if(BUILD_OPENCL OR BUILD_TINYGPU)
 			OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h"
 			COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/kernels/${OPENCL_KERNELS_CMD_NAME}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
-			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "kernels/kernelsAll.cu" "GPUImplDefs.h"
+			DEPENDS "kernels/kernels4.cu" "kernels/kernelsX.cu" "kernels/kernels4Derivatives.cu" "kernels/kernelsXDerivatives.cu" "kernels/kernelsAll.cu" "GPUImplDefs.h" "kernels/${OPENCL_KERNELS_CMD_NAME}"
 			COMMENT "Building OpenCL kernels"
 			VERBATIM)
 	add_custom_target(_BeagleOpenCLKernelsFile DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/BeagleOpenCL_kernels.h")
@@ -84,6 +84,8 @@ if(BUILD_OPENCL)
 		if(BUILD_FUSED AND NOT WIN32)
 			add_subdirectory("CMake_OpenCLFused")
 		endif()
+		add_subdirectory("${PROJECT_SOURCE_DIR}/tests/opencl"
+		                 "${PROJECT_BINARY_DIR}/tests/opencl")
 	endif(OpenCL_FOUND)
 endif(BUILD_OPENCL)
 
