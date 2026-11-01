@@ -5573,6 +5573,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                                             dLoewnerOutRateGrad);
 
                 gpu->SynchronizeDevice();
+                // the host waits, as after the graph: the next call rewrites the copied hBastaDistance (pinned on CUDA)
+                gpu->SynchronizeGraph();
             }
 
             writeBackPopSizeGrad();
@@ -5680,6 +5682,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad(const int *op
                                               intervalCount);
 
             gpu->SynchronizeDevice();
+            // the host waits, as after the graph: the next call rewrites the copied hBastaDistance (pinned on CUDA)
+            gpu->SynchronizeGraph();
         }
 
         writeBackPopSizeGrad();
