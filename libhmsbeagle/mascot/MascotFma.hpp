@@ -7,13 +7,15 @@
  * and the sum separately, as Java does.
  *
  *   MASCOT_MUL_ADD(a, b, c)  = a * b + c for doubles
- *   MASCOT_VMUL_ADD(a, b, c) = a * b + c for kernel B's vectors, lane by lane (GCC: 2-double vectors only)
+ *   MASCOT_VMUL_ADD(a, b, c) = a * b + c for kernel B's vectors, lane by lane (GCC, and clang without
+ *                              __builtin_elementwise_fma: 2-double vectors only)
  *
  * The FMA build is only used on CPUs with FMA (x86: compiled with -mfma and chosen at run time), so the fused
- * operation is always the hardware instruction there: clang's elementwise builtin, the target's intrinsic, or GCC's
- * std::fma, which needs -fno-math-errno for that. MSVC builds kernel A only and fuses through the scalar intrinsic,
- * which needs no /arch flag. These are macros, not inline functions, because the strict and FMA builds of a kernel
- * must not share any inline definition (the linker would keep only one of them).
+ * operation is always the hardware instruction there: clang's elementwise builtin, the target's intrinsic, or
+ * std::fma (GCC, and clang without the builtin, such as Apple clang 15), which needs -fno-math-errno for that. MSVC
+ * builds kernel A only and fuses through the scalar intrinsic, which needs no /arch flag. These are macros, not inline
+ * functions, because the strict and FMA builds of a kernel must not share any inline definition (the linker would
+ * keep only one of them).
  */
 #ifndef MASCOT_FMA_HPP
 #define MASCOT_FMA_HPP
@@ -21,7 +23,13 @@
 #include <cmath>
 
 #ifdef MASCOT_FP_FMA
+// Every clang has __has_builtin; GCC before 10 rejects it in an #if even after a false &&, so it is nested.
 #if defined(__clang__)
+#if __has_builtin(__builtin_elementwise_fma)
+#define MASCOT_ELEMENTWISE_FMA
+#endif
+#endif
+#if defined(MASCOT_ELEMENTWISE_FMA)
 // The builtin is always the instruction; std::fma becomes a libm call (and blocks vectorization) under -fmath-errno.
 #define MASCOT_MUL_ADD(a, b, c) __builtin_elementwise_fma((a), (b), (c))
 #define MASCOT_VMUL_ADD(a, b, c) __builtin_elementwise_fma((a), (b), (c))
