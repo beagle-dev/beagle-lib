@@ -55,6 +55,53 @@ jobs:
         # links to them do not make the build-tree plugins findable
         LD_LIBRARY_PATH=$PWD/libhmsbeagle/CPU ctest --output-on-failure
 
+  # Build and test only: packaging and signing stay in win-build.yaml and mac-build.yaml
+  build-windows:
+    name: Build on Windows x64 (MSVC)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Java (for the JNI libraries)
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Configure
+      # CPU plugins, JNI and BIT; MASCOT as in mascot.yaml's Windows job (MSVC builds kernel A only); no GPU frameworks
+      run: cmake -S . -B build -DBUILD_OPENCL=OFF -DBUILD_CUDA=OFF -DBUILD_SSE=ON -DBUILD_JNI=ON -DBUILD_BIT=ON -DBUILD_MASCOT=ON
+    - name: Build
+      run: cmake --build build --config Release --parallel 4
+    - name: Test
+      # the examples link hmsbeagle64.dll and the CPU plugins, and BEAGLE loads its plugins with LoadLibrary: both
+      # search PATH for the per-configuration directories the Visual Studio generator writes the DLLs to
+      run: |
+        $env:PATH = "$PWD\build\libhmsbeagle\Release;$PWD\build\libhmsbeagle\CPU\Release;$env:PATH"
+        ctest --test-dir build -C Release --output-on-failure
+
+  build-macos:
+    name: Build on macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Java (for the JNI libraries)
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Configure
+      # default options: MASCOT, OpenCL, JNI, SSE and spectral on
+      run: cmake -S . -B build
+    - name: Build
+      run: cmake --build build --parallel 4
+    - name: Test
+      # GitHub's macOS VMs have no usable GPU, so the GPU, OpenCL-spectral and fused tests are left out; the opencl_*
+      # discovery tests need no GPU and run
+      run: ctest --test-dir build --output-on-failure -E 'gpu|openclspectraltest|fused'
+
   opencl-discovery-macos-arm64:
     name: OpenCL discovery on macOS arm64
     runs-on: macos-15
