@@ -3748,6 +3748,55 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCurrentPopulationSizeBuffer(int buffer
     return BEAGLE_SUCCESS;
 }
 
+// the 9-integer BASTA functions are not implemented on the GPU yet
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials_v5(const int* operations,
+                                                              int operationCount,
+                                                              const int* intervals,
+                                                              int intervalCount,
+                                                              int populationSizesIndex,
+                                                              int coalescentIndex) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad_v5(const int* operations,
+                                                                  int operationCount,
+                                                                  const int* intervals,
+                                                                  int intervalCount,
+                                                                  int populationSizesIndex,
+                                                                  int coalescentIndex) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials_v5(const int* operations,
+                                                                  int operationCount,
+                                                                  const int* intervalStarts,
+                                                                  int intervalStartsCount,
+                                                                  const double* intervalLengths,
+                                                                  const int populationSizesIndex,
+                                                                  int coalescentIndex,
+                                                                  double* out) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartialsGrad_v5(const int* operations,
+                                                                      int operationCount,
+                                                                      const int* intervalStarts,
+                                                                      int intervalStartsCount,
+                                                                      const double* intervalLengths,
+                                                                      const int populationSizesIndex,
+                                                                      int coalescentIndex,
+                                                                      int eigenIndex,
+                                                                      int partialAdjointBufferBase,
+                                                                      int matrixAdjointBufferBase,
+                                                                      double* popSizeGradOut,
+                                                                      double* out) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateEigenBasisGradient(
         int eigenIndex, int matrixAdjointBufferBase,

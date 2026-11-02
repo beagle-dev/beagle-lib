@@ -240,6 +240,7 @@ enum BeagleOpCodes {
     BEAGLE_OP_COUNT              = 7, /**< Total number of integers per beagleUpdatePartials operation */
     BEAGLE_PARTITION_OP_COUNT    = 9, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
     BEAGLE_BASTA_OP_COUNT        = 8,
+    BEAGLE_BASTA_OP_COUNT_V5     = 9, /**< Total number of integers per BASTA _v5 operation (BastaOperation_v5) */
     BEAGLE_OP_NONE               = -1 /**< Specify no use for indexed buffer */
 };
 
@@ -1696,6 +1697,27 @@ typedef struct {
     int accumulation2Partials2;
     int intervalNumber;
 } BastaOperation;                                    
+
+/**
+ * @brief A BASTA operation for the _v5 functions: BastaOperation plus a population-size offset
+ *
+ * populationSizeOffset (p) is an element offset into the current population-size buffer (see
+ * beagleSetBastaPopulationSizes): sizes[p + k] is deme k's population size at the operation's coalescent event, and
+ * integrals[p + k] is the integral of 1 / N_k(t) over the interval, with the interval length included. Every
+ * operation with the same intervalNumber must carry the same offset, with 0 <= p and p + stateCount <=
+ * requiredStorageSize.
+ */
+typedef struct {
+    int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+    int child1Partials;         /**< index of first child partials buffer */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+    int child2Partials;         /**< index of second child partials buffer */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int accumulation1Partials;
+    int accumulation2Partials2;
+    int intervalNumber;
+    int populationSizeOffset;   /**< offset of the operation's sizes and integrals in the population-size buffer */
+} BastaOperation_v5;
                                                                 
 BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
                                                const BastaOperation* operations,
@@ -1826,6 +1848,107 @@ BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizesBuffer(const int instance,
  */
 BEAGLE_DLLEXPORT int beagleSetCurrentPopulationSizeBuffer(const int instance,
                                                            const int bufferIndex);
+
+/*
+ * BASTA _v5 functions: 9-integer operations (BastaOperation_v5, BEAGLE_BASTA_OP_COUNT_V5) whose population sizes come
+ * from the current population-size buffer
+ *
+ * They do what the functions of the same name without _v5 do, with these differences:
+ * - At a coalescent event the partials are divided by sizes[p + k], where p is the operation's populationSizeOffset.
+ * - Interval j adds -sum_k (e^2 - f + g^2 - h)_k * integrals[p_j + k] / 4 + log(prob_j) to the log likelihood,
+ *   with p_j taken from the interval's first operation: the integrals already include the interval length.
+ * - populationSizesIndex is ignored, and so are intervalLengths, which may be NULL; accumulateBastaPartialsGrad_v5
+ *   also ignores eigenIndex, partialAdjointBufferBase and matrixAdjointBufferBase.
+ * - Every call is checked before anything changes. BEAGLE_ERROR_OUT_OF_RANGE: an operation with intervalNumber
+ *   outside [0, bufferLength of beagleAllocateBastaBuffers), a negative offset, an offset with p + stateCount >
+ *   requiredStorageSize of the current buffer, two operations with the same intervalNumber and different offsets, or
+ *   intervalStarts that do not index the operations. BEAGLE_ERROR_GENERAL: BASTA buffers not allocated, or no
+ *   population sizes set in the current buffer. BEAGLE_ERROR_NO_IMPLEMENTATION: an instance in adjoint mode
+ *   (beagleAllocateBastaGradBuffers with a negative count), and the cases below. A rejected call changes nothing.
+ * - Supported: on the CPU, the forward pass, the log likelihood and the legacy (forward-mode) gradient with respect
+ *   to the rate matrix; on a GPU, the forward pass and the log likelihood, which rely on the operations of each
+ *   interval carrying distinct intervalNumbers below intervalCount, as the 8-integer GPU functions do. Gradients on
+ *   a GPU, the adjoint gradient and a population-size gradient (popSizeGradOut != NULL) return
+ *   BEAGLE_ERROR_NO_IMPLEMENTATION.
+ */
+
+/**
+ * @brief beagleUpdateBastaPartials with 9-integer operations
+ *
+ * Each coalescent operation divides by sizes[populationSizeOffset + k] of the current population-size buffer.
+ * populationSizeIndex is ignored; coalescentIndex selects the coalescent buffer on the CPU and is ignored on a GPU,
+ * as in beagleUpdateBastaPartials.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartials_v5(const int instance,
+                                                  const BastaOperation_v5* operations,
+                                                  int operationCount,
+                                                  const int* intervalStarts,
+                                                  int intervalCount,
+                                                  int populationSizeIndex,
+                                                  int coalescentIndex);
+
+/**
+ * @brief beagleUpdateBastaPartialsGrad (legacy gradient) with 9-integer operations
+ *
+ * CPU only: it needs beagleAllocateBastaGradBuffers with a positive count (else BEAGLE_ERROR_GENERAL), and returns
+ * BEAGLE_ERROR_NO_IMPLEMENTATION on a GPU and in adjoint mode. populationSizeIndex is ignored.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartialsGrad_v5(const int instance,
+                                                      const BastaOperation_v5* operations,
+                                                      int operationCount,
+                                                      const int* intervalStarts,
+                                                      int intervalCount,
+                                                      int populationSizeIndex,
+                                                      int coalescentIndex);
+
+/**
+ * @brief beagleAccumulateBastaPartials with 9-integer operations
+ *
+ * out[0] = sum_j [ -sum_k (e^2 - f + g^2 - h)_k * integrals[p_j + k] / 4 + log(prob_j) ], with p_j the offset of
+ * interval j's first operation. intervalLengths (which may be NULL) and populationSizesIndex are ignored.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials_v5(const int instance,
+                                                      const BastaOperation_v5* operations,
+                                                      int operationCount,
+                                                      const int* intervalStarts,
+                                                      int intervalCount,
+                                                      const double* intervalLengths,
+                                                      const int populationSizesIndex,
+                                                      int coalescentIndex,
+                                                      double* out);
+
+/**
+ * @brief beagleAccumulateBastaPartialsGrad with 9-integer operations
+ *
+ * The parameters of beagleAccumulateBastaPartialsGrad. Only its legacy path is implemented: on the CPU, after
+ * beagleUpdateBastaPartialsGrad_v5 and beagleAccumulateBastaPartials_v5 on the same operations, out receives the
+ * stateCount x stateCount gradient with respect to the rate matrix (out[a * stateCount + b]), with the integrals of
+ * the current population-size buffer. eigenIndex, partialAdjointBufferBase, matrixAdjointBufferBase, intervalLengths
+ * and populationSizesIndex are ignored. popSizeGradOut must be NULL (else BEAGLE_ERROR_NO_IMPLEMENTATION); it needs
+ * beagleAllocateBastaGradBuffers with a positive count (else BEAGLE_ERROR_GENERAL); BEAGLE_ERROR_NO_IMPLEMENTATION on
+ * a GPU and in adjoint mode.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad_v5(const int instance,
+                                                          const BastaOperation_v5* operations,
+                                                          int operationCount,
+                                                          const int* intervalStarts,
+                                                          int intervalCount,
+                                                          const double* intervalLengths,
+                                                          const int populationSizesIndex,
+                                                          int coalescentIndex,
+                                                          int eigenIndex,
+                                                          int partialAdjointBufferBase,
+                                                          int matrixAdjointBufferBase,
+                                                          double* popSizeGradOut,
+                                                          double* out);
 
 // END OF BASTA
 

@@ -954,6 +954,42 @@ public:
 
     int setCurrentPopulationSizeBuffer(int bufferIndex);
 
+    int updateBastaPartials_v5(const int* operations,
+                               int operationCount,
+                               const int* intervals,
+                               int intervalCount,
+                               int populationSizesIndex,
+                               int coalescentIndex);
+
+    int updateBastaPartialsGrad_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervals,
+                                   int intervalCount,
+                                   int populationSizesIndex,
+                                   int coalescentIndex);
+
+    int accumulateBastaPartials_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervalStarts,
+                                   int intervalStartsCount,
+                                   const double* intervalLengths,
+                                   const int populationSizesIndex,
+                                   int coalescentIndex,
+                                   double* out);
+
+    int accumulateBastaPartialsGrad_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervalStarts,
+                                       int intervalStartsCount,
+                                       const double* intervalLengths,
+                                       const int populationSizesIndex,
+                                       int coalescentIndex,
+                                       int eigenIndex,
+                                       int partialAdjointBufferBase,
+                                       int matrixAdjointBufferBase,
+                                       double* popSizeGradOut,
+                                       double* out);
+
 private:
 
     virtual char* getInstanceName();

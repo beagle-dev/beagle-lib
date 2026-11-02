@@ -128,6 +128,20 @@ target_link_libraries(prepartialstest
 		${CMAKE_DL_LIBS})
 add_test(prepartialstest prepartialstest)
 
+# the 9-integer BASTA _v5 functions and the population-size buffers against the 8-integer BASTA functions on the CPU;
+# written in C, so that it also compiles BastaOperation_v5 as C
+add_executable(bastav5test
+		bastav5test/bastav5test.c)
+set_target_properties(bastav5test PROPERTIES C_STANDARD 99)
+target_link_libraries(bastav5test
+		hmsbeagle
+		hmsbeagle-cpu
+		${CMAKE_DL_LIBS})
+if(NOT WIN32)
+	target_link_libraries(bastav5test m)
+endif(NOT WIN32)
+add_test(bastav5test bastav5test)
+
 # setTransitionMatrices, getTransitionMatrix, convolve and transpose on a GPU against the CPU; skipped without a GPU
 add_executable(gpumatrixtest
 		gpumatrixtest/gpumatrixtest.cpp)

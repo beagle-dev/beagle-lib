@@ -657,6 +657,42 @@ public:
 
     int setCurrentPopulationSizeBuffer(int bufferIndex);
 
+    int updateBastaPartials_v5(const int* operations,
+                               int operationCount,
+                               const int* intervals,
+                               int intervalCount,
+                               int populationSizesIndex,
+                               int coalescentIndex);
+
+    int updateBastaPartialsGrad_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervals,
+                                   int intervalCount,
+                                   int populationSizesIndex,
+                                   int coalescentIndex);
+
+    int accumulateBastaPartials_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervalStarts,
+                                   int intervalStartsCount,
+                                   const double* intervalLengths,
+                                   const int populationSizesIndex,
+                                   int coalescentIndex,
+                                   double* out);
+
+    int accumulateBastaPartialsGrad_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervalStarts,
+                                       int intervalStartsCount,
+                                       const double* intervalLengths,
+                                       const int populationSizesIndex,
+                                       int coalescentIndex,
+                                       int eigenIndex,
+                                       int partialAdjointBufferBase,
+                                       int matrixAdjointBufferBase,
+                                       double* popSizeGradOut,
+                                       double* out);
+
     void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
                               REALTYPE* g, REALTYPE* h,
                               int startBuffer1, int startBuffer2,
@@ -683,6 +719,23 @@ public:
                                    int interval, REALTYPE length, 
                                    const REALTYPE *sizes, 
                                    const REALTYPE *coalescent);
+
+    // the _v5 reductions: integrals[k] (the interval's block of the population-size buffer, length included) in place
+    // of length / sizes[k]
+    REALTYPE reduceAcrossIntervals_v5(REALTYPE* e, REALTYPE* f,
+                                      REALTYPE* g, REALTYPE* h,
+                                      int interval,
+                                      const REALTYPE* integrals,
+                                      const REALTYPE* coalescent);
+
+    void reduceAcrossIntervalsGrad_v5(REALTYPE* e, REALTYPE* f,
+                                      REALTYPE* g, REALTYPE* h,
+                                      REALTYPE* eGrad, REALTYPE* fGrad,
+                                      REALTYPE* gGrad, REALTYPE* hGrad,
+                                      REALTYPE* resultGrad,
+                                      int interval,
+                                      const REALTYPE* integrals,
+                                      const REALTYPE* coalescent);
 
     int block(void);
 
@@ -1327,6 +1380,7 @@ private:
                                     const int intervalStartsCount,
                                     const double* intervalLengths,
                                     const REALTYPE* sizes,
+                                    const REALTYPE* integrals,
                                     const int coalescentIndex,
                                     double* out);
 
@@ -1336,8 +1390,16 @@ private:
                                            const int intervalStartsCount,
                                            const double* intervalLengths,
                                            const REALTYPE* sizes,
+                                           const REALTYPE* integrals,
                                            const int coalescentIndex,
                                            double* out);
+
+    // the checks of every _v5 call before it changes anything (BastaPopulationSizes.h); BEAGLE_SUCCESS or the error
+    int checkBastaCall_v5(const int* operations,
+                          int count,
+                          const int* intervalStarts,
+                          int intervalStartsCount,
+                          int coalescentIndex);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE

@@ -374,6 +374,44 @@ public:
 
     virtual int setCurrentPopulationSizeBuffer(int bufferIndex) = 0;
 
+    // the BASTA functions with 9-integer operations (BEAGLE_BASTA_OP_COUNT_V5), whose population sizes come from the
+    // current population-size buffer
+    virtual int updateBastaPartials_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervals,
+                                       int intervalCount,
+                                       int populationSizesIndex,
+                                       int coalescentIndex) = 0;
+
+    virtual int updateBastaPartialsGrad_v5(const int* operations,
+                                           int operationCount,
+                                           const int* intervals,
+                                           int intervalCount,
+                                           int populationSizesIndex,
+                                           int coalescentIndex) = 0;
+
+    virtual int accumulateBastaPartials_v5(const int* operations,
+                                           int operationCount,
+                                           const int* segments,
+                                           int segmentCount,
+                                           const double* intervalLengths,
+                                           const int populationSizesIndex,
+                                           int coalescentIndex,
+                                           double* out) = 0;
+
+    virtual int accumulateBastaPartialsGrad_v5(const int* operations,
+                                               int operationCount,
+                                               const int* segments,
+                                               int segmentCount,
+                                               const double* intervalLengths,
+                                               const int populationSizesIndex,
+                                               int coalescentIndex,
+                                               int eigenIndex,
+                                               int partialAdjointBufferBase,
+                                               int matrixAdjointBufferBase,
+                                               double* popSizeGradOut,
+                                               double* out) = 0;
+
 //protected:
     int resourceNumber;
 };
