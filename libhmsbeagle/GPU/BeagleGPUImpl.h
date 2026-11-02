@@ -253,6 +253,16 @@ private:
 	std::vector<Real> hBastaPopulationSizes[2];
 	int kCurrentPopulationSizeBuffer;
 
+	// _v5: the current buffer's sizes and integrals as a row of kPaddedStateCount per intervalNumber (padding 0), the
+	// rows of the kernels' sizes and integrals arguments; allocated by the first _v5 call, and again when
+	// kCoalescentBufferLength changes (kBastaRowsLength_v5: the length they have); hBastaRows_v5 stages either table,
+	// hBastaOffsets_v5 is each intervalNumber's offset (-1: no operation uses it)
+	GPUPtr dBastaSizeRows_v5;
+	GPUPtr dBastaIntegralRows_v5;
+	int kBastaRowsLength_v5;
+	std::vector<Real> hBastaRows_v5;
+	std::vector<int> hBastaOffsets_v5;
+
 	GPUPtr dAdjointPopSizeGrad;
 	GPUPtr dHazardAdjoints;
 	GPUPtr dTransformedAdjoints;
@@ -876,7 +886,8 @@ public:
 
     int updateInnerBastaPartials(const int * operations, const int * intervals, int i, int begin, int end, GPUPtr sizes, GPUPtr coalescent);
 
-    void uploadBastaOperationQueue(const int* operations, int count);
+    // inStride: the integers per operation of operations (BEAGLE_BASTA_OP_COUNT_V5 for _v5); the queue keeps 8
+    void uploadBastaOperationQueue(const int* operations, int count, int inStride = BEAGLE_BASTA_OP_COUNT);
 
     int uploadBastaSlabMetadata(const int* packed, int packedLen);
 
@@ -991,6 +1002,15 @@ public:
                                        double* out);
 
 private:
+
+    // the _v5 functions' checks and, once they pass, the row buffers; then the sizes (half 0) or integrals (half 1) of
+    // the current population-size buffer, a row per intervalNumber, into rows
+    int prepareBasta_v5(const int* operations,
+                        int operationCount,
+                        const int* intervalStarts,
+                        int intervalStartsCount);
+
+    void uploadBastaRows_v5(GPUPtr rows, int half);
 
     virtual char* getInstanceName();
 

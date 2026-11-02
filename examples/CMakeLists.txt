@@ -128,8 +128,8 @@ target_link_libraries(prepartialstest
 		${CMAKE_DL_LIBS})
 add_test(prepartialstest prepartialstest)
 
-# the 9-integer BASTA _v5 functions and the population-size buffers against the 8-integer BASTA functions on the CPU;
-# written in C, so that it also compiles BastaOperation_v5 as C
+# the 9-integer BASTA _v5 functions and the population-size buffers against the 8-integer BASTA functions on the CPU
+# (and with --gpu, below, on a GPU); written in C, so that it also compiles BastaOperation_v5 as C
 add_executable(bastav5test
 		bastav5test/bastav5test.c)
 set_target_properties(bastav5test PROPERTIES C_STANDARD 99)
@@ -141,6 +141,13 @@ if(NOT WIN32)
 	target_link_libraries(bastav5test m)
 endif(NOT WIN32)
 add_test(bastav5test bastav5test)
+if(BUILD_OPENCL OR BUILD_CUDA)
+	# the forward pass and log likelihood on GPU resource 1, skipped without a GPU. Not with BEAGLE_DEBUG_OPENCL_ALIGN:
+	# the BASTA operation queue (8-integer and _v5) addresses transition matrices S * S apart, not at the padded stride
+	# of the matrix pool, so with padded matrices both log likelihoods are NaN
+	add_test(bastav5test-gpu bastav5test --gpu 1)
+	set_tests_properties(bastav5test-gpu PROPERTIES SKIP_RETURN_CODE 77)
+endif(BUILD_OPENCL OR BUILD_CUDA)
 
 # setTransitionMatrices, getTransitionMatrix, convolve and transpose on a GPU against the CPU; skipped without a GPU
 add_executable(gpumatrixtest

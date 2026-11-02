@@ -3,6 +3,11 @@
  * instances, in double and single precision, with 1 and 4 BASTA threads, for 3, 4 and 5 demes. The problem is a
  * structured coalescent of 40 serially sampled tips; the population sizes and integrals are in BEAST's layout
  * (R = K + n*K, interval j at offset K + j*K, K demes, n intervals).
+ * bastav5test --gpu <resource>: the same on that GPU resource instead (single precision, and double where it has it;
+ * exit 77, skipped, if it is not a GPU resource). The GPU has the forward pass and the log likelihood only: there the
+ * legacy gradient is not compared, the _v5 gradient functions must return BEAGLE_ERROR_NO_IMPLEMENTATION, the
+ * coalescent probabilities (which the GPU's getBastaBuffer does not copy) are not compared, and T4 recomputes them
+ * from the partials; coalescentIndex is ignored there, as in the 8-integer functions.
  * T1 constant sizes through _v5 against the 8-integer functions with beagleSetStateFrequencies(N): every partial
  *    and coalescent probability bit for bit, the log likelihood within 1e-12 (double) or 1e-5 (single) and the
  *    legacy gradient within 1e-10 or 1e-4 (relative to its largest entry)
@@ -29,6 +34,8 @@ enum { EXTRA_INTERVALS = 2 }; /* intervalNumbers that no operation uses: bufferL
 
 static int failures = 0;
 static char name[160];
+static int gpuResource = -1;                /* --gpu <resource>; -1: CPU instances */
+static long long gpuFramework = 0;          /* its BEAGLE_FLAG_FRAMEWORK_* */
 
 static void check(int ok, const char* what) {
     if (!ok) {
@@ -171,7 +178,10 @@ typedef struct {
 static int readResult(int instance, Result* r) {
     int rc = BEAGLE_SUCCESS;
     for (int b = 0; b < bufferCount; b++) rc |= beagleGetPartials(instance, b, BEAGLE_OP_NONE, r->partials + b * K);
-    rc |= beagleGetBastaBuffer(instance, 0, r->coalescent);
+    if (gpuResource >= 0) /* the GPU's getBastaBuffer copies nothing */
+        memset(r->coalescent, 0, sizeof(r->coalescent));
+    else
+        rc |= beagleGetBastaBuffer(instance, 0, r->coalescent);
     return rc;
 }
 
@@ -226,9 +236,11 @@ static double gradientDifference(const double* a, const double* b) {
 
 static int createInstance(int single, int threads, int allocate, int gradient) {
     BeagleInstanceDetails details;
-    const long long flags = BEAGLE_FLAG_PROCESSOR_CPU |
+    const long long flags = (gpuResource >= 0 ? BEAGLE_FLAG_PROCESSOR_GPU | gpuFramework : BEAGLE_FLAG_PROCESSOR_CPU) |
                             (single ? BEAGLE_FLAG_PRECISION_SINGLE : BEAGLE_FLAG_PRECISION_DOUBLE);
-    const int instance = beagleCreateInstance(0, bufferCount + 1, 0, K, 1, 1, nIntervals, 1, 0, NULL, 0, 0, flags,
+    int resource = gpuResource;
+    const int instance = beagleCreateInstance(0, bufferCount + 1, 0, K, 1, 1, nIntervals, 1, 0,
+                                              gpuResource >= 0 ? &resource : NULL, gpuResource >= 0 ? 1 : 0, 0, flags,
                                               &details);
     if (instance < 0) return instance;
     snprintf(name, sizeof(name), "%s, %d demes, %d BASTA thread%s", details.implName, K, threads,
@@ -236,8 +248,8 @@ static int createInstance(int single, int threads, int allocate, int gradient) {
     int rc = BEAGLE_SUCCESS;
     if (allocate)
         rc |= beagleAllocateBastaBuffers(instance, 1, nIntervals + EXTRA_INTERVALS, bufferCount + 1, 1, threads);
-    if (gradient)
-        rc |= beagleAllocateBastaGradBuffers(instance, gradient * (bufferCount + 1)); /* < 0: adjoint mode */
+    if (gradient < 0 || (gradient > 0 && gpuResource < 0)) /* < 0: adjoint mode; a GPU has no legacy gradient buffers */
+        rc |= beagleAllocateBastaGradBuffers(instance, gradient * (bufferCount + 1));
     for (int j = 0; j < nIntervals; j++)
         rc |= beagleSetTransitionMatrix(instance, j, matrices + j * K * K, 1.0);
     double tip[8];
@@ -255,6 +267,7 @@ static void expectRejected(int instance, const BastaOperation_v5* ops, const int
                            int expected, const char* what, const Result* r8, const Result* r5) {
     char buf[200];
     double logL = 0.0, grad[64];
+    const int expectedGradient = gpuResource >= 0 ? BEAGLE_ERROR_NO_IMPLEMENTATION : expected; /* none on a GPU */
     snprintf(buf, sizeof(buf), "%s: updateBastaPartials_v5", what);
     checkCode(beagleUpdateBastaPartials_v5(instance, ops, nOps, intervalStarts, nIntervals + 1, 0, coalescentIndex),
               expected, buf);
@@ -263,10 +276,10 @@ static void expectRejected(int instance, const BastaOperation_v5* ops, const int
                                                coalescentIndex, &logL), expected, buf);
     snprintf(buf, sizeof(buf), "%s: updateBastaPartialsGrad_v5", what);
     checkCode(beagleUpdateBastaPartialsGrad_v5(instance, ops, nOps, intervalStarts, nIntervals + 1, 0,
-                                               coalescentIndex), expected, buf);
+                                               coalescentIndex), expectedGradient, buf);
     snprintf(buf, sizeof(buf), "%s: accumulateBastaPartialsGrad_v5", what);
     checkCode(beagleAccumulateBastaPartialsGrad_v5(instance, ops, nOps, intervalStarts, nIntervals + 1, NULL, 0,
-                                                   coalescentIndex, 0, -1, -1, NULL, grad), expected, buf);
+                                                   coalescentIndex, 0, -1, -1, NULL, grad), expectedGradient, buf);
     Result* again = (Result*) malloc(sizeof(Result));
     if (r8 != NULL) {
         snprintf(buf, sizeof(buf), "%s: the 8-integer functions do not repeat their result", what);
@@ -280,6 +293,7 @@ static void expectRejected(int instance, const BastaOperation_v5* ops, const int
 }
 
 static void testConfiguration(int single, int threads) {
+    const int gpu = gpuResource >= 0;
     const double logLTolerance = single ? 1e-5 : 1e-12, gradientTolerance = single ? 1e-4 : 1e-10;
     const double partialTolerance = single ? 1e-5 : 1e-13;
     const int R = layoutSize();
@@ -291,7 +305,8 @@ static void testConfiguration(int single, int threads) {
 
     const int instance = createInstance(single, threads, 1, 1);
     if (instance < 0) {
-        fprintf(stderr, "FAIL: no CPU instance (%s, %d demes): error %d\n", single ? "single" : "double", K, instance);
+        fprintf(stderr, "FAIL: no %s instance (%s, %d demes): error %d\n", gpu ? "GPU" : "CPU",
+                single ? "single" : "double", K, instance);
         failures++;
         goto done;
     }
@@ -299,26 +314,42 @@ static void testConfiguration(int single, int threads) {
     /* T1 */
     checkCode(beagleSetBastaPopulationSizes(instance, constant, R), BEAGLE_SUCCESS, "T1 beagleSetBastaPopulationSizes");
     checkCode(forward8(instance, r8), BEAGLE_SUCCESS, "T1 8-integer forward pass");
-    checkCode(gradient8(instance, g8), BEAGLE_SUCCESS, "T1 8-integer legacy gradient");
+    if (!gpu) checkCode(gradient8(instance, g8), BEAGLE_SUCCESS, "T1 8-integer legacy gradient");
     checkCode(forward5(instance, ops9, r5), BEAGLE_SUCCESS, "T1 _v5 forward pass");
-    checkCode(gradient5(instance, ops9, g5), BEAGLE_SUCCESS, "T1 _v5 legacy gradient");
+    if (!gpu) {
+        checkCode(gradient5(instance, ops9, g5), BEAGLE_SUCCESS, "T1 _v5 legacy gradient");
+    } else {
+        checkCode(beagleUpdateBastaPartialsGrad_v5(instance, ops9, nOps, starts, nIntervals + 1, 0, 0),
+                  BEAGLE_ERROR_NO_IMPLEMENTATION, "T1 updateBastaPartialsGrad_v5 on a GPU");
+        checkCode(beagleAccumulateBastaPartialsGrad_v5(instance, ops9, nOps, starts, nIntervals + 1, NULL, 0, 0, 0, -1,
+                                                       -1, NULL, g5),
+                  BEAGLE_ERROR_NO_IMPLEMENTATION, "T1 accumulateBastaPartialsGrad_v5 on a GPU");
+    }
     check(memcmp(r8->partials, r5->partials, sizeof(double) * bufferCount * K) == 0,
           "T1 partials of _v5 differ from the 8-integer ones");
     check(memcmp(r8->coalescent, r5->coalescent, sizeof(double) * (nIntervals + EXTRA_INTERVALS)) == 0,
           "T1 coalescent probabilities of _v5 differ from the 8-integer ones");
     check(relative(r5->logL, r8->logL) <= logLTolerance, "T1 log likelihood of _v5 differs from the 8-integer one");
-    check(gradientDifference(g5, g8) <= gradientTolerance, "T1 legacy gradient of _v5 differs from the 8-integer one");
+    if (!gpu)
+        check(gradientDifference(g5, g8) <= gradientTolerance,
+              "T1 legacy gradient of _v5 differs from the 8-integer one");
     check(isfinite(r5->logL) && r5->logL < 0.0, "T1 log likelihood is not a finite negative number");
-    printf("%s: logL 8-integer %.17g _v5 %.17g (relative %.2g), legacy gradient relative %.2g\n", name, r8->logL,
-           r5->logL, relative(r5->logL, r8->logL), gradientDifference(g5, g8));
+    if (gpu)
+        printf("%s: logL 8-integer %.17g _v5 %.17g (relative %.2g)\n", name, r8->logL, r5->logL,
+               relative(r5->logL, r8->logL));
+    else
+        printf("%s: logL 8-integer %.17g _v5 %.17g (relative %.2g), legacy gradient relative %.2g\n", name, r8->logL,
+               r5->logL, relative(r5->logL, r8->logL), gradientDifference(g5, g8));
 
     /* T2 */
     check(forward8(instance, again) == BEAGLE_SUCCESS && sameResult(again, r8), "T2 8-integer repeat differs");
-    check(gradient8(instance, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g8, sizeof(double) * K * K) == 0,
-          "T2 8-integer gradient repeat differs");
+    if (!gpu)
+        check(gradient8(instance, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g8, sizeof(double) * K * K) == 0,
+              "T2 8-integer gradient repeat differs");
     check(forward5(instance, ops9, again) == BEAGLE_SUCCESS && sameResult(again, r5), "T2 _v5 repeat differs");
-    check(gradient5(instance, ops9, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g5, sizeof(double) * K * K) == 0,
-          "T2 _v5 gradient repeat differs");
+    if (!gpu)
+        check(gradient5(instance, ops9, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g5, sizeof(double) * K * K) == 0,
+              "T2 _v5 gradient repeat differs");
 
     /* T3: interval j's block at 1 + perm[j] * (K + 3), NaN elsewhere */
     {
@@ -346,8 +377,9 @@ static void testConfiguration(int single, int threads) {
         checkCode(beagleSetBastaPopulationSizes(instance, shuffled, R3), BEAGLE_SUCCESS, "T3 set shuffled layout");
         check(forward5(instance, moved, again) == BEAGLE_SUCCESS && sameResult(again, r5),
               "T3 shuffled layout gives other results");
-        check(gradient5(instance, moved, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g5, sizeof(double) * K * K) == 0,
-              "T3 shuffled layout gives another gradient");
+        if (!gpu)
+            check(gradient5(instance, moved, gAgain) == BEAGLE_SUCCESS &&
+                  memcmp(gAgain, g5, sizeof(double) * K * K) == 0, "T3 shuffled layout gives another gradient");
 
         /* T5 here too: the current buffer (0) regrew to R3; back to R, then to a size too small for the offsets */
         checkCode(beagleSetBastaPopulationSizes(instance, constant, R), BEAGLE_SUCCESS, "T5 set R again");
@@ -395,7 +427,17 @@ static void testConfiguration(int single, int threads) {
             double sum = 0.0;
             for (int k = 0; k < K; k++) sum += (e[k] * e[k] - f[k] + g[k] * g[k] - h[k]) * piecewise[R + p + k];
             logL += -sum / 4;
-            const double prob = rp->coalescent[ops9[starts[j]].intervalNumber];
+            double prob = rp->coalescent[ops9[starts[j]].intervalNumber];
+            if (gpu) { /* not copied by the GPU: the normaliser of the interval's coalescence, from the partials */
+                prob = 0.0;
+                for (int o = starts[j]; o < starts[j + 1]; o++) {
+                    const BastaOperation_v5* op = &ops9[o];
+                    if (op->child2Partials < 0) continue;
+                    for (int i = 0; i < K; i++)
+                        prob += rp->partials[op->accumulation1Partials * K + i] *
+                                rp->partials[op->accumulation2Partials2 * K + i] / piecewise[op->populationSizeOffset + i];
+                }
+            }
             if (prob != 0.0) logL += log(prob);
         }
         check(coalescences == TIPS - 1, "T4 not every coalescence was checked");
@@ -458,7 +500,8 @@ static void testConfiguration(int single, int threads) {
         expectRejected(instance, ops9, badStarts, 0, BEAGLE_ERROR_OUT_OF_RANGE, "T6 last interval start > count", r8,
                        r5);
         expectRejected(instance, ops9, NULL, 0, BEAGLE_ERROR_OUT_OF_RANGE, "T6 NULL interval starts", r8, r5);
-        expectRejected(instance, ops9, starts, 1, BEAGLE_ERROR_OUT_OF_RANGE, "T6 coalescentIndex 1 of 1", r8, r5);
+        if (!gpu) /* the GPU ignores coalescentIndex */
+            expectRejected(instance, ops9, starts, 1, BEAGLE_ERROR_OUT_OF_RANGE, "T6 coalescentIndex 1 of 1", r8, r5);
 #undef RESET
         free(bad);
 
@@ -488,8 +531,9 @@ static void testConfiguration(int single, int threads) {
                   BEAGLE_ERROR_NO_IMPLEMENTATION, "T6 accumulateBastaPartialsGrad_v5 with popSizeGradOut");
         check(forward8(instance, again) == BEAGLE_SUCCESS && sameResult(again, r8),
               "T6 8-integer result changed after popSizeGradOut");
-        check(gradient5(instance, ops9, gAgain) == BEAGLE_SUCCESS && memcmp(gAgain, g5, sizeof(double) * K * K) == 0,
-              "T6 _v5 gradient changed after the rejected calls");
+        if (!gpu)
+            check(gradient5(instance, ops9, gAgain) == BEAGLE_SUCCESS &&
+                  memcmp(gAgain, g5, sizeof(double) * K * K) == 0, "T6 _v5 gradient changed after the rejected calls");
     }
     beagleFinalizeInstance(instance);
 
@@ -515,15 +559,18 @@ static void testConfiguration(int single, int threads) {
               "T6 a second instance gives other _v5 results");
         beagleFinalizeInstance(other);
 
-        /* no gradient buffers: the _v5 gradient functions return BEAGLE_ERROR_GENERAL, the forward pass works */
+        /* no gradient buffers: the _v5 gradient functions return BEAGLE_ERROR_GENERAL (on a GPU, which has none,
+         * BEAGLE_ERROR_NO_IMPLEMENTATION), the forward pass works */
         other = createInstance(single, threads, 1, 0);
         checkCode(beagleSetBastaPopulationSizes(other, constant, R), BEAGLE_SUCCESS, "T6 set sizes");
         checkCode(forward5(other, ops9, own), BEAGLE_SUCCESS, "T6 _v5 forward pass without gradient buffers");
         checkCode(beagleUpdateBastaPartialsGrad_v5(other, ops9, nOps, starts, nIntervals + 1, 0, 0),
-                  BEAGLE_ERROR_GENERAL, "T6 updateBastaPartialsGrad_v5 without gradient buffers");
+                  gpu ? BEAGLE_ERROR_NO_IMPLEMENTATION : BEAGLE_ERROR_GENERAL,
+                  "T6 updateBastaPartialsGrad_v5 without gradient buffers");
         checkCode(beagleAccumulateBastaPartialsGrad_v5(other, ops9, nOps, starts, nIntervals + 1, NULL, 0, 0, 0, -1,
                                                        -1, NULL, grad),
-                  BEAGLE_ERROR_GENERAL, "T6 accumulateBastaPartialsGrad_v5 without gradient buffers");
+                  gpu ? BEAGLE_ERROR_NO_IMPLEMENTATION : BEAGLE_ERROR_GENERAL,
+                  "T6 accumulateBastaPartialsGrad_v5 without gradient buffers");
         check(sameResult(own, r5), "T6 an instance without gradient buffers gives other _v5 results");
         beagleFinalizeInstance(other);
 
@@ -542,12 +589,42 @@ done:
     free(r8); free(r5); free(rp); free(again);
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+    int doublePrecision = 1;
+    for (int a = 1; a < argc; a++) {
+        if (!strcmp(argv[a], "--gpu") && a + 1 < argc) {
+            gpuResource = atoi(argv[++a]);
+        } else {
+            fprintf(stderr, "usage: bastav5test [--gpu <resource>]\n");
+            return 2;
+        }
+    }
+    if (gpuResource >= 0) {
+        const BeagleResourceList* list = beagleGetResourceList();
+        if (list == NULL || gpuResource >= list->length ||
+            !(list->list[gpuResource].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU)) {
+            printf("SKIP: no GPU resource %d\n", gpuResource);
+            return 77;
+        }
+        const long long support = list->list[gpuResource].supportFlags;
+        gpuFramework = (support & BEAGLE_FLAG_FRAMEWORK_CUDA) ? BEAGLE_FLAG_FRAMEWORK_CUDA :
+                       (support & BEAGLE_FLAG_FRAMEWORK_OPENCL) ? BEAGLE_FLAG_FRAMEWORK_OPENCL :
+                       (support & BEAGLE_FLAG_FRAMEWORK_TINYGPU) ? BEAGLE_FLAG_FRAMEWORK_TINYGPU : 0;
+        if (gpuFramework == 0) {
+            printf("SKIP: resource %d (%s) has no CUDA, OpenCL or TinyGPU framework\n", gpuResource,
+                   list->list[gpuResource].name);
+            return 77;
+        }
+        doublePrecision = (support & BEAGLE_FLAG_PRECISION_DOUBLE) != 0;
+        printf("GPU resource %d: %s%s\n", gpuResource, list->list[gpuResource].name,
+               doublePrecision ? "" : " (no double precision)");
+    }
     const int demes[3] = {3, 4, 5};
     for (int d = 0; d < 3; d++) {
         K = demes[d];
         for (int single = 0; single < 2; single++) {
-            for (int threads = 1; threads <= 4; threads += 3) {
+            if (!single && !doublePrecision) continue;
+            for (int threads = 1; threads <= (gpuResource >= 0 ? 1 : 4); threads += 3) { /* the GPU has no threads */
                 rngState = 7919 * (uint64_t) K + 17;
                 simulate();
                 int widest = 0;

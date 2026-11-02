@@ -34,6 +34,7 @@
 
 #include "libhmsbeagle/beagle.h"
 #include "libhmsbeagle/BufferCountRule.h"
+#include "libhmsbeagle/BastaPopulationSizes.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
 #include "libhmsbeagle/GPU/GPUImplHelper.h"
 #include "libhmsbeagle/GPU/KernelLauncher.h"
@@ -169,6 +170,9 @@ namespace gpu {
     kBastaOpsUploaded = false;
     kBastaOpsCount = 0;
     kCurrentPopulationSizeBuffer = 0;
+    dBastaSizeRows_v5 = (GPUPtr)NULL;
+    dBastaIntegralRows_v5 = (GPUPtr)NULL;
+    kBastaRowsLength_v5 = 0;
     dAdjointPopSizeGrad = (GPUPtr)NULL;
     dHazardAdjoints = (GPUPtr)NULL;
     dTransformedAdjoints = (GPUPtr)NULL;
@@ -713,6 +717,10 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
             gpu->FreeMemory(dBastaOperationQueue);
         if (dCoalescentBuffers != (GPUPtr)NULL)
             gpu->FreeMemory(dCoalescentBuffers);
+        if (dBastaSizeRows_v5 != (GPUPtr)NULL) // the _v5 rows exist only after a _v5 call
+            gpu->FreeMemory(dBastaSizeRows_v5);
+        if (dBastaIntegralRows_v5 != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaIntegralRows_v5);
 
         // the gradient's buffers, from allocateBastaGradBuffers and the gradient calls
         if (dEdgeLengthsGrad != (GPUPtr)NULL) gpu->FreeMemory(dEdgeLengthsGrad);
@@ -3748,7 +3756,58 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCurrentPopulationSizeBuffer(int buffer
     return BEAGLE_SUCCESS;
 }
 
-// the 9-integer BASTA functions are not implemented on the GPU yet
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::prepareBasta_v5(const int* operations,
+                                                       int operationCount,
+                                                       const int* intervalStarts,
+                                                       int intervalStartsCount) {
+    if (dCoalescentBuffers == (GPUPtr)NULL || dBastaOperationQueue == (GPUPtr)NULL) // allocateBastaBuffers has not run
+        return BEAGLE_ERROR_GENERAL;
+    if (kAdjointGradBuffersAllocated || kBastaSlabMetadataUploaded) // the adjoint and slab paths read dFrequencies
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    const std::vector<Real>& current = hBastaPopulationSizes[kCurrentPopulationSizeBuffer];
+    if (current.empty()) // never set
+        return BEAGLE_ERROR_GENERAL;
+    const int returnCode = bastaCheckOperations_v5(operations, operationCount, intervalStarts, intervalStartsCount,
+                                                   kStateCount, (int) (current.size() / 2), kCoalescentBufferLength,
+                                                   hBastaOffsets_v5);
+    if (returnCode != BEAGLE_SUCCESS)
+        return returnCode;
+
+    if (kBastaRowsLength_v5 != kCoalescentBufferLength) {
+        if (dBastaSizeRows_v5 != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaSizeRows_v5);
+        if (dBastaIntegralRows_v5 != (GPUPtr)NULL)
+            gpu->FreeMemory(dBastaIntegralRows_v5);
+        const size_t rowsSize = (size_t) kCoalescentBufferLength * kPaddedStateCount;
+        dBastaSizeRows_v5 = gpu->AllocateMemory(rowsSize * sizeof(Real));
+        dBastaIntegralRows_v5 = gpu->AllocateMemory(rowsSize * sizeof(Real));
+        hBastaRows_v5.resize(rowsSize);
+        kBastaRowsLength_v5 = kCoalescentBufferLength;
+    }
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaRows_v5(GPUPtr rows, int half) {
+    const std::vector<Real>& current = hBastaPopulationSizes[kCurrentPopulationSizeBuffer];
+    const size_t R = current.size() / 2;
+    const Real* source = current.data() + half * R;
+
+    std::fill(hBastaRows_v5.begin(), hBastaRows_v5.end(), (Real) 0);
+    for (int n = 0; n < kCoalescentBufferLength; n++) {
+        const int p = hBastaOffsets_v5[n];
+        if (p < 0)
+            continue;
+        for (int k = 0; k < kStateCount; k++)
+            hBastaRows_v5[(size_t) n * kPaddedStateCount + k] = source[p + k];
+    }
+    gpu->MemcpyHostToDevice(rows, hBastaRows_v5.data(), sizeof(Real) * hBastaRows_v5.size());
+}
+
+// the forward pass of updateInnerBastaPartials' uncaptured branch, with the sizes of each operation's intervalNumber;
+// the 8-integer graphs, fingerprints and slab state are not read or written
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials_v5(const int* operations,
                                                               int operationCount,
@@ -3756,9 +3815,46 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials_v5(const int* operati
                                                               int intervalCount,
                                                               int populationSizesIndex,
                                                               int coalescentIndex) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::updateBastaPartials_v5\n");
+#endif
+
+    const int returnCode = prepareBasta_v5(operations, operationCount, intervals, intervalCount);
+    if (returnCode != BEAGLE_SUCCESS)
+        return returnCode;
+
+    uploadBastaRows_v5(dBastaSizeRows_v5, 0);
+    uploadBastaOperationQueue(operations, operationCount, BEAGLE_BASTA_OP_COUNT_V5);
+
+    GPUPtr coalescent = dCoalescentBuffers;
+    gpu->MemcpyHostToDevice(coalescent, hBastazeroes, sizeof(Real) * kCoalescentBufferLength);
+
+    for (int interval = 0; interval < intervalCount - 1; ++interval) {
+        const int start = intervals[interval];
+        const int e = intervals[interval + 1];
+        const int opCounts = e - start;
+        kernels->InnerBastaPartialsCoalescent(dPartialsOrigin, dMatricesOrigin,
+                                              dBastaOperationQueue,
+                                              dBastaSizeRows_v5, coalescent,
+                                              start, BEAGLE_BASTA_OP_COUNT, opCounts, kPaddedStateCount);
+    }
+    gpu->SynchronizeDevice();
+
+    // the queue holds these operations now: the 8-integer gradient functions upload their own again
+    kBastaOpsUploaded = false;
+
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->SynchronizeHost();
+#endif
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::updateBastaPartials_v5\n");
+#endif
+
+    return BEAGLE_SUCCESS;
 }
 
+// no _v5 gradient on the GPU
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad_v5(const int* operations,
                                                                   int operationCount,
@@ -3769,6 +3865,8 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartialsGrad_v5(const int* ope
     return BEAGLE_ERROR_NO_IMPLEMENTATION;
 }
 
+// accumulateBastaPartials with the integrals of each intervalNumber in place of its length / sizes; it uploads its own
+// operations, so it does not depend on the queue of the update before it
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials_v5(const int* operations,
                                                                   int operationCount,
@@ -3778,7 +3876,50 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateBastaPartials_v5(const int* ope
                                                                   const int populationSizesIndex,
                                                                   int coalescentIndex,
                                                                   double* out) {
-    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::accumulateBastaPartials_v5\n");
+#endif
+
+    const int returnCode = prepareBasta_v5(operations, operationCount, intervalStarts, intervalStartsCount);
+    if (returnCode != BEAGLE_SUCCESS)
+        return returnCode;
+
+    uploadBastaRows_v5(dBastaIntegralRows_v5, 1);
+    uploadBastaOperationQueue(operations, operationCount, BEAGLE_BASTA_OP_COUNT_V5);
+    kBastaOpsUploaded = false;
+
+    const int blockSize = kSumIntervalBlockSize * 8;
+    int numBlocks = 2 * (operationCount + blockSize - 1) / blockSize; // as accumulateBastaPartials
+
+    gpu->MemcpyHostToDevice(dBastaMemory, hBastazeroes, sizeof(Real) * 4 * kPaddedStateCount * kCoalescentBufferLength);
+
+    kernels->reduceWithinIntervalMerged(dBastaOperationQueue, dPartialsOrigin, dBastaMemory, BEAGLE_BASTA_OP_COUNT,
+                                        0, operationCount, numBlocks, kCoalescentBufferLength);
+
+    kernels->reduceAcrossIntervals_v5(dBastaMemory, dBastaIntegralRows_v5, dBastaLogL, dCoalescentBuffers,
+                                      intervalStartsCount, kCoalescentBufferLength);
+
+    // the blocks the launch wrote (KernelLauncher::reduceAcrossIntervals_v5's grid): the others hold what earlier
+    // calls with more intervals left there
+    int blocks = intervalStartsCount / kSumAcrossBlockSize + 1;
+    if (blocks > kBastaIntervalBlockCount)
+        blocks = kBastaIntervalBlockCount;
+    gpu->MemcpyDeviceToHost(hBastaLogL, dBastaLogL, sizeof(Real) * kBastaIntervalBlockCount);
+    Real logLSum = (Real) 0.0;
+    for (int i = 0; i < blocks; i++) {
+        logLSum += hBastaLogL[i];
+    }
+    out[0] = (double) logLSum;
+
+#ifdef BEAGLE_DEBUG_SYNCH
+    gpu->SynchronizeHost();
+#endif
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::accumulateBastaPartials_v5\n");
+#endif
+
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -4013,28 +4154,28 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::updateBastaPartials(const int* operations
 }
 
 BEAGLE_GPU_TEMPLATE
-void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaOperationQueue(const int* operations, int count) {
+void BeagleGPUImpl<BEAGLE_GPU_GENERIC>::uploadBastaOperationQueue(const int* operations, int count, int inStride) {
     const int numOps = BEAGLE_BASTA_OP_COUNT;
     const int S = kPaddedStateCount;
 
     for (int i = 0; i < count; ++i) {
-        hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * numOps]];
-        hBastaOperationQueue[i * numOps + 1] = hPartialsOffsets[operations[i * numOps + 1]];
-        hBastaOperationQueue[i * numOps + 2] = operations[i * numOps + 2] * S * S;
-        if (operations[i * numOps + 3] >= 0) {
-            hBastaOperationQueue[i * numOps + 3] = hPartialsOffsets[operations[i * numOps + 3]];
-            hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4] * S * S;
+        hBastaOperationQueue[i * numOps] = hPartialsOffsets[operations[i * inStride]];
+        hBastaOperationQueue[i * numOps + 1] = hPartialsOffsets[operations[i * inStride + 1]];
+        hBastaOperationQueue[i * numOps + 2] = operations[i * inStride + 2] * S * S;
+        if (operations[i * inStride + 3] >= 0) {
+            hBastaOperationQueue[i * numOps + 3] = hPartialsOffsets[operations[i * inStride + 3]];
+            hBastaOperationQueue[i * numOps + 4] = operations[i * inStride + 4] * S * S;
         } else {
-            hBastaOperationQueue[i * numOps + 3] = operations[i * numOps + 3];
-            hBastaOperationQueue[i * numOps + 4] = operations[i * numOps + 4];
+            hBastaOperationQueue[i * numOps + 3] = operations[i * inStride + 3];
+            hBastaOperationQueue[i * numOps + 4] = operations[i * inStride + 4];
         }
-        hBastaOperationQueue[i * numOps + 5] = hPartialsOffsets[operations[i * numOps + 5]];
-        if (operations[i * numOps + 6] >= 0) {
-            hBastaOperationQueue[i * numOps + 6] = hPartialsOffsets[operations[i * numOps + 6]];
+        hBastaOperationQueue[i * numOps + 5] = hPartialsOffsets[operations[i * inStride + 5]];
+        if (operations[i * inStride + 6] >= 0) {
+            hBastaOperationQueue[i * numOps + 6] = hPartialsOffsets[operations[i * inStride + 6]];
         } else {
-            hBastaOperationQueue[i * numOps + 6] = operations[i * numOps + 6];
+            hBastaOperationQueue[i * numOps + 6] = operations[i * inStride + 6];
         }
-        hBastaOperationQueue[i * numOps + 7] = operations[i * numOps + 7];
+        hBastaOperationQueue[i * numOps + 7] = operations[i * inStride + 7];
     }
 
     gpu->MemcpyHostToDevice(dBastaOperationQueue, hBastaOperationQueue, sizeof(int) * count * numOps);
