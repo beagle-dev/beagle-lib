@@ -82,6 +82,14 @@ namespace beagle {
             int kGroupLanes;
             int kGroupOrder;
             unsigned long gFrequencyStamp;
+            bool kMayAggregate;
+            std::vector<unsigned long> gFrequencyStamps;
+            std::vector<std::vector<int>> gTopologyParents;
+            std::vector<int> gTopologyIds;
+            int gNextTopologyId;
+            std::vector<std::vector<double>> gPiNodeByFrequency;
+            std::vector<int> gPiNodeTopology;
+            std::vector<unsigned long> gPiNodeStamp;
             std::vector<REALTYPE> gSiteScaleTmp;
             std::vector<double> gSiteAutoScaleTmp;
 
@@ -108,6 +116,10 @@ namespace beagle {
                           const HierarchicalSlot<REALTYPE>* slot2);
 
             bool tableReady(const HierarchicalSlot<REALTYPE>& slot);
+            int topologyIdOf(const HierarchicalOps& ops);
+            const double* nodeFrequencies(int frequencyIndex, const HierarchicalOps& ops);
+            bool prZ0Ready(const HierarchicalSlot<REALTYPE>& slot);
+            void preparePrZ0(const int* operations, int count, int numOps);
 
             void prepareTables(const int* operations, int count, int numOps);
 

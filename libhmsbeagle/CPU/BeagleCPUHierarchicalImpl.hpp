@@ -103,6 +103,20 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gPrZ0Tmp.assign(2 * kStateCount - 1, 0.0);
     gSumHTmp.assign(2 * kStateCount - 1, 0.0);
     gFrequencyStamp = 0;
+    kMayAggregate = kStateCount >= kHierarchicalAggregateMinStates;
+    if (const char* aggregateEnv = getenv("BEAGLE_HRATE_AGGREGATE")) {
+        if (std::strcmp(aggregateEnv, "0") == 0)
+            kMayAggregate = false;
+        else if (std::strcmp(aggregateEnv, "1") == 0)
+            kMayAggregate = true;
+    }
+    gFrequencyStamps.assign(kEigenDecompCount, 0);
+    gTopologyParents.clear();
+    gTopologyIds.clear();
+    gNextTopologyId = 0;
+    gPiNodeByFrequency.assign(kEigenDecompCount, std::vector<double>());
+    gPiNodeTopology.assign(kEigenDecompCount, -1);
+    gPiNodeStamp.assign(kEigenDecompCount, 0);
     kKernel = kHierarchicalKernelShape;
     const char* kernel = getenv("BEAGLE_HRATE_KERNEL");
     if (kernel != NULL && std::strcmp(kernel, "tiled") == 0)
@@ -415,6 +429,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eig
     if (eigenIndex < 0 || eigenIndex >= kEigenDecompCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
     int returnCode = decodeHierarchicalModel(inEigenVectors, inEigenValues, kStateCount, gModels[eigenIndex]);
+    if (returnCode == BEAGLE_SUCCESS && kMayAggregate)
+        gModels[eigenIndex].ops.topologyId = topologyIdOf(gModels[eigenIndex].ops);
     if (returnCode == BEAGLE_SUCCESS && kSmallBand)
         hierarchicalDetectShape(gModels[eigenIndex].ops, kStateCount);
     else if (returnCode == BEAGLE_SUCCESS && kColumnGather)
@@ -430,6 +446,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setStateFrequencies(int state
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
     gFrequenciesDouble[stateFrequenciesIndex].assign(inStateFrequencies, inStateFrequencies + kStateCount);
+    gFrequencyStamps[stateFrequenciesIndex]++;
     if (stateFrequenciesIndex == 0)
         gFrequencyStamp++;
     return BEAGLE_SUCCESS;
@@ -457,7 +474,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildBundles(int modelIndex,
         if (index < 0 || index >= kMatrixCount || !std::isfinite(edgeLengths[i]) || edgeLengths[i] < 0.0)
             return BEAGLE_ERROR_OUT_OF_RANGE;
         hierarchicalBuildBundle(model, piNode, categoryRates, kCategoryCount, edgeLengths[i],
-                                gPrZ0Tmp.data(), gSlots[index]);
+                                gPrZ0Tmp.data(), kMayAggregate, gSlots[index]);
     }
     return BEAGLE_SUCCESS;
 }
@@ -471,6 +488,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setTransitionMatrix(int matri
     if ((int) gSlots.size() < kMatrixCount)
         gSlots.resize(kMatrixCount);
     int returnCode = unpackHierarchicalBundle(inMatrix, kStateCount, kCategoryCount, gSlots[matrixIndex]);
+    if (returnCode == BEAGLE_SUCCESS && kMayAggregate) {
+        gSlots[matrixIndex].owned->topologyId = topologyIdOf(*gSlots[matrixIndex].owned);
+        gSlots[matrixIndex].topologyId = gSlots[matrixIndex].owned->topologyId;
+    }
     if (returnCode == BEAGLE_SUCCESS && kSmallBand)
         hierarchicalDetectShape(*gSlots[matrixIndex].owned, kStateCount);
     else if (returnCode == BEAGLE_SUCCESS && kColumnGather)
@@ -553,6 +574,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* ope
     if (!slotsReady(operations, operationCount, BEAGLE_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareTables(operations, operationCount, BEAGLE_OP_COUNT);
+    preparePrZ0(operations, operationCount, BEAGLE_OP_COUNT);
     return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(operations, operationCount,
                                                              cumulativeScalingIndex, partialsType);
 }
@@ -571,6 +593,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(con
     if (!slotsReady(operations, operationCount, BEAGLE_PARTITION_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareTables(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
+    preparePrZ0(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(operations, operationCount);
 }
 
@@ -823,6 +846,58 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::smallPlan(bool states1,
 BEAGLE_CPU_TEMPLATE
 bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::tableReady(const HierarchicalSlot<REALTYPE>& slot) {
     return slot.tableSet && slot.tableStamp == slot.stamp && slot.tableFrequencyStamp == gFrequencyStamp;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::topologyIdOf(const HierarchicalOps& ops) {
+    for (size_t i = 0; i < gTopologyParents.size(); i++)
+        if (gTopologyParents[i] == ops.parentOf)
+            return gTopologyIds[i];
+    if (gTopologyParents.size() == kHierarchicalTopologyCacheSize) {
+        gTopologyParents.erase(gTopologyParents.begin());
+        gTopologyIds.erase(gTopologyIds.begin());
+    }
+    gTopologyParents.push_back(ops.parentOf);
+    gTopologyIds.push_back(gNextTopologyId);
+    return gNextTopologyId++;
+}
+
+BEAGLE_CPU_TEMPLATE
+const double* BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::nodeFrequencies(int frequencyIndex,
+                                                                             const HierarchicalOps& ops) {
+    if (frequencyIndex < 0 || frequencyIndex >= kEigenDecompCount || gFrequenciesDouble[frequencyIndex].empty())
+        return NULL;
+    std::vector<double>& piNode = gPiNodeByFrequency[frequencyIndex];
+    if (ops.topologyId < 0 || piNode.empty() || gPiNodeTopology[frequencyIndex] != ops.topologyId ||
+        gPiNodeStamp[frequencyIndex] != gFrequencyStamps[frequencyIndex]) {
+        piNode.resize(2 * kStateCount - 1);
+        hierarchicalNodeFrequencies(ops, gFrequenciesDouble[frequencyIndex].data(), kStateCount, piNode.data());
+        gPiNodeTopology[frequencyIndex] = ops.topologyId;
+        gPiNodeStamp[frequencyIndex] = gFrequencyStamps[frequencyIndex];
+    }
+    return piNode.data();
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prZ0Ready(const HierarchicalSlot<REALTYPE>& slot) {
+    return slot.prZ0Stamp == slot.stamp && (!slot.owned || slot.prZ0FrequencyStamp == gFrequencyStamp);
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::preparePrZ0(const int* operations, int count, int numOps) {
+    if (!kMayAggregate)
+        return;
+    for (int op = 0; op < count; op++) {
+        const int* operation = operations + op * numOps;
+        const int last = operation[5] == BEAGLE_OP_NONE ? 4 : 6;
+        for (int m = 4; m <= last; m += 2) {
+            HierarchicalSlot<REALTYPE>& slot = gSlots[operation[m]];
+            if (prZ0Ready(slot))
+                continue;
+            hierarchicalRecoverInternalPrZ0(*slot.ops, kStateCount, kCategoryCount,
+                                            nodeFrequencies(0, *slot.ops), gFrequencyStamp, slot);
+        }
+    }
 }
 
 BEAGLE_CPU_TEMPLATE

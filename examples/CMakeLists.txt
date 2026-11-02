@@ -201,6 +201,14 @@ if(BUILD_HIERARCHICAL)
             hmsbeagle-cpu-hierarchical
             ${CMAKE_DL_LIBS})
     add_test(hratelayouttest hratelayouttest)
+    add_executable(hrateaggregationtest
+            hratetest/hrateaggregationtest.cpp)
+    target_link_libraries(hrateaggregationtest
+            hmsbeagle
+            hmsbeagle-cpu
+            hmsbeagle-cpu-hierarchical
+            ${CMAKE_DL_LIBS})
+    add_test(hrateaggregationtest hrateaggregationtest)
     add_executable(hratebundletest
             hratetest/hratebundletest.cpp)
     target_link_libraries(hratebundletest

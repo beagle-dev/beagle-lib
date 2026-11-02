@@ -139,15 +139,22 @@ inline int decodeHierarchicalModel(const double* eigenVectors,
     return BEAGLE_SUCCESS;
 }
 
-inline void hierarchicalNodeFrequencies(const HierarchicalModel& model,
+inline void hierarchicalNodeFrequencies(const HierarchicalOps& ops,
                                         const double* pi,
                                         int stateCount,
                                         double* piNode) {
-    const int* post = model.ops.postOps.data();
+    const int* post = ops.postOps.data();
     for (int x = 0; x < stateCount; x++)
         piNode[x] = pi[x];
     for (int t = 0; t < stateCount - 1; t++)
         piNode[post[3 * t]] = piNode[post[3 * t + 1]] + piNode[post[3 * t + 2]];
+}
+
+inline void hierarchicalNodeFrequencies(const HierarchicalModel& model,
+                                        const double* pi,
+                                        int stateCount,
+                                        double* piNode) {
+    hierarchicalNodeFrequencies(model.ops, pi, stateCount, piNode);
 }
 
 template <typename REALTYPE>
@@ -157,6 +164,7 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
                              int categoryCount,
                              double edgeLength,
                              double* prZ0Tmp,
+                             bool writeInternal,
                              HierarchicalSlot<REALTYPE>& slot) {
     const int S = (int) model.lambda.size() + 1;
     const int n = S - 1;
@@ -164,6 +172,8 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
     const int* pre = model.ops.preOps.data();
     const double* lambda = model.lambda.data();
     slot.values.resize((size_t) categoryCount * block);
+    if (writeInternal)
+        slot.prZ0Internal.resize((size_t) categoryCount * n);
     for (int l = 0; l < categoryCount; l++) {
         const double distance = edgeLength * categoryRates[l];
         REALTYPE* H = slot.values.data() + (size_t) l * block;
@@ -179,11 +189,44 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
         }
         for (int x = 0; x < S; x++)
             prZ0[x] = (REALTYPE) prZ0Tmp[x];
+        if (writeInternal) {
+            REALTYPE* internal = slot.prZ0Internal.data() + (size_t) l * n;
+            for (int m = 0; m < n; m++)
+                internal[m] = (REALTYPE) prZ0Tmp[S + m];
+        }
     }
     slot.ops = &model.ops;
     slot.owned.reset();
+    slot.topologyId = model.ops.topologyId;
     slot.set = true;
     slot.stamp++;
+    if (writeInternal)
+        slot.prZ0Stamp = slot.stamp;
+}
+
+template <typename REALTYPE>
+void hierarchicalRecoverInternalPrZ0(const HierarchicalOps& ops,
+                                     int stateCount,
+                                     int categoryCount,
+                                     const double* piNode,
+                                     unsigned long frequencyStamp,
+                                     HierarchicalSlot<REALTYPE>& slot) {
+    const int S = stateCount, n = S - 1, block = hierarchicalBlockLength(S);
+    const int* post = ops.postOps.data();
+    std::vector<double> z(2 * S - 1);
+    slot.prZ0Internal.resize((size_t) categoryCount * n);
+    for (int l = 0; l < categoryCount; l++) {
+        const REALTYPE* H = slot.values.data() + (size_t) l * block;
+        for (int x = 0; x < S; x++)
+            z[x] = (double) H[n + x];
+        for (int t = 0; t < n; t++) {
+            const int p = post[3 * t], a = post[3 * t + 1];
+            z[p] = piNode[p] * (double) H[p - S] + z[a];
+            slot.prZ0Internal[(size_t) l * n + p - S] = (REALTYPE) z[p];
+        }
+    }
+    slot.prZ0Stamp = slot.stamp;
+    slot.prZ0FrequencyStamp = frequencyStamp;
 }
 
 template <typename REALTYPE>

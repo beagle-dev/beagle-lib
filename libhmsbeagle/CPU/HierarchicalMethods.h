@@ -41,6 +41,8 @@ const int kHierarchicalColumnMaxStates = 64;
 const int kHierarchicalFusedDefaultMinStates = 5;
 const int kHierarchicalFusedMinPatterns = 1000;
 const size_t kHierarchicalTableBudget = 64 * 1024 * 1024;
+const int kHierarchicalAggregateMinStates = 9;
+const size_t kHierarchicalTopologyCacheSize = 8;
 
 enum HierarchicalKernel {
     kHierarchicalKernelTiled = 0,
@@ -87,6 +89,7 @@ struct HierarchicalOps {
     std::vector<int> tipOfSlot;
     std::vector<int> intOfSlot;
     std::vector<int> mrca;
+    int topologyId = -1;
 };
 
 struct HierarchicalModel {
@@ -106,6 +109,10 @@ struct HierarchicalSlot {
     unsigned long tableFrequencyStamp = 0;
     bool tableSet = false;
     std::vector<REALTYPE> columnTable;
+    int topologyId = -1;
+    std::vector<REALTYPE> prZ0Internal;
+    unsigned long prZ0Stamp = 0;
+    unsigned long prZ0FrequencyStamp = 0;
 };
 
 inline int hierarchicalBundleLength(int stateCount, int categoryCount) {
@@ -128,6 +135,11 @@ inline int decodeHierarchicalModel(const double* eigenVectors,
                             int stateCount,
                             HierarchicalModel& model);
 
+inline void hierarchicalNodeFrequencies(const HierarchicalOps& ops,
+                                        const double* pi,
+                                        int stateCount,
+                                        double* piNode);
+
 inline void hierarchicalNodeFrequencies(const HierarchicalModel& model,
                                  const double* pi,
                                  int stateCount,
@@ -140,7 +152,16 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
                              int categoryCount,
                              double edgeLength,
                              double* prZ0Tmp,
+                             bool writeInternal,
                              HierarchicalSlot<REALTYPE>& slot);
+
+template <typename REALTYPE>
+void hierarchicalRecoverInternalPrZ0(const HierarchicalOps& ops,
+                                     int stateCount,
+                                     int categoryCount,
+                                     const double* piNode,
+                                     unsigned long frequencyStamp,
+                                     HierarchicalSlot<REALTYPE>& slot);
 
 inline void hierarchicalComputeMrca(HierarchicalOps& ops, int stateCount);
 
