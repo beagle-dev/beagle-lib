@@ -43,6 +43,10 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials
  * accumulateBastaPartialsGrad has two Java declarations: BEAGLE 4.1's 9 parameters (BEAST 10.5.0, the 10.6.0 betas)
  * and 13 since. Both are exported under JNI's long names (with the argument signature) and neither under the short
  * name, so the JVM binds each declaration to the function with its own signature.
+ *
+ * Every native added after BEAGLE 4.2.0 (the population-size setters and the _v5 functions at the end of this file)
+ * is likewise exported under its long name only, and the exports above never change: a short name would also bind a
+ * Java declaration of the same name with a different signature.
  */
 
 /*
@@ -79,6 +83,62 @@ JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_uploadBastaSlabMetadata
 
 JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_getBastaSlabConstants
   (JNIEnv *, jobject, jint, jintArray);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizes
+ * Signature: (I[DI)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizes__I_3DI
+  (JNIEnv *, jobject, jint, jdoubleArray, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setBastaPopulationSizesBuffer
+ * Signature: (I[DII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setBastaPopulationSizesBuffer__I_3DII
+  (JNIEnv *, jobject, jint, jdoubleArray, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    setCurrentPopulationSizeBuffer
+ * Signature: (II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_setCurrentPopulationSizeBuffer__II
+  (JNIEnv *, jobject, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    updateBastaPartials_v5
+ * Signature: (I[II[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartials_1v5__I_3II_3IIII
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    updateBastaPartialsGrad_v5
+ * Signature: (I[II[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_updateBastaPartialsGrad_1v5__I_3II_3IIII
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jint, jint);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartials_v5
+ * Signature: (I[II[II[DII[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartials_1v5__I_3II_3II_3DII_3D
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_basta_BastaJNIWrapper
+ * Method:    accumulateBastaPartialsGrad_v5
+ * Signature: (I[II[II[DIIIII[D[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_basta_BastaJNIWrapper_accumulateBastaPartialsGrad_1v5__I_3II_3II_3DIIIII_3D_3D
+  (JNIEnv *, jobject, jint, jintArray, jint, jintArray, jint, jdoubleArray, jint, jint, jint, jint, jint, jdoubleArray, jdoubleArray);
 
 #ifdef __cplusplus
 }
