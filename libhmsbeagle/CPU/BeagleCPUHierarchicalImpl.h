@@ -97,6 +97,15 @@ namespace beagle {
             std::vector<size_t> gPatternOffset;
             size_t gRaggedSize = 0;
             std::vector<char> gTipPlanesEqual;
+            HierarchicalOps gClassOps;
+            unsigned long gClassGeneration = 0;
+            std::vector<REALTYPE*> gRagged;
+            std::vector<size_t> gRaggedCapacity;
+            std::vector<unsigned long> gRaggedGeneration;
+            std::vector<char> gRaggedPre;
+            REALTYPE* gRaggedW = nullptr;
+            REALTYPE* gRaggedV = nullptr;
+            size_t gRaggedScratchSize = 0;
             std::vector<unsigned long> gFrequencyStamps;
             std::vector<std::vector<int>> gTopologyParents;
             std::vector<int> gTopologyIds;
@@ -138,6 +147,13 @@ namespace beagle {
             void observedSets(std::vector<int>& offsets, std::vector<int>& values);
             void prepareClasses(const int* operations, int count, int numOps);
             void refreshPiRed();
+            bool raggedActive() const;
+            REALTYPE* ensureRagged(int bufferIndex);
+            bool raggedReady(int bufferIndex) const;
+            void compressRange(const REALTYPE* dense, REALTYPE* ragged, int startPattern, int endPattern);
+            double constancyDeviation(const REALTYPE* dense);
+            bool buildRaggedTips();
+            int prepareRagged(const int* operations, int count, int numOps);
 
             void prepareTables(const int* operations, int count, int numOps);
 

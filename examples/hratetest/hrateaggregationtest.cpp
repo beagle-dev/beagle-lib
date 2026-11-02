@@ -54,6 +54,15 @@ struct Probe : public Hier {
     double weight(int k) const { return this->gPatternWeights[k]; }
     int newOrder(int k) const { return this->gPatternsNewOrder[k]; }
     int categories() const { return this->kCategoryCount; }
+    int accumulate(const int* scales, int count, int cumulative) {
+        return this->accumulateScaleFactors(scales, count, cumulative);
+    }
+    bool raggedLive(int b) const { return this->raggedReady(b); }
+    const Real* ragged(int b) const { return this->gRagged[b]; }
+    unsigned long raggedGeneration(int b) const { return this->gRaggedGeneration[b]; }
+    unsigned long classGeneration() const { return this->gClassGeneration; }
+    const HierarchicalOps& classOps() const { return this->gClassOps; }
+    Real denseValue(int b, int l, int k, int i) const { return this->gPartials[b][this->pIdx(l, k, i)]; }
 };
 
 static std::vector<double> tipFrequencies(const StateTree& tree) {
@@ -464,6 +473,241 @@ static void ruleCase(const char* label, int S, int K, const char* env, const cha
         report(name + " r above the threshold at C = 1 keeps it off", !denseDecision && !sparseDecision, "");
 }
 
+static double maxRel(const std::vector<double>& a, const std::vector<double>& b) {
+    double worst = a.size() == b.size() ? 0.0 : 1.0;
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i) {
+        const double scale = std::max(std::fabs(b[i]), 1e-300);
+        if (a[i] != b[i])
+            worst = std::max(worst, std::fabs(a[i] - b[i]) / scale);
+    }
+    return worst;
+}
+
+template <typename Hier, typename Real>
+struct EntryRun {
+    Probe<Hier, Real> h;
+    int rc = 0;
+    double logL = 0.0;
+};
+
+template <typename Hier, typename Real>
+static void entrySetup(EntryRun<Hier, Real>& run, const char* env, int S, int K, int C, const SparseData& d,
+                       const StateTree& tree, const StateTree& other, bool partitioned) {
+    const int tips = 8;
+    setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+    Probe<Hier, Real>& h = run.h;
+    run.rc = h.createInstance(tips, 12, 4, S, K, 2, 14, C, 8, 0, 0,
+                              BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG, 0);
+    unsetenv("BEAGLE_HRATE_AGGREGATE");
+    ModelArrays model = modelArrays(tree);
+    std::vector<double> pi = tipFrequencies(tree), otherPi = tipFrequencies(other), weights(K);
+    std::vector<double> rates(C), catWeights(C, 1.0 / C);
+    for (int l = 0; l < C; ++l)
+        rates[l] = 0.4 + 1.2 * l;
+    for (int k = 0; k < K; ++k)
+        weights[k] = 1.0 + k % 5;
+    run.rc |= h.setStateFrequencies(0, pi.data()) | h.setStateFrequencies(1, otherPi.data()) |
+              h.setCategoryRates(rates.data()) | h.setCategoryWeights(0, catWeights.data()) |
+              h.setPatternWeights(weights.data()) |
+              h.setEigenDecomposition(0, model.vectors.data(), model.inverse.data(), model.values.data());
+    if (partitioned) {
+        std::vector<int> partitions(K);
+        for (int k = 0; k < K; ++k)
+            partitions[k] = (k * 7 + k / 5) % 3;
+        run.rc |= h.setPatternPartitions(3, partitions.data());
+        run.rc |= h.setPatternWeights(weights.data());
+    }
+    for (int t = 0; t < 4; ++t)
+        run.rc |= h.setTipStates(t, d.states[t].data());
+    for (int t = 0; t < 3; ++t)
+        run.rc |= h.setTipPartials(4 + t, d.partials[t].data());
+    std::vector<double> full((size_t) C * K * S);
+    for (int l = 0; l < C; ++l)
+        std::copy(d.planes[l].begin(), d.planes[l].end(), full.begin() + (size_t) l * K * S);
+    run.rc |= h.setPartials(7, full.data());
+    int matrices[14];
+    double lengths[14];
+    for (int m = 0; m < 14; ++m) {
+        matrices[m] = m;
+        lengths[m] = 0.05 + 0.03 * m;
+    }
+    run.rc |= h.updateTransitionMatrices(0, matrices, NULL, NULL, lengths, 14);
+}
+
+static const int kEntryChildren[7][2] = { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 8, 9 }, { 10, 11 }, { 12, 13 } };
+
+template <typename Hier, typename Real>
+static double entryEvaluate(EntryRun<Hier, Real>& run, bool partitioned, int frequency, double* byPartition) {
+    Probe<Hier, Real>& h = run.h;
+    const int cumulative = 7;
+    if (!partitioned) {
+        int ops[7 * 7];
+        for (int n = 0; n < 7; ++n) {
+            const int o[7] = { 8 + n, n, BEAGLE_OP_NONE, kEntryChildren[n][0], kEntryChildren[n][0],
+                               kEntryChildren[n][1], kEntryChildren[n][1] };
+            std::copy(o, o + 7, ops + 7 * n);
+        }
+        run.rc |= h.updatePartials(ops, 7, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+        const int scales[7] = { 0, 1, 2, 3, 4, 5, 6 };
+        run.rc |= h.resetScaleFactors(cumulative);
+        run.rc |= h.accumulate(scales, 7, cumulative);
+        const int root = 14, weightsIndex = 0;
+        double logL = 0.0;
+        run.rc |= h.calculateRootLogLikelihoods(&root, &weightsIndex, &frequency, &cumulative, 1, &logL);
+        return logL;
+    }
+    int ops[3 * 7 * 9];
+    int count = 0;
+    for (int p = 0; p < 3; ++p)
+        for (int n = 0; n < 7; ++n) {
+            const int o[9] = { 8 + n, n, BEAGLE_OP_NONE, kEntryChildren[n][0], kEntryChildren[n][0],
+                               kEntryChildren[n][1], kEntryChildren[n][1], p, BEAGLE_OP_NONE };
+            std::copy(o, o + 9, ops + 9 * count++);
+        }
+    run.rc |= h.updatePartialsByPartition(ops, count);
+    const int scales[7] = { 0, 1, 2, 3, 4, 5, 6 };
+    for (int p = 0; p < 3; ++p) {
+        run.rc |= h.resetScaleFactorsByPartition(cumulative, p);
+        run.rc |= h.accumulateScaleFactorsByPartition(scales, 7, cumulative, p);
+    }
+    const int roots[3] = { 14, 14, 14 }, weightsIndex[3] = { 0, 0, 0 }, freqs[3] = { frequency, frequency, frequency },
+              cums[3] = { cumulative, cumulative, cumulative }, parts[3] = { 0, 1, 2 };
+    double logL = 0.0;
+    run.rc |= h.calculateRootLogLikelihoodsByPartition(roots, weightsIndex, freqs, cums, parts, 3, 1, byPartition,
+                                                       &logL);
+    return logL;
+}
+
+template <typename Hier, typename Real>
+static std::vector<double> entryPartials(EntryRun<Hier, Real>& run, int buffer, int scale, int S, int K, int C) {
+    std::vector<double> out((size_t) C * K * S);
+    run.rc |= run.h.getPartials(buffer, scale, out.data());
+    return out;
+}
+
+template <typename Real, typename Hier>
+static void entryCase(const char* label, int S, bool partitioned, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s entry points S=%d%s", label, S, partitioned ? " partitioned" : "");
+    const std::string name(tag);
+    const int K = 60, C = 2;
+    const bool dp = sizeof(Real) == 8;
+    const double tolL = dp ? 1e-13 : 1e-6, tolP = dp ? 1e-12 : 2e-5;
+    SparseData d = makeSparse(S, K, C, rng);
+    StateTree tree = makeRandomTree(S, rng, 0.7);
+    StateTree other = withFrequencies(tree, rng);
+    EntryRun<Hier, Real> a, b;
+    entrySetup(a, "0", S, K, C, d, tree, other, partitioned);
+    entrySetup(b, "1", S, K, C, d, tree, other, partitioned);
+    double partsA[3] = { 0, 0, 0 }, partsB[3] = { 0, 0, 0 };
+    const double logLA = entryEvaluate(a, partitioned, 0, partsA);
+    const double logLB = entryEvaluate(b, partitioned, 0, partsB);
+    if (a.rc != 0 || b.rc != 0) {
+        report(name + " setup", false, "codes " + std::to_string(a.rc) + " " + std::to_string(b.rc));
+        return;
+    }
+    report(name + " ragged root used only when forced", b.h.raggedLive(14) && !a.h.raggedLive(14) && b.h.aggregated(),
+           "");
+    double dl = std::fabs(logLB - logLA) / std::fabs(logLA);
+    for (int p = 0; partitioned && p < 3; ++p)
+        dl = std::max(dl, std::fabs(partsB[p] - partsA[p]) / std::fabs(partsA[p]));
+    report(name + " root likelihood", dl <= tolL, relDetail(dl));
+
+    double dp1 = 0.0, dp2 = 0.0;
+    for (int n = 8; n <= 14; ++n) {
+        dp1 = std::max(dp1, maxRel(entryPartials(b, n, BEAGLE_OP_NONE, S, K, C), entryPartials(a, n, BEAGLE_OP_NONE, S, K, C)));
+        dp2 = std::max(dp2, maxRel(entryPartials(b, n, 7, S, K, C), entryPartials(a, n, 7, S, K, C)));
+    }
+    report(name + " getPartials broadcast", dp1 <= tolP, relDetail(dp1));
+    report(name + " getPartials with the cumulative scale", dp2 <= tolP, relDetail(dp2));
+
+    size_t tipBad = 0;
+    for (int t = 4; t < 8; ++t) {
+        if (b.h.raggedGeneration(t) != b.h.classGeneration())
+            ++tipBad;
+        for (int k = 0; k < K; ++k) {
+            const HierarchicalReduced<Real>& r = b.h.classList()[b.h.classOf()[k]].reduced[0];
+            for (int x = 0; x < r.stateCount; ++x)
+                for (int l = 0; l < C; ++l)
+                    if (b.h.ragged(t)[b.h.offset()[k] + x * C + l] != b.h.denseValue(t, l, k, r.repOfRow[x]))
+                        ++tipBad;
+        }
+    }
+    report(name + " ragged tip copies", tipBad == 0, std::to_string(tipBad) + " values differ");
+
+    double logL1A = 0.0, logL1B = 0.0;
+    const int root = 14, weightsIndex = 0, frequency = 1, cumulative = 7;
+    a.rc |= a.h.calculateRootLogLikelihoods(&root, &weightsIndex, &frequency, &cumulative, 1, &logL1A);
+    b.rc |= b.h.calculateRootLogLikelihoods(&root, &weightsIndex, &frequency, &cumulative, 1, &logL1B);
+    const double dlf = std::fabs(logL1B - logL1A) / std::fabs(logL1A);
+    report(name + " root likelihood with frequency buffer 1", dlf <= tolL && logL1A != logLA, relDetail(dlf));
+
+    const int spare = 15;
+    const std::vector<double> rootA = entryPartials(a, 14, BEAGLE_OP_NONE, S, K, C);
+    b.rc |= b.h.setPartials(spare, rootA.data());
+    double logLS = 0.0;
+    const int zero = 0;
+    b.rc |= b.h.calculateRootLogLikelihoods(&spare, &weightsIndex, &zero, &cumulative, 1, &logLS);
+    const double dls = std::fabs(logLS - logLA) / std::fabs(logLA);
+    report(name + " setPartials compresses an internal buffer", b.h.raggedLive(spare) && dls <= tolL, relDetail(dls));
+    const double dlsP = maxRel(entryPartials(b, spare, BEAGLE_OP_NONE, S, K, C), rootA);
+    report(name + " setPartials then getPartials", dlsP <= tolP, relDetail(dlsP));
+
+    b.rc |= b.h.setRootPrePartials(&spare, &frequency, 1);
+    std::vector<double> pre = entryPartials(b, spare, BEAGLE_OP_NONE, S, K, C);
+    const std::vector<double> otherPi = tipFrequencies(other);
+    size_t preBad = b.h.raggedLive(spare) ? 1 : 0;
+    for (int l = 0; l < C; ++l)
+        for (int k = 0; k < K; ++k)
+            for (int i = 0; i < S; ++i)
+                if (pre[((size_t) l * K + k) * S + i] != (double) (Real) otherPi[i])
+                    ++preBad;
+    const double* piNode = b.h.piNode(1, b.h.classOps());
+    for (int k = 0; k < K; ++k) {
+        const HierarchicalReduced<Real>& r = b.h.classList()[b.h.classOf()[k]].reduced[0];
+        for (int x = 0; x < r.stateCount; ++x)
+            for (int l = 0; l < C; ++l)
+                if (b.h.ragged(spare)[b.h.offset()[k] + x * C + l] != (Real) piNode[r.localToFull[x]])
+                    ++preBad;
+    }
+    report(name + " setRootPrePartials writes piNode per row, getPartials stays dense", preBad == 0,
+           std::to_string(preBad) + " values differ");
+
+    std::vector<int> changed = d.states[0];
+    for (int k = 0; k < K; ++k)
+        changed[k] = (int) ((k * 5 + 1) % S);
+    a.rc |= a.h.setTipStates(0, changed.data());
+    b.rc |= b.h.setTipStates(0, changed.data());
+    const unsigned long generation = b.h.classGeneration();
+    const double logL2A = entryEvaluate(a, partitioned, 0, partsA);
+    const double logL2B = entryEvaluate(b, partitioned, 0, partsB);
+    const double dl2 = std::fabs(logL2B - logL2A) / std::fabs(logL2A);
+    report(name + " a tip change rebuilds and recompresses", b.h.classGeneration() == generation + 1 &&
+           b.h.raggedLive(14) && !b.h.raggedLive(spare) && dl2 <= tolL && logL2A != logLA, relDetail(dl2));
+}
+
+template <typename Real, typename Hier>
+static void autoEntryCase(const char* label, std::mt19937_64& rng) {
+    const std::string name = std::string(label) + " entry points S=256 automatic rule";
+    const int S = 256, K = 60, C = 1;
+    SparseData d = makeSparse(S, K, C, rng);
+    for (int t = 0; t < 3; ++t)
+        for (int k = 0; k < K; ++k)
+            for (int i = 0; i < S; ++i)
+                d.partials[t][(size_t) k * S + i] = (d.states[t][k] >= S || d.states[t][k] == i) ? 1.0 : 0.0;
+    std::fill(d.planes[0].begin(), d.planes[0].end(), 1.0);
+    StateTree tree = makeRandomTree(S, rng, 0.7);
+    StateTree other = withFrequencies(tree, rng);
+    EntryRun<Hier, Real> a, b;
+    entrySetup(a, "0", S, K, C, d, tree, other, false);
+    entrySetup(b, "auto", S, K, C, d, tree, other, false);
+    const double logLA = entryEvaluate(a, false, 0, NULL);
+    const double logLB = entryEvaluate(b, false, 0, NULL);
+    const bool samePartials = entryPartials(a, 14, 7, S, K, C) == entryPartials(b, 14, 7, S, K, C);
+    report(name + " decides on but keeps the dense path bitwise", a.rc == 0 && b.rc == 0 && b.h.aggregated() &&
+           !b.h.raggedLive(14) && logLA == logLB && samePartials, "");
+}
+
 int main() {
     std::mt19937_64 rng(20261101);
     const int stateCounts[5] = { 4, 8, 9, 17, 61 };
@@ -477,6 +721,12 @@ int main() {
         classCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, rng);
         classCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, rng);
     }
+    for (int S : { 17, 61 })
+        for (bool partitioned : { false, true }) {
+            entryCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, partitioned, rng);
+            entryCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, partitioned, rng);
+        }
+    autoEntryCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, NULL, NULL, false, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, NULL, true, rng);
