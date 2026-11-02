@@ -1235,17 +1235,21 @@ protected:
     // stops and joins the threads of the pool, if there is one, and frees their operation buffers
     void stopThreads();
 
+    // OPS: the integers per operation (BEAGLE_BASTA_OP_COUNT, or 9 for the _v5 functions)
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartials(const int* operations, // TODO make protected
                                   const int begin,
                                   const int end,
                                   const REALTYPE* sizes,
                                   REALTYPE* coalescent);
 
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartials2(const int* operations, // TODO make protected
                                   const int op,
                                   const REALTYPE* sizes,
                                   REALTYPE* coalescent);
-    
+
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartialsGrad(const int* operations,
                                     const int begin,
                                     const int end,
@@ -1298,6 +1302,42 @@ private:
     template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
     void accumulateDerivativesImpl(double *outDerivatives, double *outSumDerivatives,
                                    double *outSumSquaredDerivatives, int offset);
+
+    // the bodies of updateBastaPartials, updateBastaPartialsGrad (legacy gradient), accumulateBastaPartials and
+    // accumulateBastaPartialsGrad (legacy gradient) for OPS integers per operation, with the population sizes given
+    template <int OPS>
+    int updateBastaPartialsCore(const int* operations,
+                                const int count,
+                                const int* intervals,
+                                const int intervalCount,
+                                const REALTYPE* sizes,
+                                const int coalescentIndex);
+
+    template <int OPS>
+    void updateBastaPartialsGradLegacy(const int* operations,
+                                       const int* intervals,
+                                       const int intervalCount,
+                                       const REALTYPE* sizes,
+                                       const REALTYPE* coalescent);
+
+    template <int OPS>
+    int accumulateBastaPartialsCore(const int* operations,
+                                    const int operationCount,
+                                    const int* intervalStarts,
+                                    const int intervalStartsCount,
+                                    const double* intervalLengths,
+                                    const REALTYPE* sizes,
+                                    const int coalescentIndex,
+                                    double* out);
+
+    template <int OPS>
+    void accumulateBastaPartialsGradLegacy(const int* operations,
+                                           const int* intervalStarts,
+                                           const int intervalStartsCount,
+                                           const double* intervalLengths,
+                                           const REALTYPE* sizes,
+                                           const int coalescentIndex,
+                                           double* out);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
