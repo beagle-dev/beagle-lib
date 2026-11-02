@@ -168,6 +168,7 @@ namespace gpu {
     kBastaBuffersAllocated = false;
     kBastaOpsUploaded = false;
     kBastaOpsCount = 0;
+    kCurrentPopulationSizeBuffer = 0;
     dAdjointPopSizeGrad = (GPUPtr)NULL;
     dHazardAdjoints = (GPUPtr)NULL;
     dTransformedAdjoints = (GPUPtr)NULL;
@@ -3701,6 +3702,48 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getBastaBuffer(int bufferIndex,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleGPUImpl::getBastaBuffer\n");
 #endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                                               int requiredStorageSize) {
+    return setBastaPopulationSizesBuffer(combinedSizesIntegrals, requiredStorageSize, kCurrentPopulationSizeBuffer);
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                                                     int requiredStorageSize,
+                                                                     int bufferIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleGPUImpl::setBastaPopulationSizesBuffer (buffer %d)\n", bufferIndex);
+#endif
+
+    if (combinedSizesIntegrals == NULL)
+        return BEAGLE_ERROR_GENERAL;
+    if (bufferIndex < 0 || bufferIndex > 1 || requiredStorageSize <= 0)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    // a host copy, converted to Real; the calls that read it upload what they need
+    const size_t combinedSize = 2 * (size_t) requiredStorageSize;
+    hBastaPopulationSizes[bufferIndex].resize(combinedSize);
+    beagleMemCpy(hBastaPopulationSizes[bufferIndex].data(), combinedSizesIntegrals, (unsigned int) combinedSize);
+    kCurrentPopulationSizeBuffer = bufferIndex;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleGPUImpl::setBastaPopulationSizesBuffer\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::setCurrentPopulationSizeBuffer(int bufferIndex) {
+    if (bufferIndex < 0 || bufferIndex > 1)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    kCurrentPopulationSizeBuffer = bufferIndex;
 
     return BEAGLE_SUCCESS;
 }

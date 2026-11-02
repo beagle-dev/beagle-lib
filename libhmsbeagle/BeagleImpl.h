@@ -363,6 +363,17 @@ public:
                                              int hasComplexEigenvalues,
                                              double* outRateGradient) = 0;
                                    
+    // BASTA population-size buffers (beagleSetBastaPopulationSizes and the two below); appended, so that the
+    // existing slots keep their places
+    virtual int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                        int requiredStorageSize) = 0;
+
+    virtual int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                              int requiredStorageSize,
+                                              int bufferIndex) = 0;
+
+    virtual int setCurrentPopulationSizeBuffer(int bufferIndex) = 0;
+
 //protected:
     int resourceNumber;
 };

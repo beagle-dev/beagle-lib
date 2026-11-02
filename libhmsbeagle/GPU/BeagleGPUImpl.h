@@ -248,6 +248,11 @@ private:
 	bool kBastaOpsUploaded;
 	int  kBastaOpsCount;
 
+	// the two population-size buffers, each [sizes[0..R-1] | integrals[0..R-1]] (empty until set), and the current
+	// one; kept on the host, in the instance's precision
+	std::vector<Real> hBastaPopulationSizes[2];
+	int kCurrentPopulationSizeBuffer;
+
 	GPUPtr dAdjointPopSizeGrad;
 	GPUPtr dHazardAdjoints;
 	GPUPtr dTransformedAdjoints;
@@ -939,6 +944,15 @@ public:
                                      int matrixCount,
                                      int hasComplexEigenvalues,
                                      double* outRateGradient);
+
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                int requiredStorageSize);
+
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                      int requiredStorageSize,
+                                      int bufferIndex);
+
+    int setCurrentPopulationSizeBuffer(int bufferIndex);
 
 private:
 

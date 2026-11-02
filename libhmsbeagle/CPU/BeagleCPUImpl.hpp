@@ -417,6 +417,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     coalescentGrad = NULL;
     kCoalescentGradLength = 0;
     kBastaBuffersAllocated = false;
+    kCurrentPopulationSizeBuffer = 0;
     kAdjointBuffersAllocated = false;
     kUseAdjointGradient = false;
     kAdjointReversePassDone = false;
@@ -1897,6 +1898,48 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::allocateBastaBuffers(int bufferCount,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tLeaving  BeagleCPUImpl::allocateBastaBuffers\n");
 #endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                                               int requiredStorageSize) {
+    return setBastaPopulationSizesBuffer(combinedSizesIntegrals, requiredStorageSize, kCurrentPopulationSizeBuffer);
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                                                     int requiredStorageSize,
+                                                                     int bufferIndex) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tEntering BeagleCPUImpl::setBastaPopulationSizesBuffer (buffer %d)\n", bufferIndex);
+#endif
+
+    if (combinedSizesIntegrals == NULL)
+        return BEAGLE_ERROR_GENERAL;
+    if (bufferIndex < 0 || bufferIndex > 1 || requiredStorageSize <= 0)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    // [sizes[0..R-1] | integrals[0..R-1]], in the instance's precision
+    const size_t combinedSize = 2 * (size_t) requiredStorageSize;
+    gBastaPopulationSizes[bufferIndex].resize(combinedSize);
+    beagleMemCpy(gBastaPopulationSizes[bufferIndex].data(), combinedSizesIntegrals, (unsigned int) combinedSize);
+    kCurrentPopulationSizeBuffer = bufferIndex;
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\tLeaving  BeagleCPUImpl::setBastaPopulationSizesBuffer\n");
+#endif
+
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setCurrentPopulationSizeBuffer(int bufferIndex) {
+    if (bufferIndex < 0 || bufferIndex > 1)
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+
+    kCurrentPopulationSizeBuffer = bufferIndex;
 
     return BEAGLE_SUCCESS;
 }

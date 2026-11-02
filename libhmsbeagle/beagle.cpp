@@ -2528,3 +2528,79 @@ int beagleGetBastaSlabConstants(const int instance,
         return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
     }
 }
+
+int beagleSetBastaPopulationSizes(const int instance,
+                                  const double* combinedSizesIntegrals,
+                                  const int requiredStorageSize) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->setBastaPopulationSizes(combinedSizesIntegrals, requiredStorageSize);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}
+
+int beagleSetBastaPopulationSizesBuffer(const int instance,
+                                        const double* combinedSizesIntegrals,
+                                        const int requiredStorageSize,
+                                        const int bufferIndex) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->setBastaPopulationSizesBuffer(combinedSizesIntegrals, requiredStorageSize,
+                                                                        bufferIndex);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}
+
+int beagleSetCurrentPopulationSizeBuffer(const int instance,
+                                         const int bufferIndex) {
+    DEBUG_START_TIME();
+    DEBUG_START_ENERGY();
+    try {
+        beagle::BeagleImpl* beagleInstance = beagle::getBeagleInstance(instance);
+        if (beagleInstance == NULL)
+            return BEAGLE_ERROR_UNINITIALIZED_INSTANCE;
+        int returnValue = beagleInstance->setCurrentPopulationSizeBuffer(bufferIndex);
+        DEBUG_END_TIME();
+        DEBUG_END_ENERGY();
+        return returnValue;
+    }
+    catch (std::bad_alloc &) {
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    catch (std::out_of_range &) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    catch (...) {
+        return BEAGLE_ERROR_UNIDENTIFIED_EXCEPTION;
+    }
+}

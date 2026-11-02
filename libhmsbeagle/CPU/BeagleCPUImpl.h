@@ -211,6 +211,10 @@ protected:
     int kCoalescentBufferCount;
     int kCoalescentGradLength;
 
+    // the two population-size buffers, each [sizes[0..R-1] | integrals[0..R-1]] (empty until set), and the current one
+    std::vector<REALTYPE> gBastaPopulationSizes[2];
+    int kCurrentPopulationSizeBuffer;
+
     struct CoalescentDetail {
         int outputBuffer;
         int inputBuffer1;
@@ -643,6 +647,15 @@ public:
                                      int matrixCount,
                                      int hasComplexEigenvalues,
                                      double* outRateGradient);
+
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                int requiredStorageSize);
+
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                      int requiredStorageSize,
+                                      int bufferIndex);
+
+    int setCurrentPopulationSizeBuffer(int bufferIndex);
 
     void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
                               REALTYPE* g, REALTYPE* h,

@@ -1768,6 +1768,65 @@ BEAGLE_DLLEXPORT int beagleAccumulateEigenBasisGradient(const int instance,
                                                          const int hasComplexEigenvalues,
                                                          double* outRateGradient);
 
+/*
+ * BASTA population-size buffers (from basta_development)
+ *
+ * Each instance has two population-size buffers, 0 and 1, and a current buffer, which is 0 when the instance is
+ * created. A buffer holds 2 * requiredStorageSize values (R = requiredStorageSize): the sizes, sizes[0..R-1],
+ * followed by the integrals, integrals[0..R-1]. The values are converted to the instance's precision when they are
+ * set. The 8-integer BASTA functions above never read these buffers: they take population sizes from
+ * beagleSetStateFrequencies(populationSizesIndex), as before.
+ */
+
+/**
+ * @brief Copy population sizes and integrals into the current population-size buffer
+ *
+ * Copies 2 * requiredStorageSize values into the current buffer, which stays current.
+ *
+ * @param instance                  Instance number (input)
+ * @param combinedSizesIntegrals    sizes[0..R-1] followed by integrals[0..R-1] (input)
+ * @param requiredStorageSize       R, greater than 0 (input)
+ *
+ * @return BEAGLE_SUCCESS, BEAGLE_ERROR_GENERAL if combinedSizesIntegrals is NULL, or BEAGLE_ERROR_OUT_OF_RANGE if
+ * requiredStorageSize is not positive
+ */
+BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizes(const int instance,
+                                                    const double* combinedSizesIntegrals,
+                                                    const int requiredStorageSize);
+
+/**
+ * @brief Copy population sizes and integrals into a population-size buffer and make it current
+ *
+ * Copies 2 * requiredStorageSize values into buffer bufferIndex (0 or 1) and makes that buffer current: the
+ * proposal step of an MCMC store and restore.
+ *
+ * @param instance                  Instance number (input)
+ * @param combinedSizesIntegrals    sizes[0..R-1] followed by integrals[0..R-1] (input)
+ * @param requiredStorageSize       R, greater than 0 (input)
+ * @param bufferIndex               0 or 1 (input)
+ *
+ * @return BEAGLE_SUCCESS, BEAGLE_ERROR_GENERAL if combinedSizesIntegrals is NULL, or BEAGLE_ERROR_OUT_OF_RANGE if
+ * bufferIndex is not 0 or 1 or requiredStorageSize is not positive
+ */
+BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizesBuffer(const int instance,
+                                                          const double* combinedSizesIntegrals,
+                                                          const int requiredStorageSize,
+                                                          const int bufferIndex);
+
+/**
+ * @brief Make a population-size buffer current without copying anything
+ *
+ * The restore step of an MCMC store and restore. Calls that read population-size buffers use the buffer that is
+ * current when they are called.
+ *
+ * @param instance      Instance number (input)
+ * @param bufferIndex   0 or 1 (input)
+ *
+ * @return BEAGLE_SUCCESS, or BEAGLE_ERROR_OUT_OF_RANGE if bufferIndex is not 0 or 1
+ */
+BEAGLE_DLLEXPORT int beagleSetCurrentPopulationSizeBuffer(const int instance,
+                                                           const int bufferIndex);
+
 // END OF BASTA
 
 /* using C calling conventions so that C programs can successfully link the beagle library
