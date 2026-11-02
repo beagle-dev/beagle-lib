@@ -6,9 +6,10 @@ name: CI BIT
 on:
   push:
     branches:
-    - master
-    - basta  
-    - matrix_vector-tensor-cores
+    - main
+    - develop
+    - matrix_vector
+    - basta
   
 jobs:
   build:
