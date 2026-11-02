@@ -389,7 +389,7 @@ foreach(GPU_PLUGIN hmsbeagle-opencl hmsbeagle-opencl-spectral hmsbeagle-cuda hms
 endforeach()
 if(ALL_GPU_PLUGIN_DIRS)
 	string(REPLACE ";" ":" ALL_GPU_PLUGIN_DIRS "${ALL_GPU_PLUGIN_DIRS}")
-	foreach(GPU_TEST buffergrowthtest-gpu gpuspectraltest gpuspectraldensetest adjointtest4-gpu)
+	foreach(GPU_TEST buffergrowthtest-gpu gpuspectraltest gpuspectraldensetest adjointtest4-gpu bastav5test-gpu)
 		if(TEST ${GPU_TEST})
 			set_property(TEST ${GPU_TEST} APPEND PROPERTY ENVIRONMENT
 				"DYLD_LIBRARY_PATH=${ALL_GPU_PLUGIN_DIRS}" "LD_LIBRARY_PATH=${ALL_GPU_PLUGIN_DIRS}")
