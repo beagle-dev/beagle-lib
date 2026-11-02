@@ -1861,10 +1861,12 @@ BEAGLE_DLLEXPORT int beagleSetCurrentPopulationSizeBuffer(const int instance,
  *   also ignores eigenIndex, partialAdjointBufferBase and matrixAdjointBufferBase.
  * - Every call is checked before anything changes. BEAGLE_ERROR_OUT_OF_RANGE: an operation with intervalNumber
  *   outside [0, bufferLength of beagleAllocateBastaBuffers), a negative offset, an offset with p + stateCount >
- *   requiredStorageSize of the current buffer, two operations with the same intervalNumber and different offsets, or
- *   intervalStarts that do not index the operations. BEAGLE_ERROR_GENERAL: BASTA buffers not allocated, or no
- *   population sizes set in the current buffer. BEAGLE_ERROR_NO_IMPLEMENTATION: an instance in adjoint mode
- *   (beagleAllocateBastaGradBuffers with a negative count), and the cases below. A rejected call changes nothing.
+ *   requiredStorageSize of the current buffer, two operations with the same intervalNumber and different offsets,
+ *   intervalStarts that do not index the operations, or, on the CPU, a coalescentIndex outside [0, bufferCount of
+ *   beagleAllocateBastaBuffers). BEAGLE_ERROR_GENERAL: BASTA buffers not allocated, or no population sizes set in
+ *   the current buffer. BEAGLE_ERROR_NO_IMPLEMENTATION: an instance in adjoint mode (beagleAllocateBastaGradBuffers
+ *   with a negative count), on a GPU an instance after beagleUploadBastaSlabMetadata, and the cases below. A rejected
+ *   call changes nothing.
  * - Supported: on the CPU, the forward pass, the log likelihood and the legacy (forward-mode) gradient with respect
  *   to the rate matrix; on a GPU, the forward pass and the log likelihood, which rely on the operations of each
  *   interval carrying distinct intervalNumbers below intervalCount, as the 8-integer GPU functions do. Gradients on
