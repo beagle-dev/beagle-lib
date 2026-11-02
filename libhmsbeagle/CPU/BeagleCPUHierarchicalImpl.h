@@ -82,7 +82,21 @@ namespace beagle {
             int kGroupLanes;
             int kGroupOrder;
             unsigned long gFrequencyStamp;
-            bool kMayAggregate;
+            bool kMayAggregate = false;
+            int kAggregateMode = kHierarchicalAggregateOff;
+            bool kVerbose = false;
+            bool gClassesValid = false;
+            bool gAggregated = false;
+            unsigned long gTipStamp = 0;
+            unsigned long gClassTipStamp = 0;
+            int gClassTopology = -1;
+            unsigned long gClassFrequencyStamp = 0;
+            std::vector<HierarchicalClass<REALTYPE>> gClasses;
+            std::vector<int> gClassOfPattern;
+            std::vector<int> gPatternCapacity;
+            std::vector<size_t> gPatternOffset;
+            size_t gRaggedSize = 0;
+            std::vector<char> gTipPlanesEqual;
             std::vector<unsigned long> gFrequencyStamps;
             std::vector<std::vector<int>> gTopologyParents;
             std::vector<int> gTopologyIds;
@@ -120,6 +134,10 @@ namespace beagle {
             const double* nodeFrequencies(int frequencyIndex, const HierarchicalOps& ops);
             bool prZ0Ready(const HierarchicalSlot<REALTYPE>& slot);
             void preparePrZ0(const int* operations, int count, int numOps);
+            void invalidateClasses();
+            void observedSets(std::vector<int>& offsets, std::vector<int>& values);
+            void prepareClasses(const int* operations, int count, int numOps);
+            void refreshPiRed();
 
             void prepareTables(const int* operations, int count, int numOps);
 
@@ -253,8 +271,16 @@ namespace beagle {
                                long preferenceFlags,
                                long requirementFlags) override;
 
+            int setTipStates(int tipIndex,
+                             const int* inStates) override;
+
             int setTipPartials(int tipIndex,
                                const double* inPartials) override;
+
+            int setPatternWeights(const double* inPatternWeights) override;
+
+            int setPatternPartitions(int partitionCount,
+                                     const int* inPatternPartitions) override;
 
             int setPartials(int bufferIndex,
                             const double* inPartials) override;

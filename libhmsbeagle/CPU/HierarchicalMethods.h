@@ -43,6 +43,17 @@ const int kHierarchicalFusedMinPatterns = 1000;
 const size_t kHierarchicalTableBudget = 64 * 1024 * 1024;
 const int kHierarchicalAggregateMinStates = 9;
 const size_t kHierarchicalTopologyCacheSize = 8;
+const int kHierarchicalRaggedAlign = 8;
+
+inline double hierarchicalAggregateThreshold(int categoryCount) {
+    return categoryCount <= 1 ? 0.08 : (categoryCount <= 3 ? 0.15 : 0.25);
+}
+
+enum HierarchicalAggregateMode {
+    kHierarchicalAggregateOff = 0,
+    kHierarchicalAggregateOn = 1,
+    kHierarchicalAggregateAuto = 2
+};
 
 enum HierarchicalKernel {
     kHierarchicalKernelTiled = 0,
@@ -115,6 +126,23 @@ struct HierarchicalSlot {
     unsigned long prZ0FrequencyStamp = 0;
 };
 
+template <typename REALTYPE>
+struct HierarchicalReduced {
+    int stateCount = 0;
+    std::vector<int> localToFull;
+    std::vector<int> repOfRow;
+    std::vector<int> tipOf;
+    std::vector<REALTYPE> piRed;
+    HierarchicalOps ops;
+};
+
+template <typename REALTYPE>
+struct HierarchicalClass {
+    std::vector<int> observed;
+    int topologyId[2] = { -1, -1 };
+    HierarchicalReduced<REALTYPE> reduced[2];
+};
+
 inline int hierarchicalBundleLength(int stateCount, int categoryCount) {
     const int internalCount = stateCount - 1;
     return 1 + 6 * internalCount + categoryCount * (internalCount + stateCount);
@@ -164,6 +192,26 @@ void hierarchicalRecoverInternalPrZ0(const HierarchicalOps& ops,
                                      HierarchicalSlot<REALTYPE>& slot);
 
 inline void hierarchicalComputeMrca(HierarchicalOps& ops, int stateCount);
+
+template <typename REALTYPE>
+void hierarchicalClassify(const std::vector<int>& observedOffsets,
+                          const std::vector<int>& observedValues,
+                          int patternCount,
+                          std::vector<HierarchicalClass<REALTYPE>>& classes,
+                          std::vector<int>& classOfPattern);
+
+template <typename REALTYPE>
+void hierarchicalBuildReduced(const HierarchicalOps& full,
+                              int stateCount,
+                              const double* piNode,
+                              const std::vector<int>& observed,
+                              HierarchicalReduced<REALTYPE>& red);
+
+template <typename REALTYPE>
+void hierarchicalRowOfState(const HierarchicalOps& full,
+                            int stateCount,
+                            const HierarchicalReduced<REALTYPE>& red,
+                            std::vector<int>& rowOfState);
 
 inline void hierarchicalDetectShape(HierarchicalOps& ops, int stateCount);
 

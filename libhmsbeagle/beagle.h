@@ -247,6 +247,13 @@ enum BeagleFlags {
      *
      * Category rates are not applied to a bundle uploaded with beagleSetTransitionMatrix, which is already per
      * category; beagleSetCategoryWeights is required for the root likelihood on both paths.
+     *
+     * Aggregation of unobserved states: for each site pattern the CPU implementation may merge the states that no tip
+     * observes into clade blocks of the state tree, which is exact for the hierarchical model (the likelihood changes
+     * only by rounding). The environment variable BEAGLE_HRATE_AGGREGATE selects it: 0 never aggregates, 1 always
+     * does, and unset decides per instance (never for S <= 8 or where the fused kernel applies, otherwise when the
+     * summed reduced state count over the patterns is below a category-dependent fraction of K * S).
+     * BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
      */
     BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41
 };

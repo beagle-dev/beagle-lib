@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "libhmsbeagle/beagle.h"
@@ -272,6 +273,132 @@ int unpackHierarchicalBundle(const double* bundle,
     slot.set = true;
     slot.stamp++;
     return BEAGLE_SUCCESS;
+}
+
+struct HierarchicalObservedHash {
+    size_t operator()(const std::vector<int>& v) const {
+        size_t h = v.size();
+        for (int x : v)
+            h = h * 1000003u ^ (size_t) x;
+        return h;
+    }
+};
+
+template <typename REALTYPE>
+void hierarchicalClassify(const std::vector<int>& observedOffsets,
+                          const std::vector<int>& observedValues,
+                          int patternCount,
+                          std::vector<HierarchicalClass<REALTYPE>>& classes,
+                          std::vector<int>& classOfPattern) {
+    std::unordered_map<std::vector<int>, int, HierarchicalObservedHash> index;
+    classes.clear();
+    classOfPattern.assign(patternCount, -1);
+    std::vector<int> key;
+    for (int k = 0; k < patternCount; k++) {
+        key.assign(observedValues.begin() + observedOffsets[k], observedValues.begin() + observedOffsets[k + 1]);
+        auto found = index.find(key);
+        if (found == index.end()) {
+            found = index.emplace(key, (int) classes.size()).first;
+            classes.emplace_back();
+            classes.back().observed = key;
+        }
+        classOfPattern[k] = found->second;
+    }
+}
+
+template <typename REALTYPE>
+void hierarchicalBuildReduced(const HierarchicalOps& full,
+                              int stateCount,
+                              const double* piNode,
+                              const std::vector<int>& observed,
+                              HierarchicalReduced<REALTYPE>& red) {
+    const int S = stateCount, N = S - 1;
+    std::vector<int> left(2 * S - 1, -1);
+    for (int t = 0; t < N; t++)
+        left[full.postOps[3 * t]] = full.postOps[3 * t + 1];
+    std::vector<char> marked(2 * S - 1, 0), isObserved(S, 0);
+    for (int x : observed) {
+        isObserved[x] = 1;
+        for (int m = full.parentOf[x]; m >= 0 && !marked[m]; m = full.parentOf[m])
+            marked[m] = 1;
+    }
+    std::vector<int> tips(observed), internal;
+    for (int t = 0; t < N; t++) {
+        const int m = full.postOps[3 * t];
+        if (!marked[m])
+            continue;
+        internal.push_back(m);
+        for (int ci = 1; ci <= 2; ci++) {
+            const int ch = full.postOps[3 * t + ci];
+            if ((ch >= S && marked[ch]) || (ch < S && isObserved[ch]))
+                continue;
+            tips.push_back(ch);
+        }
+    }
+    if (internal.empty())
+        tips.assign(1, full.postOps[3 * (N - 1)]);
+    const int Sc = (int) tips.size();
+    red.stateCount = Sc;
+    red.localToFull = tips;
+    red.localToFull.insert(red.localToFull.end(), internal.begin(), internal.end());
+    std::vector<int> local(2 * S - 1, -1);
+    for (int i = 0; i < 2 * Sc - 1; i++)
+        local[red.localToFull[i]] = i;
+    red.ops = HierarchicalOps();
+    red.ops.postOps.resize(3 * (Sc - 1));
+    red.ops.preOps.resize(3 * (Sc - 1));
+    int t2 = 0;
+    for (int t = 0; t < N; t++) {
+        if (!marked[full.postOps[3 * t]])
+            continue;
+        for (int c = 0; c < 3; c++)
+            red.ops.postOps[3 * t2 + c] = local[full.postOps[3 * t + c]];
+        t2++;
+    }
+    for (int t = 0; t < Sc - 1; t++)
+        for (int c = 0; c < 3; c++)
+            red.ops.preOps[3 * t + c] = red.ops.postOps[3 * (Sc - 2 - t) + c];
+    hierarchicalParents(red.ops, Sc);
+    red.ops.topologyId = full.topologyId;
+    red.piRed.resize(Sc);
+    red.tipOf.resize(Sc);
+    red.repOfRow.resize(Sc);
+    for (int x = 0; x < Sc; x++) {
+        int c = tips[x];
+        red.piRed[x] = (REALTYPE) piNode[c];
+        red.tipOf[x] = c < S ? c : -1;
+        while (c >= S)
+            c = left[c];
+        red.repOfRow[x] = c;
+    }
+}
+
+template <typename REALTYPE>
+void hierarchicalRowOfState(const HierarchicalOps& full,
+                            int stateCount,
+                            const HierarchicalReduced<REALTYPE>& red,
+                            std::vector<int>& rowOfState) {
+    const int S = stateCount;
+    std::vector<int> left(2 * S - 1, -1), right(2 * S - 1, -1);
+    for (int t = 0; t < S - 1; t++) {
+        left[full.postOps[3 * t]] = full.postOps[3 * t + 1];
+        right[full.postOps[3 * t]] = full.postOps[3 * t + 2];
+    }
+    rowOfState.assign(S, -1);
+    std::vector<int> stack;
+    for (int x = 0; x < red.stateCount; x++) {
+        stack.assign(1, red.localToFull[x]);
+        while (!stack.empty()) {
+            const int m = stack.back();
+            stack.pop_back();
+            if (m < S) {
+                rowOfState[m] = x;
+            } else {
+                stack.push_back(left[m]);
+                stack.push_back(right[m]);
+            }
+        }
+    }
 }
 
 template <typename REALTYPE>

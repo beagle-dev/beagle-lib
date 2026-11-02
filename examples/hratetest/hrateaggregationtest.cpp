@@ -12,6 +12,8 @@
 using beagle::cpu::BeagleCPUHierarchicalImpl;
 using beagle::cpu::HierarchicalOps;
 using beagle::cpu::HierarchicalSlot;
+using beagle::cpu::HierarchicalClass;
+using beagle::cpu::HierarchicalReduced;
 
 static int checks = 0;
 static int failures = 0;
@@ -39,6 +41,19 @@ struct Probe : public Hier {
     bool ready(int i) { return this->prZ0Ready(this->gSlots[i]); }
     void prepare(const int* operations, int count) { this->preparePrZ0(operations, count, BEAGLE_OP_COUNT); }
     const double* piNode(int f, const HierarchicalOps& ops) { return this->nodeFrequencies(f, ops); }
+    void classes(const int* operations, int count) { this->prepareClasses(operations, count, BEAGLE_OP_COUNT); }
+    bool aggregated() const { return this->gAggregated; }
+    bool classesValid() const { return this->gClassesValid; }
+    const std::vector<HierarchicalClass<Real>>& classList() const { return this->gClasses; }
+    const std::vector<int>& classOf() const { return this->gClassOfPattern; }
+    const std::vector<int>& capacity() const { return this->gPatternCapacity; }
+    const std::vector<size_t>& offset() const { return this->gPatternOffset; }
+    size_t raggedSize() const { return this->gRaggedSize; }
+    int tipState(int t, int k) const { return this->gTipStates[t][k]; }
+    Real tipValue(int t, int l, int k, int i) const { return this->gPartials[t][this->pIdx(l, k, i)]; }
+    double weight(int k) const { return this->gPatternWeights[k]; }
+    int newOrder(int k) const { return this->gPatternsNewOrder[k]; }
+    int categories() const { return this->kCategoryCount; }
 };
 
 static std::vector<double> tipFrequencies(const StateTree& tree) {
@@ -212,6 +227,243 @@ static void instanceCase(const char* label, int S, const char* env, std::mt19937
            relDetail(internalError(h.slot(2), tree, rates, t)));
 }
 
+struct SparseData {
+    int S, K, stateTips, partialTips, C;
+    std::vector<std::vector<int>> states;
+    std::vector<std::vector<double>> partials;
+    std::vector<std::vector<double>> planes;
+};
+
+static SparseData makeSparse(int S, int K, int C, std::mt19937_64& rng) {
+    SparseData d{ S, K, 4, 3, C, {}, {}, {} };
+    std::uniform_real_distribution<double> unit(0.0, 1.0);
+    d.states.assign(d.stateTips, std::vector<int>(K));
+    d.partials.assign(d.partialTips, std::vector<double>((size_t) K * S, 0.0));
+    for (int k = 0; k < K; ++k) {
+        std::vector<int> pool;
+        const int n = 1 + (int) (rng() % 3);
+        for (int j = 0; j < n; ++j)
+            pool.push_back((int) (rng() % S));
+        const bool allGap = k == 3;
+        for (int t = 0; t < d.stateTips; ++t)
+            d.states[t][k] = (allGap || unit(rng) < 0.1) ? S + (int) (rng() % 3) : pool[rng() % pool.size()];
+        for (int t = 0; t < d.partialTips; ++t) {
+            double* col = d.partials[t].data() + (size_t) k * S;
+            const int kind = allGap ? 3 : (int) (rng() % 6);
+            if (kind == 0) {
+                col[pool[rng() % pool.size()]] = 1.0;
+            } else if (kind == 1) {
+                for (int x : pool)
+                    col[x] = 1.0;
+                col[(int) (rng() % S)] = 1.0;
+            } else if (kind == 2) {
+                for (int i = 0; i < S; ++i)
+                    col[i] = 0.5;
+            } else if (kind == 3) {
+                for (int i = 0; i < S; ++i)
+                    col[i] = 1.0;
+            } else if (kind == 5 && k % 5 == 0) {
+                for (int i = 0; i < S; ++i)
+                    col[i] = (rng() % 2) ? 0.1 + 0.01 * i : 0.0;
+            } else if (kind == 4 && k % 7 == 0) {
+                for (int i = 0; i < S; ++i)
+                    col[i] = 0.1 + unit(rng);
+            } else {
+                col[pool[0]] = 0.3;
+                col[pool.back()] = 0.9;
+            }
+        }
+    }
+    d.planes.assign(C, std::vector<double>((size_t) K * S, 0.0));
+    for (int l = 0; l < C; ++l)
+        for (int k = 0; k < K; ++k)
+            for (int i = 0; i < S; ++i)
+                d.planes[l][(size_t) k * S + i] = (k % 4 != 0 || i == (k + l) % S) ? 1.0 : 0.0;
+    return d;
+}
+
+template <typename Hier, typename Real>
+static size_t roundTripMismatches(Probe<Hier, Real>& h, const HierarchicalOps& ops, int S, int K, int tips) {
+    size_t bad = 0;
+    std::vector<int> rowOf;
+    std::vector<Real> col(S), red, back(S);
+    for (int k = 0; k < K; ++k) {
+        const HierarchicalReduced<Real>& r = h.classList()[h.classOf()[k]].reduced[0];
+        beagle::cpu::hierarchicalRowOfState(ops, S, r, rowOf);
+        for (int t = 0; t < tips; ++t) {
+            const int planes = t < 4 ? 1 : h.categories();
+            for (int l = 0; l < planes; ++l) {
+                for (int i = 0; i < S; ++i)
+                    col[i] = t < 4 ? ((h.tipState(t, k) >= S || h.tipState(t, k) == i) ? Real(1) : Real(0))
+                                   : h.tipValue(t, l, k, i);
+                red.resize(r.stateCount);
+                for (int x = 0; x < r.stateCount; ++x)
+                    red[x] = col[r.repOfRow[x]];
+                for (int i = 0; i < S; ++i)
+                    back[i] = red[rowOf[i]];
+                if (back != col)
+                    ++bad;
+            }
+        }
+    }
+    return bad;
+}
+
+template <typename Real, typename Hier>
+static void classCase(const char* label, int S, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s classes S=%d", label, S);
+    const std::string name(tag);
+    const int K = 60, C = 2, tips = 8;
+    SparseData d = makeSparse(S, K, C, rng);
+    setenv("BEAGLE_HRATE_AGGREGATE", "1", 1);
+    Probe<Hier, Real> h;
+    int rc = h.createInstance(tips, 2 * tips, 4, S, K, 2, 6, C, 0, 0, 0, 0, 0);
+    unsetenv("BEAGLE_HRATE_AGGREGATE");
+    StateTree tree = makeRandomTree(S, rng, 0.7);
+    ModelArrays model = modelArrays(tree);
+    std::vector<double> pi = tipFrequencies(tree), rates = { 0.5, 1.5 }, weights(K);
+    for (int k = 0; k < K; ++k)
+        weights[k] = 1.0 + k;
+    rc |= h.setStateFrequencies(0, pi.data()) | h.setCategoryRates(rates.data()) | h.setPatternWeights(weights.data()) |
+          h.setEigenDecomposition(0, model.vectors.data(), model.inverse.data(), model.values.data());
+    for (int t = 0; t < 4; ++t)
+        rc |= h.setTipStates(t, d.states[t].data());
+    for (int t = 0; t < 3; ++t)
+        rc |= h.setTipPartials(4 + t, d.partials[t].data());
+    std::vector<double> full((size_t) C * K * S);
+    for (int l = 0; l < C; ++l)
+        std::copy(d.planes[l].begin(), d.planes[l].end(), full.begin() + (size_t) l * K * S);
+    rc |= h.setPartials(7, full.data());
+    const int matrices[2] = { 0, 1 };
+    const double lengths[2] = { 0.2, 0.3 };
+    rc |= h.updateTransitionMatrices(0, matrices, NULL, NULL, lengths, 2);
+    if (rc != 0) {
+        report(name + " setup", false, "code " + std::to_string(rc));
+        return;
+    }
+    const int ops[7] = { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 };
+    h.classes(ops, 1);
+    const HierarchicalOps& full0 = h.modelOps(0);
+    report(name + " built and forced on", h.classesValid() && h.aggregated() && (int) h.classOf().size() == K, "");
+    report(name + " round trip of every tip column", roundTripMismatches(h, full0, S, K, tips) == 0,
+           std::to_string(roundTripMismatches(h, full0, S, K, tips)) + " columns differ");
+    const HierarchicalReduced<Real>& gap = h.classList()[h.classOf()[3]].reduced[0];
+    report(name + " all-gap pattern has S_c = 1", gap.stateCount == 1 && h.classList()[h.classOf()[3]].observed.empty(),
+           "S_c " + std::to_string(gap.stateCount));
+    bool fullClass = false;
+    for (int k = 0; k < K; k += 7)
+        fullClass = fullClass || h.classList()[h.classOf()[k]].reduced[0].stateCount == S;
+    report(name + " a non-constant column without zeros gives the full class", fullClass, "");
+
+    bool offsetsOk = h.offset().size() == (size_t) K + 1 && h.offset()[K] == h.raggedSize();
+    for (int k = 0; k < K && offsetsOk; ++k)
+        offsetsOk = h.offset()[k] % 8 == 0 && h.offset()[k + 1] >= h.offset()[k] + (size_t) C * h.capacity()[k] &&
+                    h.capacity()[k] == h.classList()[h.classOf()[k]].reduced[0].stateCount;
+    report(name + " ragged offsets", offsetsOk, "size " + std::to_string(h.raggedSize()));
+
+    const auto* before = h.classList().data();
+    h.classes(ops, 1);
+    report(name + " no rebuild without a change", h.classList().data() == before, "");
+
+    StateTree other = withFrequencies(tree, rng);
+    std::vector<double> otherPi = tipFrequencies(other);
+    h.setStateFrequencies(0, otherPi.data());
+    h.classes(ops, 1);
+    size_t piBad = 0;
+    for (const auto& c : h.classList())
+        for (int x = 0; x < c.reduced[0].stateCount; ++x)
+            if (c.reduced[0].piRed[x] != (Real) other.pi[c.reduced[0].localToFull[x]])
+                ++piBad;
+    report(name + " piRed follows frequency buffer 0", piBad == 0, std::to_string(piBad) + " rows differ");
+
+    std::vector<int> changed = d.states[0];
+    for (int k = 0; k < K; ++k)
+        changed[k] = (int) ((k * 5 + 1) % S);
+    h.setTipStates(0, changed.data());
+    h.classes(ops, 1);
+    report(name + " tip change rebuilds", roundTripMismatches(h, full0, S, K, tips) == 0 &&
+           h.classList()[h.classOf()[3]].observed.size() == 1, "");
+
+    std::vector<int> partitions(K);
+    for (int k = 0; k < K; ++k)
+        partitions[k] = (k * 7 + k / 5) % 3;
+    h.setPatternPartitions(3, partitions.data());
+    report(name + " reorder invalidates", !h.classesValid() && !h.aggregated(), "");
+    h.setTipStates(1, d.states[1].data());
+    h.setPatternWeights(weights.data());
+    bool permuted = true;
+    for (int k = 0; k < K; ++k) {
+        const int s = d.states[1][k];
+        permuted = permuted && h.tipState(1, h.newOrder(k)) == (s < S ? s : S) && h.weight(h.newOrder(k)) == weights[k];
+    }
+    report(name + " setTipStates and setPatternWeights after a reorder", permuted, "");
+    h.classes(ops, 1);
+    report(name + " round trip after a reorder", h.aggregated() && roundTripMismatches(h, full0, S, K, tips) == 0, "");
+
+    StateTree second = makeRandomTree(S, rng, 0.7);
+    ModelArrays secondModel = modelArrays(second);
+    h.setEigenDecomposition(1, secondModel.vectors.data(), secondModel.inverse.data(), secondModel.values.data());
+    const int matrix2 = 2;
+    h.updateTransitionMatrices(1, &matrix2, NULL, NULL, lengths, 1);
+    const int mixedOps[7] = { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 2 };
+    h.classes(mixedOps, 1);
+    report(name + " two topologies in one call turn it off", !h.aggregated() && !h.classesValid(), "");
+    const int secondOps[7] = { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 2, 1, 2 };
+    h.classes(secondOps, 1);
+    report(name + " a single new topology rebuilds", h.aggregated() &&
+           roundTripMismatches(h, h.modelOps(1), S, K, tips) == 0, "");
+}
+
+template <typename Real, typename Hier>
+static void ruleCase(const char* label, int S, int K, const char* env, const char* kernel, bool expectMay,
+                     std::mt19937_64& rng) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "%s rule S=%d K=%d AGGREGATE=%s KERNEL=%s", label, S, K, env ? env : "unset",
+             kernel ? kernel : "default");
+    const std::string name(tag);
+    if (env)
+        setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+    if (kernel)
+        setenv("BEAGLE_HRATE_KERNEL", kernel, 1);
+    Probe<Hier, Real> h;
+    int rc = h.createInstance(4, 8, 4, S, K, 1, 4, 1, 0, 0, 0, 0, 0);
+    unsetenv("BEAGLE_HRATE_AGGREGATE");
+    unsetenv("BEAGLE_HRATE_KERNEL");
+    report(name, rc == 0 && h.mayAggregate() == expectMay, expectMay ? "expected may" : "expected off");
+    if (rc != 0 || !expectMay)
+        return;
+    StateTree tree = makeShapedTree(S, false, rng, 0.7);
+    ModelArrays model = modelArrays(tree);
+    std::vector<double> pi = tipFrequencies(tree), rates = { 1.0 };
+    h.setStateFrequencies(0, pi.data());
+    h.setCategoryRates(rates.data());
+    h.setEigenDecomposition(0, model.vectors.data(), model.inverse.data(), model.values.data());
+    const int matrices[2] = { 0, 1 };
+    const double lengths[2] = { 0.2, 0.3 };
+    h.updateTransitionMatrices(0, matrices, NULL, NULL, lengths, 2);
+    std::vector<int> sparse(K, 0), dense(K);
+    for (int t = 0; t < 4; ++t) {
+        for (int k = 0; k < K; ++k)
+            dense[k] = (int) (rng() % S);
+        h.setTipStates(t, dense.data());
+    }
+    const int ops[7] = { 5, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 1 };
+    h.classes(ops, 1);
+    const bool forced = env && std::string(env) == "1";
+    const bool denseDecision = h.aggregated();
+    for (int t = 0; t < 4; ++t)
+        h.setTipStates(t, sparse.data());
+    h.classes(ops, 1);
+    const bool sparseDecision = h.aggregated();
+    if (forced)
+        report(name + " forced on for dense and sparse data", denseDecision && sparseDecision, "");
+    else if (S >= 256)
+        report(name + " decision follows r", !denseDecision && sparseDecision, "");
+    else
+        report(name + " r above the threshold at C = 1 keeps it off", !denseDecision && !sparseDecision, "");
+}
+
 int main() {
     std::mt19937_64 rng(20261101);
     const int stateCounts[5] = { 4, 8, 9, 17, 61 };
@@ -221,6 +473,20 @@ int main() {
             instanceCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, env, rng);
             instanceCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, env, rng);
         }
+    for (int S : { 9, 17, 61 }) {
+        classCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, rng);
+        classCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, rng);
+    }
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, NULL, NULL, false, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, NULL, true, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, "1", NULL, true, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, "0", NULL, false, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 1200, NULL, NULL, false, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 1200, NULL, "tiled", true, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, "fused", false, rng);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 256, 1200, NULL, NULL, true, rng);
+    ruleCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", 256, 200, NULL, NULL, true, rng);
     printf("%d of %d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
 }
