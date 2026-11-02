@@ -2140,7 +2140,8 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
 													int start,
                                                     int numOps,
-                                                    int totalPatterns) {
+                                                    int totalPatterns,
+                                                    int sizesStride) {
 
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
@@ -2197,7 +2198,8 @@ KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_
 	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
 		accumulation1[state] = sum1;
 		accumulation2[state] = sum2;
-		REAL popSize = sizes[state];
+		// sizesStride 0: one row of sizes for every interval (8-integer operations); _v5: one row per intervalNumber
+		REAL popSize = sizes[intervalNumber * sizesStride + state];
 		if (popSize > 0) {
             partials3[state] = sum1 * sum2 / popSize;
         } else {
@@ -2849,6 +2851,48 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
         REAL pass1Val = 0;
         if (intervalNumber < intervalCount && sizes[state] > 0) {
             pass1Val = (e[u] * e[u] - f[u] + g[u] * g[u] - h[u]) * distance[intervalNumber] / sizes[state];
+        }
+
+        REAL pass2Val = 0;
+        if (tidTotal < intervalCount && coalescent[tidTotal] > 0) {
+            pass2Val = log(coalescent[tidTotal]);
+        }
+
+        REAL result = bastaReduceAcrossTwoPasses(sPartials1, pass1Val, pass2Val, tid);
+
+        if (tid == 0) {
+            dLogL[KW_GROUP_ID_0] = result;
+        }
+    }
+
+// _v5 (9-integer operations): integrals holds a row per intervalNumber, the integral of 1/N over the interval for each
+// state (the interval length included), in place of distance / sizes
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval_v5(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT integrals,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+													int intervalStartsCount,
+													int kCoalescentBufferLength) {
+
+
+        int intervalCount = intervalStartsCount - 1;
+        int tid = KW_LOCAL_ID_0;
+        int tidTotal = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
+        int state = tid % PADDED_STATE_COUNT;
+        int intervalIdx = tid / PADDED_STATE_COUNT;
+        int intervalNumber = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
+        int u = state + intervalNumber * PADDED_STATE_COUNT;
+
+	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+
+        KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
+
+        REAL pass1Val = 0;
+        if (intervalNumber < intervalCount && integrals[u] > 0) {
+            pass1Val = (e[u] * e[u] - f[u] + g[u] * g[u] - h[u]) * integrals[u];
         }
 
         REAL pass2Val = 0;

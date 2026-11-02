@@ -133,6 +133,7 @@ private:
 	GPUFunction fReduceWithinIntervalMerged;
 	GPUFunction fReduceWithinIntervalMergedSlab;
 	GPUFunction fReduceAcrossInterval;
+	GPUFunction fReduceAcrossInterval_v5;
     GPUFunction fReorderPatterns;
 
 	GPUFunction fComputeHazardAdjoints;
@@ -858,10 +859,18 @@ public:
                   GPUPtr dPatternWeights,
                   unsigned int patternCount);
 
+	// sizesStride 0: sizes is one row for every operation (8-integer operations); _v5: a row per intervalNumber, sizesStride
+	// apart
 	void InnerBastaPartialsCoalescent(GPUPtr partials, GPUPtr matrices,
-	GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int start, unsigned int numOps, unsigned int patternCount);
+	GPUPtr operations, GPUPtr sizes, GPUPtr coalescent, unsigned int start, unsigned int numOps, unsigned int patternCount,
+	unsigned int sizesStride = 0);
 
     void reduceAcrossIntervals(GPUPtr dBastaMemory, GPUPtr distance, GPUPtr dLogL, GPUPtr sizes, GPUPtr coalescent, unsigned int intervalNUmber, unsigned int kCoalescentBufferLength);
+
+    // _v5: integrals is a row per intervalNumber (the integral of 1/N over the interval, length included) in place of
+    // distance and sizes
+    void reduceAcrossIntervals_v5(GPUPtr dBastaMemory, GPUPtr integrals, GPUPtr dLogL, GPUPtr coalescent,
+                                  unsigned int intervalStartsCount, unsigned int kCoalescentBufferLength);
 
     void SetupKernelBlocksAndGrids();
     void reduceWithinIntervalMerged(GPUPtr operations, GPUPtr partials, GPUPtr dBastaMemory, unsigned int numOps, unsigned int start, unsigned int end, unsigned int numBlocks, unsigned int kCoalescentBufferLength);
