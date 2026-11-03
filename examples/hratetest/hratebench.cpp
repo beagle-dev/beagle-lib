@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,8 @@ struct Options {
     int group = 0;
     std::string order;
     int tile = 0;
+    int sparse = 0;
+    bool categoriesSet = false;
 };
 
 struct Problem {
@@ -135,11 +138,28 @@ static Problem makeProblem(const Options& o) {
     for (int k = 0; k < K; ++k)
         ancestor[k] = state(rng);
     pr.tipStates.assign(N, std::vector<int>(K));
-    for (int t = 0; t < N; ++t)
+    if (o.sparse > 0) {
+        const int width = std::min(o.sparse, S);
+        std::vector<int> all(S), pool(width);
+        for (int x = 0; x < S; ++x)
+            all[x] = x;
+        std::uniform_int_distribution<int> member(0, width - 1);
         for (int k = 0; k < K; ++k) {
-            double u = unit(rng);
-            pr.tipStates[t][k] = u < 0.05 ? S : (u < 0.6 ? ancestor[k] : state(rng));
+            for (int i = 0; i < width; ++i) {
+                std::uniform_int_distribution<int> pick(i, S - 1);
+                std::swap(all[i], all[pick(rng)]);
+                pool[i] = all[i];
+            }
+            for (int t = 0; t < N; ++t)
+                pr.tipStates[t][k] = unit(rng) < 0.05 ? S : pool[member(rng)];
         }
+    } else {
+        for (int t = 0; t < N; ++t)
+            for (int k = 0; k < K; ++k) {
+                double u = unit(rng);
+                pr.tipStates[t][k] = u < 0.05 ? S : (u < 0.6 ? ancestor[k] : state(rng));
+            }
+    }
 
     pr.nodes = 2 * N - 1;
     pr.root = pr.nodes - 1;
@@ -232,10 +252,29 @@ static bool loadProblem(Options& o, Problem& pr) {
     fclose(f);
     pr.rates.assign(1, 1.0);
     pr.weights.assign(1, 1.0);
+    if (o.categoriesSet && o.categories > 1) {
+        std::mt19937_64 rng(o.seed);
+        std::gamma_distribution<double> gamma(0.5, 2.0);
+        std::uniform_real_distribution<double> weight(0.2, 1.0);
+        const int C = o.categories;
+        pr.rates.clear();
+        pr.weights.clear();
+        double mean = 0.0, total = 0.0;
+        for (int l = 0; l < C; ++l) {
+            pr.rates.push_back(gamma(rng) + 0.01);
+            mean += pr.rates.back() / C;
+        }
+        for (double& r : pr.rates)
+            r /= mean;
+        for (int l = 0; l < C; ++l)
+            total += pr.weights.emplace_back(weight(rng));
+        for (double& w : pr.weights)
+            w /= total;
+    }
     o.states = S;
     o.tips = N;
     o.patterns = K;
-    o.categories = 1;
+    o.categories = (int) pr.rates.size();
     o.statetree = "loaded";
     return true;
 }
@@ -342,6 +381,40 @@ static long scalingFlags(const std::string& s) {
     if (s == "always")
         return BEAGLE_FLAG_SCALING_ALWAYS;
     return 0;
+}
+
+struct ClassStats {
+    size_t classes = 0;
+    double meanSc = 0.0, r = 0.0;
+};
+
+static ClassStats classStats(const Problem& pr, int S, int K) {
+    ClassStats cs;
+    std::set<std::vector<int>> keys;
+    std::vector<char> marked(2 * S - 1);
+    std::vector<int> observed;
+    double sum = 0.0;
+    for (int k = 0; k < K; ++k) {
+        observed.clear();
+        for (const auto& tip : pr.tipStates)
+            if (tip[k] < S)
+                observed.push_back(tip[k]);
+        std::sort(observed.begin(), observed.end());
+        observed.erase(std::unique(observed.begin(), observed.end()), observed.end());
+        std::fill(marked.begin(), marked.end(), 0);
+        int Sc = 1;
+        for (int x : observed)
+            for (int m = pr.tree.parent[x]; m >= 0 && !marked[m]; m = pr.tree.parent[m]) {
+                marked[m] = 1;
+                Sc++;
+            }
+        sum += Sc;
+        keys.insert(observed);
+    }
+    cs.classes = keys.size();
+    cs.meanSc = sum / K;
+    cs.r = sum / ((double) K * S);
+    return cs;
 }
 
 static uint64_t fnv(uint64_t h, const void* data, size_t n) {
@@ -610,7 +683,7 @@ static const char* kHeader =
     "version,implementation,impl,vector,precision,states,patterns,padded,categories,tips,ops,tipdata,phylo,"
     "statetree,seed,threads,threadmode,partitions,scaling,tile,reps,first_ms,set_us_med,up_ms_min,up_ms_med,"
     "up_ms_p25,up_ms_p75,scale_ms_med,root_ms_min,root_ms_med,maxrss_mb,lnL,check_lnL,check_maxdiff,"
-    "check_maxrel,partials_sha,pre_ms,grad_ms,kernel";
+    "check_maxrel,partials_sha,pre_ms,grad_ms,kernel,sparse,aggregate,classes,sc_mean,r";
 
 static void usage() {
     fprintf(stderr,
@@ -618,7 +691,7 @@ static void usage() {
             "                  [--states S] [--patterns K] [--categories C] [--tips N] [--tipdata partials|states]\n"
             "                  [--statetree random|star|balanced|caterpillar] [--kernel tiled|shape|dense|fused] [--group G] [--order category|group] [--tile T] [--lambda m] [--lengths D] [--seed n]\n"
             "                  [--threads T] [--threadmode none|auto] [--scaling none|manual|always]\n"
-            "                  [--warmup W] [--minreps R] [--budget s] [--check] [--reps-out FILE] [--load FILE]\n"
+            "                  [--warmup W] [--minreps R] [--budget s] [--check] [--reps-out FILE] [--load FILE] [--sparse k]\n"
             "                  [--header]\n");
 }
 
@@ -641,7 +714,10 @@ int main(int argc, char** argv) {
         else if (a == "--precision") o.precision = next();
         else if (a == "--states") o.states = atoi(next());
         else if (a == "--patterns") o.patterns = atoi(next());
-        else if (a == "--categories") o.categories = atoi(next());
+        else if (a == "--categories") {
+            o.categories = atoi(next());
+            o.categoriesSet = true;
+        }
         else if (a == "--tips") o.tips = atoi(next());
         else if (a == "--tipdata") o.tipdata = next();
         else if (a == "--statetree") o.statetree = next();
@@ -663,6 +739,7 @@ int main(int argc, char** argv) {
         else if (a == "--group") o.group = atoi(next());
         else if (a == "--order") o.order = next();
         else if (a == "--tile") o.tile = atoi(next());
+        else if (a == "--sparse") o.sparse = atoi(next());
         else {
             usage();
             return 2;
@@ -681,7 +758,7 @@ int main(int argc, char** argv) {
         (!o.order.empty() && o.order != "category" && o.order != "group") ||
         (o.threadmode != "none" && o.threadmode != "auto") ||
         (o.scaling != "none" && o.scaling != "manual" && o.scaling != "always") || o.states < 2 || o.tips < 2 ||
-        o.patterns < 1 || o.categories < 1) {
+        o.patterns < 1 || o.categories < 1 || o.sparse < 0) {
         usage();
         return 2;
     }
@@ -878,6 +955,9 @@ int main(int argc, char** argv) {
         }
     }
 
+    const char* aggregateEnv = getenv("BEAGLE_HRATE_AGGREGATE");
+    const std::string aggregateName = !hierarchical ? "" : (aggregateEnv ? aggregateEnv : "auto");
+    const ClassStats cs = classStats(pr, o.states, o.patterns);
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     double maxrssMb = ru.ru_maxrss / 1048576.0;
@@ -896,7 +976,8 @@ int main(int argc, char** argv) {
         num(tm.firstMs), num(quantile(tm.set, 0.5)), num(minimum(tm.up)), num(quantile(tm.up, 0.5)),
         num(quantile(tm.up, 0.25)), num(quantile(tm.up, 0.75)), num(quantile(tm.scale, 0.5)),
         num(minimum(tm.root)), num(quantile(tm.root, 0.5)), num(maxrssMb, "%.1f"), num(tm.lnL, "%.10f"),
-        num(checkLnL, "%.10f"), num(maxdiff, "%.3g"), num(maxrel, "%.3g"), haveSha ? shaBuf : "", "", "", kernelName
+        num(checkLnL, "%.10f"), num(maxdiff, "%.3g"), num(maxrel, "%.3g"), haveSha ? shaBuf : "", "", "", kernelName,
+        std::to_string(o.sparse), aggregateName, std::to_string(cs.classes), num(cs.meanSc, "%.4g"), num(cs.r, "%.4g")
     };
     std::string line;
     for (size_t i = 0; i < cols.size(); ++i) {
