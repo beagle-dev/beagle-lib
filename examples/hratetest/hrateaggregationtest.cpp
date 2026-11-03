@@ -143,8 +143,12 @@ static void instanceCase(const char* label, int S, const char* env, std::mt19937
         report(name + " create", false, "code " + std::to_string(rc));
         return;
     }
-    const bool may = (env && std::string(env) == "1") || (!env && S >= 9);
+    const char* kernel = getenv("BEAGLE_HRATE_KERNEL");
+    const bool fused = kernel != NULL && std::string(kernel) == "fused";
+    const bool may = (env && std::string(env) == "1") || (!env && S >= 9 && !fused);
     report(name + " may aggregate", h.mayAggregate() == may, may ? "expected true" : "expected false");
+    if (h.mayAggregate() != may)
+        return;
 
     StateTree tree = makeRandomTree(S, rng, 0.7);
     ModelArrays model = modelArrays(tree);
@@ -606,7 +610,7 @@ static void entryCase(const char* label, int S, bool partitioned, std::mt19937_6
         report(name + " setup", false, "codes " + std::to_string(a.rc) + " " + std::to_string(b.rc));
         return;
     }
-    report(name + " ragged root used only when forced", b.h.raggedLive(14) && !a.h.raggedLive(14) && b.h.aggregated(),
+    report(name + " ragged root used when aggregated", b.h.raggedLive(14) && !a.h.raggedLive(14) && b.h.aggregated(),
            "");
     double dl = std::fabs(logLB - logLA) / std::fabs(logLA);
     for (int p = 0; partitioned && p < 3; ++p)
@@ -673,9 +677,60 @@ static void entryCase(const char* label, int S, bool partitioned, std::mt19937_6
     report(name + " setRootPrePartials writes piNode per row, getPartials stays dense", preBad == 0,
            std::to_string(preBad) + " values differ");
 
+    std::vector<double> newWeights(K);
+    for (int k = 0; k < K; ++k)
+        newWeights[k] = 0.5 + (k * 3) % 7;
+    a.rc |= a.h.setPatternWeights(newWeights.data());
+    b.rc |= b.h.setPatternWeights(newWeights.data());
+    const double logLWA = entryEvaluate(a, partitioned, 0, partsA);
+    const double logLWB = entryEvaluate(b, partitioned, 0, partsB);
+    const double dlw = std::fabs(logLWB - logLWA) / std::fabs(logLWA);
+    report(name + " setPatternWeights after the first evaluation", dlw <= tolL && logLWA != logLA, relDetail(dlw));
+
+    StateTree secondTree = makeRandomTree(S, rng, 0.7);
+    ModelArrays second = modelArrays(secondTree);
+    const int matrix13 = 13;
+    const double length13 = 0.05 + 0.03 * 13;
+    for (EntryRun<Hier, Real>* run : { &a, &b }) {
+        run->rc |= run->h.setEigenDecomposition(1, second.vectors.data(), second.inverse.data(), second.values.data());
+        run->rc |= run->h.updateTransitionMatrices(1, &matrix13, NULL, NULL, &length13, 1);
+    }
+    const int rootOp[7] = { 14, 6, BEAGLE_OP_NONE, 12, 12, 13, 13 };
+    const int offOps[14] = { 12, 4, BEAGLE_OP_NONE, 8, 8, 9, 9, 14, 6, BEAGLE_OP_NONE, 12, 12, 13, 13 };
+    const int matrix8 = 8;
+    const double length8 = 0.7;
+    for (EntryRun<Hier, Real>* run : { &a, &b }) {
+        run->rc |= run->h.updateTransitionMatrices(0, &matrix8, NULL, NULL, &length8, 1);
+        run->rc |= run->h.updatePartials(offOps, 2, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+    }
+    double dpe = maxRel(entryPartials(b, 14, BEAGLE_OP_NONE, S, K, C), entryPartials(a, 14, BEAGLE_OP_NONE, S, K, C));
+    for (int n = 8; n < 14; ++n)
+        dpe = std::max(dpe, maxRel(entryPartials(b, n, BEAGLE_OP_NONE, S, K, C),
+                                   entryPartials(a, n, BEAGLE_OP_NONE, S, K, C)));
+    report(name + " turning aggregation off expands the buffers", a.rc == 0 && b.rc == 0 && !b.h.aggregated() &&
+           !b.h.raggedLive(12) && dpe <= tolP, relDetail(dpe));
+    for (EntryRun<Hier, Real>* run : { &a, &b })
+        run->rc |= run->h.updateTransitionMatrices(0, &matrix13, NULL, NULL, &length13, 1);
+    a.rc |= a.h.updatePartials(rootOp, 1, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+    b.rc |= b.h.updatePartials(rootOp, 1, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+    const double dpc = maxRel(entryPartials(b, 14, BEAGLE_OP_NONE, S, K, C),
+                              entryPartials(a, 14, BEAGLE_OP_NONE, S, K, C));
+    size_t childBad = 0;
+    for (int n : { 12, 13 })
+        for (int k = 0; k < K; ++k) {
+            const HierarchicalReduced<Real>& r = b.h.classList()[b.h.classOf()[k]].reduced[0];
+            for (int x = 0; x < r.stateCount; ++x)
+                for (int l = 0; l < C; ++l)
+                    if (b.h.ragged(n)[b.h.offset()[k] + x * C + l] != b.h.denseValue(n, l, k, r.repOfRow[x]))
+                        ++childBad;
+        }
+    report(name + " turning it back on compresses the dense children", a.rc == 0 && b.rc == 0 && b.h.aggregated() &&
+           b.h.raggedLive(12) && b.h.raggedLive(14) && childBad == 0 && dpc <= tolP, relDetail(dpc));
+
     std::vector<int> changed = d.states[0];
     for (int k = 0; k < K; ++k)
         changed[k] = (int) ((k * 5 + 1) % S);
+    entryEvaluate(b, partitioned, 0, partsB);
     a.rc |= a.h.setTipStates(0, changed.data());
     b.rc |= b.h.setTipStates(0, changed.data());
     const unsigned long generation = b.h.classGeneration();
@@ -703,9 +758,10 @@ static void autoEntryCase(const char* label, std::mt19937_64& rng) {
     entrySetup(b, "auto", S, K, C, d, tree, other, false);
     const double logLA = entryEvaluate(a, false, 0, NULL);
     const double logLB = entryEvaluate(b, false, 0, NULL);
-    const bool samePartials = entryPartials(a, 14, 7, S, K, C) == entryPartials(b, 14, 7, S, K, C);
-    report(name + " decides on but keeps the dense path bitwise", a.rc == 0 && b.rc == 0 && b.h.aggregated() &&
-           !b.h.raggedLive(14) && logLA == logLB && samePartials, "");
+    const double dl = std::fabs(logLB - logLA) / std::fabs(logLA);
+    const double dp = maxRel(entryPartials(b, 14, 7, S, K, C), entryPartials(a, 14, 7, S, K, C));
+    report(name + " aggregates", a.rc == 0 && b.rc == 0 && b.h.aggregated() && b.h.raggedLive(14) &&
+           !a.h.raggedLive(14) && dl <= 1e-13 && dp <= 1e-12, relDetail(std::max(dl, dp)));
 }
 
 int main() {

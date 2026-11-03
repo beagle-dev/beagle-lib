@@ -143,11 +143,11 @@ namespace beagle {
             const double* nodeFrequencies(int frequencyIndex, const HierarchicalOps& ops);
             bool prZ0Ready(const HierarchicalSlot<REALTYPE>& slot);
             void preparePrZ0(const int* operations, int count, int numOps);
-            void invalidateClasses();
+            void invalidateClasses(bool expand);
+            void expandRagged();
             void observedSets(std::vector<int>& offsets, std::vector<int>& values);
             void prepareClasses(const int* operations, int count, int numOps);
             void refreshPiRed();
-            bool raggedActive() const;
             REALTYPE* ensureRagged(int bufferIndex);
             bool raggedReady(int bufferIndex) const;
             void compressRange(const REALTYPE* dense, REALTYPE* ragged, int startPattern, int endPattern);
@@ -259,6 +259,29 @@ namespace beagle {
                             int category,
                             int k0,
                             int k1);
+
+            void finishPattern(REALTYPE* dest,
+                               int n,
+                               int rescale,
+                               const REALTYPE* fixedScaleFactors,
+                               REALTYPE* scaleFactors,
+                               REALTYPE* cumulativeScaleFactors,
+                               int k);
+
+            void aggregatedPartials(int parIndex,
+                                    int child1Index,
+                                    const int* states1,
+                                    const HierarchicalSlot<REALTYPE>& slot1,
+                                    bool singleChild,
+                                    int child2Index,
+                                    const int* states2,
+                                    const HierarchicalSlot<REALTYPE>* slot2,
+                                    int rescale,
+                                    const REALTYPE* fixedScaleFactors,
+                                    REALTYPE* scaleFactors,
+                                    REALTYPE* cumulativeScaleFactors,
+                                    int startPattern,
+                                    int endPattern);
 
             void rescaleRange(REALTYPE* destP,
                               REALTYPE* scaleFactors,

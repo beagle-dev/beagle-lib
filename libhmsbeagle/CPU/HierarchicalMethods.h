@@ -213,6 +213,17 @@ void hierarchicalRowOfState(const HierarchicalOps& full,
                             const HierarchicalReduced<REALTYPE>& red,
                             std::vector<int>& rowOfState);
 
+template <bool Multiply, typename REALTYPE>
+void hierarchicalLaneSweep(const HierarchicalSlot<REALTYPE>& slot,
+                           const HierarchicalReduced<REALTYPE>& red,
+                           int stateCount,
+                           int categoryCount,
+                           int state,
+                           const REALTYPE* childRows,
+                           REALTYPE* __restrict__ dest,
+                           REALTYPE* __restrict__ W,
+                           REALTYPE* __restrict__ V);
+
 inline void hierarchicalDetectShape(HierarchicalOps& ops, int stateCount);
 
 template <typename REALTYPE>

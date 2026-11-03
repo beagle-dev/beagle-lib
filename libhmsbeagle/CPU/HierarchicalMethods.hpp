@@ -401,6 +401,73 @@ void hierarchicalRowOfState(const HierarchicalOps& full,
     }
 }
 
+template <bool Multiply, typename REALTYPE>
+void hierarchicalLaneSweep(const HierarchicalSlot<REALTYPE>& slot,
+                           const HierarchicalReduced<REALTYPE>& red,
+                           int stateCount,
+                           int categoryCount,
+                           int state,
+                           const REALTYPE* childRows,
+                           REALTYPE* __restrict__ dest,
+                           REALTYPE* __restrict__ W,
+                           REALTYPE* __restrict__ V) {
+    const int S = stateCount, C = categoryCount, Sc = red.stateCount, n = Sc - 1, nFull = S - 1;
+    const int fullBlock = hierarchicalBlockLength(S);
+    const REALTYPE* H0 = slot.values.data();
+    const REALTYPE* zInt0 = slot.prZ0Internal.data();
+    const int* post = red.ops.postOps.data();
+    const int* pre = red.ops.preOps.data();
+    const int* l2f = red.localToFull.data();
+    const int* tipOf = red.tipOf.data();
+    const REALTYPE* pi = red.piRed.data();
+    auto tip = [&](int x, int l) -> REALTYPE {
+        if (childRows != NULL)
+            return childRows[(size_t) x * C + l];
+        return (state == tipOf[x] || state >= S) ? REALTYPE(1) : REALTYPE(0);
+    };
+    for (int t = 0; t < n; t++) {
+        const int p = post[3 * t] - Sc, a = post[3 * t + 1], b = post[3 * t + 2];
+        REALTYPE* w = W + (size_t) p * C;
+        if (a < Sc && b < Sc)
+            for (int l = 0; l < C; l++)
+                w[l] = pi[a] * tip(a, l) + pi[b] * tip(b, l);
+        else if (a < Sc)
+            for (int l = 0; l < C; l++)
+                w[l] = pi[a] * tip(a, l) + W[(size_t) (b - Sc) * C + l];
+        else if (b < Sc)
+            for (int l = 0; l < C; l++)
+                w[l] = pi[b] * tip(b, l) + W[(size_t) (a - Sc) * C + l];
+        else
+            for (int l = 0; l < C; l++)
+                w[l] = W[(size_t) (a - Sc) * C + l] + W[(size_t) (b - Sc) * C + l];
+    }
+    const int root = pre[0] - Sc;
+    const int fr = l2f[Sc + root] - S;
+    for (int l = 0; l < C; l++)
+        V[(size_t) root * C + l] = H0[(size_t) l * fullBlock + fr] * W[(size_t) root * C + l];
+    for (int t = 0; t < n; t++) {
+        const REALTYPE* v = V + (size_t) (pre[3 * t] - Sc) * C;
+        for (int ci = 1; ci <= 2; ci++) {
+            const int child = pre[3 * t + ci];
+            if (child < Sc) {
+                const int f = l2f[child];
+                REALTYPE* out = dest + (size_t) child * C;
+                for (int l = 0; l < C; l++) {
+                    const REALTYPE z = f < S ? H0[(size_t) l * fullBlock + nFull + f]
+                                             : zInt0[(size_t) l * nFull + f - S];
+                    const REALTYPE val = v[l] + z * tip(child, l);
+                    out[l] = Multiply ? out[l] * val : val;
+                }
+            } else {
+                const int i = child - Sc;
+                const int fm = l2f[child] - S;
+                for (int l = 0; l < C; l++)
+                    V[(size_t) i * C + l] = v[l] + H0[(size_t) l * fullBlock + fm] * W[(size_t) i * C + l];
+            }
+        }
+    }
+}
+
 template <typename REALTYPE>
 void hierarchicalTransitionMatrices(const HierarchicalSlot<REALTYPE>& slot,
                                     const REALTYPE* pi,

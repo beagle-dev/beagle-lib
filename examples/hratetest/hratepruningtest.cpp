@@ -44,6 +44,7 @@ struct Variant {
     Scaling scaling = Scaling::None;
     bool reencode = false;
     bool reread = false;
+    bool oneHotTips = false;
 };
 
 struct Problem {
@@ -58,6 +59,8 @@ struct Problem {
     std::vector<double> edge;
     std::vector<BeagleOperation> ops;
     std::vector<int> partitionOf;
+    std::vector<std::vector<double>> tipPartials;
+    bool sparse = false;
     const StateTree& treeOf(int n) const {
         return branchTrees.empty() ? stateTree : branchTrees[n % branchTrees.size()];
     }
@@ -132,6 +135,38 @@ static Problem makeProblem(bool dp, int S, int C, int P, std::mt19937_64& rng) {
     return pr;
 }
 
+static Problem makeSparseProblem(bool dp, int S, int C, int P, std::mt19937_64& rng) {
+    Problem pr = makeProblem(dp, S, C, P, rng);
+    pr.sparse = true;
+    pr.label = " sparse";
+    std::uniform_real_distribution<double> unit(0.0, 1.0);
+    for (int k = 0; k < P; ++k) {
+        std::vector<int> pool;
+        const int n = 1 + (int) (rng() % 4);
+        for (int j = 0; j < n; ++j)
+            pool.push_back((int) (rng() % S));
+        for (int t = 0; t < kTips; ++t)
+            pr.tipStates[t][k] = (k == 0 || unit(rng) < 0.08) ? S : pool[rng() % pool.size()];
+    }
+    pr.tipPartials.resize(kTips);
+    for (int t = 0; t < kTips; ++t)
+        pr.tipPartials[t] = partialsFromStates(pr.tipStates[t], S);
+    for (int k = 0; k < P; ++k) {
+        if (k % 11 == 5)
+            for (int t = 0; t < kTips; ++t)
+                for (int i = 0; i < S; ++i)
+                    pr.tipPartials[t][(size_t) k * S + i] = 0.5;
+        if (k % 13 == 7) {
+            double* col = pr.tipPartials[0].data() + (size_t) k * S;
+            for (int i = 0; i < S; ++i)
+                col[i] = 0.0;
+            col[pr.tipStates[1][k] < S ? pr.tipStates[1][k] : 0] = 1.0;
+            col[(int) (rng() % S)] = 1.0;
+        }
+    }
+    return pr;
+}
+
 struct Result {
     int code = BEAGLE_SUCCESS;
     std::string call;
@@ -182,7 +217,8 @@ static Result run(const Problem& pr, const Variant& v, bool hierarchical, std::m
             if (!ok(res, "beagleSetTipStates", beagleSetTipStates(inst, t, pr.tipStates[t].data())))
                 return res;
         } else {
-            std::vector<double> p = partialsFromStates(pr.tipStates[t], S);
+            std::vector<double> p = (pr.tipPartials.empty() || v.states || v.oneHotTips) ? partialsFromStates(pr.tipStates[t], S)
+                                                                          : pr.tipPartials[t];
             if (!ok(res, "beagleSetTipPartials", beagleSetTipPartials(inst, t, p.data())))
                 return res;
         }
@@ -338,6 +374,7 @@ static void compare(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     std::string name(tag);
     Variant oracleVariant = v;
     oracleVariant.states = false;
+    oracleVariant.oneHotTips = v.states;
     oracleVariant.reencode = false;
     Result h = run(pr, v, true, rng);
     Result o = run(pr, oracleVariant, false, rng);
@@ -368,6 +405,24 @@ static void compare(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     report(name, dp < tol && dl < tolL && std::isfinite(h.logL) && extraPass, detail + extra);
 }
 
+static bool exactExpected(const Problem& pr) {
+    const char* aggregate = getenv("BEAGLE_HRATE_AGGREGATE");
+    return aggregate != NULL ? std::string(aggregate) == "0" : !pr.sparse;
+}
+
+static void toleranceReport(const std::string& name, const Problem& pr, const Result& a, const Result& b) {
+    double dl = std::fabs(a.logL - b.logL) / std::fabs(a.logL);
+    for (size_t p = 0; p < a.logLByPartition.size() && p < b.logLByPartition.size(); ++p)
+        dl = std::max(dl, std::fabs(a.logLByPartition[p] - b.logLByPartition[p]) / std::fabs(a.logLByPartition[p]));
+    const double dp = maxRelDiff(b.partials, a.partials);
+    const double tol = pr.dp ? 1e-12 : 2e-5, tolL = pr.dp ? 1e-13 : 1e-6;
+    char detail[160];
+    snprintf(detail, sizeof(detail), "aggregation may be on: partials %.2e, tolerance %.0e; logL %.2e, tolerance %.0e",
+             dp, tol, dl, tolL);
+    report(name + " (tolerance)", a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
+           dp <= tol && dl <= tolL, detail);
+}
+
 static void modelMatchesBundles(const Problem& pr, const Variant& v, std::mt19937_64& rng) {
     char tag[160];
     snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s %s: model path == bundle path", pr.dp ? "double" : "single",
@@ -378,6 +433,10 @@ static void modelMatchesBundles(const Problem& pr, const Variant& v, std::mt1993
     const std::vector<int>* fixedOrder = v.reencode ? &order : nullptr;
     Result a = run(pr, v, true, rng, false, fixedOrder);
     Result b = run(pr, v, true, rng, true, fixedOrder);
+    if (!exactExpected(pr)) {
+        toleranceReport(tag, pr, a, b);
+        return;
+    }
     bool same = a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
                 std::memcmp(a.partials.data(), b.partials.data(), a.partials.size() * sizeof(double)) == 0 &&
                 std::memcmp(&a.logL, &b.logL, sizeof(double)) == 0 &&
@@ -423,6 +482,11 @@ static void fusedMatchesTiled(const Problem& pr, const Variant& v, std::mt19937_
     else
         unsetenv("BEAGLE_HRATE_KERNEL");
     rng = rngB;
+    const char* aggregate = getenv("BEAGLE_HRATE_AGGREGATE");
+    if (aggregate == NULL && pr.sparse) {
+        toleranceReport(tag, pr, a, b);
+        return;
+    }
     bool same = a.code == 0 && b.code == 0 && a.partials.size() == b.partials.size() &&
                 std::memcmp(a.partials.data(), b.partials.data(), a.partials.size() * sizeof(double)) == 0 &&
                 std::memcmp(&a.logL, &b.logL, sizeof(double)) == 0 &&
@@ -438,6 +502,7 @@ static void statesMatchPartials(const Problem& pr, std::mt19937_64& rng) {
     snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d%s states == one-hot partials", pr.dp ? "double" : "single",
              pr.S, pr.C, pr.P, pr.label.c_str());
     Variant partials, states;
+    partials.oneHotTips = true;
     states.states = true;
     Result a = run(pr, partials, true, rng);
     Result b = run(pr, states, true, rng);
@@ -557,6 +622,19 @@ int main() {
             }
     }
     failsLoudly(rng);
+
+    std::mt19937_64 sparseRng(20261102);
+    for (bool dp : { true, false })
+        for (int S : { 61, 256 })
+            for (int C : { 1, 4 }) {
+                Problem pr = makeSparseProblem(dp, S, C, 300, sparseRng);
+                for (const Variant& v : variants) {
+                    compare(pr, v, sparseRng);
+                    modelMatchesBundles(pr, v, sparseRng);
+                    fusedMatchesTiled(pr, v, sparseRng);
+                }
+                statesMatchPartials(pr, sparseRng);
+            }
 
     printf("%d of %d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
