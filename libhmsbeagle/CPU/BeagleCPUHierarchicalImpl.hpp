@@ -65,7 +65,6 @@ BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUHierarchicalImpl() {
         for (REALTYPE* ragged : tips)
             free(ragged);
     free(gRaggedW);
-    free(gRaggedV);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -324,11 +323,16 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::aggregatedPartials(int parIn
             for (int l = 0; l < kCategoryCount; l++)
                 dest[l] = (rows1 ? rows1[l] : REALTYPE(1)) * (rows2 ? rows2[l] : REALTYPE(1));
         } else {
-            REALTYPE* W = gRaggedW + off;
-            REALTYPE* V = gRaggedV + off;
-            hierarchicalLaneSweep<false>(slot1, red, kStateCount, kCategoryCount, s1, rows1, dest, W, V);
-            if (!singleChild)
-                hierarchicalLaneSweep<true>(*slot2, red, kStateCount, kCategoryCount, s2, rows2, dest, W, V);
+            REALTYPE* U = gRaggedW + 2 * off;
+            if (kCategoryCount == 1) {
+                hierarchicalLaneChild<false, 1>(slot1, red, kStateCount, 1, s1, rows1, dest, U);
+                if (!singleChild)
+                    hierarchicalLaneChild<true, 1>(*slot2, red, kStateCount, 1, s2, rows2, dest, U);
+            } else {
+                hierarchicalLaneChild<false, 0>(slot1, red, kStateCount, kCategoryCount, s1, rows1, dest, U);
+                if (!singleChild)
+                    hierarchicalLaneChild<true, 0>(*slot2, red, kStateCount, kCategoryCount, s2, rows2, dest, U);
+            }
         }
         finishPattern(dest, Sc * kCategoryCount, rescale, fixedScaleFactors, scaleFactors, cumulativeScaleFactors, k);
     }
@@ -1387,10 +1391,8 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::ensureRaggedScratch() {
     if (gRaggedScratchSize >= gRaggedSize)
         return true;
     free(gRaggedW);
-    free(gRaggedV);
-    gRaggedW = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
-    gRaggedV = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
-    gRaggedScratchSize = (gRaggedW == NULL || gRaggedV == NULL) ? 0 : gRaggedSize;
+    gRaggedW = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * 2 * gRaggedSize);
+    gRaggedScratchSize = gRaggedW == NULL ? 0 : gRaggedSize;
     return gRaggedScratchSize != 0;
 }
 

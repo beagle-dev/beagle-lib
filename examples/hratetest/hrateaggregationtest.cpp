@@ -250,14 +250,14 @@ struct SparseData {
     std::vector<std::vector<double>> planes;
 };
 
-static SparseData makeSparse(int S, int K, int C, std::mt19937_64& rng) {
+static SparseData makeSparse(int S, int K, int C, std::mt19937_64& rng, int poolMax = 3) {
     SparseData d{ S, K, 4, 3, C, {}, {}, {} };
     std::uniform_real_distribution<double> unit(0.0, 1.0);
     d.states.assign(d.stateTips, std::vector<int>(K));
     d.partials.assign(d.partialTips, std::vector<double>((size_t) K * S, 0.0));
     for (int k = 0; k < K; ++k) {
         std::vector<int> pool;
-        const int n = 1 + (int) (rng() % 3);
+        const int n = 1 + (int) (rng() % poolMax);
         for (int j = 0; j < n; ++j)
             pool.push_back((int) (rng() % S));
         const bool allGap = k == 3;
@@ -743,6 +743,48 @@ static void entryCase(const char* label, int S, bool partitioned, std::mt19937_6
     const double dl2 = std::fabs(logL2B - logL2A) / std::fabs(logL2A);
     report(name + " a tip change rebuilds and recompresses", b.h.classGeneration() == generation + 1 &&
            b.h.raggedLive(14) && !b.h.raggedLive(spare) && dl2 <= tolL && logL2A != logLA, relDetail(dl2));
+}
+
+template <typename Real, typename Hier>
+static void laneCase(const char* label, int S, int C, int poolMax, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s lane kernels S=%d C=%d pool=%d", label, S, C, poolMax);
+    const std::string name(tag);
+    const int K = 60;
+    const bool dp = sizeof(Real) == 8;
+    const double tolL = dp ? 1e-13 : 1e-6, tolP = dp ? 1e-12 : 2e-5;
+    SparseData d = makeSparse(S, K, C, rng, poolMax);
+    StateTree tree = makeRandomTree(S, rng, 0.7);
+    StateTree other = withFrequencies(tree, rng);
+    EntryRun<Hier, Real> a, b;
+    entrySetup(a, "0", S, K, C, d, tree, other, false);
+    entrySetup(b, "1", S, K, C, d, tree, other, false);
+    double parts[3] = { 0, 0, 0 };
+    const double logLA = entryEvaluate(a, false, 0, parts);
+    const double logLB = entryEvaluate(b, false, 0, parts);
+    if (a.rc != 0 || b.rc != 0 || !b.h.aggregated()) {
+        report(name + " setup", false, "codes " + std::to_string(a.rc) + " " + std::to_string(b.rc));
+        return;
+    }
+    size_t wide = 0, tables = 0;
+    for (const auto& c : b.h.classList()) {
+        const HierarchicalReduced<Real>& r = c.reduced[0];
+        if (r.stateCount < 2)
+            continue;
+        if (r.observedCount > beagle::cpu::kHierarchicalLaneStateMax)
+            ++wide;
+        if (!r.laneDepth.empty())
+            ++tables;
+    }
+    const bool shape = poolMax > beagle::cpu::kHierarchicalLaneStateMax ? wide > 0 : tables > 0;
+    report(name + " classes take the expected state-child form", shape,
+           std::to_string(wide) + " wide, " + std::to_string(tables) + " with path tables");
+    const double dl = std::fabs(logLB - logLA) / std::fabs(logLA);
+    report(name + " root likelihood", dl <= tolL, relDetail(dl));
+    double dp1 = 0.0;
+    for (int n = 8; n <= 14; ++n)
+        dp1 = std::max(dp1, maxRel(entryPartials(b, n, BEAGLE_OP_NONE, S, K, C), entryPartials(a, n, BEAGLE_OP_NONE, S, K, C)));
+    report(name + " partials", dp1 <= tolP, relDetail(dp1));
 }
 
 template <typename Real, typename Hier>
@@ -1279,6 +1321,11 @@ int main() {
             entryCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, partitioned, rng);
         }
     autoEntryCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", rng);
+    for (int C : { 1, 4 })
+        for (int pool : { 3, 24 }) {
+            laneCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 61, C, pool, rng);
+            laneCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", 61, C, pool, rng);
+        }
     for (int S : { 17, 61 })
         for (bool partitioned : { false, true }) {
             topologyMoveCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, partitioned, rng);

@@ -469,6 +469,66 @@ void hierarchicalBuildReduced(const HierarchicalOps& full,
             c = left[c];
         red.repOfRow[x] = c;
     }
+    hierarchicalLaneProgram(S, (int) observed.size(), red);
+}
+
+template <typename REALTYPE>
+void hierarchicalLaneProgram(int stateCount, int observedCount, HierarchicalReduced<REALTYPE>& red) {
+    const int S = stateCount, Sc = red.stateCount, n = Sc - 1, nFull = S - 1;
+    red.observedCount = observedCount;
+    red.laneInternal.clear();
+    red.laneLeaf.clear();
+    red.laneAggregate.clear();
+    red.lanePath.clear();
+    red.lanePathStart.clear();
+    red.laneDepth.clear();
+    if (n < 1)
+        return;
+    const int* pre = red.ops.preOps.data();
+    const int* l2f = red.localToFull.data();
+    const std::vector<int>& parentOf = red.ops.parentOf;
+    red.laneRoot = pre[0];
+    for (int t = 0; t < n; t++) {
+        const int p = pre[3 * t];
+        for (int ci = 1; ci <= 2; ci++) {
+            const int c = pre[3 * t + ci];
+            const int f = l2f[c];
+            std::vector<int>& list = c >= Sc ? red.laneInternal : (f < S ? red.laneLeaf : red.laneAggregate);
+            list.push_back(c);
+            list.push_back(p);
+            list.push_back(c >= Sc ? f - S : (f < S ? nFull + f : f - S));
+        }
+    }
+    if (observedCount < 1 || observedCount > kHierarchicalLaneStateMax || Sc > 65535)
+        return;
+    red.lanePathStart.assign(1, 0);
+    red.laneDepth.resize((size_t) observedCount * Sc);
+    std::vector<int> chain, pos(2 * Sc - 1, -1), at(2 * Sc - 1, 0);
+    for (int o = 0; o < observedCount; o++) {
+        chain.clear();
+        for (int m = parentOf[o]; m >= 0; m = parentOf[m])
+            chain.push_back(m);
+        const int d = (int) chain.size();
+        for (int j = 0; j < d; j++) {
+            const int m = chain[d - 1 - j];
+            pos[m] = j;
+            red.lanePath.push_back(l2f[m] - S);
+        }
+        red.lanePathStart.push_back((int) red.lanePath.size());
+        at[pre[0]] = 0;
+        for (int t = 0; t < n; t++) {
+            const int p = pre[3 * t];
+            for (int ci = 1; ci <= 2; ci++) {
+                const int c = pre[3 * t + ci];
+                if (c >= Sc)
+                    at[c] = pos[c] >= 0 ? pos[c] : at[p];
+                else
+                    red.laneDepth[(size_t) o * Sc + c] = (uint16_t) at[p];
+            }
+        }
+        for (int m : chain)
+            pos[m] = -1;
+    }
 }
 
 template <typename REALTYPE>
@@ -499,71 +559,158 @@ void hierarchicalRowOfState(const HierarchicalOps& full,
     }
 }
 
-template <bool Multiply, typename REALTYPE>
+template <typename REALTYPE>
+int hierarchicalLaneRow(const HierarchicalReduced<REALTYPE>& red, int state) {
+    const int* tipOf = red.tipOf.data();
+    int lo = 0, hi = red.observedCount;
+    while (lo < hi) {
+        const int mid = (lo + hi) >> 1;
+        if (tipOf[mid] < state)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo < red.observedCount && tipOf[lo] == state ? lo : -1;
+}
+
+template <int Tips, bool Multiply, int FixedCategories, typename REALTYPE>
 void hierarchicalLaneSweep(const HierarchicalSlot<REALTYPE>& slot,
+                           const HierarchicalReduced<REALTYPE>& red,
+                           int stateCount,
+                           int categoryCount,
+                           int row,
+                           const REALTYPE* __restrict__ childRows,
+                           REALTYPE* __restrict__ dest,
+                           REALTYPE* __restrict__ U) {
+    const int C = FixedCategories > 0 ? FixedCategories : categoryCount;
+    const int S = stateCount, Sc = red.stateCount, n = Sc - 1, nFull = S - 1;
+    const size_t fullBlock = (size_t) hierarchicalBlockLength(S);
+    const REALTYPE* __restrict__ H0 = slot.values.data();
+    const REALTYPE* __restrict__ zInt0 = slot.prZ0Internal.data();
+    const REALTYPE* __restrict__ pi = red.piRed.data();
+    auto tip = [&](int x, int l) -> REALTYPE {
+        if (Tips == kHierarchicalLaneRows)
+            return childRows[(size_t) x * C + l];
+        if (Tips == kHierarchicalLaneOnes)
+            return REALTYPE(1);
+        return x == row ? REALTYPE(1) : REALTYPE(0);
+    };
+    for (int x = 0; x < Sc; x++)
+        for (int l = 0; l < C; l++)
+            U[(size_t) x * C + l] = pi[x] * tip(x, l);
+    const int* __restrict__ post = red.ops.postOps.data();
+    for (int t = 0; t < n; t++) {
+        REALTYPE* u = U + (size_t) post[3 * t] * C;
+        const REALTYPE* a = U + (size_t) post[3 * t + 1] * C;
+        const REALTYPE* b = U + (size_t) post[3 * t + 2] * C;
+        for (int l = 0; l < C; l++)
+            u[l] = a[l] + b[l];
+    }
+    {
+        const int r = red.laneRoot;
+        const int fr = red.localToFull[r] - S;
+        REALTYPE* u = U + (size_t) r * C;
+        for (int l = 0; l < C; l++)
+            u[l] = H0[l * fullBlock + fr] * u[l];
+    }
+    const int* __restrict__ q = red.laneInternal.data();
+    const int ni = (int) red.laneInternal.size();
+    for (int j = 0; j < ni; j += 3) {
+        REALTYPE* u = U + (size_t) q[j] * C;
+        const REALTYPE* v = U + (size_t) q[j + 1] * C;
+        const int f = q[j + 2];
+        for (int l = 0; l < C; l++)
+            u[l] = v[l] + H0[l * fullBlock + f] * u[l];
+    }
+    q = red.laneLeaf.data();
+    const int nl = (int) red.laneLeaf.size();
+    for (int j = 0; j < nl; j += 3) {
+        const int x = q[j];
+        REALTYPE* out = dest + (size_t) x * C;
+        const REALTYPE* v = U + (size_t) q[j + 1] * C;
+        const int f = q[j + 2];
+        for (int l = 0; l < C; l++) {
+            const REALTYPE val = v[l] + H0[l * fullBlock + f] * tip(x, l);
+            out[l] = Multiply ? out[l] * val : val;
+        }
+    }
+    q = red.laneAggregate.data();
+    const int na = (int) red.laneAggregate.size();
+    for (int j = 0; j < na; j += 3) {
+        const int x = q[j];
+        REALTYPE* out = dest + (size_t) x * C;
+        const REALTYPE* v = U + (size_t) q[j + 1] * C;
+        const int f = q[j + 2];
+        for (int l = 0; l < C; l++) {
+            const REALTYPE val = v[l] + zInt0[(size_t) l * nFull + f] * tip(x, l);
+            out[l] = Multiply ? out[l] * val : val;
+        }
+    }
+}
+
+template <bool Multiply, int FixedCategories, typename REALTYPE>
+void hierarchicalLanePath(const HierarchicalSlot<REALTYPE>& slot,
+                          const HierarchicalReduced<REALTYPE>& red,
+                          int stateCount,
+                          int categoryCount,
+                          int row,
+                          REALTYPE* __restrict__ dest,
+                          REALTYPE* __restrict__ U) {
+    const int C = FixedCategories > 0 ? FixedCategories : categoryCount;
+    const int S = stateCount, Sc = red.stateCount, nFull = S - 1;
+    const size_t fullBlock = (size_t) hierarchicalBlockLength(S);
+    const REALTYPE* __restrict__ H0 = slot.values.data();
+    const int* __restrict__ path = red.lanePath.data() + red.lanePathStart[row];
+    const int d = red.lanePathStart[row + 1] - red.lanePathStart[row];
+    const uint16_t* __restrict__ depth = red.laneDepth.data() + (size_t) row * Sc;
+    const REALTYPE pi = red.piRed[row];
+    for (int l = 0; l < C; l++)
+        U[l] = H0[l * fullBlock + path[0]] * pi;
+    for (int j = 1; j < d; j++)
+        for (int l = 0; l < C; l++)
+            U[(size_t) j * C + l] = U[(size_t) (j - 1) * C + l] + H0[l * fullBlock + path[j]] * pi;
+    for (int y = 0; y < Sc; y++) {
+        if (y == row)
+            continue;
+        const REALTYPE* v = U + (size_t) depth[y] * C;
+        REALTYPE* out = dest + (size_t) y * C;
+        for (int l = 0; l < C; l++)
+            out[l] = Multiply ? out[l] * v[l] : v[l];
+    }
+    const int f = nFull + red.localToFull[row];
+    const REALTYPE* v = U + (size_t) depth[row] * C;
+    REALTYPE* out = dest + (size_t) row * C;
+    for (int l = 0; l < C; l++) {
+        const REALTYPE val = v[l] + H0[l * fullBlock + f];
+        out[l] = Multiply ? out[l] * val : val;
+    }
+}
+
+template <bool Multiply, int FixedCategories, typename REALTYPE>
+void hierarchicalLaneChild(const HierarchicalSlot<REALTYPE>& slot,
                            const HierarchicalReduced<REALTYPE>& red,
                            int stateCount,
                            int categoryCount,
                            int state,
                            const REALTYPE* childRows,
-                           REALTYPE* __restrict__ dest,
-                           REALTYPE* __restrict__ W,
-                           REALTYPE* __restrict__ V) {
-    const int S = stateCount, C = categoryCount, Sc = red.stateCount, n = Sc - 1, nFull = S - 1;
-    const int fullBlock = hierarchicalBlockLength(S);
-    const REALTYPE* H0 = slot.values.data();
-    const REALTYPE* zInt0 = slot.prZ0Internal.data();
-    const int* post = red.ops.postOps.data();
-    const int* pre = red.ops.preOps.data();
-    const int* l2f = red.localToFull.data();
-    const int* tipOf = red.tipOf.data();
-    const REALTYPE* pi = red.piRed.data();
-    auto tip = [&](int x, int l) -> REALTYPE {
-        if (childRows != NULL)
-            return childRows[(size_t) x * C + l];
-        return (state == tipOf[x] || state >= S) ? REALTYPE(1) : REALTYPE(0);
-    };
-    for (int t = 0; t < n; t++) {
-        const int p = post[3 * t] - Sc, a = post[3 * t + 1], b = post[3 * t + 2];
-        REALTYPE* w = W + (size_t) p * C;
-        if (a < Sc && b < Sc)
-            for (int l = 0; l < C; l++)
-                w[l] = pi[a] * tip(a, l) + pi[b] * tip(b, l);
-        else if (a < Sc)
-            for (int l = 0; l < C; l++)
-                w[l] = pi[a] * tip(a, l) + W[(size_t) (b - Sc) * C + l];
-        else if (b < Sc)
-            for (int l = 0; l < C; l++)
-                w[l] = pi[b] * tip(b, l) + W[(size_t) (a - Sc) * C + l];
-        else
-            for (int l = 0; l < C; l++)
-                w[l] = W[(size_t) (a - Sc) * C + l] + W[(size_t) (b - Sc) * C + l];
+                           REALTYPE* dest,
+                           REALTYPE* U) {
+    if (childRows != NULL) {
+        hierarchicalLaneSweep<kHierarchicalLaneRows, Multiply, FixedCategories>(slot, red, stateCount, categoryCount,
+                                                                                 -1, childRows, dest, U);
+        return;
     }
-    const int root = pre[0] - Sc;
-    const int fr = l2f[Sc + root] - S;
-    for (int l = 0; l < C; l++)
-        V[(size_t) root * C + l] = H0[(size_t) l * fullBlock + fr] * W[(size_t) root * C + l];
-    for (int t = 0; t < n; t++) {
-        const REALTYPE* v = V + (size_t) (pre[3 * t] - Sc) * C;
-        for (int ci = 1; ci <= 2; ci++) {
-            const int child = pre[3 * t + ci];
-            if (child < Sc) {
-                const int f = l2f[child];
-                REALTYPE* out = dest + (size_t) child * C;
-                for (int l = 0; l < C; l++) {
-                    const REALTYPE z = f < S ? H0[(size_t) l * fullBlock + nFull + f]
-                                             : zInt0[(size_t) l * nFull + f - S];
-                    const REALTYPE val = v[l] + z * tip(child, l);
-                    out[l] = Multiply ? out[l] * val : val;
-                }
-            } else {
-                const int i = child - Sc;
-                const int fm = l2f[child] - S;
-                for (int l = 0; l < C; l++)
-                    V[(size_t) i * C + l] = v[l] + H0[(size_t) l * fullBlock + fm] * W[(size_t) i * C + l];
-            }
-        }
+    if (state >= stateCount) {
+        hierarchicalLaneSweep<kHierarchicalLaneOnes, Multiply, FixedCategories>(slot, red, stateCount, categoryCount,
+                                                                                 -1, (const REALTYPE*) NULL, dest, U);
+        return;
     }
+    const int row = hierarchicalLaneRow(red, state);
+    if (row >= 0 && !red.laneDepth.empty())
+        hierarchicalLanePath<Multiply, FixedCategories>(slot, red, stateCount, categoryCount, row, dest, U);
+    else
+        hierarchicalLaneSweep<kHierarchicalLaneIndicator, Multiply, FixedCategories>(slot, red, stateCount,
+                                                                                      categoryCount, row, (const REALTYPE*) NULL, dest, U);
 }
 
 template <typename REALTYPE>

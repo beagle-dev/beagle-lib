@@ -15,6 +15,7 @@
 #define HIERARCHICALMETHODS_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -45,6 +46,7 @@ const int kHierarchicalAggregateMinStates = 9;
 const size_t kHierarchicalTopologyCacheSize = 8;
 const int kHierarchicalRaggedAlign = 8;
 const int kHierarchicalLiveTopologies = 3;
+const int kHierarchicalLaneStateMax = 16;
 const int kHierarchicalMixedTopology = -2;
 
 inline double hierarchicalAggregateThreshold(int categoryCount) {
@@ -150,6 +152,14 @@ struct HierarchicalReduced {
     std::vector<int> tipOf;
     std::vector<REALTYPE> piRed;
     HierarchicalOps ops;
+    int observedCount = 0;
+    int laneRoot = 0;
+    std::vector<int> laneInternal;
+    std::vector<int> laneLeaf;
+    std::vector<int> laneAggregate;
+    std::vector<int> lanePath;
+    std::vector<int> lanePathStart;
+    std::vector<uint16_t> laneDepth;
 };
 
 template <typename REALTYPE>
@@ -257,16 +267,46 @@ void hierarchicalRowOfState(const HierarchicalOps& full,
                             const HierarchicalReduced<REALTYPE>& red,
                             std::vector<int>& rowOfState);
 
-template <bool Multiply, typename REALTYPE>
+template <typename REALTYPE>
+void hierarchicalLaneProgram(int stateCount, int observedCount, HierarchicalReduced<REALTYPE>& red);
+
+enum HierarchicalLaneTips {
+    kHierarchicalLaneRows = 0,
+    kHierarchicalLaneOnes = 1,
+    kHierarchicalLaneIndicator = 2
+};
+
+template <int Tips, bool Multiply, int FixedCategories, typename REALTYPE>
 void hierarchicalLaneSweep(const HierarchicalSlot<REALTYPE>& slot,
+                           const HierarchicalReduced<REALTYPE>& red,
+                           int stateCount,
+                           int categoryCount,
+                           int row,
+                           const REALTYPE* __restrict__ childRows,
+                           REALTYPE* __restrict__ dest,
+                           REALTYPE* __restrict__ U);
+
+template <bool Multiply, int FixedCategories, typename REALTYPE>
+void hierarchicalLanePath(const HierarchicalSlot<REALTYPE>& slot,
+                          const HierarchicalReduced<REALTYPE>& red,
+                          int stateCount,
+                          int categoryCount,
+                          int row,
+                          REALTYPE* __restrict__ dest,
+                          REALTYPE* __restrict__ U);
+
+template <bool Multiply, int FixedCategories, typename REALTYPE>
+void hierarchicalLaneChild(const HierarchicalSlot<REALTYPE>& slot,
                            const HierarchicalReduced<REALTYPE>& red,
                            int stateCount,
                            int categoryCount,
                            int state,
                            const REALTYPE* childRows,
-                           REALTYPE* __restrict__ dest,
-                           REALTYPE* __restrict__ W,
-                           REALTYPE* __restrict__ V);
+                           REALTYPE* dest,
+                           REALTYPE* U);
+
+template <typename REALTYPE>
+int hierarchicalLaneRow(const HierarchicalReduced<REALTYPE>& red, int state);
 
 inline void hierarchicalDetectShape(HierarchicalOps& ops, int stateCount);
 

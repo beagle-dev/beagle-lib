@@ -123,7 +123,6 @@ namespace beagle {
             std::vector<std::vector<size_t>> gTipRaggedCapacity =
                     std::vector<std::vector<size_t>>(kHierarchicalLiveTopologies);
             REALTYPE* gRaggedW = nullptr;
-            REALTYPE* gRaggedV = nullptr;
             size_t gRaggedScratchSize = 0;
             std::vector<unsigned long> gFrequencyStamps;
             std::vector<std::vector<int>> gTopologyParents;
