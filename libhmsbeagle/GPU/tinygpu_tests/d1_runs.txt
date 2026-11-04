@@ -1,0 +1,25 @@
+# TODO.md plan step D1: the runs D1 takes to the RTX 4060, in hardware order (run_d1.sh <label>), one per line:
+#   <label>|<program under $BEAGLE_BUILD/examples> <arguments on the TinyGPU resource>|<kernels it launches, sorted>
+# Which kernels run depends only on the arguments: run_offline.sh pins each line's set on the fakes, and the hardware run
+# must launch the same (d1_verdict, env.sh). d1_refs.sh makes each line's references (--rsrc 0). The first two lines are
+# controls (only kernels already run on hardware): if either fails, D1 stops. TinyGPU is resource 1 under $TEST_LIBS.
+# --stdrand: the default generator gives every site the same likelihood at 4 and 64 states. --sitelikes: d1_compare.py
+# checks every site. A seed per line: no line can find another line's results in VRAM, which survives a warm boot; a line
+# runs again only after a power cycle (run_d1.sh refuses a rerun otherwise: it would find its own results). 3 and 63
+# states: random asymmetric models padded to the 4- and 64-state kernels (powers of two get JC69). Not run: --dynamicscale
+# (CUDA only, BeagleGPUImpl.hpp:589-597), --eigencomplex above 4 states (synthetictest refuses), --partitions above 4
+# states (BeagleGPUImpl.hpp:1305). The 4-state partition lines give both partitions the same JC69 model, so only st3_part
+# (a random model per partition) can tell the partitions' matrices and models apart.
+st4_base|synthetictest --rsrc 1 --states 4 --stdrand --sitelikes --seed 1|kernelIntegrateLikelihoods kernelMatrixMulADB kernelPartialsPartialsNoScale kernelSumSites1
+st63_base|synthetictest --rsrc 1 --states 63 --stdrand --sitelikes --seed 2|kernelIntegrateLikelihoods kernelMatrixMulADB kernelPartialsPartialsNoScale kernelSumSites1
+st4_complex|synthetictest --rsrc 1 --states 4 --eigencomplex --stdrand --sitelikes --seed 3|kernelIntegrateLikelihoods kernelMatrixMulADBComplex kernelPartialsPartialsNoScale kernelSumSites1
+st4_manual|synthetictest --rsrc 1 --states 4 --manualscale --stdrand --sitelikes --seed 4|kernelAccumulateFactors kernelIntegrateLikelihoodsFixedScale kernelMatrixMulADB kernelPartialsDynamicScaling kernelPartialsPartialsNoScale kernelSumSites1
+st3_manual|synthetictest --rsrc 1 --states 3 --manualscale --stdrand --sitelikes --seed 5|kernelAccumulateFactors kernelIntegrateLikelihoodsFixedScale kernelMatrixMulADB kernelPartialsDynamicScaling kernelPartialsPartialsNoScale kernelSumSites1
+st63_manual|synthetictest --rsrc 1 --states 63 --manualscale --stdrand --sitelikes --seed 6|kernelAccumulateFactors kernelIntegrateLikelihoodsFixedScale kernelMatrixMulADB kernelPartialsDynamicScaling kernelPartialsPartialsNoScale kernelSumSites1
+st4_derivs|synthetictest --rsrc 1 --states 4 --unrooted --calcderivs --stdrand --sitelikes --seed 7|kernelIntegrateLikelihoodsSecondDeriv kernelMatrixMulADBSecondDeriv kernelPartialsPartialsEdgeLikelihoodsSecondDeriv kernelPartialsPartialsNoScale kernelSumSites3
+st3_derivs|synthetictest --rsrc 1 --states 3 --unrooted --calcderivs --stdrand --sitelikes --seed 8|kernelIntegrateLikelihoodsSecondDeriv kernelMatrixMulADBSecondDeriv kernelPartialsPartialsEdgeLikelihoodsSecondDeriv kernelPartialsPartialsNoScale kernelSumSites3
+st63_derivs|synthetictest --rsrc 1 --states 63 --unrooted --calcderivs --stdrand --sitelikes --seed 9|kernelIntegrateLikelihoodsSecondDeriv kernelMatrixMulADBSecondDeriv kernelPartialsPartialsEdgeLikelihoodsSecondDeriv kernelPartialsPartialsNoScale kernelSumSites3
+st4_part|synthetictest --rsrc 1 --states 4 --partitions 2 --stdrand --sitelikes --seed 10|kernelIntegrateLikelihoodsPartition kernelMatrixMulADBMulti kernelPartialsPartialsNoScaleMulti kernelReorderPatterns kernelSumSites1Partition
+st3_part|synthetictest --rsrc 1 --states 3 --partitions 2 --stdrand --sitelikes --seed 12|kernelIntegrateLikelihoodsPartition kernelMatrixMulADBMulti kernelPartialsPartialsNoScaleMulti kernelReorderPatterns kernelSumSites1Partition
+st4_complexpart|synthetictest --rsrc 1 --states 4 --eigencomplex --partitions 2 --stdrand --sitelikes --seed 11|kernelIntegrateLikelihoodsPartition kernelMatrixMulADBComplexMulti kernelPartialsPartialsNoScaleMulti kernelReorderPatterns kernelSumSites1Partition
+hmc|hmctest --gpu 1 --tinygpu|kernelIntegrateLikelihoods kernelMatrixMulADB kernelMatrixTranspose kernelMultipleNodeSiteReduction kernelPartialsPartialsCrossProducts kernelPartialsPartialsEdgeFirstDerivatives kernelPartialsPartialsGrowing kernelPartialsStatesCrossProducts kernelPartialsStatesEdgeFirstDerivatives kernelPartialsStatesGrowing kernelStatesPartialsNoScale kernelStatesStatesNoScale kernelSumSites1

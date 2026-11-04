@@ -1,0 +1,49 @@
+name: CI BIT
+
+# on: 
+#   workflow_dispatch:
+  
+on:
+  push:
+    branches:
+    - main
+    - develop
+    - matrix_vector
+    - basta
+  
+jobs:
+  build:
+    name: Build on Linux x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake file
+        repo=ubuntu$(. /etc/os-release && echo "${VERSION_ID//./}")
+        curl -fsSL -o "$RUNNER_TEMP/cuda-keyring.deb" https://developer.download.nvidia.com/compute/cuda/repos/$repo/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i "$RUNNER_TEMP/cuda-keyring.deb"
+        sudo apt-get update
+        sudo apt-get install -y cuda
+
+#     - uses: Jimver/cuda-toolkit@master
+#       id: cuda-toolkit       
+
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBUILD_BIT=ON -DBUILD_CUDA=ON -DBUILD_OPENCL=ON
+        make -j
+        file libhmsbeagle/libhmsbeagle.so.* | grep x86-64
+        
+    - name: Upload debug files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Debug files
+        path: libhmsbeagle        

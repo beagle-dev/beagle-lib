@@ -69,8 +69,8 @@ protected:
 
 public:
     virtual const char* getName();
-    
-    virtual long long getFlags();
+
+    virtual const long long getFlags();
 
 protected:
     virtual int getPaddedPatternsModulus();
@@ -143,8 +143,8 @@ protected:
 
 public:
     virtual const char* getName();
-    
-    virtual long long getFlags();
+
+    virtual const long long getFlags();
 
 protected:
     virtual int getPaddedPatternsModulus();
@@ -205,13 +205,13 @@ public:
                                    int categoryCount,
                                    int scaleBufferCount,
                                    int resourceNumber,
-                                   int pluginResourceNumber,                                   
+                                   int pluginResourceNumber,
                                    long long preferenceFlags,
                                    long long requirementFlags,
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 }	// namespace cpu

@@ -68,6 +68,11 @@ public:
 							int scaleIndex,
                             double* outPartials) = 0;
 
+    virtual int getPartialsBatch(const int* bufferIndices,
+                                 const int* scaleIndices,
+                                 int count,
+                                 double* outPartials) = 0;
+
     virtual int setEigenDecomposition(int eigenIndex,
                                       const double* inEigenVectors,
                                       const double* inInverseEigenVectors,
@@ -158,17 +163,20 @@ public:
 
     virtual int updatePartials(const int* operations,
                                int operationCount,
-                               int cumulativeScalingIndex) = 0;
+                               int cumulativeScalingIndex,
+                               BeaglePartialsType partialsType) = 0;
 
 	virtual int updatePrePartials(const int *operations,
                                   int count,
-                                  int cumulativeScaleIndex) = 0;
+                                  int cumulativeScaleIndex,
+                                  BeaglePartialsType partialsType) = 0;
 
     virtual int updatePartialsByPartition(const int* operations,
                                           int operationCount) = 0;
 
     virtual int updatePrePartialsByPartition(const int* operations,
-                                             int operationCount) = 0;
+                                             int operationCount,
+                                             BeaglePartialsType partialsType) = 0;
 
     virtual int waitForPartials(const int* destinationPartials,
                                 int destinationPartialsCount) = 0;
@@ -239,6 +247,29 @@ public:
 			                           double *outSumDerivatives,
 			                           double *outSumSquaredDerivatives) = 0;
 
+	virtual int calculateAdjointCrossProducts(const int *postBufferIndices,
+			                                  const int *preBufferIndices,
+			                                  const int *eigenIndices,
+			                                  const int *categoryRatesIndices,
+			                                  const int *categoryWeightsIndices,
+			                                  const int rootPostOrderIndex,
+			                                  const int stateFrequenciesIndex,
+			                                  int count,
+			                                  double *outSumDerivatives,
+			                                  double *outSumSquaredDerivatives,
+			                                  const int *postScaleIndices = nullptr,
+			                                  const int *preScaleIndices = nullptr,
+			                                  const int cumulativeScaleIndex = BEAGLE_OP_NONE) = 0;
+
+    virtual int calculateAdjointDerivative(const BeagleBranchOperation *operations,
+                                           const int categoryRatesIndex,
+                                           const int categoryWeightsIndex,
+                                           const int rootPostOrderIndex,
+                                           const int stateFrequenciesIndex,
+                                           const int operationCount,
+                                           double *outSumDerivatives,
+                                           double *outSumSquaredDerivatives) = 0;
+
     virtual int calculateEdgeLogLikelihoods(const int* parentBufferIndices,
                                             const int* childBufferIndices,
                                             const int* probabilityIndices,
@@ -280,6 +311,11 @@ public:
     virtual int getSiteDerivatives(double* outFirstDerivatives,
                                    double* outSecondDerivatives) = 0;
 
+    // see beagleEnsureBufferCounts; implementations that cannot grow keep this default
+    virtual int ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+
 	virtual int updateBastaPartials(const int* operations,
 	     							int operationCount,
 	     							const int* intervals,
@@ -309,14 +345,85 @@ public:
                                         const double* intervalLengths,
                                         const int populationSizesIndex,
                                         int coalescentIndex,
+                                        int eigenIndex,
+                                        int partialAdjointBufferBase,
+                                        int matrixAdjointBufferBase,
+                                        double* popSizeGradOut,
                                         double* out) = 0;
 
+    virtual int uploadBastaSlabMetadata(const int* packed,
+                                        int packedLen) = 0;
+
+    virtual int getBastaSlabConstants(int* opsPerBlock,
+                                      int* indexOffsetPat) = 0;
+
     virtual int allocateBastaBuffers(int bufferCount,
-                                     int bufferLength) = 0;
+                                     int bufferLength,
+                                     int partialsCount,
+                                     int initial,
+                                     int numThreads) = 0;
+
+    virtual int allocateBastaGradBuffers(int partialsCount) = 0;
 
     virtual int getBastaBuffer(int bufferIndex,
                                double* out) = 0;
+
+    virtual int accumulateEigenBasisGradient(int eigenIndex,
+                                             int matrixAdjointBufferBase,
+                                             const double* branchLengths,
+                                             int matrixCount,
+                                             int hasComplexEigenvalues,
+                                             double* outRateGradient) = 0;
                                    
+    // BASTA population-size buffers (beagleSetBastaPopulationSizes and the two below); appended, so that the
+    // existing slots keep their places
+    virtual int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                        int requiredStorageSize) = 0;
+
+    virtual int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                              int requiredStorageSize,
+                                              int bufferIndex) = 0;
+
+    virtual int setCurrentPopulationSizeBuffer(int bufferIndex) = 0;
+
+    // the BASTA functions with 9-integer operations (BEAGLE_BASTA_OP_COUNT_V5), whose population sizes come from the
+    // current population-size buffer
+    virtual int updateBastaPartials_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervals,
+                                       int intervalCount,
+                                       int populationSizesIndex,
+                                       int coalescentIndex) = 0;
+
+    virtual int updateBastaPartialsGrad_v5(const int* operations,
+                                           int operationCount,
+                                           const int* intervals,
+                                           int intervalCount,
+                                           int populationSizesIndex,
+                                           int coalescentIndex) = 0;
+
+    virtual int accumulateBastaPartials_v5(const int* operations,
+                                           int operationCount,
+                                           const int* segments,
+                                           int segmentCount,
+                                           const double* intervalLengths,
+                                           const int populationSizesIndex,
+                                           int coalescentIndex,
+                                           double* out) = 0;
+
+    virtual int accumulateBastaPartialsGrad_v5(const int* operations,
+                                               int operationCount,
+                                               const int* segments,
+                                               int segmentCount,
+                                               const double* intervalLengths,
+                                               const int populationSizesIndex,
+                                               int coalescentIndex,
+                                               int eigenIndex,
+                                               int partialAdjointBufferBase,
+                                               int matrixAdjointBufferBase,
+                                               double* popSizeGradOut,
+                                               double* out) = 0;
+
 //protected:
     int resourceNumber;
 };
@@ -339,8 +446,8 @@ public:
                                    int* errorCode) = 0; // pure virtual
 
     virtual const char* getName() = 0; // pure virtual
-    
-    virtual long long getFlags() = 0; // pure virtual
+
+    virtual const long long getFlags() = 0; // pure virtual
 };
 
 } // end namespace beagle

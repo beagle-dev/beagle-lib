@@ -63,8 +63,8 @@ protected:
 
 public:
     virtual const char* getName();
-    
-	virtual long long getFlags();
+
+	virtual const long long getFlags();
 
 protected:
     virtual int getPaddedPatternsModulus();
@@ -144,9 +144,9 @@ protected:
 
 public:
     virtual const char* getName();
-    
-	virtual long long getFlags();
-    
+
+	virtual const long long getFlags();
+
 protected:
     virtual int getPaddedPatternsModulus();
 
@@ -221,7 +221,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 }	// namespace cpu

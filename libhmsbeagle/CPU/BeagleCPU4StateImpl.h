@@ -110,6 +110,36 @@ public:
                                        int startPattern,
                                        int endPattern);
 
+    virtual void calcStatesDegree2(REALTYPE* destP,
+                                   const int* states1,
+                                   const REALTYPE* matrices1,
+                                   const REALTYPE* scaleFactors,
+                                   int startPattern,
+                                   int endPattern);
+
+    virtual void calcPartialsDegree2(REALTYPE* destP,
+                                     const REALTYPE* partials1,
+                                     const REALTYPE* matrices1,
+                                     const REALTYPE* scaleFactors,
+                                     int startPattern,
+                                     int endPattern);
+
+    virtual void calcDegree2PrePartials(REALTYPE* destP,
+                                        const REALTYPE* partials1,
+                                        const REALTYPE* matrices1,
+                                        int startPattern,
+                                        int endPattern);
+
+    // First is States or Partials; with FixedScaling the result is divided by scaleFactors
+    template <typename First, bool FixedScaling>
+    void calcDegree2Partials4(REALTYPE* destP,
+                              const int* states1,
+                              const REALTYPE* partials1,
+                              const REALTYPE* matrices1,
+                              const REALTYPE* scaleFactors,
+                              int startPattern,
+                              int endPattern);
+
     virtual void calcEdgeLogDerivativesStates(const int *tipStates,
                                               const REALTYPE *preOrderPartial,
                                               const int firstDerivativeIndex,
@@ -169,6 +199,11 @@ public:
                                              const int* scaleBufferIndices,
                                              int count,
                                              double* outSumLogLikelihood);
+
+#ifdef BEAGLE_INDEX_CHECKS
+    // integrateOutStatesAndScale(ByPartition) reads every root scale index other than BEAGLE_OP_NONE
+    bool rootReadsNegativeScale() const override { return true; }
+#endif
 
     virtual int calcEdgeLogLikelihoods(const int parentBufferIndex,
                                         const int childBufferIndex,
@@ -268,7 +303,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 }	// namespace cpu

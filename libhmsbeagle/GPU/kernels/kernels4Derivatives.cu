@@ -1,4 +1,3 @@
-
 #define multBy4(x)  ((x) << 2)
 #define multBy16(x) ((x) << 4)
 
@@ -40,8 +39,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingMulti(KW_GLOBAL_VAR REAL* KW_
                                                          int gridStartOp,
                                                          int totalPatterns) {
 
-#ifdef FW_OPENCL_CPU // CPU/MIC implementation
-    todo(); // TODO
+#ifdef FW_OPENCL_CPU // CPU/MIC implementationt
+    todo(); // TODOg
 #else // GPU implementation
     DETERMINE_INDICES_4_MULTI_1_GPU();
     const KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 =  partials + ptrOffsets[opIndexPtr + 2];
@@ -58,6 +57,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowingMulti(KW_GLOBAL_VAR REAL* KW_
 #endif // FW_OPENCL_CPU
 }
 
+#ifndef CUDA_TENSOR_CORES // kernels4DerivativesTensorCore.cu has the tensor-core version of this kernel
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -127,6 +127,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 #endif // FW_OPENCL_CPU
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                   KW_GLOBAL_VAR int*  KW_RESTRICT states2,

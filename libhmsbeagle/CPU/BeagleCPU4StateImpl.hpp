@@ -461,6 +461,140 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(REALTYPE* de
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcStatesDegree2(REALTYPE* destP,
+                                                                const int* states1,
+                                                                const REALTYPE* matrices1,
+                                                                const REALTYPE* scaleFactors,
+                                                                int startPattern,
+                                                                int endPattern) {
+    if (scaleFactors != NULL) {
+        calcDegree2Partials4<States, true>(destP, states1, NULL, matrices1, scaleFactors, startPattern, endPattern);
+    } else {
+        calcDegree2Partials4<States, false>(destP, states1, NULL, matrices1, NULL, startPattern, endPattern);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsDegree2(REALTYPE* destP,
+                                                                  const REALTYPE* partials1,
+                                                                  const REALTYPE* matrices1,
+                                                                  const REALTYPE* scaleFactors,
+                                                                  int startPattern,
+                                                                  int endPattern) {
+    if (scaleFactors != NULL) {
+        calcDegree2Partials4<Partials, true>(destP, NULL, partials1, matrices1, scaleFactors, startPattern, endPattern);
+    } else {
+        calcDegree2Partials4<Partials, false>(destP, NULL, partials1, matrices1, NULL, startPattern, endPattern);
+    }
+}
+
+/*
+ * Calculates partial likelihoods at a degree-2 node, whose only child has states or partials.
+ */
+BEAGLE_CPU_TEMPLATE template <typename First, bool FixedScaling>
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcDegree2Partials4(REALTYPE* destP,
+                                                                   const int* states1,
+                                                                   const REALTYPE* partials1,
+                                                                   const REALTYPE* matrices1,
+                                                                   const REALTYPE* scaleFactors,
+                                                                   int startPattern,
+                                                                   int endPattern) {
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+            u += 4*startPattern;
+        }
+        int w = l*4*OFFSET;
+
+        if constexpr (std::is_same_v<First, Partials>) {
+            PREFETCH_MATRIX(1,matrices1,w);
+            for (int k = startPattern; k < endPattern; k++) {
+                PREFETCH_PARTIALS(1,partials1,u);
+
+                DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+
+                if constexpr (FixedScaling) {
+                    const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                    sum10 *= oneOverScaleFactor;
+                    sum11 *= oneOverScaleFactor;
+                    sum12 *= oneOverScaleFactor;
+                    sum13 *= oneOverScaleFactor;
+                }
+
+                destP[u    ] = sum10;
+                destP[u + 1] = sum11;
+                destP[u + 2] = sum12;
+                destP[u + 3] = sum13;
+
+                u += 4;
+            }
+        } else {
+            for (int k = startPattern; k < endPattern; k++) {
+                const int state1 = states1[k];
+
+                PREFETCH_MATRIX_COLUMN(1, matrices1, w + state1); // sum10, sum11, sum12, sum13
+
+                if constexpr (FixedScaling) {
+                    const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
+                    sum10 *= oneOverScaleFactor;
+                    sum11 *= oneOverScaleFactor;
+                    sum12 *= oneOverScaleFactor;
+                    sum13 *= oneOverScaleFactor;
+                }
+
+                destP[u    ] = sum10;
+                destP[u + 1] = sum11;
+                destP[u + 2] = sum12;
+                destP[u + 3] = sum13;
+
+                u += 4;
+            }
+        }
+    }
+}
+
+/*
+ * Calculates pre-order partial likelihoods through a single branch, from a parent with no sibling.
+ */
+BEAGLE_CPU_TEMPLATE
+void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcDegree2PrePartials(REALTYPE* destP,
+                                                                     const REALTYPE* partials1,
+                                                                     const REALTYPE* matrices1,
+                                                                     int startPattern,
+                                                                     int endPattern) {
+    if (matrices1 == NULL) { // top partials below the root: a copy
+        BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcDegree2PrePartials(destP, partials1, matrices1,
+                                                                   startPattern, endPattern);
+        return;
+    }
+
+#pragma omp parallel for num_threads(kCategoryCount)
+    for (int l = 0; l < kCategoryCount; l++) {
+        int u = l*4*kPaddedPatternCount;
+        if (startPattern != 0) {
+            u += 4*startPattern;
+        }
+        int w = l*4*OFFSET;
+
+        PREFETCH_MATRIX_TRANSPOSE(1, matrices1, w); // m100, m101, ..., m133
+        for (int k = startPattern; k < endPattern; k++) {
+            PREFETCH_PARTIALS(1, partials1, u); // p10, p11, p12, p13
+
+            DO_INTEGRATION(1); // defines sum10, sum11, sum12, sum13
+
+            destP[u    ] = sum10;
+            destP[u + 1] = sum11;
+            destP[u + 2] = sum12;
+            destP[u + 3] = sum13;
+
+            u += 4;
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartialsAutoScaling(REALTYPE* destP,
                                                                     const REALTYPE* partials1,
                                                                     const REALTYPE* matrices1,
@@ -1032,8 +1166,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesStates(const
 
             REALTYPE denominator = preOrderPartial[localPatternOffset + (state & 3)];
 
-            grandNumeratorDerivTmp[pattern] += categoryWeights[category] * numerator;
-            grandDenominatorDerivTmp[pattern] += categoryWeights[category] * denominator;
+            grandNumeratorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * numerator;
+            grandDenominatorDerivTmp[cacheOffset + pattern] += categoryWeights[category] * denominator;
         }
     }
 }
@@ -1075,8 +1209,8 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcEdgeLogDerivativesPartials(con
 //            grandDenominatorDerivTmp[k] += (postPartials[v] * prePartials[v] + postPartials[v + 1] * prePartials[v + 1]
 //                    + postPartials[v + 2] * prePartials[v + 2] + postPartials[v + 3] * prePartials[v + 3]) * weight;
 
-            grandDenominatorDerivTmp[k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
-            grandNumeratorDerivTmp[k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
+            grandDenominatorDerivTmp[cacheOffset + k] += (p10 * p00 + p11 * p01 + p12 * p02 + p13 * p03) * weight;
+            grandNumeratorDerivTmp[cacheOffset + k] += (sum10 * p00 + sum11 * p01 + sum12 * p02 + sum13 * p03) * weight;
 
             v += 4;
         }
@@ -1114,7 +1248,7 @@ void BeagleCPU4StateImpl<BEAGLE_CPU_GENERIC>::calcCrossProductsStates(const int 
 
             for (int category = 0; category < kCategoryCount; category++) {
 
-                const REALTYPE scale = (REALTYPE) categoryRates[category] * edgeLength;
+                const REALTYPE scale = categoryRates[category] * static_cast<REALTYPE>(edgeLength);
 
                 const REALTYPE weight = categoryWeights[category];
                 const int patternIndex = category * kPatternCount + pattern;
@@ -1492,18 +1626,21 @@ const char* BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 BEAGLE_CPU_FACTORY_TEMPLATE
-long long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
+const long long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
     long long flags =  BEAGLE_FLAG_COMPUTATION_SYNCH |
-                       BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
-                       BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
-                       BEAGLE_FLAG_PROCESSOR_CPU |
-                       BEAGLE_FLAG_VECTOR_NONE |
-                       BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
-                       BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
-                       BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
-                       BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-                       BEAGLE_FLAG_FRAMEWORK_CPU;
+                  BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
+                  BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
+                  BEAGLE_FLAG_PROCESSOR_CPU |
+                  BEAGLE_FLAG_VECTOR_NONE |
+                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                  BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                  BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                  BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+                  BEAGLE_FLAG_FRAMEWORK_CPU;
 
+#ifdef BEAGLE_OPENMP_ENABLED
+    flags |= BEAGLE_FLAG_THREADING_OPENMP;
+#endif
     if (DOUBLE_PRECISION)
     	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
     else

@@ -20,6 +20,14 @@
 #include <map>
 #include <list>
 
+// On the definition of plugin_init, the one symbol a plugin exports (the plugins are compiled with
+// -fvisibility=hidden where the compiler has it); on Windows the plugin headers' BEAGLE_DLLEXPORT exports it
+#ifdef _WIN32
+#define BEAGLE_PLUGIN_EXPORT BEAGLE_DLLEXPORT
+#else
+#define BEAGLE_PLUGIN_EXPORT __attribute__((visibility("default")))
+#endif
+
 namespace beagle {
 namespace plugin {
 

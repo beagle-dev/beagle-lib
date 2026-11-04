@@ -1,0 +1,19 @@
+# BR10 (F5): the branch-random lines of G1 and G3 (n 10), to run with --k 1024 so that every instance times whole cycles of the 64-branch sequence
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling none
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling read
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling none
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling write
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling none
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling read
+--states 61 --patterns 100 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling none
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-random --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling none
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling read
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-random --scaling write

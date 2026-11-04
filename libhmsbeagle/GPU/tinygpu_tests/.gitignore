@@ -1,0 +1,7 @@
+.work/
+__pycache__/
+# data belongs in $BEAGLE_TINYGPU_DATA (~/.beagle/tinygpu), never here
+recordings/
+vbios/
+fw/
+cubins/

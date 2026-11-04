@@ -68,6 +68,19 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        int errCode;
+        try {
+            errCode = BeagleJNIWrapper.INSTANCE.ensureBufferCounts(instance, partialsBufferCount, matrixBufferCount,
+                    scaleBufferCount);
+        } catch (UnsatisfiedLinkError e) { // a native library older than this jar
+            errCode = BeagleErrorCode.NO_IMPLEMENTATION_ERROR.getErrCode();
+        }
+        if (errCode != 0) {
+            throw new BeagleException("ensureBufferCounts", errCode);
+        }
+    }
+
     public void setPatternWeights(final double[] patternWeights) {
         int errCode = BeagleJNIWrapper.INSTANCE.setPatternWeights(instance, patternWeights);
         if (errCode != 0) {
@@ -121,6 +134,13 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.getPartials(instance, bufferIndex, scaleIndex, outPartials);
         if (errCode != 0) {
             throw new BeagleException("getPartials", errCode);
+        }
+    }
+
+    public void getPartialsBatch(int[] bufferIndices, int[] scaleIndices, int count, final double[] outPartials) {
+        int errCode = BeagleJNIWrapper.INSTANCE.getPartialsBatch(instance, bufferIndices, scaleIndices, count, outPartials);
+        if (errCode != 0) {
+            throw new BeagleException("getPartialsBatch", errCode);
         }
     }
 
@@ -307,6 +327,12 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void updatePrePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartials_v5(instance, operations, operationCount, cumulativeScaleIndex, partialsType.getType());
+        if (errCode != 0) {
+            throw new BeagleException("updatePrePartials_v5", errCode);
+        }
+    }    
 
     public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePrePartialsByPartition(instance, operations, operationCount);
@@ -353,6 +379,32 @@ public class BeagleJNIImpl implements Beagle {
         }
     }
 
+    public void calculateAdjointCrossProductDifferentials(final int[] postBufferIndices,
+                                           		          final int[] preBufferIndices,
+                                           		          final int[] eigenIndices,
+                                                          final int[] categoryRateIndices,
+                                           		          final int[] categoryWeightsIndices,
+                                                          final int rootPostOrderIndex,
+                                                          final int stateFrequenciesIndex,
+                                           		          int count,
+                                           		          double[] outSumDerivatives,
+                                           		          double[] outSumSquaredDerivatives,
+                                           		          final int[] postScaleIndices,
+                                           		          final int[] preScaleIndices,
+                                           		          final int cumulativeScaleIndex) {
+
+        int errCode = BeagleJNIWrapper.INSTANCE.calculateAdjointCrossProductDifferentials(instance,
+        	postBufferIndices, preBufferIndices,
+                eigenIndices, categoryRateIndices, categoryWeightsIndices,
+                rootPostOrderIndex, stateFrequenciesIndex, count,
+        	outSumDerivatives, outSumSquaredDerivatives,
+        	postScaleIndices, preScaleIndices, cumulativeScaleIndex);
+
+        if (errCode != 0) {
+        	throw new BeagleException("calculateAdjointCrossProductDifferentials", errCode);
+        }
+    }
+
     public void calculateEdgeDerivative(final int[] postBufferIndices,
                                         final int[] preBufferIndices,
                                         final int rootBufferIndex,
@@ -377,6 +429,13 @@ public class BeagleJNIImpl implements Beagle {
         int errCode = BeagleJNIWrapper.INSTANCE.updatePartials(instance, operations, operationCount, cumulativeScaleIndex);
         if (errCode != 0) {
             throw new BeagleException("updatePartials", errCode);
+        }
+    }
+
+    public void updatePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        int errCode = BeagleJNIWrapper.INSTANCE.updatePartials_v5(instance, operations, operationCount, cumulativeScaleIndex, partialsType.getType());
+        if (errCode != 0) {
+            throw new BeagleException("updatePartials_v5", errCode);
         }
     }
 

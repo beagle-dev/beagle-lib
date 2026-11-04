@@ -9,6 +9,7 @@ echo #define STATE_COUNT 4 > kernels4.cl
 type ..\GPUImplDefs.h >> kernels4.cl
 type kernelsAll.cu >> kernels4.cl
 type kernels4.cu >> kernels4.cl
+type kernels4Derivatives.cu >> kernels4.cl
 
 FOR %%G IN (16 32 48 64 80 128 192 256) DO (
 
@@ -16,6 +17,7 @@ echo #define STATE_COUNT %%G> kernels%%G.cl
 type ..\GPUImplDefs.h >> kernels%%G.cl
 type kernelsAll.cu >> kernels%%G.cl
 type kernelsX.cu >> kernels%%G.cl
+type kernelsXDerivatives.cu >> kernels%%G.cl
 
 )
 
@@ -24,6 +26,7 @@ echo #define DOUBLE_PRECISION>> kernels_dp_4.cl
 type ..\GPUImplDefs.h >> kernels_dp_4.cl
 type kernelsAll.cu >> kernels_dp_4.cl
 type kernels4.cu >> kernels_dp_4.cl
+type kernels4Derivatives.cu >> kernels_dp_4.cl
 
 FOR %%G IN (16 32 48 64 80 128 192 256) DO (
 
@@ -32,6 +35,7 @@ echo #define DOUBLE_PRECISION>> kernels_dp_%%G.cl
 type ..\GPUImplDefs.h >> kernels_dp_%%G.cl
 type kernelsAll.cu >> kernels_dp_%%G.cl
 type kernelsX.cu >> kernels_dp_%%G.cl
+type kernelsXDerivatives.cu >> kernels_dp_%%G.cl
 
 ) 
 

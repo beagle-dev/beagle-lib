@@ -65,6 +65,9 @@ public class BeagleJNIWrapper {
 
     public native int setCPUThreadCount(int instance, int threadCount);
 
+    public native int ensureBufferCounts(int instance, int partialsBufferCount, int matrixBufferCount,
+                                         int scaleBufferCount);
+
     public native int setPatternWeights(int instance, final double[] patternWeights);
 
     public native int setPatternPartitions(int instance, int partitionCount, final int[] patternPartitions);
@@ -81,6 +84,10 @@ public class BeagleJNIWrapper {
 
     public native int getPartials(int instance, int bufferIndex, int scaleIndex,
                                   final double[] outPartials);
+
+    public native int getPartialsBatch(int instance, final int[] bufferIndices,
+                                       final int[] scaleIndices, int count,
+                                       final double[] outPartials);
 
     public native int getLogScaleFactors(int stance, int scaleIndex, final double[] outFactors);
 
@@ -164,6 +171,11 @@ public class BeagleJNIWrapper {
                                         int operationCount,
                                         int cumulativeScalingIndex);
 
+    public native int updatePrePartials_v5(final int instance,
+                                           final int[] operations,
+                                           int operationCount,
+                                           int cumulativeScalingIndex,
+                                           int partialsType); 
 
     public native int updatePrePartialsByPartition(final int instance,
                                                    final int[] operations,
@@ -173,6 +185,12 @@ public class BeagleJNIWrapper {
                                      final int[] operations,
                                      int operationCount,
                                      int cumulativeScalingIndex);
+
+    public native int updatePartials_v5(final int instance,
+                                        final int[] operations,
+                                        int operationCount,
+                                        int cumulativeScalingIndex,
+                                        int partialsType);
 
     public native int updatePartialsByPartition(final int instance,
                                                 final int[] operations,
@@ -271,6 +289,21 @@ public class BeagleJNIWrapper {
         												 int count,
 	        											 double[] outSumDerivatives,
 	        											 double[] outSumSquaredDerivatives);
+
+    public native int calculateAdjointCrossProductDifferentials(final int instance,
+    													 final int[] postBufferIndices,
+        												 final int[] preBufferIndices,
+    	    											 final int[] eigenIndices,
+    	    											 final int[] categoryRateIndices,
+    	    											 final int[] categoryWeightsIndices,
+        												 final int rootPostOrderIndex,
+        												 final int stateFrequenciesIndex,
+        												 int count,
+	        											 double[] outSumDerivatives,
+	        											 double[] outSumSquaredDerivatives,
+	        											 final int[] postScaleIndices,
+	        											 final int[] preScaleIndices,
+	        											 final int cumulativeScaleIndex);
 
     public native int calculateEdgeDerivative(int instance,
     										  final int[] postBufferIndices,

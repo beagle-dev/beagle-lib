@@ -253,7 +253,7 @@ const char* BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getName()
 
 
 BEAGLE_GPU_TEMPLATE
-long long BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getFlags()
+const long long BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getFlags()
 {
     auto flags = BeagleGPUImpl<BEAGLE_GPU_GENERIC>::getFlags();
 
@@ -500,7 +500,8 @@ int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::getPartials(int bufferIndex, int sc
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations,
                                                       int operationCount,
-                                                      int cumulativeScalingIndex) {
+                                                      int cumulativeScalingIndex,
+                                                      BeaglePartialsType partialsType) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\tEntering BeagleGPUActionImpl::updatePartials\n");
@@ -724,8 +725,11 @@ BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::scheduleBatches(const std::vector<Parti
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(const int* operations,
                                                                int operationCount,
-                                                               int cumulativeScalingIndex)
+                                                               int cumulativeScalingIndex,
+                                                               BeaglePartialsType partialsType)
 {
+    if (partialsType & BEAGLE_PARTIALS_TOP)
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
     setCudaDevice();
     return upPrePartials(false, operations, operationCount, cumulativeScalingIndex);
 }
@@ -1896,7 +1900,7 @@ const char* BeagleGPUActionImplFactory<float>::getName() {
 #endif
 
 BEAGLE_GPU_TEMPLATE
-long long BeagleGPUActionImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+const long long BeagleGPUActionImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
     return BeagleGPUImplFactory<BEAGLE_GPU_GENERIC>::getFlags() | BEAGLE_FLAG_COMPUTATION_ACTION;
 }
 

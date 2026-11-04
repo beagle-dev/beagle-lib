@@ -104,7 +104,7 @@ double* getPartials(char *sequence) {
 	return partials;
 }
 
-void printFlags(long inFlags) {
+void printFlags(long long inFlags) {
     if (inFlags & BEAGLE_FLAG_PROCESSOR_CPU)      fprintf(stdout, " PROCESSOR_CPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_GPU)      fprintf(stdout, " PROCESSOR_GPU");
     if (inFlags & BEAGLE_FLAG_PROCESSOR_FPGA)     fprintf(stdout, " PROCESSOR_FPGA");
@@ -179,6 +179,13 @@ int main( int argc, const char* argv[] )
             if (whichDevice < 0) {
                 whichDevice = -1;
             }
+        }
+    }
+
+    if (useGpu && whichDevice >= 0) { // a missing GPU is a skip (ctest SKIP_RETURN_CODE 77), not a failure
+        if (whichDevice >= rList->length || !(rList->list[whichDevice].supportFlags & BEAGLE_FLAG_PROCESSOR_GPU)) {
+            fprintf(stdout, "SKIP: no GPU resource %d\n", whichDevice);
+            return 77;
         }
     }
 

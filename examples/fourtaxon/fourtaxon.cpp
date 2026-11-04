@@ -284,7 +284,7 @@ void FourTaxonExample::initBeagleLib()
 		rsrcCnt = 1;
 	}
         
-    long requirementFlags = 0;
+    long long requirementFlags = 0;
     if (single) {
         requirementFlags |= BEAGLE_FLAG_PRECISION_SINGLE;
     }

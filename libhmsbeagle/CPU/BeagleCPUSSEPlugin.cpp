@@ -122,18 +122,18 @@ bool check_sse2()
 	return true;
   return false;
 #elif defined(__aarch64__)
-  return false;
+  return true; // NEON is part of every AArch64 CPU, and sse2neon maps the SSE2 intrinsics to it
 #else // HAVE_CPUID.H
 	// Determine if cpuid supported:
     unsigned int res;
     __asm__("mov %%ecx, %%eax;"
             "xor $200000, %%eax;"
             "xor %%ecx, %%eax;"
-            "je no;"
+            "je 1f;"
             "mov $1, %%eax;"
-            "jmp end;"
-            "no: mov $0, %%eax;"
-            "end:;"
+            "jmp 2f;"
+            "1: mov $0, %%eax;"   /* numeric local labels: the compiler may emit this asm more than once */
+            "2:;"
             : "=a" (res)
             :
             : "cc");
@@ -181,7 +181,7 @@ bool check_sse2(){
 #endif
 
 
-void* plugin_init(void){
+BEAGLE_PLUGIN_EXPORT void* plugin_init(void){
 	if(!check_sse2()){
 		return NULL;	// no SSE no plugin?!
 	}

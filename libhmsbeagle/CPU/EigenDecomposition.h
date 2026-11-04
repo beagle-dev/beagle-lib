@@ -16,6 +16,9 @@
 #include <cassert>
 #include <vector>
 
+#include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/CPU/AdjointMethods.h"
+
 #define BEAGLE_CPU_EIGEN_GENERIC	REALTYPE, T_PAD
 #define BEAGLE_CPU_EIGEN_TEMPLATE	template <typename REALTYPE, int T_PAD>
 
@@ -24,22 +27,22 @@ namespace cpu {
 
 BEAGLE_CPU_EIGEN_TEMPLATE
 class EigenDecomposition {
-	
+
 protected:
     REALTYPE** gEigenValues;
     int kStateCount;
     int kEigenDecompCount;
     int kCategoryCount;
-	long kFlags;
+	long long kFlags;
     REALTYPE* matrixTmp;
     REALTYPE* firstDerivTmp;
     REALTYPE* secondDerivTmp;
-    
+
 public:
 	EigenDecomposition(int decompositionCount,
 					   int stateCount,
 					   int categoryCount,
-                       long flags)
+                       long long flags)
 					   {
 
 					   		kEigenDecompCount = decompositionCount;
@@ -47,9 +50,9 @@ public:
 					   		kCategoryCount = categoryCount;
                             kFlags = flags;
 					   	};
-	
+
 	virtual ~EigenDecomposition() {};
-	
+
     // sets the Eigen decomposition for a given matrix
     //
     // matrixIndex the matrix index to update
@@ -60,7 +63,7 @@ public:
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
                               const double* inEigenValues) = 0;
-		
+
     // calculate a transition probability matrices for a given list of node. This will
     // calculate for all categories (and all matrices if more than one is being used).
     //
@@ -76,6 +79,12 @@ public:
                                  REALTYPE** transitionMatrices,
                                  int count) = 0;
 
+	virtual void updateTransitionMatricesParallel(int eigenIndex, const int* probabilityIndices,
+									  const int* firstDerivativeIndices,
+									  const int* secondDerivativeIndices, const double* edgeLengths,
+									  const double* categoryRates, REALTYPE** transitionMatrices, int count,
+									  int numThreads) = 0;
+
     virtual void updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
@@ -85,6 +94,31 @@ public:
                                  int count) = 0;
 
 
+    virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getBackwardsEigenValuesPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const { return nullptr; };
+
+    virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const { return nullptr; };
+
+    // Builds what the adjoint gradient reads for eigenIndex (the accessors above) if a decomposition builds it
+    // on first use; called once per gradient, before any thread starts
+    virtual void prepareAdjoint(int eigenIndex) { };
+
+    // Return raw eigen-decomposition pointers for
+    // a given eigenIndex.
+    // (BEAGLE_ERROR_NO_IMPLEMENTATION for a decomposition that does not keep them, e.g. EigenDecompositionSpectral)
+    virtual int getRawEigenDecomposition(int eigenIndex,
+                                         const REALTYPE** outEigenVectors,
+                                         const REALTYPE** outInverseEigenVectors,
+                                         const REALTYPE** outEigenValues) { return BEAGLE_ERROR_NO_IMPLEMENTATION; };
 };
 
 }

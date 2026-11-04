@@ -915,7 +915,7 @@ class BeagleGPUActionImpl : public BeagleGPUImpl<BEAGLE_GPU_GENERIC>
 public:
     const char* getName();
 
-    long long getFlags();
+    const long long getFlags();
 
     int getInstanceDetails(BeagleInstanceDetails* retunInfo);
 
@@ -960,7 +960,8 @@ public:
 
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex);
+                       int cumulativeScalingIndex,
+                       BeaglePartialsType partialsType) override;
 
     // The base versions read past the end of the scaling buffers unless the pattern count is padded to their
     // block size, which the action layout does not do.
@@ -970,9 +971,11 @@ public:
     // Action instances have no dense transition matrices (see createInstance), so these are not available.
     // (The base versions of the first three call the dense, non-virtual upPartials/upPrePartials.)
     // Pre-order: dest = exp(t Q^T) (exp(t_sibling Q) sibling o parent), see calcPrePartials( ).
-    int updatePrePartials(const int* operations, int operationCount, int cumulativeScalingIndex) override;
+    // Only BEAGLE_PARTIALS_BOTTOM pre-order partials
+    int updatePrePartials(const int* operations, int operationCount, int cumulativeScalingIndex,
+                          BeaglePartialsType partialsType) override;
     int updatePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
-    int updatePrePartialsByPartition(const int*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
+    int updatePrePartialsByPartition(const int*, int, BeaglePartialsType) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int setEigenDecomposition(int, const double*, const double*, const double*) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int setTransitionMatrix(int, const double*, double) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
     int setTransitionMatrices(const int*, const double*, const double*, int) override { return BEAGLE_ERROR_NO_IMPLEMENTATION; }
@@ -1254,6 +1257,9 @@ private:
     // Points group.scratch at the work blocks of group number g (< 2 * kCategoryCount * maxBatchOperations).
     void setActionScratch(ActionGroup& group, size_t g);
 
+    // Action instances form no dense transition matrices, so the base class never allocates the S x S matrix pool.
+    bool denseMatricesOnDemand() const override { return true; }
+
     // With fewer than 32 patterns, the Horner work blocks are interleaved (see calcPartialsPartials( )).
     bool interleavedScratch() const { return kPaddedPatternCount < 32; }
 
@@ -1289,7 +1295,7 @@ class BeagleGPUActionImplFactory : public BeagleGPUImplFactory<BEAGLE_GPU_GENERI
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 } // namspace device

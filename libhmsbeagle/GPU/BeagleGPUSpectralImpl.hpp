@@ -1,0 +1,873 @@
+/*
+ * @file BeagleGPUSpectralImpl.hpp
+ *
+ * Copyright 2026 Phylogenetic Likelihood Working Group
+ *
+ * This file is part of BEAGLE.
+ *
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE file or at
+ * https://opensource.org/licenses/MIT.
+ *
+ * @brief GPU spectral implementation template definitions
+ *
+ * @author Marc Suchard
+ */
+
+#ifndef __BeagleGPUSpectralImpl_hpp__
+#define __BeagleGPUSpectralImpl_hpp__
+
+#include "libhmsbeagle/beagle.h"
+
+namespace beagle {
+namespace gpu {
+
+#ifdef CUDA
+    namespace cuda {
+#elif defined(FW_TINYGPU)
+    namespace tinygpu {
+#else
+    namespace opencl {
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// BeagleGPUSpectralImpl
+
+BEAGLE_GPU_TEMPLATE
+BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
+    : dSpectralDistancesOrigin(0), kSpectralDistancePoolCapacity(0), dSpectralDistances(NULL),
+      hEigenIndexForMatrix(NULL), hSpectralDistances(NULL), hSpectralDistancesDirty(false),
+      dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
+      dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL), dAdjointSiteLogLk(0),
+      dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
+      kSpectralEigenDecompCount(0) {
+}
+
+BEAGLE_GPU_TEMPLATE
+BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
+    GPUInterface* gpuIf = this->gpu;
+    if (gpuIf) {
+        // each pool after its sub-buffers
+        if (dSpectralDistancesOrigin) this->freeWithSubPointers(dSpectralDistancesOrigin);
+        if (dEvecTOrigin)             this->freeWithSubPointers(dEvecTOrigin);
+        if (dIevcTOrigin)             this->freeWithSubPointers(dIevcTOrigin);
+        if (dGradientOrigin)          this->freeWithSubPointers(dGradientOrigin);
+        if (dAdjointSiteLogLk)        gpuIf->FreeMemory(dAdjointSiteLogLk);
+        if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
+        if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
+        if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
+    }
+    free(dSpectralDistances);
+    free(dEvecT);
+    free(dIevcT);
+    free(dGradient);
+    free(hEigenIndexForMatrix);
+    free(hEigenDecompIsAllReal);
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
+        int tipCount,
+        int partialsBufferCount,
+        int compactBufferCount,
+        int stateCount,
+        int patternCount,
+        int eigenDecompositionCount,
+        int matrixCount,
+        int categoryCount,
+        int scaleBufferCount,
+        int resourceNumber,
+        int pluginResourceNumber,
+        long long preferenceFlags,
+        long long requirementFlags) {
+    // BEAGLE's dynamic scaling passes transition matrices, which spectral never computes
+    if (requirementFlags & BEAGLE_FLAG_SCALING_DYNAMIC) return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    preferenceFlags &= ~BEAGLE_FLAG_SCALING_DYNAMIC;
+
+    int rc = BeagleGPUImpl<Real>::createInstance(tipCount, partialsBufferCount, compactBufferCount,
+                                                  stateCount, patternCount, eigenDecompositionCount,
+                                                  matrixCount, categoryCount, scaleBufferCount,
+                                                  resourceNumber, pluginResourceNumber,
+                                                  preferenceFlags, requirementFlags);
+    if (rc != BEAGLE_SUCCESS) return rc;
+
+    kSpectralEigenDecompCount = eigenDecompositionCount;
+
+    hEigenIndexForMatrix = (int*) calloc(this->kMatrixCount, sizeof(int));
+
+    GPUInterface* gpuIf = this->gpu;
+
+    dSpectralDistances = (GPUPtr*) malloc(sizeof(GPUPtr) * this->kMatrixCount);
+    size_t distStride = gpuIf->AlignMemOffset(this->kCategoryCount * sizeof(Real));
+    kSpectralDistanceStrideElements = (unsigned int)(distStride / sizeof(Real));
+    dSpectralDistancesOrigin = gpuIf->AllocateMemory(this->kMatrixCount * distStride);
+    kSpectralDistancePoolCapacity = this->kMatrixCount;
+    for (int i = 0; i < this->kMatrixCount; i++) {
+        dSpectralDistances[i] = this->createSubPointer(dSpectralDistancesOrigin, distStride * i, distStride);
+    }
+    // Zero-initialized host mirror of dSpectralDistancesOrigin; see updateTransitionMatrices.
+    hSpectralDistances = (Real*) gpuIf->CallocHost(sizeof(Real), this->kMatrixCount * kSpectralDistanceStrideElements);
+
+    // Backward eigenvector arrays: one S*S block per eigen decomposition.
+    int S = this->kPaddedStateCount;
+    size_t matStride = gpuIf->AlignMemOffset((size_t)S * S * sizeof(Real));
+    dEvecT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
+    dIevcT  = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
+    dEvecTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
+    dIevcTOrigin  = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
+    for (int i = 0; i < eigenDecompositionCount; i++) {
+        dEvecT[i]  = this->createSubPointer(dEvecTOrigin,  matStride * i, matStride);
+        dIevcT[i]  = this->createSubPointer(dIevcTOrigin,  matStride * i, matStride);
+    }
+
+    /* Adjoint gradient: one S×S buffer per eigen decomposition. */
+    dGradient = (GPUPtr*) malloc(sizeof(GPUPtr) * eigenDecompositionCount);
+    dGradientOrigin = gpuIf->AllocateMemory(eigenDecompositionCount * matStride);
+    for (int i = 0; i < eigenDecompositionCount; i++) {
+        dGradient[i] = this->createSubPointer(dGradientOrigin, matStride * i, matStride);
+    }
+
+    hEigenDecompIsAllReal = (bool*) calloc(eigenDecompositionCount, sizeof(bool));
+
+    dAdjointSiteLogLk = gpuIf->AllocateMemory((this->kPaddedPatternCount + this->kResultPaddedPatterns) * sizeof(Real));
+
+    gpuIf->ReportMemory("create spectral"); // BEAGLE_DEBUG_MEMORY only
+
+    BEAGLE_GPU_RETURN_IF_LOST();   // TinyGPU: a spectral pool did not fit, or the GPU was lost
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatrices(
+        int eigenIndex,
+        const int* probabilityIndices,
+        const int* firstDerivativeIndices,
+        const int* secondDerivativeIndices,
+        const double* edgeLengths,
+        int count) {
+    // int rc = BeagleGPUImpl<Real>::updateTransitionMatrices(eigenIndex, probabilityIndices,
+    //                                                         firstDerivativeIndices,
+    //                                                         secondDerivativeIndices,
+    //                                                         edgeLengths, count);
+    // if (rc != BEAGLE_SUCCESS || firstDerivativeIndices != NULL) return rc;
+
+    if (count > 0) {
+        const double* categoryRates = this->hCategoryRates[0];
+        int nCat = this->kCategoryCount;
+
+        // Patch the touched matrices' entries into the persistent host mirror
+        // (untouched matrices keep whatever they were last set to).
+        for (int i = 0; i < count; i++) {
+            int matIdx = probabilityIndices[i];
+            hEigenIndexForMatrix[matIdx] = eigenIndex;
+            Real* hDist = hSpectralDistances + (size_t) matIdx * kSpectralDistanceStrideElements;
+            for (int j = 0; j < nCat; j++) {
+                hDist[j] = (Real)(edgeLengths[i] * categoryRates[j]);
+            }
+        }
+
+        // Uploaded by the next kernel that reads distances, so a model with one
+        // eigen decomposition per branch (one call per eigen index) uploads once
+        hSpectralDistancesDirty = true;
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::flushSpectralDistances() {
+    if (hSpectralDistancesDirty) {
+        // the whole pooled buffer in one call, rather than one MemcpyHostToDevice per matrix
+        this->gpu->MemcpyHostToDevice(dSpectralDistancesOrigin, hSpectralDistances,
+            sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
+        hSpectralDistancesDirty = false;
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPrunePP(
+        GPUPtr p1, GPUPtr p2, GPUPtr p3,
+        int c1MatIdx, int c2MatIdx,
+        GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+        unsigned int startPattern, unsigned int endPattern,
+        int rescale, int streamIndex, int waitIndex) {
+    int ei1 = hEigenIndexForMatrix[c1MatIdx];
+    int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
+    this->kernels->PartialsPartialsPruningSpectral(p1, p2, p3,
+        this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+        this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        this->kPaddedPatternCount, this->kCategoryCount,
+        rescale, streamIndex, waitIndex);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSP(
+        GPUPtr s1, GPUPtr p2, GPUPtr p3,
+        int c1MatIdx, int c2MatIdx,
+        GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+        unsigned int startPattern, unsigned int endPattern,
+        int rescale, int streamIndex, int waitIndex) {
+    int ei1 = hEigenIndexForMatrix[c1MatIdx];
+    int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
+    this->kernels->StatesPartialsPruningSpectral(s1, p2, p3,
+        this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+        this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        this->kPaddedPatternCount, this->kCategoryCount,
+        rescale, streamIndex, waitIndex);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneSS(
+        GPUPtr s1, GPUPtr s2, GPUPtr p3,
+        int c1MatIdx, int c2MatIdx,
+        GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+        unsigned int startPattern, unsigned int endPattern,
+        int rescale, int streamIndex, int waitIndex) {
+    int ei1 = hEigenIndexForMatrix[c1MatIdx];
+    int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    flushSpectralDistances();
+    this->kernels->StatesStatesPruningSpectral(s1, s2, p3,
+        this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+        this->dIevc[ei2], this->dEvec[ei2], this->dEigenValues[ei2], dSpectralDistances[c2MatIdx],
+        scalingFactors, cumulativeScaling,
+        this->kPaddedPatternCount, this->kCategoryCount,
+        rescale, streamIndex, waitIndex);
+}
+
+// child 1 forward, as in dispatchPrunePP; there is no child 2, and its matrix (op[6]) is never read
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPruneDegree2(
+        GPUPtr c1, bool c1IsStates, GPUPtr p3,
+        int c1MatIdx,
+        GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+        unsigned int startPattern, unsigned int endPattern,
+        int rescale, int streamIndex, int waitIndex) {
+    int ei1 = hEigenIndexForMatrix[c1MatIdx];
+    flushSpectralDistances();
+    if (c1IsStates) {
+        this->kernels->StatesDegree2PruningSpectral(c1, p3,
+            this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+            scalingFactors, cumulativeScaling,
+            this->kPaddedPatternCount, this->kCategoryCount,
+            rescale, streamIndex, waitIndex);
+    } else {
+        this->kernels->PartialsDegree2PruningSpectral(c1, p3,
+            this->dIevc[ei1], this->dEvec[ei1], this->dEigenValues[ei1], dSpectralDistances[c1MatIdx],
+            scalingFactors, cumulativeScaling,
+            this->kPaddedPatternCount, this->kCategoryCount,
+            rescale, streamIndex, waitIndex);
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setEigenDecomposition(
+        int eigenIndex,
+        const double* inEigenVectors,
+        const double* inInverseEigenVectors,
+        const double* inEigenValues) {
+    // Built locally (not delegated to BeagleGPUImpl::setEigenDecomposition) so that every
+    // entry in [SC, S) is guaranteed zero rather than stale hMatrixCache scratch. The padded
+    // columns stay zero (unlike EigenDecompositionSpectral, which puts each row's sum in column
+    // SC for a missing tip state; the GPU reads a missing state as kPaddedStateCount and sums
+    // the rows instead), so the padded states of every partial are zero, as the edge-derivative
+    // and cross-product kernels, which sum over all PADDED_STATE_COUNT states, require.
+    const int S  = this->kPaddedStateCount;
+    const int SC = this->kStateCount;
+    const int SS = S * S;
+    // kEigenValuesSize is private to BeagleGPUImpl; recompute the same way it does.
+    // Eval is [real parts | imaginary parts | pair positions], S entries each, regardless of
+    // BEAGLE_FLAG_EIGEN_COMPLEX (see matching comment in BeagleGPUImpl::createInstance).
+    const int eigenValuesSize = 3 * S;
+
+    // Forward:  dEvec[row*S+col]  = U[col,row];    dIevc[row*S+col]  = U^-1[col,row]
+    // Backward: dEvecT[row*S+col] = U[row,col];    dIevcT[row*S+col] = U^-1[row,col]
+    Real* Evec  = (Real*) calloc(SS, sizeof(Real));
+    Real* Ievc  = (Real*) calloc(SS, sizeof(Real));
+    Real* EvecT = (Real*) calloc(SS, sizeof(Real));
+    Real* IevcT = (Real*) calloc(SS, sizeof(Real));
+    Real* Eval  = (Real*) calloc(eigenValuesSize, sizeof(Real));
+
+    for (int i = 0; i < SC; i++) {
+        for (int j = 0; j < SC; j++) {
+            Real evecVal  = (Real) inEigenVectors[j * SC + i];
+            Real evecTVal = (Real) inEigenVectors[i * SC + j];
+            Real ievcVal, ievcTVal;
+            if (this->kFlags & BEAGLE_FLAG_INVEVEC_STANDARD) {
+                ievcVal  = (Real) inInverseEigenVectors[j * SC + i];
+                ievcTVal = (Real) inInverseEigenVectors[i * SC + j];
+            } else {
+                // INVEVEC_TRANSPOSED: input is (U^-1)^T
+                ievcVal  = (Real) inInverseEigenVectors[i * SC + j];
+                ievcTVal = (Real) inInverseEigenVectors[j * SC + i];
+            }
+
+            Evec[i * S + j]  = evecVal;
+            Ievc[i * S + j]  = ievcVal;
+            EvecT[i * S + j] = evecTVal;
+            IevcT[i * S + j] = ievcTVal;
+        }
+    }
+
+    for (int i = 0; i < SC; i++)
+        Eval[i] = (Real) inEigenValues[i];
+
+    // Eval[2S + i] is +1 if eigenvalue i is the first of a complex conjugate pair (i, i + 1), -1 if
+    // it is the second, and 0 if it is real. As on the CPU, pairs are found by position: a nonzero
+    // imaginary part starts a pair, whatever its sign.
+    bool allReal = true;
+    if (this->kFlags & BEAGLE_FLAG_EIGEN_COMPLEX) {
+        for (int i = 0; i < SC; i++)
+            Eval[S + i] = (Real) inEigenValues[SC + i];
+        for (int i = 0; i + 1 < SC; i++) {
+            if (inEigenValues[SC + i] != 0.0) {
+                Eval[2 * S + i]     = (Real)  1;
+                Eval[2 * S + i + 1] = (Real) -1;
+                allReal = false;
+                i++;
+            }
+        }
+    }
+    hEigenDecompIsAllReal[eigenIndex] = allReal;
+
+    if (getenv("BEAGLE_DEBUG_EIGEN")) {
+        fprintf(stderr, "[GPU setEigenDecomposition] eigenIndex=%d S=%d SC=%d\n", eigenIndex, S, SC);
+        fprintf(stderr, "[GPU] Eval: "); for (int i=0;i<eigenValuesSize;i++) fprintf(stderr, "%.6f ", (double)Eval[i]); fprintf(stderr, "\n");
+        fprintf(stderr, "[GPU] Evec:\n"); for (int i=0;i<S;i++){ for(int j=0;j<S;j++) fprintf(stderr, "%.6f ", (double)Evec[i*S+j]); fprintf(stderr, "\n"); }
+        fprintf(stderr, "[GPU] Ievc:\n"); for (int i=0;i<S;i++){ for(int j=0;j<S;j++) fprintf(stderr, "%.6f ", (double)Ievc[i*S+j]); fprintf(stderr, "\n"); }
+        fflush(stderr);
+    }
+    GPUInterface* gpuIf = this->gpu;
+    gpuIf->MemcpyHostToDevice(this->dEvec[eigenIndex],        Evec,  sizeof(Real) * SS);
+    gpuIf->MemcpyHostToDevice(this->dIevc[eigenIndex],        Ievc,  sizeof(Real) * SS);
+    gpuIf->MemcpyHostToDevice(this->dEigenValues[eigenIndex], Eval,  sizeof(Real) * eigenValuesSize);
+    gpuIf->MemcpyHostToDevice(dEvecT[eigenIndex],  EvecT,  sizeof(Real) * SS);
+    gpuIf->MemcpyHostToDevice(dIevcT[eigenIndex],  IevcT,  sizeof(Real) * SS);
+
+    free(Evec);
+    free(Ievc);
+    free(EvecT);
+    free(IevcT);
+    free(Eval);
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
+        bool isTop, bool isRoot,
+        GPUPtr partials1, GPUPtr c2, bool sibIsStates,
+        GPUPtr partials3,
+        int c1MatIdx, int c2MatIdx) {
+    flushSpectralDistances();
+    int ei2 = hEigenIndexForMatrix[c2MatIdx];
+    GPUPtr ievc2 = this->dIevc[ei2];
+    GPUPtr evec2 = this->dEvec[ei2];
+    GPUPtr eval2 = this->dEigenValues[ei2];
+    GPUPtr dist2 = dSpectralDistances[c2MatIdx];
+
+    if (isRoot) {
+        if (sibIsStates) {
+            this->kernels->PartialsStatesGrowingSpectralTopRoot(
+                partials1, c2, partials3,
+                ievc2, evec2, eval2, dist2,
+                this->kPaddedPatternCount, this->kCategoryCount);
+        } else {
+            this->kernels->PartialsPartialsGrowingSpectralTopRoot(
+                partials1, c2, partials3,
+                ievc2, evec2, eval2, dist2,
+                this->kPaddedPatternCount, this->kCategoryCount);
+        }
+    } else {
+        int ei1 = hEigenIndexForMatrix[c1MatIdx];
+        // the parent's partials go backward through branch c1 (P^T = V^{-T} e^{Dt}^T V^T): to the
+        // eigen basis with V (dEvecT), back with V^{-1} (dIevcT)
+        GPUPtr evecT1 = dEvecT[ei1];
+        GPUPtr ievcT1 = dIevcT[ei1];
+        GPUPtr eval1  = this->dEigenValues[ei1];
+        GPUPtr dist1  = dSpectralDistances[c1MatIdx];
+
+        if (isTop) {
+            if (sibIsStates) {
+                this->kernels->PartialsStatesGrowingSpectralTop(
+                    partials1, c2, partials3,
+                    evecT1, ievcT1, eval1, dist1,
+                    ievc2, evec2, eval2, dist2,
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            } else {
+                this->kernels->PartialsPartialsGrowingSpectralTop(
+                    partials1, c2, partials3,
+                    evecT1, ievcT1, eval1, dist1,
+                    ievc2, evec2, eval2, dist2,
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            }
+        } else {
+            if (sibIsStates) {
+                this->kernels->PartialsStatesGrowingSpectral(
+                    partials1, c2, partials3,
+                    evecT1, ievcT1, eval1, dist1,
+                    ievc2, evec2, eval2, dist2,
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            } else {
+                this->kernels->PartialsPartialsGrowingSpectral(
+                    partials1, c2, partials3,
+                    evecT1, ievcT1, eval1, dist1,
+                    ievc2, evec2, eval2, dist2,
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            }
+        }
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
+        const int* operations, int operationCount,
+        int cumulativeScaleIndex, BeaglePartialsType partialsType) {
+    bool isTop = (partialsType == BEAGLE_PARTIALS_TOP);
+    for (int op = 0; op < operationCount; op++) {
+        const int parIndex          = operations[op * 7 + 0];
+        const int child1Index       = operations[op * 7 + 3];
+        const int child1TransMatIdx = operations[op * 7 + 4];
+        const int child2Index       = operations[op * 7 + 5];
+        const int child2TransMatIdx = operations[op * 7 + 6];
+
+        if (child2Index == BEAGLE_OP_NONE) {   // degree 2, TOP and BOTTOM alike, as calcDegree2PrePartials
+            GPUPtr partials1 = this->dPartials[child1Index];
+            GPUPtr partials3 = this->dPartials[parIndex];
+            if (child1TransMatIdx < 0) {   // no branch to propagate through: a copy, as growPool copies
+                this->gpu->MemcpyDeviceToDevice(partials3, partials1, sizeof(Real) * this->kPaddedPatternCount *
+                                                                      this->kPaddedStateCount * this->kCategoryCount);
+            } else {
+                flushSpectralDistances();
+                const int ei1 = hEigenIndexForMatrix[child1TransMatIdx];   // backward, as dispatchGrowingSpectral
+                this->kernels->PartialsDegree2GrowingSpectral(partials1, partials3,
+                    dEvecT[ei1], dIevcT[ei1], this->dEigenValues[ei1], dSpectralDistances[child1TransMatIdx],
+                    this->kPaddedPatternCount, this->kCategoryCount);
+            }
+            continue;
+        }
+
+        bool isRoot     = isTop && (child1TransMatIdx < 0);
+        bool sibIsStates = (this->dStates[child2Index] != 0);
+        GPUPtr partials1 = this->dPartials[child1Index];
+        GPUPtr c2        = sibIsStates ? this->dStates[child2Index] : this->dPartials[child2Index];
+        GPUPtr partials3 = this->dPartials[parIndex];
+
+        dispatchGrowingSpectral(isTop, isRoot,
+                                partials1, c2, sibIsStates,
+                                partials3,
+                                child1TransMatIdx, child2TransMatIdx);
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartialsByPartition(
+        const int* operations, int operationCount,
+        BeaglePartialsType partialsType) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION; // partitioned operations are 9 ints; spectral has no partitions
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setPatternPartitions(int partitionCount,
+                                                                    const int* inPatternPartitions) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION; // the spectral dispatch ignores the start and end patterns
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::growDerivedHostArrays(int newMatrixCount) {
+    // the host mirror and the eigen indices keep their entries, with zeroes after them
+    Real* distances = (Real*) this->gpu->CallocHost(sizeof(Real),
+                                                    (size_t) newMatrixCount * kSpectralDistanceStrideElements);
+    if (distances == NULL)
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    const int oldLength = std::max(this->kMatrixCount, kSpectralDistancePoolCapacity);
+    const int newLength = std::max(newMatrixCount, kSpectralDistancePoolCapacity);
+    if (!growHostArray(hEigenIndexForMatrix, this->kMatrixCount, newMatrixCount) ||
+        !growHostArray(dSpectralDistances, oldLength, newLength)) { // zero handles until the pool grows
+        this->gpu->FreeHostMemory(distances);
+        return BEAGLE_ERROR_OUT_OF_MEMORY;
+    }
+    memcpy(distances, hSpectralDistances,
+           sizeof(Real) * (size_t) this->kMatrixCount * kSpectralDistanceStrideElements);
+    this->gpu->FreeHostMemory(hSpectralDistances);
+    hSpectralDistances = distances;
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::growDerivedPools(int newMatrixCount) {
+    // The host mirror is authoritative and the device pool only receives whole uploads of it, so nothing is copied:
+    // a pool that moved is uninitialised, and the next kernel that reads distances uploads the mirror. (Its offsets
+    // fit an int: the matrix pool's, which ensureBufferCounts checks first, are larger.)
+    const size_t stride = (size_t) kSpectralDistanceStrideElements * sizeof(Real);
+    const int length = std::max(newMatrixCount, kSpectralDistancePoolCapacity); // of dSpectralDistances
+    const int returnCode = this->growPool(dSpectralDistancesOrigin, kSpectralDistancePoolCapacity, stride,
+                                          newMatrixCount, 0);
+    if (!this->hasSubPointers(dSpectralDistancesOrigin)) { // it moved, or was lost
+        for (int i = 0; i < length; i++)
+            dSpectralDistances[i] = (i < kSpectralDistancePoolCapacity ?
+                                     this->createSubPointer(dSpectralDistancesOrigin, stride * i, stride) :
+                                     (GPUPtr)NULL);
+        hSpectralDistancesDirty = true;
+    }
+    return returnCode;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartialsByPartition(const int* operations,
+                                                                         int operationCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::convolveTransitionMatrices(const int* firstIndices,
+                                                                          const int* secondIndices,
+                                                                          const int* resultIndices,
+                                                                          int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::transposeTransitionMatrices(const int* inputIndices,
+                                                                           const int* resultIndices,
+                                                                           int matrixCount) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithModelCategories(
+        int* eigenIndices, const int* probabilityIndices, const int* firstDerivativeIndices,
+        const int* secondDerivativeIndices, const double* edgeLengths, int count) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updateTransitionMatricesWithMultipleModels(
+        const int* eigenIndices, const int* categoryRateIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const double* edgeLengths,
+        int count) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoods(
+        const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const int* categoryWeightsIndices,
+        const int* stateFrequenciesIndices, const int* cumulativeScaleIndices, int count,
+        double* outSumLogLikelihood, double* outSumFirstDerivative, double* outSumSecondDerivative) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateEdgeLogLikelihoodsByPartition(
+        const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+        const int* firstDerivativeIndices, const int* secondDerivativeIndices, const int* categoryWeightsIndices,
+        const int* stateFrequenciesIndices, const int* cumulativeScaleIndices, const int* partitionIndices,
+        int partitionCount, int count, double* outSumLogLikelihoodByPartition, double* outSumLogLikelihood,
+        double* outSumFirstDerivativeByPartition, double* outSumFirstDerivative,
+        double* outSumSecondDerivativeByPartition, double* outSumSecondDerivative) {
+    return BEAGLE_ERROR_NO_IMPLEMENTATION;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// BeagleGPUSpectralImplFactory
+
+BEAGLE_GPU_TEMPLATE
+BeagleImpl* BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::createImpl(
+        int tipCount,
+        int partialsBufferCount,
+        int compactBufferCount,
+        int stateCount,
+        int patternCount,
+        int eigenBufferCount,
+        int matrixBufferCount,
+        int categoryCount,
+        int scaleBufferCount,
+        int resourceNumber,
+        int pluginResourceNumber,
+        long long preferenceFlags,
+        long long requirementFlags,
+        int* errorCode) {
+    BeagleImpl* impl = new BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>();
+    try {
+        *errorCode = impl->createInstance(tipCount, partialsBufferCount, compactBufferCount,
+                                          stateCount, patternCount, eigenBufferCount,
+                                          matrixBufferCount, categoryCount, scaleBufferCount,
+                                          resourceNumber, pluginResourceNumber,
+                                          preferenceFlags, requirementFlags);
+        if (*errorCode == BEAGLE_SUCCESS) {
+            return impl;
+        }
+        delete impl;
+        return NULL;
+    }
+    catch (...) {
+        delete impl;
+        *errorCode = BEAGLE_ERROR_GENERAL;
+        throw;
+    }
+    delete impl;
+    *errorCode = BEAGLE_ERROR_GENERAL;
+    return NULL;
+}
+
+#ifdef CUDA
+template<>
+const char* BeagleGPUSpectralImplFactory<double>::getName() {
+    return "GPU-DP-CUDA-Spectral";
+}
+
+template<>
+const char* BeagleGPUSpectralImplFactory<float>::getName() {
+    return "GPU-SP-CUDA-Spectral";
+}
+#elif defined(FW_TINYGPU)
+template<>
+const char* BeagleGPUSpectralImplFactory<double>::getName() {
+    return "GPU-DP-TinyGPU-Spectral";
+}
+
+template<>
+const char* BeagleGPUSpectralImplFactory<float>::getName() {
+    return "GPU-SP-TinyGPU-Spectral";
+}
+#else
+template<>
+const char* BeagleGPUSpectralImplFactory<double>::getName() {
+    return "GPU-DP-OpenCL-Spectral";
+}
+
+template<>
+const char* BeagleGPUSpectralImplFactory<float>::getName() {
+    return "GPU-SP-OpenCL-Spectral";
+}
+#endif
+
+BEAGLE_GPU_TEMPLATE
+const long long BeagleGPUSpectralImplFactory<BEAGLE_GPU_GENERIC>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ASYNCH |
+                 BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS |
+                 BEAGLE_FLAG_SCALING_AUTO |
+                 BEAGLE_FLAG_THREADING_NONE |
+                 BEAGLE_FLAG_VECTOR_NONE |
+                 BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
+                 BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
+                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
+                 BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
+                 BEAGLE_FLAG_PARALLELOPS_GRID | BEAGLE_FLAG_PARALLELOPS_STREAMS |
+                 BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+
+#ifdef CUDA
+    flags |= BEAGLE_FLAG_FRAMEWORK_CUDA |
+             BEAGLE_FLAG_PROCESSOR_GPU;
+#elif defined(FW_TINYGPU)
+    flags |= BEAGLE_FLAG_FRAMEWORK_TINYGPU |
+             BEAGLE_FLAG_PROCESSOR_GPU;
+#else
+    flags |= BEAGLE_FLAG_FRAMEWORK_OPENCL |
+             BEAGLE_FLAG_PROCESSOR_CPU | BEAGLE_FLAG_PROCESSOR_GPU | BEAGLE_FLAG_PROCESSOR_OTHER;
+#endif
+
+    Real r = 0;
+    modifyFlagsForPrecision(&flags, r);
+    return flags;
+}
+
+#ifdef CUDA
+template<>
+char* BeagleGPUSpectralImpl<double>::getInstanceName() {
+    return (char*) "CUDA-Double-Spectral";
+}
+
+template<>
+char* BeagleGPUSpectralImpl<float>::getInstanceName() {
+    return (char*) "CUDA-Single-Spectral";
+}
+#elif defined(FW_TINYGPU)
+template<>
+char* BeagleGPUSpectralImpl<double>::getInstanceName() {
+    return (char*) "TinyGPU-Double-Spectral";
+}
+
+template<>
+char* BeagleGPUSpectralImpl<float>::getInstanceName() {
+    return (char*) "TinyGPU-Single-Spectral";
+}
+#else
+template<>
+char* BeagleGPUSpectralImpl<double>::getInstanceName() {
+    return (char*) "OpenCL-Double-Spectral";
+}
+
+template<>
+char* BeagleGPUSpectralImpl<float>::getInstanceName() {
+    return (char*) "OpenCL-Single-Spectral";
+}
+#endif
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::getInstanceDetails(BeagleInstanceDetails* returnInfo) {
+    int rc = BeagleGPUImpl<Real>::getInstanceDetails(returnInfo);
+    if (rc == BEAGLE_SUCCESS && returnInfo != NULL) {
+        returnInfo->flags |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+        returnInfo->implName = getInstanceName();
+    }
+    return rc;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
+        const int* postBufferIndices,
+        const int* preBufferIndices,
+        const int* eigenIndices,
+        const int* categoryRatesIndices,
+        const int* categoryWeightsIndices,
+        const int  rootPostOrderIndex,
+        const int  stateFrequenciesIndex,
+        int        count,
+        double*    outSumDerivatives,
+        double*    outSumSquaredDerivatives,
+        const int* postScaleIndices,
+        const int* preScaleIndices,
+        const int  cumulativeScaleIndex) {
+
+    if (postScaleIndices != NULL || preScaleIndices != NULL) {
+        // Rescaling-corrected adjoint cross-products (see the CPU
+        // implementation, BeagleCPUImpl::calcAdjointCrossProductsRange) are
+        // not yet implemented for the GPU merged-kernel path -- fail
+        // explicitly rather than silently return an uncorrected (wrong when
+        // partials were independently rescaled) gradient.
+        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    }
+
+    GPUInterface* gpuIf = this->gpu;
+    const int S  = this->kPaddedStateCount;
+    const int SS = S * S;
+    const int cwIdx = categoryWeightsIndices[0];
+
+    flushSpectralDistances();
+
+    /* Compute per-site marginal likelihoods into dAdjointSiteLogLk (not
+     * dIntegrationTmp, which holds what getSiteLogLikelihoods returns). */
+    this->kernels->IntegrateLikelihoods(
+        dAdjointSiteLogLk,
+        this->dPartials[rootPostOrderIndex],
+        this->dWeights[cwIdx],
+        this->dFrequencies[stateFrequenciesIndex],
+        this->kPaddedPatternCount,
+        this->kCategoryCount);
+
+    /* Zero the gradient accumulator on-device, in one fill over the whole
+     * pooled origin buffer (covers every eigen decomposition, not just
+     * those used this call). Previously this looped per-branch, zeroing
+     * the same distinct eigen index's buffer redundantly whenever several
+     * branches shared it (the common case) — replaced by a single call.
+     * Deliberately fills through `dGradientOrigin`, the same buffer object
+     * the merged kernel addresses via `gradientOrigin + offset`, rather
+     * than the per-`ei` sub-pointer `dGradient[ei]`: filling via the
+     * sub-buffer view was observed to race against the kernel's access
+     * through the parent view (intermittent large garbage gradients,
+     * OpenCL, Apple M1 Max) even on the in-order command queue — filling
+     * through the same view the kernel uses avoids that hazard. */
+    const unsigned int matStrideElements = this->getEvecStrideElements(); // AlignMemOffset(S * S * sizeof(Real)) in Reals
+    gpuIf->MemsetZero(dGradientOrigin, (size_t)kSpectralEigenDecompCount * matStrideElements * sizeof(Real));
+
+    GPUPtr catW = this->dWeights[cwIdx];
+
+    if (count > 0) {
+        /* Merged single-launch path (both S=4 and generic-N): build one
+         * offset-queue record per branch (single buffer, integer offsets
+         * into pooled origins — never per-branch device pointers), then one
+         * launch covers every branch at once; isStates/isAllReal are read
+         * per-block from the queue at runtime, so branch order doesn't
+         * matter here. This design won an A/B benchmark (generic-N) against
+         * a bucketed (up to 4 launches, grouped by isStates/isAllReal)
+         * alternative — see STATUS.md for the numbers; the S=4 path reuses
+         * the same queue format and dispatch style without repeating that
+         * A/B (same shape of result expected). */
+        if (count > kAdjointQueueCapacity) {
+            if (dAdjointQueue) gpuIf->FreeMemory(dAdjointQueue);
+            if (hAdjointQueue) gpuIf->FreeHostMemory(hAdjointQueue);
+            kAdjointQueueCapacity = count;
+            dAdjointQueue = gpuIf->AllocateMemory(
+                sizeof(unsigned int) * kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+            hAdjointQueue = (unsigned int*) gpuIf->CallocHost(
+                sizeof(unsigned int), kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+        }
+
+        for (int i = 0; i < count; i++) {
+            const int postIdx = postBufferIndices[i];
+            const int preIdx  = preBufferIndices[i];
+            const int matIdx  = eigenIndices[i];
+            const int ei      = hEigenIndexForMatrix[matIdx];
+            const bool isStates  = (this->dStates[postIdx] != 0);
+            const bool isAllReal = hEigenDecompIsAllReal[ei];
+            unsigned int* rec = hAdjointQueue + (size_t)i * kAdjointQueueFieldsPerBranch;
+
+            rec[0] = this->getPartialsOffsetElements(preIdx);
+            rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
+                               : this->getPartialsOffsetElements(postIdx);
+            rec[2] = isStates ? 1u : 0u;
+            rec[3] = (unsigned int)ei * matStrideElements;
+            rec[4] = (unsigned int)ei * this->getEvecStrideElements();
+            rec[5] = (unsigned int)ei * this->getEvalStrideElements();
+            rec[6] = (unsigned int)matIdx * kSpectralDistanceStrideElements;
+            rec[7] = (unsigned int)ei * matStrideElements;
+            rec[8] = isAllReal ? 1u : 0u;
+        }
+
+        gpuIf->MemcpyHostToDevice(dAdjointQueue, hAdjointQueue,
+            sizeof(unsigned int) * count * kAdjointQueueFieldsPerBranch);
+
+        if (S == 4) {
+            this->kernels->AdjointCrossProductMergedSpectral4(
+                this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                this->dIevcOrigin, this->dEigenValuesOrigin,
+                dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
+                this->kPaddedPatternCount, this->kCategoryCount, count);
+        } else {
+            this->kernels->AdjointCrossProductMergedSpectralN(
+                this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                this->dIevcOrigin, this->dEigenValuesOrigin,
+                dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
+                this->kPaddedPatternCount, this->kCategoryCount, count);
+        }
+    }
+
+    /* Download gradient to host.  The first eigen decomp's gradient is the
+     * primary output.  Convert Real→double.
+     *
+     * The device buffer is laid out S×S with S=kPaddedStateCount (padding
+     * rows/cols beyond kStateCount hold unused/garbage values from the
+     * padding eigenstates), but callers (matching BeagleCPUImpl's
+     * convention) allocate outSumDerivatives sized kStateCount*kStateCount.
+     * Copying the full padded SS run would overflow that buffer whenever
+     * kPaddedStateCount > kStateCount — only copy the top-left
+     * kStateCount×kStateCount submatrix, row by row with the correct
+     * strides on each side. */
+    if (count > 0 && outSumDerivatives != NULL) {
+        const int ei0 = hEigenIndexForMatrix[eigenIndices[0]];
+        const int SC = this->kStateCount;
+        // read through dGradientOrigin, the view the kernel wrote (see the MemsetZero comment above)
+        const size_t gradOffset = (size_t)ei0 * matStrideElements;
+        Real* hGrad = (Real*) gpuIf->CallocHost(sizeof(Real), gradOffset + SS);
+        gpuIf->MemcpyDeviceToHost(hGrad, dGradientOrigin, (gradOffset + SS) * sizeof(Real));
+        for (int i = 0; i < SC; i++)
+            for (int j = 0; j < SC; j++)
+                outSumDerivatives[i * SC + j] = (double)hGrad[gradOffset + i * S + j];
+        gpuIf->FreeHostMemory(hGrad);
+    }
+
+    BEAGLE_GPU_RETURN_IF_LOST();   // TinyGPU: the gradient read back is not the GPU's
+    return BEAGLE_SUCCESS;
+}
+
+} // namespace cuda/tinygpu/opencl
+} // namespace gpu
+} // namespace beagle
+
+#endif // __BeagleGPUSpectralImpl_hpp__

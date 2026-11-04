@@ -25,6 +25,7 @@ public enum BeagleFlag {
 
     VECTOR_SSE(1 << 11, "SSE vector computation"),
     VECTOR_NONE(1 << 12, "no vector computation"),
+    VECTOR_TENSOR(1L << 33, "Tensor cores"),
 
     THREADING_CPP(1 << 30, "C++11 threading"),
     THREADING_OPENMP(1 << 13, "OpenMP threading"),
@@ -42,11 +43,13 @@ public enum BeagleFlag {
     PARALLELOPS_STREAMS(1 << 28, "Operations in updatePartials may be assigned to separate device streams"),
     PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)"),
 
-    PREORDER_TRANSPOSE_MANUAL((long) 1 << 30, "Pre-order transition matrices passed to BEAGLE have been transposed"),
-    PREORDER_TRANSPOSE_AUTO((long) 1 << 31, "Automatically transpose pre-order transition matrices"),
+    PREORDER_TRANSPOSE_MANUAL(1L << 34, "Pre-order transition matrices passed to BEAGLE have been transposed"),
+    PREORDER_TRANSPOSE_AUTO(1L << 31, "Automatically transpose pre-order transition matrices"),
     PREORDER_TRANSPOSE_LOW_MEMORY(1L << 32, "Use low-memory automatic transposition of pre-order transition matrices"),
 
-    BEAGLE_FLAG_COMPUTATION_ACTION((long) 1 << 40, "Action computation");
+    SPECTRAL_REPRESENTATION(1L << 40, "Use spectral representation for transition probability calculations"),
+
+    BEAGLE_FLAG_COMPUTATION_ACTION(1L << 42, "Action computation");
 
     BeagleFlag(long mask, String meaning) {
         this.mask = mask;

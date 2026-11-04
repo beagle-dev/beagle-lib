@@ -23,7 +23,9 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <map>
 #include <vector>
+#include <cstdint>
 
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/GPU/GPUImplDefs.h"
@@ -35,6 +37,8 @@
 
 #ifdef CUDA
 	using namespace cuda_device;
+#elif defined(FW_TINYGPU)
+	using namespace tinygpu_device;
 #else
 	using namespace opencl_device;
 #endif
@@ -44,6 +48,8 @@ namespace gpu {
 
 #ifdef CUDA
 	namespace cuda {
+#elif defined(FW_TINYGPU)
+	namespace tinygpu {
 #else
 	namespace opencl {
 #endif
@@ -53,30 +59,34 @@ class BeagleGPUImpl : public BeagleImpl {
 
 
 protected:
-    GPUInterface* gpu;
-    KernelLauncher* kernels;
-
-    int kInitialized;
-    
     long long kFlags;
+
+    int kStateCount;
+    int kPaddedStateCount;     //   * kPaddedStateCount is a multiple of 16
+
+    GPUPtr* dStates;
+    GPUPtr* dPartials;
+
+    GPUPtr  dIntegrationTmp;
+    int     kResultPaddedPatterns; // dIntegrationTmp holds kPaddedPatternCount + kResultPaddedPatterns
+    GPUPtr  dPatternWeights;
+    GPUPtr* dWeights;
+    GPUPtr* dFrequencies;
+
+protected: // used by BeagleGPUActionImpl
+    int kInitialized;
 
     int kTipCount;
     int kPartialsBufferCount;
     int kCompactBufferCount;
-    int kStateCount;
     int kPatternCount;
     int kEigenDecompCount;
-    int kMatrixCount;
-    int kCategoryCount;
 
     int kTipPartialsBufferCount;
     int kInternalPartialsBufferCount;
     int kBufferCount;
     int kScaleBufferCount;
 
-    int kPaddedStateCount;
-    int kPaddedPatternCount;    // total # of patterns with padding so that kPaddedPatternCount
-                                //   * kPaddedStateCount is a multiple of 16
     int kSumSitesBlockCount;
 
     int kPartialsSize;
@@ -87,9 +97,9 @@ protected:
     int kLastCompactBufferIndex;
     int kLastTipPartialsBufferIndex;
 
-    int kResultPaddedPatterns;
-
-    GPUPtr dIntegrationTmp;
+	int kSumIntervalBlockSize;
+	int kSlabOpsPerBlock;
+	int kSumAcrossBlockSize;
     GPUPtr dOutFirstDeriv;
     GPUPtr dOutSecondDeriv;
     GPUPtr dPartialsTmp;
@@ -103,13 +113,11 @@ protected:
 	GPUPtr dMultipleDerivatives;
 	GPUPtr dMultipleDerivativeSum;
 
-    GPUPtr dPatternWeights;
-
-    GPUPtr dBranchLengths;
-
     GPUPtr dDistanceQueue;
+    int kDistanceQueueLength; // Reals in dDistanceQueue and hDistanceQueue
 
     GPUPtr dPtrQueue;
+    int kPtrQueueLength;      // entries in dPtrQueue and hPtrQueue
 
 	GPUPtr dDerivativeQueue;
 
@@ -118,20 +126,23 @@ protected:
 
     GPUPtr dAccumulatedScalingFactors;
 
-    GPUPtr* dEigenValues;
-    GPUPtr* dEvec;
-    GPUPtr* dIevc;
-
-    GPUPtr* dWeights;
-    GPUPtr* dFrequencies;
-
     GPUPtr* dScalingFactors;
+    GPUPtr dScalingFactorsOrigin; // the pool behind dScalingFactors; 0 with CUDA dynamic scaling (one buffer each)
+    int kScalePoolCapacity;          // slots in that pool, with the zero buffer of raw scalers; 0 while there is none
+    unsigned int kScaleBufferStride; // elements between consecutive scale buffers in that pool
+    GPUPtr scalingFactorsOrigin() const { // what kernels offset by scale index
+        return dScalingFactorsOrigin != (GPUPtr)NULL ? dScalingFactorsOrigin : dScalingFactors[0];
+    }
 
-    GPUPtr* dStates;
-
-    GPUPtr* dPartials;
     GPUPtr* dMatrices;
-    GPUPtr dMatricesOrigin;
+    GPUPtr dMatricesOrigin;           // 0 until the first dense write when denseMatricesOnDemand()
+    int kMatrixPoolCapacity;          // matrix slots in dMatricesOrigin; 0 while there is no pool
+    std::vector<bool> hDenseWritten;  // per matrix index, when denseMatricesOnDemand()
+    std::vector<bool> hActiveScalingFactors; // SCALING_AUTO, per internal buffer: its last operation wrote its factors
+
+    // Every sub-buffer made by createSubPointer, by parent; per-index arrays (dPartials, dStates, ...) alias each
+    // other and are swapped by reorderPatternsByPartition, so they cannot tell what to release
+    std::map<GPUPtr, std::vector<GPUPtr> > hSubPointers;
     
     GPUPtr* dCompactBuffers;
     GPUPtr* dTipPartialsBuffers;
@@ -159,6 +170,8 @@ protected:
     GPUPtr  dTipOffsets;
     GPUPtr  dTipTypes;
     GPUPtr  dPartialsOrigin;
+    int kPartialsPoolCapacity;  // slots in dPartialsOrigin, which may exceed kPartialsBufferCount (pattern reorder)
+    int kPartialsHandleCount;   // entries in dPartials and hPartialsOffsets, which may exceed kBufferCount
     GPUPtr  dStatesOrigin;
     GPUPtr  dStatesSortOrigin;
     GPUPtr  dPatternWeightsSort;
@@ -170,7 +183,7 @@ protected:
     unsigned int* hStatesOffsets;
     int* hTipOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
-    long kDeviceType;
+    long long kDeviceType;
     int kPartitionCount;
     int kMaxPartitionCount;
     int kPaddedPartitionBlocks;
@@ -192,8 +205,6 @@ protected:
 
 	unsigned int* hDerivativeQueue;
 
-    double** hCategoryRates; // Can keep in double-precision
-
     Real* hPatternWeightsCache;
 
     Real* hDistanceQueue;
@@ -212,32 +223,379 @@ protected:
 
     int* hStreamIndices;
 
-	GPUPtr dBastaBuffers;
-	GPUPtr dBastaBlockResMemory;
-	GPUPtr dBastaFinalResMemory;
 	GPUPtr dBastaMemory;
-	GPUPtr dBlockSegmentKeysEnd;
 	GPUPtr dBastaLogL;
 	GPUPtr dBastaDistance;
 	GPUPtr dBastaOperationQueue;
 	GPUPtr dCoalescentBuffers;
-	GPUPtr dBastaInterval;
-	GPUPtr dBastaFlags;
 	int kCoalescentBufferLength;
 	int kCoalescentBufferCount;
 	int kBastaIntervalBlockCount;
 
-
-	Real* hBastaOperationQueue;
-	Real* hBastaSubintervals;
-	Real* hBastaFinalKeys;
-	Real* hBastaFinalSubintervals;
-	Real* hBastaInterval;
+	int* hBastaOperationQueue;
 	Real* hBastaLogL;
 	Real* hBastaDistance;
 	Real* hBastazeroes;
-	Real* hBastaFinalResMemory;
-	Real* hBastaMemory;
+
+	GPUPtr dEdgeLengthsGrad;
+
+	Real* hEdgeLengthsGrad;
+	Real* hGradZeros;
+	size_t kGradZerosSize;
+
+	bool kGradBuffersAllocated;
+	bool kBastaBuffersAllocated; // allocateBastaBuffers or allocateBastaGradBuffers has run: ensureBufferCounts refuses to grow
+	bool kBastaOpsUploaded;
+	int  kBastaOpsCount;
+
+	// the two population-size buffers, each [sizes[0..R-1] | integrals[0..R-1]] (empty until set), and the current
+	// one; kept on the host, in the instance's precision
+	std::vector<Real> hBastaPopulationSizes[2];
+	int kCurrentPopulationSizeBuffer;
+
+	// _v5: the current buffer's sizes and integrals as a row of kPaddedStateCount per intervalNumber (padding 0), the
+	// rows of the kernels' sizes and integrals arguments; allocated by the first _v5 call, and again when
+	// kCoalescentBufferLength changes (kBastaRowsLength_v5: the length they have); hBastaRows_v5 stages either table,
+	// hBastaOffsets_v5 is each intervalNumber's offset (-1: no operation uses it)
+	GPUPtr dBastaSizeRows_v5;
+	GPUPtr dBastaIntegralRows_v5;
+	int kBastaRowsLength_v5;
+	std::vector<Real> hBastaRows_v5;
+	std::vector<int> hBastaOffsets_v5;
+
+	GPUPtr dAdjointPopSizeGrad;
+	GPUPtr dHazardAdjoints;
+	GPUPtr dTransformedAdjoints;
+
+	// dRawEvec, dRawIevc, dEvecT and dInverseEvecT: NULL until ensureBastaEigenBuffers
+	GPUPtr* dRawEvec;
+	GPUPtr* dRawIevc;
+	GPUPtr  dRawEvecOrigin;
+	GPUPtr  dRawIevcOrigin;
+	GPUPtr dAdjointIntervalNumbers;        // [intervalCount]    intervalNumber per interval (used by ComputeHazardAdjoints)
+	GPUPtr dAdjointIntervalStarts;         // [intervalCount + 1] op range per interval (used by gather kernel)
+	GPUPtr dAdjointMatTransIndices;        // [intervalCount]    destination matrix offset per interval
+	GPUPtr dAdjointCoalOps;                // [intervalCount]    coalescent op index per interval, -1 if none
+	int* hAdjointIntervalNumbers;
+	int* hAdjointCoalOps;
+	int* hAdjointMatTransIndices;
+	int* hAdjointIntervalStarts;
+	int kAdjointIntervalNumbersSize;
+	Real* hTransformedAdjointsHost;
+
+	Real* hPopSizeGradHost;
+	GPUPtr dLoewnerEigenValues;
+	GPUPtr dLoewnerBranchLengths;
+	GPUPtr dLoewnerBlockStarts;
+	GPUPtr dLoewnerBlockDims;
+	GPUPtr dLoewnerOutRateGrad;
+	Real* hLoewnerEigenValues;
+	Real* hLoewnerBranchLengths;
+	int* hLoewnerBlockStarts;
+	int* hLoewnerBlockDims;
+	int kLoewnerNumBlocks;
+	int kLoewnerEvalSize;
+	int kLoewnerMaxM;
+	bool kAdjointGradBuffersAllocated;
+
+	bool kAdjointGradMode;
+	int kActiveEigenIndexFwd;
+
+	GPUPtr dScratchYBar;            // [operationCount * PADDED_STATE_COUNT]
+	GPUPtr dScratchX;               // same shape, used by legacy pipeline only
+	GPUPtr dCoalRightYBar;          // [intervalCount * PADDED_STATE_COUNT], legacy pipeline only
+	GPUPtr dCoalRightX;             // same shape, legacy pipeline only
+	int kScratchOpCapacity;      // allocated op slots for dScratchYBar
+	int kScratchXOpCapacity;     // allocated op slots for dScratchX (legacy only)
+	int kCoalRightCapacity;      // current capacity of coalRight buffers, in interval slots
+	int kAdjointMaxOpsPerInterval;
+
+	uint64_t kAdjointMetaFingerprint;     // hash over (hBastaOperationQueue, intervalStarts)
+	bool kAdjointMetaCached;
+	int kAdjointMetaIntervalCount;
+
+	uint64_t kLoewnerMetaFingerprint;     // hash over eigenvalues
+	bool kLoewnerMetaCached;
+	int kLoewnerMetaEvalSize;
+
+	void* kAdjointGraphExec;
+	bool kAdjointGraphValid;
+	uint64_t kAdjointGraphFingerprint;
+	int kAdjointGraphIntervalCount;
+	int kAdjointGraphAnchor;
+	bool kSlabAnchorActive;
+	int kAdjointGraphNumEvBlocks;    // kSlabNumEvBlocks at capture time
+	long kAdjointGraphReplayCount;    // diagnostics
+	long kAdjointGraphRebuildCount;
+	long kAdjointGraphFallbackCount;
+
+	bool kCfgUseForwardSlab;
+	bool kCfgUseAdjointSlab;
+	bool kForwardSlabPipelineEnabled;
+	void* kForwardSlabGraphExec;
+	bool kForwardSlabGraphValid;
+	uint64_t kForwardSlabGraphFingerprint;
+	int kForwardSlabGraphIntervalCount;
+	int kForwardSlabGraphNumEvBlocks;
+	long kForwardSlabGraphReplayCount;
+	long kForwardSlabGraphRebuildCount;
+	long kForwardSlabGraphFallbackCount;
+
+
+	bool kAdjointSlabPipelineEnabled;
+	GPUPtr dPartialsTilde;
+	size_t kPartialsTildeBytes;
+
+	GPUPtr dGEigen;
+
+	GPUPtr* dEvecT;
+	GPUPtr* dInverseEvecT;
+	GPUPtr  dEvecTOrigin;
+	GPUPtr  dInverseEvecTOrigin;
+
+	GPUPtr dBranchKb;
+	GPUPtr dBranchKTop;
+	GPUPtr dBranchTopBuf;
+	GPUPtr dBranchBotBuf;
+	GPUPtr dBranchOpFirst;
+	GPUPtr dBranchTimeStart;
+	GPUPtr dBranchT;
+
+	GPUPtr dCoalDestBufs;
+	GPUPtr dCoalLeftAccBufs;
+	GPUPtr dCoalRightAccBufs;
+	GPUPtr dCoalIntervals;
+
+	int kMaxSlabDepth;
+	int* hBranchSlabStart;
+	int* hCoalSlabStart;
+
+
+	GPUPtr dOpInBufOff;
+
+
+	GPUPtr dOpKIn;
+	GPUPtr dOpKAcc;
+	GPUPtr dOpHasAcc;
+	GPUPtr dOpReduceTable;
+	int kBastaOpReduceCount;
+
+	GPUPtr dIntervalOpStartCSR;
+	GPUPtr dIntervalOpListCSR;
+
+
+	GPUPtr dHazardEigenPerOp;
+	size_t kHazardEigenPerOpBytes;
+
+	GPUPtr dSlabBlockBranchIdx;
+	GPUPtr dSlabBlockChunkStart;
+	GPUPtr dSlabBlockChunkLen;
+	GPUPtr dSlabBlockChunkIdx;
+
+
+	GPUPtr dBranchFirstBlock;
+	GPUPtr dBranchSlabList;
+	GPUPtr dSlabCarryOut;
+	GPUPtr dSlabCarryPrefix;
+	GPUPtr dSlabAlpha;
+	GPUPtr dSlabCtaCarry;
+	GPUPtr dSlabCtaCarryBranch;
+	GPUPtr dSlabAStash;
+
+	GPUPtr dSlabYBottomEigen;
+	size_t kSlabYBottomBytes;
+
+
+	GPUPtr dIntervalBranchLengths;
+	size_t kIntervalBLBytes;
+	size_t kIntervalOpStartBytes;
+	Real*  hIntervalBranchLengths;
+
+	GPUPtr dLoewnerExp;
+	size_t kLoewnerExpBytes;
+
+
+	int kSlabBlockCap;
+	size_t kSlabCarryBytes;
+	size_t kSlabAStashBytes;
+
+
+	int* hSlabBlockBranchIdx;
+	int* hSlabBlockChunkStart;
+	int* hSlabBlockChunkLen;
+	int* hSlabBlockChunkIdx;
+	int* hSlabBlockStart;
+	int* hBranchFirstBlock;
+
+	GPUPtr dForwardBufList;
+	int kForwardBufCount;
+
+	// Capacity tracking
+	int kSlabBranchCount;
+	int kSlabCoalCount;
+	int kSlabBranchListCap;
+	int kSlabBranchTimeCap;
+	int kSlabSlabCap;
+	int kSlabCtaCarryCap;
+	int kSlabOpCap;
+	int kSlabOpReduceCap;
+	int kSlabForwardBufCap;
+
+
+	int* hBranchKb;
+	int* hBranchKTop;
+	int* hBranchTopBuf;
+	int* hBranchBotBuf;
+	int* hBranchOpFirst;
+	int* hBranchTimeStart;
+	Real* hBranchT;
+	int* hCoalDestBufs;
+	int* hCoalLeftAccBufs;
+	int* hCoalRightAccBufs;
+	int* hCoalIntervals;
+	int* hBranchSlabList;
+	int* hOpInBufOff;
+	int* hOpKIn;
+	int* hOpKAcc;
+	int* hOpHasAcc;
+	int* hOpReduceTable;
+	int* hIntervalOpStartCSR;
+	int* hIntervalOpListCSR;
+	int* hForwardBufList;
+
+
+	double** hStashedEval;
+	int*  kStashedEvalSize;
+	bool* kStashedEvalHasComplex;
+	bool kLoewnerInfoBootstrapped;
+
+
+	int kSlabBranchCountActive;
+	int kSlabCoalCountActive;
+	int kSlabBranchOpTotalActive;
+	int kSlabNumEvBlocks;
+
+
+	bool kBastaSlabMetadataUploaded;
+	bool kBastaPipelineAnnounced;
+
+
+	void* kForwardGraphExec;
+	bool kForwardGraphValid;
+	uint64_t kForwardGraphFingerprint;
+	int kForwardGraphIntervalCount;
+	int kForwardGraphOperationCount;
+	long kForwardGraphReplayCount;
+	long kForwardGraphRebuildCount;
+	long kForwardGraphFallbackCount;
+
+    bool kPoolLost; // a pool was lost by a failed restore in growPool: every growth returns BEAGLE_ERROR_OUT_OF_MEMORY
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    std::vector<int> hDebugFailAllocations; // BEAGLE_DEBUG_MEMORY_FAIL during one ensureBufferCounts call, else empty
+    int kDebugAllocationCount;              // tryAllocate calls so far in that call
+#endif
+
+protected:
+    GPUInterface*  gpu;
+    KernelLauncher* kernels;
+
+    int kMatrixCount;
+    int kCategoryCount;
+    int kPaddedPatternCount;
+
+    GPUPtr* dEigenValues;
+    GPUPtr* dEvec;
+    GPUPtr* dIevc;
+
+    // The pools behind dEigenValues, dEvec, dIevc, dWeights and dFrequencies; kernels that add an offset to the
+    // start of a pool get these, not the first per-index handle (on OpenCL that may be a one-stride sub-buffer)
+    GPUPtr dEigenValuesOrigin;
+    GPUPtr dEvecOrigin;
+    GPUPtr dIevcOrigin;
+    GPUPtr dWeightsOrigin;
+    GPUPtr dFrequenciesOrigin;
+
+    double** hCategoryRates;
+
+    // True when the matrix pool exists only once a matrix is written densely (spectral: matrices hold eigen-systems).
+    // Then a dense read of an index that was never written densely returns BEAGLE_ERROR_OUT_OF_RANGE.
+    virtual bool denseMatricesOnDemand() const { return false; }
+
+    // ensureBufferCounts' steps for the structures of a derived class sized by the matrix count, called while the
+    // counts are still the old ones when the matrix count grows to newMatrixCount. Each returns BEAGLE_SUCCESS, or an
+    // error with the instance valid at the old counts. growDerivedHostArrays: larger host arrays, after the base
+    // ones. growDerivedPools: device pools through growPool, after the base ones; a std::bad_alloc thrown while it
+    // makes the handles of a pool that moved marks the pool lost.
+    virtual int growDerivedHostArrays(int newMatrixCount) { return BEAGLE_SUCCESS; }
+    virtual int growDerivedPools(int newMatrixCount) { return BEAGLE_SUCCESS; }
+
+    // A sub-buffer of parent that is released by freeWithSubPointers(parent)
+    GPUPtr createSubPointer(GPUPtr parent, size_t offset, size_t size);
+    // Releases the sub-buffers made from parent by createSubPointer, then frees parent
+    void freeWithSubPointers(GPUPtr parent);
+    // Whether createSubPointer has made sub-buffers of parent that are not yet released
+    bool hasSubPointers(GPUPtr parent) const { return hSubPointers.find(parent) != hSubPointers.end(); }
+    // Moves the pool at origin (capacity slots of strideBytes) to a block of newCapacity slots that starts with its first
+    // usedSlots slots; nothing changes when newCapacity <= capacity. BEAGLE_ERROR_OUT_OF_RANGE before any change when the
+    // block would exceed INT_MAX elements. BEAGLE_ERROR_OUT_OF_MEMORY leaves the old pool, possibly restored at a new
+    // address by the host-staged fallback (best effort: origin 0 and capacity 0 if that fails too). After such a failed
+    // restore the pool stays lost (kPoolLost): every later growth returns BEAGLE_ERROR_OUT_OF_MEMORY, and the instance
+    // must be finalized. On TinyGPU, a lost or failed instance returns BEAGLE_ERROR_GENERAL (BEAGLE_ERROR_OUT_OF_MEMORY
+    // when GetOutOfMemory) and stages, frees and reports nothing.
+    // Whenever the old block is freed, its sub-buffers are released and !hasSubPointers(origin): the caller then rebuilds
+    // its handles with createSubPointer(origin, ...).
+    int growPool(GPUPtr& origin, int& capacity, size_t strideBytes, int newCapacity, int usedSlots);
+
+    /* Accessors for the pooled partials/states origins and their per-index
+     * element offsets, and the per-eigen-decomposition matrix/eigenvalue
+     * strides — needed by BeagleGPUSpectralImpl to build a single batched
+     * offset-queue kernel argument (mirrors this class's own dPtrQueue
+     * idiom) instead of resolving one GPUPtr per branch on the host. The
+     * offset accessors (not a naive index*stride recompute) are required
+     * for correctness across tip/pattern resorting, which swaps which
+     * physical buffer a logical index maps to. */
+    GPUPtr getPartialsOrigin() const { return dPartialsOrigin; }
+    GPUPtr getStatesOrigin() const { return dStatesOrigin; }
+    unsigned int getPartialsOffsetElements(int index) const { return hPartialsOffsets[index]; }
+    unsigned int getStatesOffsetElements(int index) const { return hStatesOffsets[index]; }
+    unsigned int getEvecStrideElements() const { return kEvecOffset; }
+    unsigned int getEvalStrideElements() const { return kEvalOffset; }
+    // For BeagleGPUFusedImpl's op table: the matrix pool and its per-index stride, and the scale pool (0 without scale
+    // buffers; scalingFactorsOrigin() would dereference dScalingFactors[0]) and its per-index offset (as upPartials)
+    GPUPtr getMatricesOrigin() const { return dMatricesOrigin; }
+    unsigned int getMatrixStrideElements() const { return kIndexOffsetMat; }
+    GPUPtr getScalingFactorsOriginRaw() const { return dScalingFactorsOrigin; }
+    unsigned int getScaleBufferSizeElements() const { return (unsigned int) kScaleBufferSize; }
+
+    virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
+    virtual void dispatchPruneSP(GPUPtr s1, GPUPtr p2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
+    virtual void dispatchPruneSS(GPUPtr s1, GPUPtr s2, GPUPtr p3,
+                                  int c1MatIdx, int c2MatIdx,
+                                  GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                  unsigned int startPattern, unsigned int endPattern,
+                                  int rescale, int streamIndex, int waitIndex);
+    // A degree-2 (single-child) post-order operation, child 2 BEAGLE_OP_NONE: p3 = P(c1MatIdx) c1. Reached only from a
+    // subclass whose checkSingleChild accepts degree 2 (BeagleGPUSpectralImpl)
+    virtual void dispatchPruneDegree2(GPUPtr c1, bool c1IsStates, GPUPtr p3,
+                                      int c1MatIdx,
+                                      GPUPtr scalingFactors, GPUPtr cumulativeScaling,
+                                      unsigned int startPattern, unsigned int endPattern,
+                                      int rescale, int streamIndex, int waitIndex) {}
+
+    // Degree-2 (single-child) nodes, a second child or sibling of BEAGLE_OP_NONE: BEAGLE_ERROR_NO_IMPLEMENTATION if an
+    // operation has one, BEAGLE_SUCCESS otherwise. BeagleGPUSpectralImpl computes them and accepts every operation
+    virtual int checkSingleChild(const int* operations,
+                                 int operationCount,
+                                 int numOps);
 
 public:
     BeagleGPUImpl();
@@ -279,6 +637,11 @@ public:
 				    int scaleIndex,
                     double* outPartials);
 
+    int getPartialsBatch(const int* bufferIndices,
+                         const int* scaleIndices,
+                         int count,
+                         double* outPartials);
+
     int setEigenDecomposition(int eigenIndex,
                               const double* inEigenVectors,
                               const double* inInverseEigenVectors,
@@ -295,7 +658,7 @@ public:
                                     const int *colIndices,
                                     const double *values,
                                     int numNonZeros);
-    
+
     int setStateFrequencies(int stateFrequenciesIndex,
                             const double* inStateFrequencies);
 
@@ -369,11 +732,13 @@ public:
 
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex);
+                       int cumulativeScalingIndex,
+                       BeaglePartialsType partialsType);
 
     int updatePrePartials(const int *operations,
                           int count,
-                          int cumulativeScaleIndex);
+                          int cumulativeScaleIndex,
+                          BeaglePartialsType preorderType);
 
 	int calculateEdgeDerivative(const int *postBufferIndices,
 								const int *preBufferIndices,
@@ -399,11 +764,35 @@ public:
                                  double *outSumDerivatives,
                                  double *outSumSquaredDerivatives);
 
+    int calculateAdjointCrossProducts(const int *postBufferIndices,
+                                      const int *preBufferIndices,
+                                      const int *eigenIndices,
+                                      const int *categoryRatesIndices,
+                                      const int *categoryWeightsIndices,
+                                      const int rootPostOrderIndex,
+                                      const int stateFrequenciesIndex,
+                                      int count,
+                                      double *outSumDerivatives,
+                                      double *outSumSquaredDerivatives,
+                                      const int *postScaleIndices = nullptr,
+                                      const int *preScaleIndices = nullptr,
+                                      const int cumulativeScaleIndex = BEAGLE_OP_NONE);
+
+    int calculateAdjointDerivative(const BeagleBranchOperation *operations,
+                                   const int categoryRatesIndex,
+                                   const int categoryWeightsIndex,
+                                   const int rootPostOrderIndex,
+                                   const int stateFrequenciesIndex,
+                                   const int operationCount,
+                                   double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives);
+
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 
     int updatePrePartialsByPartition(const int* operations,
-                                     int operationCount);
+                                     int operationCount,
+                                     BeaglePartialsType preorderType);
 
     int waitForPartials(const int* destinationPartials,
                         int destinationPartialsCount);
@@ -503,7 +892,27 @@ public:
     int getSiteDerivatives(double* outFirstDerivatives,
                            double* outSecondDerivatives);
 
+    int ensureBufferCounts(int partialsBufferCount,
+                           int matrixBufferCount,
+                           int scaleBufferCount);
+
     int updateInnerBastaPartials(const int * operations, const int * intervals, int i, int begin, int end, GPUPtr sizes, GPUPtr coalescent);
+
+    // inStride: the integers per operation of operations (BEAGLE_BASTA_OP_COUNT_V5 for _v5); the queue keeps 8
+    void uploadBastaOperationQueue(const int* operations, int count, int inStride = BEAGLE_BASTA_OP_COUNT);
+
+    int uploadBastaSlabMetadata(const int* packed, int packedLen);
+
+    int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
+
+    int ensureLoewnerInfoUploaded(int eigenIndex);
+
+    // BASTA's per-eigen raw and transposed eigenvectors (dRawEvec, dRawIevc, dEvecT, dInverseEvecT), which only the
+    // BASTA calls read: allocated by the first call that reads them, and filled there for the decompositions already
+    // set; from then on setEigenDecomposition uploads them too. Evec and Ievc are setEigenDecomposition's padded,
+    // untransposed matrices.
+    void ensureBastaEigenBuffers();
+    void uploadBastaEigenBuffers(int eigenIndex, const Real* Evec, const Real* Ievc);
 
 	int updateBastaPartials(const int* operations,
                             int operationCount,
@@ -535,39 +944,135 @@ public:
                                      const double *intervalLengths,
                                      const int populationSizesIndex,
                                      const int coalescentIndex,
+                                     int eigenIndex,
+                                     int partialAdjointBufferBase,
+                                     int matrixAdjointBufferBase,
+                                     double *popSizeGradOut,
                                      double *out);
 
     int allocateBastaBuffers(int bufferCount,
-                             int bufferLength);
+                             int bufferLength,
+                             int partialsCount,
+                             int initial,
+                             int numThreads);
+
+    int allocateBastaGradBuffers(int partialsCount);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);
-	     				  		                           
+
+    int accumulateEigenBasisGradient(int eigenIndex,
+                                     int matrixAdjointBufferBase,
+                                     const double* branchLengths,
+                                     int matrixCount,
+                                     int hasComplexEigenvalues,
+                                     double* outRateGradient);
+
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                int requiredStorageSize);
+
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                      int requiredStorageSize,
+                                      int bufferIndex);
+
+    int setCurrentPopulationSizeBuffer(int bufferIndex);
+
+    int updateBastaPartials_v5(const int* operations,
+                               int operationCount,
+                               const int* intervals,
+                               int intervalCount,
+                               int populationSizesIndex,
+                               int coalescentIndex);
+
+    int updateBastaPartialsGrad_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervals,
+                                   int intervalCount,
+                                   int populationSizesIndex,
+                                   int coalescentIndex);
+
+    int accumulateBastaPartials_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervalStarts,
+                                   int intervalStartsCount,
+                                   const double* intervalLengths,
+                                   const int populationSizesIndex,
+                                   int coalescentIndex,
+                                   double* out);
+
+    int accumulateBastaPartialsGrad_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervalStarts,
+                                       int intervalStartsCount,
+                                       const double* intervalLengths,
+                                       const int populationSizesIndex,
+                                       int coalescentIndex,
+                                       int eigenIndex,
+                                       int partialAdjointBufferBase,
+                                       int matrixAdjointBufferBase,
+                                       double* popSizeGradOut,
+                                       double* out);
+
 private:
 
-    char* getInstanceName();
+    // the _v5 functions' checks and, once they pass, the row buffers; then the sizes (half 0) or integrals (half 1) of
+    // the current population-size buffer, a row per intervalNumber, into rows
+    int prepareBasta_v5(const int* operations,
+                        int operationCount,
+                        const int* intervalStarts,
+                        int intervalStartsCount);
+
+    void uploadBastaRows_v5(GPUPtr rows, int half);
+
+    virtual char* getInstanceName();
+
+    // Every device allocation growPool and ensureBufferCounts make
+#ifdef BEAGLE_DEBUG_MEMORY
+    // fails the allocations BEAGLE_DEBUG_MEMORY_FAIL lists; with BEAGLE_DEBUG_MEMORY_SCRIBBLE set, fills new memory with
+    // 0x3f bytes
+    GPUPtr tryAllocate(size_t bytes);
+#else
+    GPUPtr tryAllocate(size_t bytes) { return gpu->TryAllocateMemory(bytes); }
+#endif
+
+    int growBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount); // ensureBufferCounts
 
     void  allocateMultiGridBuffers();
 
     int  reorderPatternsByPartition();
 
-    std::vector<int> transposeTransitionMatricesOnTheFly(const int *operations,
-                                                         int operationCount);
+    int transposeTransitionMatricesOnTheFly(const int *operations,
+                                            int operationCount,
+                                            std::vector<int>& newOperation);
 
     int setMatrixBufferImpl(int matrixIndex,
                             const double* inMatrix,
                             double paddedValue,
                             bool transpose);
+    int ensureDenseMatrixPool();
+    bool isDenseMatrix(int matrixIndex) const; // a valid index with dense contents
 
     int upPartials(bool byPartition,
                    const int* operations,
                    int operationCount,
-                   int cumulativeScalingIndex);
+                   int cumulativeScalingIndex,
+                   BeaglePartialsType partialsType);
 
 	int upPrePartials(bool byPartition,
 					  const int* operations,
 					  int count,
-					  int cumulativeScaleIndex);
+					  int cumulativeScaleIndex,
+					  BeaglePartialsType preorderType);
+
+	int upPrePartialsBottom(bool byPartition,
+					        const int* operations,
+					        int count,
+					        int cumulativeScaleIndex);
+
+	int upPrePartialsTop(bool byPartition,
+					     const int* operations,
+					     int count,
+					     int cumulativeScaleIndex);
 
 	void initDerivatives(int replicates);
 
@@ -605,7 +1110,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 template <typename Real>

@@ -22,6 +22,7 @@
 #elif defined(FW_OPENCL)
     #ifdef DOUBLE_PRECISION
         #pragma OPENCL EXTENSION cl_khr_fp64: enable
+		#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
     #endif
     #define __umul24(x, y) (x * y)
 #endif //FW_OPENCL
@@ -31,6 +32,12 @@
 #else //FP_FAST_FMA
     #define FMA(x, y, z) (z += x * y)
 #endif //FP_FAST_FMA
+
+#ifdef CUDA
+    #define KW_SINCOS(x, s, c) sincos((x), &(s), &(c))
+#else
+    #define KW_SINCOS(x, s, c) ((s) = sincos((x), &(c)))
+#endif
 
 #if (defined CUDA) && (defined DOUBLE_PRECISION) &&  (__CUDA_ARCH__ < 600)
     __device__ double atomicAdd(double* address, double val)
@@ -52,6 +59,39 @@
     }
 #endif
 
+#if defined(FW_OPENCL) && !defined(FW_TINYGPU_AMD) // GPUImplDefs.h supplies atomicAdd for FW_TINYGPU_AMD
+#ifdef DOUBLE_PRECISION
+    double atomicAdd(__global double* address, double val) {
+        __global long* address_as_ull =
+            (__global long*)address;
+        long old = *address_as_ull;
+        long assumed;
+
+        do {
+            assumed = old;
+            old = atom_cmpxchg(address_as_ull, assumed,
+                as_long(val + as_double(assumed)));
+        } while (assumed != old);
+
+        return as_double(old);
+    }
+#else
+    // TODO: Needs to be tested via BASTA kernels at single precision
+    float atomicAdd(__global float* address, float val) {
+        __global int* address_as_int = (__global int*)address;
+        int old = *address_as_int;
+        int assumed;
+
+        do {
+            assumed = old;
+            old = atomic_cmpxchg(address_as_int, assumed,
+                as_int(val + as_float(assumed)));
+        } while (assumed != old);
+
+        return as_float(old);
+    }
+#endif //DOUBLE_PRECISION
+#endif //FW_OPENCL
 ///////////////////////////////////////////////////////////////////////////////
 
 KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*             dPartials,
@@ -234,7 +274,15 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     // Thread index
     int tx = KW_LOCAL_ID_0;
     int ty = KW_LOCAL_ID_1;
+#if defined(FW_TINYGPU_NV_STATIC_BLOCKS)
+    // Opt-in A/B (TODO.md Phase 140): gridDim.y comes from a cbuf0 word that
+    // reads 0 on TinyGPU NV unless the launch-dims fill is on (-> EDGE=20);
+    // use the value KernelLauncher always launches with instead:
+    // grid.y = ceil(PADDED_STATE_COUNT / MULTIPLY_BLOCK_SIZE).
+    int BLOCKS = (PADDED_STATE_COUNT + MULTIPLY_BLOCK_SIZE - 1) / MULTIPLY_BLOCK_SIZE;
+#else
     int BLOCKS = KW_NUM_GROUPS_1;
+#endif
 
 #ifdef CUDA
     KW_LOCAL_MEM REAL* C;
@@ -310,6 +358,42 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADB(KW_GLOBAL_VAR REAL* dMatrices,
     }
 
     KW_LOCAL_FENCE;
+
+#if defined(FW_TINYGPU) && defined(TINYGPU_DEBUG_DUMP_MATMUL_GROUND_TRUTH)
+    // Opt-in probe hook (nv_real_kernel_probe.py; tinygputest
+    // --diag-matmul-ground-truth with a header rebuilt with this macro).
+    // Thread (0,0) of every block writes csub0 (dbg[0]), row/column 0 of
+    // As/Bs (dbg[1..8]), Ds[0..3] (dbg[9..12]) and %smid (dbg[13]) to a
+    // scratch slot past the real matrices -- dMatrices + totalMatrix*
+    // (PADDED_STATE_COUNT^2) + KW_GROUP_ID_0*(PADDED_STATE_COUNT^2) --
+    // addressed by KW_GROUP_ID_0, not through listC/wMatrix. A block that
+    // never gets here leaves its slot at the host's pre-seeded sentinel, so
+    // "never ran" and "ran but wrong" are distinguishable. Doesn't return:
+    // the real computation below still runs unmodified. Sized for the
+    // probe's setup (BLOCKS==1, totalMatrix==16); not a general-N tool.
+    {
+        KW_GLOBAL_VAR REAL* dbg = dMatrices
+            + totalMatrix * PADDED_STATE_COUNT * PADDED_STATE_COUNT
+            + KW_GROUP_ID_0 * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+        if (tx == 0 && ty == 0) {
+            REAL csub0 = 0;
+            for (int k = 0; k < EDGE; k++)
+                csub0 += As[0][k] * Ds[k] * Bs[k][0];
+            dbg[0]  = csub0;
+            dbg[1]  = As[0][0]; dbg[2]  = As[0][1]; dbg[3]  = As[0][2]; dbg[4]  = As[0][3];
+            dbg[5]  = Bs[0][0]; dbg[6]  = Bs[1][0]; dbg[7]  = Bs[2][0]; dbg[8]  = Bs[3][0];
+            dbg[9]  = Ds[0];    dbg[10] = Ds[1];    dbg[11] = Ds[2];    dbg[12] = Ds[3];
+#if defined(CUDA)
+            // %smid of the SM this block ran on; nv_real_kernel_probe.py
+            // --sweep tabulates results per SM from it. Legal PTX on any CUDA
+            // target, so gated on CUDA inside this FW_TINYGPU-only block.
+            unsigned int smid;
+            asm("mov.u32 %0, %smid;" : "=r"(smid));
+            dbg[13] = (REAL) smid;
+#endif
+        }
+    }
+#endif
 
     for (int k = 0; k < EDGE; k++)
         Csub += As[ty][k] * Ds[k] * Bs[k][tx];
@@ -784,7 +868,12 @@ KW_GLOBAL_KERNEL void kernelMatrixTranspose(KW_GLOBAL_VAR REAL* dMatrices,
 	    }
 }
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* offsets,
                                    KW_GLOBAL_VAR REAL* Alist,
                                    KW_GLOBAL_VAR REAL* Dlist,
@@ -834,7 +923,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#ifdef CUDA
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
     REAL* B0  = &Bs[1][0];
     REAL* Bm1 = &Bs[0][0];
     REAL* Bp1 = &Bs[2][0];
@@ -1004,7 +1093,12 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplexMulti(KW_GLOBAL_VAR REAL* dMatric
 }
 
 
-KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
+KW_GLOBAL_KERNEL void
+#ifdef FW_TINYGPU_AMD
+// the launch's block size: comgr otherwise assumes 1024 threads and caps the registers at 96, where this kernel spills in double
+__attribute__((amdgpu_flat_work_group_size(1, MULTIPLY_BLOCK_SIZE * MULTIPLY_BLOCK_SIZE)))
+#endif
+kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
                                    KW_GLOBAL_VAR unsigned int* listC,
                                    KW_GLOBAL_VAR REAL* A,
                                    KW_GLOBAL_VAR REAL* D,
@@ -1063,7 +1157,7 @@ KW_GLOBAL_KERNEL void kernelMatrixMulADBComplex(KW_GLOBAL_VAR REAL* dMatrices,
     KW_LOCAL_MEM REAL Ds[MULTIPLY_BLOCK_SIZE];
     KW_LOCAL_MEM REAL Es[MULTIPLY_BLOCK_SIZE + 2];
 
-#ifdef CUDA
+#if defined(CUDA) || defined(FW_TINYGPU_AMD)
    	REAL* B0  = &Bs[1][0];
    	REAL* Bm1 = &Bs[0][0];
    	REAL* Bp1 = &Bs[2][0];
@@ -1975,575 +2069,760 @@ KW_GLOBAL_KERNEL void kernelAccumulateFactorsAutoScaling(KW_GLOBAL_VAR signed ch
 }
 
 
+KW_DEVICE_FUNC void bastaTiledDualMatVec(KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1Ptr,
+                                         KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2Ptr,
+                                         KW_LOCAL_VAR REAL (*sMatrix1)[PADDED_STATE_COUNT],
+                                         KW_LOCAL_VAR REAL (*sMatrix2)[PADDED_STATE_COUNT],
+                                         KW_LOCAL_VAR REAL* sVec1,
+                                         KW_LOCAL_VAR REAL* sVec2,
+                                         int state,
+                                         int patIdx,
+                                         int sameTransIndex,
+                                         int isCoalescent,
+                                         REAL* pSum1,
+                                         REAL* pSum2){
+
+    KW_NO_UNROLL
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
+        if (patIdx < BLOCK_PEELING_SIZE_SCA) {
+            sMatrix1[patIdx][state] = matrix1Ptr[patIdx * PADDED_STATE_COUNT + state];
+            matrix1Ptr += BLOCK_PEELING_SIZE_SCA * PADDED_STATE_COUNT;
+            if (!sameTransIndex) {
+                sMatrix2[patIdx][state] = matrix2Ptr[patIdx * PADDED_STATE_COUNT + state];
+                matrix2Ptr += BLOCK_PEELING_SIZE_SCA * PADDED_STATE_COUNT;
+            }
+        }
+        KW_LOCAL_FENCE;
+        KW_LOCAL_VAR REAL (*secondMatrix)[PADDED_STATE_COUNT] = (sameTransIndex == 1) ? sMatrix1 : sMatrix2;
+        for (int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+            FMA(sMatrix1[j][state], sVec1[i + j], *pSum1);
+            if (isCoalescent) {
+                FMA(secondMatrix[j][state], sVec2[i + j], *pSum2);
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+}
+
+
+
+KW_DEVICE_FUNC REAL bastaParallelReduce(KW_LOCAL_VAR REAL* sReduction,
+                                        REAL value,
+                                        int state,
+                                        int patIdx){
+    sReduction[state] = value;
+    (void) patIdx;
+    KW_LOCAL_FENCE;
+#ifdef IS_POWER_OF_TWO
+    for (int stride = PADDED_STATE_COUNT / 2; stride > 0; stride >>= 1) {
+        if (state < stride) {
+#else
+    for (int stride = SMALLEST_POWER_OF_TWO / 2; stride > 0; stride >>= 1) {
+        if (state < stride && state + stride < PADDED_STATE_COUNT) {
+#endif
+            sReduction[state] += sReduction[state + stride];
+        }
+        KW_LOCAL_FENCE;
+    }
+    return sReduction[0];
+}
+
+
+
 /*
  * BASTA kernels
  */
 
 KW_GLOBAL_KERNEL void kernelInnerBastaPartialsCoalescent(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
-                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
+                                                    KW_GLOBAL_VAR int* KW_RESTRICT operations,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
-													int intervalNumber,
 													int start,
                                                     int numOps,
-                                                    int totalPatterns) {
-
-    #define PATTERN_BLOCK_SIZE_B 4
-    #define BLOCK_PEELING_SIZE_B 4
+                                                    int totalPatterns,
+                                                    int sizesStride) {
 
     int state = KW_LOCAL_ID_0;
     int patIdx = KW_LOCAL_ID_1;
-    int pattern = __umul24(KW_GROUP_ID_0,PATTERN_BLOCK_SIZE_B) + patIdx;
-
-    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_B][PADDED_STATE_COUNT];
-
-    KW_LOCAL_MEM REAL sPartials1[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
+    int pattern = __umul24(KW_GROUP_ID_0,BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
     int op = pattern + start;
     int maxOp = start + totalPatterns - 1;
+    int sameTransIndex = 1;
+    KW_LOCAL_MEM REAL sMatrix1[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sMatrix2[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT];
+
     int desIndex = operations[op * numOps];
     int child1PartialIndex = operations[op * numOps + 1];
     int child1TransIndex = operations[maxOp * numOps + 2];
-    int child2PartialIndex = (pattern < totalPatterns) ? operations[op * numOps + 3] : -1;
-    int child2TransIndex = (pattern < totalPatterns) ? operations[op * numOps + 4] : -1;
+    int child2PartialIndex = operations[op * numOps + 3];
+    int child2TransIndex = operations[maxOp * numOps + 4];
     int accumulation1PartialIndex = operations[op * numOps + 5];
     int accumulation2PartialIndex = operations[op * numOps + 6];
+    int intervalNumber = operations[op * numOps + 7];
 
-    KW_LOCAL_MEM REAL sPartials3[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
+    int isCoalescent = (child2PartialIndex >= 0);
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
 
     if (pattern < totalPatterns) {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
         sPartials1[patIdx][state] = partials1[state];
-        //printf("op %d \n",  op);
-        //printf("index %d \n",  child1PartialIndex);
-        //printf("partials1 %1.2e \n",  partials1[state]);
     } else {
         sPartials1[patIdx][state] = 0;
     }
     REAL sum1 = 0;
 
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix1 = matrices + child1TransIndex;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
-        /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE_B) {
-            /* These are all coherent global memory reads. */
-            sMatrix1[patIdx][state] = matrix1[patIdx * PADDED_STATE_COUNT + state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix1 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
-        }
-        KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
-            FMA(sMatrix1[j][state], sPartials1[patIdx][i + j], sum1);
-        }
-        KW_LOCAL_FENCE;
-    }
-
-
-    if (pattern < totalPatterns) {
-        KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
-        partials3[state] = sum1;
-    }
-
-
-    /* copy PADDED_STATE_COUNT*PATTERN_BLOCK_SIZE lengthed partials */
-    /* These are all coherent global memory reads; checked in Profiler */
-    KW_LOCAL_MEM REAL sPartials2[PATTERN_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-
-    if (pattern < totalPatterns && child2PartialIndex >= 0) {
+    if (pattern < totalPatterns && isCoalescent) {
         KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
-        sPartials2[patIdx][state] = partials2[state];
-        popSizes[state] = sizes[state];
-    } else {
-        sPartials2[patIdx][state] = 0;
-        popSizes[state] = 0;
-    }
-
-    if (patIdx == 0) {
-        popSizes[state] = sizes[state];
+        sPartials2[state] = partials2[state];
     }
 
     REAL sum2 = 0;
 
-    KW_GLOBAL_VAR REAL* KW_RESTRICT matrix2 = matrices + child1TransIndex;
-    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_B) {
-        /* load one row of matrices */
-        if (patIdx < BLOCK_PEELING_SIZE_B) {
-            /* These are all coherent global memory reads. */
-            sMatrix2[patIdx][state] = matrix2[patIdx * PADDED_STATE_COUNT + state];
-            /* sMatrix now filled with starting in state and ending in i */
-            matrix2 += BLOCK_PEELING_SIZE_B * PADDED_STATE_COUNT;
-        }
-        KW_LOCAL_FENCE;
-        for(int j = 0; j < BLOCK_PEELING_SIZE_B; j++) {
-            FMA(sMatrix2[j][state], sPartials2[patIdx][i + j], sum2);
-        }
-        KW_LOCAL_FENCE;
+    KW_LOCAL_FENCE;
+
+    bastaTiledDualMatVec(matrices + child1TransIndex, matrices + child2TransIndex,
+                         sMatrix1, sMatrix2, sPartials1[patIdx], sPartials2,
+                         state, patIdx, sameTransIndex, isCoalescent, &sum1, &sum2);
+
+
+    if (pattern < totalPatterns) {
+        partials3[state] = sum1;
     }
 
-
-	if (pattern < totalPatterns && child2PartialIndex >= 0) {
-	    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
+	if (pattern < totalPatterns && isCoalescent) {
 	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
 	    KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
 		accumulation1[state] = sum1;
 		accumulation2[state] = sum2;
-		if (popSizes[state] > 0) {
-            partials3[state] = sum1 * sum2 / popSizes[state];
+		// sizesStride 0: one row of sizes for every interval (8-integer operations); _v5: one row per intervalNumber
+		REAL popSize = sizes[intervalNumber * sizesStride + state];
+		if (popSize > 0) {
+            partials3[state] = sum1 * sum2 / popSize;
         } else {
             partials3[state] = 0;
         }
-	    sPartials3[patIdx][state] = partials3[state];
-
-#ifdef IS_POWER_OF_TWO
-	    // parallelized reduction *** only works for powers-of-2 ****
-	    for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-	        if (state < i) {
-#else
-	    for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
-	        if (state < i && state + i < PADDED_STATE_COUNT) {
-#endif // IS_POWER_OF_TWO
-	            sPartials3[patIdx][state] += sPartials3[patIdx][state + i];
-	        }
-	        KW_LOCAL_FENCE;
-	    }
-		REAL denominator = sPartials3[patIdx][0];
+		REAL denominator = bastaParallelReduce(sPartials2, partials3[state], state, patIdx);
 		partials3[state] = partials3[state] / denominator;
+
+
 		coalescent[intervalNumber] = denominator;
     }
 }
 
-
-
-//KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* e,
-                                                    //KW_GLOBAL_VAR REAL*  f,
-                                                    //KW_GLOBAL_VAR REAL*  g,
-                                                    //KW_GLOBAL_VAR REAL*  h,
-                                                    //KW_GLOBAL_VAR REAL* KW_RESTRICT startPartials1,
-                                                    //KW_GLOBAL_VAR REAL* KW_RESTRICT startPartials2,
-                                                    //KW_GLOBAL_VAR REAL* KW_RESTRICT endPartials1,
-                                                    //KW_GLOBAL_VAR REAL* KW_RESTRICT endPartials2,
-													//int intervalNumber,
-                                                    //int child2PartialIndex,
-                                                    //int renew) {
-
-    //#define SUM_SITES_BLOCK_SIZE_B 64
-	//#define SUM_PARTIAL_BLOCK_SIZE_B 4
-    //int state = KW_LOCAL_ID_0;
-    //int u = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * SUM_SITES_BLOCK_SIZE_B;
-    //int y = intervalNumber * PADDED_STATE_COUNT;
-	//KW_LOCAL_MEM REAL sPartials1[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-
-    //if (state < PADDED_STATE_COUNT) {
-		//sPartials1[0][state] = startPartials1[u];
-		//sPartials1[1][state] = startPartials1[u] * startPartials1[u];
-		//sPartials1[2][state] = endPartials1[u];
-		//sPartials1[3][state] = endPartials1[u] * endPartials1[u];
-    //} else {
-        //sPartials1[0][state] = 0;
-		//sPartials1[1][state] = 0;
-		//sPartials1[2][state] = 0;
-		//sPartials1[3][state] = 0;
-    //}
-
-    //if (renew == 0) {
-        //e[y + state] = sPartials1[0][state];
-        //f[y + state] = sPartials1[1][state];
-        //g[y + state] = sPartials1[2][state];
-        //h[y + state] = sPartials1[3][state];
-    //} else {
-        //e[y + state] += sPartials1[0][state];
-        //f[y + state] += sPartials1[1][state];
-        //g[y + state] += sPartials1[2][state];
-        //h[y + state] += sPartials1[3][state];
-    //}
-
-	//KW_LOCAL_MEM REAL sPartials2[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-    //if (child2PartialIndex >= 0) {
-    	//if (state < PADDED_STATE_COUNT) {
-			//sPartials2[0][state] = startPartials2[u];
-			//sPartials2[1][state] = startPartials2[u] * startPartials2[u];
-			//sPartials2[2][state] = endPartials2[u];
-			//sPartials2[3][state] = endPartials2[u] * endPartials2[u];
-    	//} else {
-        	//sPartials2[0][state] = 0;
-			//sPartials2[1][state] = 0;
-			//sPartials2[2][state] = 0;
-			//sPartials2[3][state] = 0;
-    	///}
-	//e[y + state] += sPartials2[0][state];
-	//f[y + state] += sPartials2[1][state];
-	//g[y + state] += sPartials2[2][state];
-	//h[y + state] += sPartials2[3][state];
-	//}
-//}
-
-KW_GLOBAL_KERNEL void kernelAccumulateCarryOutFinal(KW_GLOBAL_VAR REAL* dBastaFinalResMemory,
-                                                KW_GLOBAL_VAR REAL* dBastaMemory,
-                                                KW_GLOBAL_VAR REAL* intervals,
-                                                int numSubinterval,
-                                                int numSubintervalFinal,
-                                                int kCoalescentBufferLength) {
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-	        int state = KW_LOCAL_ID_0;
-	        int opIdx = KW_LOCAL_ID_1;
-	        int opBlock = KW_GROUP_ID_0;
-	        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-	        int opCount = numSubintervalFinal;
-            int u = opNumber * PADDED_STATE_COUNT;
-
-	        KW_GLOBAL_VAR REAL* e = dBastaMemory;
-	        KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	        KW_GLOBAL_VAR REAL* keys = intervals + 2 * numSubinterval;
-
-	        KW_LOCAL_MEM REAL sResE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sResH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-	        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-
-            if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-                int m = numSubintervalFinal * PADDED_STATE_COUNT;
-                sSegmentKeys[opIdx] = keys[opNumber];
-                sResE[opIdx][state] = dBastaFinalResMemory[u + state];
-                sResF[opIdx][state] = dBastaFinalResMemory[m + u + state];
-                sResG[opIdx][state] = dBastaFinalResMemory[2 * m + u + state];
-                sResH[opIdx][state] = dBastaFinalResMemory[3 * m + u + state];
-            } else {
-                sSegmentKeys[opIdx] = -1;
-                sResE[opIdx][state] = 0;
-                sResF[opIdx][state] = 0;
-                sResG[opIdx][state]= 0;
-                sResH[opIdx][state] = 0;
-            }
-
-            KW_LOCAL_FENCE;
-
-	        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-	            int intervalNumber = sSegmentKeys[opIdx];
-	            int y = intervalNumber * PADDED_STATE_COUNT;
-
-                atomicAdd(&e[y + state], sResE[opIdx][state]);
-                atomicAdd(&f[y + state], sResF[opIdx][state]);
-                atomicAdd(&g[y + state], sResG[opIdx][state]);
-                atomicAdd(&h[y + state], sResH[opIdx][state]);
-            }
-}
-
-KW_GLOBAL_KERNEL void kernelPreProcessBastaFlags(KW_GLOBAL_VAR REAL* KW_RESTRICT intervals,
-                                                                    KW_GLOBAL_VAR REAL* flags,
-                                                                    KW_GLOBAL_VAR REAL* blockEnds,
-                                                                    int operationCount,
-                                                                    int numBlocks) {
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-        int opIdx = KW_LOCAL_ID_0;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_0 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-        if (opNumber < operationCount) {
-            if (opNumber == 0 || intervals[opNumber] != intervals[opNumber - 1]) {
-                flags[opNumber] = 1;
-            } else {
-                flags[opNumber] = 0;
-            }
-        }
-
-        KW_LOCAL_FENCE;
-
-        if (opBlock < numBlocks && opIdx == 0) {
-            int start_index = opBlock * blockSize;
-            int end_index = min(start_index + blockSize - 1, operationCount - 1);
-            blockEnds[opBlock] = intervals[end_index];
-        }
-}
-
-
-KW_GLOBAL_KERNEL void kernelAccumulateCarryOut(KW_GLOBAL_VAR REAL* dBastaBlockResMemory,
-                                                KW_GLOBAL_VAR REAL* dBastaFinalResMemory,
-                                                KW_GLOBAL_VAR REAL* intervals,
-                                                int numSubinterval,
-                                                int numSubintervalFinal) {
-
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
-        int state = KW_LOCAL_ID_0;
-        int opIdx = KW_LOCAL_ID_1;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int opCount = numSubinterval;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-	    KW_GLOBAL_VAR REAL* e = dBastaFinalResMemory;
-	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * numSubintervalFinal;
-	    KW_GLOBAL_VAR REAL* flags = intervals + numSubinterval;
-
-        KW_LOCAL_MEM REAL sPartialsE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-        KW_LOCAL_MEM REAL sSegmentFlags[SUM_PARTIAL_BLOCK_SIZE_B];
-
-        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-            int op = opNumber;
-            int u = op * PADDED_STATE_COUNT;
-            int m = numSubinterval * PADDED_STATE_COUNT;
-            sSegmentFlags[opIdx] = flags[op];
-            sSegmentKeys[opIdx] = intervals[op];
-            sPartialsE[opIdx][state] = dBastaBlockResMemory[u + state];
-            sPartialsF[opIdx][state] = dBastaBlockResMemory[m + u + state];
-            sPartialsG[opIdx][state] = dBastaBlockResMemory[2 * m + u + state];
-            sPartialsH[opIdx][state] = dBastaBlockResMemory[3 * m + u + state];
-
-        } else {
-            sPartialsE[opIdx][state] = 0;
-            sPartialsF[opIdx][state] = 0;
-            sPartialsG[opIdx][state] = 0;
-            sPartialsH[opIdx][state] = 0;
-            sSegmentKeys[opIdx] = -1;
-            sSegmentFlags[opIdx] = 0;
-        }
-
-        KW_LOCAL_FENCE;
-
-
-        int intervalNumber = sSegmentKeys[opIdx];
-        int y = intervalNumber * PADDED_STATE_COUNT;
-        for (int stride = 1; stride < blockSize; stride *= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k < blockSize) {
-                if (sSegmentFlags[k] == 0) {
-                    sPartialsE[k][state] += sPartialsE[k - stride][state];
-                    sPartialsF[k][state] += sPartialsF[k - stride][state];
-                    sPartialsG[k][state] += sPartialsG[k - stride][state];
-                    sPartialsH[k][state] += sPartialsH[k - stride][state];
-                    sSegmentFlags[k] = sSegmentFlags[k - stride];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        for (int stride = blockSize / 2; stride > 0; stride /= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k  + stride < blockSize) {
-                if (sSegmentFlags[k + stride] == 0) {
-                    sPartialsE[k + stride][state] += sPartialsE[k][state];
-                    sPartialsF[k + stride][state] += sPartialsF[k][state];
-                    sPartialsG[k + stride][state] += sPartialsG[k][state];
-                    sPartialsH[k + stride][state] += sPartialsH[k][state];
-                    sSegmentFlags[k + stride] = sSegmentFlags[k];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-	    if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1] && (opIdx < blockSize - 1) && (opNumber < opCount -1)) {
-	        e[y + state] = sPartialsE[opIdx][state];
-	        f[y + state] = sPartialsF[opIdx][state];
-	        g[y + state] = sPartialsG[opIdx][state];
-	        h[y + state] = sPartialsH[opIdx][state];
-	    }
-
-        if (opIdx == blockSize - 1 && (opNumber < opCount -1) || opNumber == opCount -1) {
-            e[y + state] = sPartialsE[opIdx][state];
-            f[y + state] = sPartialsF[opIdx][state];
-            g[y + state] = sPartialsG[opIdx][state];
-            h[y + state] = sPartialsH[opIdx][state];
-        }
-
-
-}
-
-
-KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalSerial(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                            KW_GLOBAL_VAR REAL* dBastaMemory,
-                                                            int numOps,
-                                                            int start,
-                                                            int end,
-                                                            int kCoalescentBufferLength) {
+KW_GLOBAL_KERNEL void kernelBastaPrecomputeDiagonals(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eval,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchLengths,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT diagBuffer,
+    int intervalCount) {
+    
+    int interval = KW_GROUP_ID_0;
     int state = KW_LOCAL_ID_0;
-    int opCount = end - start;
-    int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
-
-	KW_GLOBAL_VAR REAL* e = dBastaMemory;
-	KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
-	KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
-
-
-    if (state < PADDED_STATE_COUNT) {
-    	for (int opIdx = 0; opIdx < opCount; ++opIdx) {
-        	int op = start + opIdx;
-        	int intervalNumber = operations[op * numOps + 7];
-        	int child1PartialIndex = operations[op * numOps + 1];
-        	int accumulation1PartialIndex = operations[op * numOps + 5];
-            int u = intervalNumber * PADDED_STATE_COUNT + state;
-        	KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-        	KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-
-        	REAL partialE = startPartials1[state];
-        	REAL partialF = partialE * partialE;
-        	REAL partialG = endPartials1[state];
-        	REAL partialH = partialG * partialG;
-
-        	int child2PartialIndex = operations[op * numOps + 3];
-        	int accumulation2PartialIndex = operations[op * numOps + 6];
-        	if (child2PartialIndex >= 0) {
-            	KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-            	KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
-            	partialE += startPartials2[state];
-            	partialF += startPartials2[state] * startPartials2[state];
-            	partialG += endPartials2[state];
-            	partialH += endPartials2[state] * endPartials2[state];
-        	}
-
-        	e[u] += partialE;
-       	 	f[u] += partialF;
-        	g[u] += partialG;
-        	h[u] += partialH;
-    	}
+    
+    if (interval < intervalCount && state < PADDED_STATE_COUNT) {
+        REAL t = branchLengths[interval];
+        REAL lambda = eval[state];
+        diagBuffer[interval * PADDED_STATE_COUNT + state] = exp(lambda * t);
     }
 }
 
-KW_GLOBAL_KERNEL void kernelBastaReduceWithinInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT operations,
-                                                            KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
-                                                            KW_GLOBAL_VAR REAL* dBastaBlockResMemory,
-                                                            KW_GLOBAL_VAR REAL* intervals,
-                                                            int numOps,
-                                                            int start,
-                                                            int end,
-                                                            int numSubinterval) {
+KW_GLOBAL_KERNEL void kernelBastaPartialsWithPrecomputedDiag(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT evec,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT ievc,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT diagBuffer,
+    KW_GLOBAL_VAR int* KW_RESTRICT operations,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+    int start,
+    int numOps,
+    int totalPatterns,
+    int intervalIdx) {
 
-#define SUM_PARTIAL_BLOCK_SIZE_B 4
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int pattern = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
+    int op = pattern + start;
+    
+    KW_LOCAL_MEM REAL sMatrix[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sDiag[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPartials2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sTransformed1[BASTA_SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sTransformed2[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL popSizes[PADDED_STATE_COUNT];
 
-        int state = KW_LOCAL_ID_0;
-        int opIdx = KW_LOCAL_ID_1;
-        int opBlock = KW_GROUP_ID_0;
-        int opNumber = KW_LOCAL_ID_1 + opBlock * SUM_PARTIAL_BLOCK_SIZE_B;
-        int opCount = end - start;
-        // int opCountLast = opCount % SUM_PARTIAL_BLOCK_SIZE_B;
-        // int blockSize = (SUM_PARTIAL_BLOCK_SIZE_B > opCountLast) ? opCountLast : SUM_PARTIAL_BLOCK_SIZE_B;
-        int blockSize = SUM_PARTIAL_BLOCK_SIZE_B;
+    if (patIdx == 0) {
+        popSizes[state] = sizes[state];
+        sDiag[state] = diagBuffer[intervalIdx * PADDED_STATE_COUNT + state];
+    }
+    
+    KW_LOCAL_FENCE;
 
-	    KW_GLOBAL_VAR REAL* e = dBastaBlockResMemory;
-	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * numSubinterval;
-	    KW_GLOBAL_VAR REAL* flags = intervals + end;
+    int desIndex = operations[op * numOps];
+    int child1PartialIndex = operations[op * numOps + 1];
+    int child2PartialIndex = operations[op * numOps + 3];
+    int accumulation1PartialIndex = operations[op * numOps + 5];
+    int accumulation2PartialIndex = operations[op * numOps + 6];
+    int intervalNumber = operations[op * numOps + 7];
+    
+    int isCoalescent = (child2PartialIndex >= 0);
+    
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials1 = partials + child1PartialIndex;
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials3 = partials + desIndex;
 
-        KW_LOCAL_MEM REAL sPartialsE[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsF[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsG[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartialsH[SUM_PARTIAL_BLOCK_SIZE_B][PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sSegmentKeys[SUM_PARTIAL_BLOCK_SIZE_B];
-        KW_LOCAL_MEM REAL sSegmentFlags[SUM_PARTIAL_BLOCK_SIZE_B];
+    if (pattern < totalPatterns) {
+        sPartials1[patIdx][state] = partials1[state];
+    } else {
+        sPartials1[patIdx][state] = 0;
+    }
 
-        if (opNumber < opCount && (state < PADDED_STATE_COUNT)) {
-            int op = opNumber + start;
-            int child1PartialIndex = operations[op * numOps + 1];
-            int accumulation1PartialIndex = operations[op * numOps + 5];
-            KW_GLOBAL_VAR REAL* startPartials1 = partials + child1PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials1 = partials + accumulation1PartialIndex;
-            KW_GLOBAL_VAR REAL* partialIntervals = intervals + start;
-            sSegmentFlags[opIdx] = flags[op];
-            sSegmentKeys[opIdx] = partialIntervals[op];
-            sPartialsE[opIdx][state] = startPartials1[state];
-            sPartialsF[opIdx][state] = startPartials1[state] * startPartials1[state];
-            sPartialsG[opIdx][state] = endPartials1[state];
-            sPartialsH[opIdx][state] = endPartials1[state] * endPartials1[state];
-        } else {
-            sPartialsE[opIdx][state] = 0;
-            sPartialsF[opIdx][state] = 0;
-            sPartialsG[opIdx][state] = 0;
-            sPartialsH[opIdx][state] = 0;
-            sSegmentKeys[opIdx] = -1;
-            sSegmentFlags[opIdx] = 0;
+    if (pattern < totalPatterns && isCoalescent) {
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partials2 = partials + child2PartialIndex;
+        sPartials2[state] = partials2[state];
+    }
+    
+    KW_LOCAL_FENCE;
+    
+    REAL temp1 = 0, temp2 = 0;
+    
+    KW_GLOBAL_VAR REAL* KW_RESTRICT evecRow = evec + state * PADDED_STATE_COUNT;
+    KW_NO_UNROLL
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
+        if (patIdx < BLOCK_PEELING_SIZE_SCA) {
+            sMatrix[patIdx][state] = evecRow[i + patIdx];
         }
-
         KW_LOCAL_FENCE;
-
-
-        int intervalNumber = sSegmentKeys[opIdx];
-        int y = intervalNumber * PADDED_STATE_COUNT;
-
-        if (opNumber < opCount && state < PADDED_STATE_COUNT) {
-            int op = opNumber + start;
-            int child2PartialIndex = operations[op * numOps + 3];
-            int accumulation2PartialIndex = operations[op * numOps + 6];
-            KW_GLOBAL_VAR REAL* startPartials2 = partials + child2PartialIndex;
-            KW_GLOBAL_VAR REAL* endPartials2 = partials + accumulation2PartialIndex;
-            e[y + state] = 0;
-            f[y + state] = 0;
-            g[y + state] = 0;
-            h[y + state] = 0;
-
-            KW_LOCAL_FENCE;
-
-            if (child2PartialIndex >= 0) {
-                e[y + state] = startPartials2[state];
-                f[y + state] = startPartials2[state] * startPartials2[state];
-                g[y + state] = endPartials2[state];
-                h[y + state] = endPartials2[state] * endPartials2[state];
+        
+        for (int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+            FMA(sMatrix[j][state], sPartials1[patIdx][i + j], temp1);
+            if (isCoalescent) {
+                FMA(sMatrix[j][state], sPartials2[i + j], temp2);
             }
         }
+        KW_LOCAL_FENCE;
+    }
 
-        for (int stride = 1; stride < blockSize; stride *= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k < blockSize) {
-                if (sSegmentFlags[k] == 0) {
-                    sPartialsE[k][state] += sPartialsE[k - stride][state];
-                    sPartialsF[k][state] += sPartialsF[k - stride][state];
-                    sPartialsG[k][state] += sPartialsG[k - stride][state];
-                    sPartialsH[k][state] += sPartialsH[k - stride][state];
-                    sSegmentFlags[k] = sSegmentFlags[k - stride];
-                }
+    sTransformed1[patIdx][state] = sDiag[state] * temp1;
+    if (isCoalescent) {
+        sTransformed2[state] = sDiag[state] * temp2;
+    }
+    
+    KW_LOCAL_FENCE;
+    
+    REAL sum1 = 0, sum2 = 0;
+    
+    KW_GLOBAL_VAR REAL* KW_RESTRICT ievcRow = ievc + state * PADDED_STATE_COUNT;
+    KW_NO_UNROLL
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
+        if (patIdx < BLOCK_PEELING_SIZE_SCA) {
+            sMatrix[patIdx][state] = ievcRow[i + patIdx];
+        }
+        KW_LOCAL_FENCE;
+        
+        for (int j = 0; j < BLOCK_PEELING_SIZE_SCA; j++) {
+            FMA(sMatrix[j][state], sTransformed1[patIdx][i + j], sum1);
+            if (isCoalescent) {
+                FMA(sMatrix[j][state], sTransformed2[i + j], sum2);
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    if (pattern < totalPatterns) {
+        partials3[state] = sum1;
+    }
+
+    if (pattern < totalPatterns && isCoalescent) {
+        KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation1 = partials + accumulation1PartialIndex;
+        KW_GLOBAL_VAR REAL* KW_RESTRICT accumulation2 = partials + accumulation2PartialIndex;
+        
+        accumulation1[state] = sum1;
+        accumulation2[state] = sum2;
+        if (popSizes[state] > 0) {
+            partials3[state] = sum1 * sum2 / popSizes[state];
+        } else {
+            partials3[state] = 0;
+        }
+        sPartials2[state] = partials3[state];
+        
+        KW_LOCAL_FENCE;
+        
+#ifdef IS_POWER_OF_TWO
+        for (int i = PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
+            if (state < i) {
+#else
+        for (int i = SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+            if (state < i && state + i < PADDED_STATE_COUNT) {
+#endif
+                sPartials2[state] += sPartials2[state + i];
             }
             KW_LOCAL_FENCE;
         }
-
-        for (int stride = blockSize / 2; stride > 0; stride /= 2) {
-            int k = (opIdx + 1) * 2 * stride - 1;
-            if (k  + stride < blockSize) {
-                if (sSegmentFlags[k + stride] == 0) {
-                    sPartialsE[k + stride][state] += sPartialsE[k][state];
-                    sPartialsF[k + stride][state] += sPartialsF[k][state];
-                    sPartialsG[k + stride][state] += sPartialsG[k][state];
-                    sPartialsH[k + stride][state] += sPartialsH[k][state];
-                    sSegmentFlags[k + stride] = sSegmentFlags[k];
-                }
-            }
-            KW_LOCAL_FENCE;
-        }
-
-        //if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1]) {
-            //if (sSegmentFlags[opIdx] == 0) {
-                //sPartialsE[opIdx][state] += sPartialsE[opIdx - 1][state];
-                //sPartialsF[opIdx][state] += sPartialsF[opIdx - 1][state];
-                //sPartialsG[opIdx][state] += sPartialsG[opIdx - 1][state];
-                //sPartialsH[opIdx][state] += sPartialsH[opIdx - 1][state];
-            //}
-        //}
-
-        if (opIdx == blockSize - 1 && (opNumber < opCount -1) || opNumber == opCount -1) {
-            e[y + state] += sPartialsE[opIdx][state];
-            f[y + state] += sPartialsF[opIdx][state];
-            g[y + state] += sPartialsG[opIdx][state];
-            h[y + state] += sPartialsH[opIdx][state];
-        }
-
-        if (sSegmentKeys[opIdx] != sSegmentKeys[opIdx + 1] && (opIdx < blockSize - 1) && (opNumber < opCount -1)) {
-            e[y + state] += sPartialsE[opIdx][state];
-            f[y + state] += sPartialsF[opIdx][state];
-            g[y + state] += sPartialsG[opIdx][state];
-            h[y + state] += sPartialsH[opIdx][state];
-       }
+        
+        REAL denominator = sPartials2[0];
+        partials3[state] = partials3[state] / denominator;
+        coalescent[intervalNumber] = denominator;
+    }
 }
+
+
+KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMerged(KW_GLOBAL_VAR int* KW_RESTRICT operations,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                    KW_GLOBAL_VAR REAL* dBastaMemory,
+                                                    int numOps,
+                                                    int start,
+                                                    int end,
+                                                    int numBlocks,
+                                                    int kCoalescentBufferLength) {
+
+#define OPS_PER_THREAD 8
+
+    // Thread and block indices
+    int state = KW_LOCAL_ID_0;
+    int threadId = KW_LOCAL_ID_1;
+    int blockY = KW_GROUP_ID_0;
+
+    int halfBlocks = numBlocks / 2;
+    int doEF = (blockY < halfBlocks) ? 1 : 0;
+
+    if (!doEF) {blockY = blockY - halfBlocks;}
+    int threadGlobalY = blockY * BASTA_SUM_INTERVAL_BLOCK_SIZE + threadId;
+    int opStart = start + threadGlobalY * OPS_PER_THREAD;
+    int opEnd = opStart + OPS_PER_THREAD;
+    if (opEnd > end) opEnd = end;
+
+
+    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+    int currentSegmentKey = -1;
+    REAL partialA = 0;
+    REAL partialB = 0;
+
+
+    int next_op = opStart;
+    int nextSegmentKey = -1;
+    REAL nextA_val1 = 0, nextB_val1 = 0;
+    REAL nextA_val2 = 0, nextB_val2 = 0;
+
+
+
+     if (state < PADDED_STATE_COUNT && next_op < opEnd) {
+        int op = next_op;
+		int child1PartialIndex = operations[op * numOps + 1];
+		int child2PartialIndex = operations[op * numOps + 3];
+		int accumulation1PartialIndex = operations[op * numOps + 5];
+		int accumulation2PartialIndex = operations[op * numOps + 6];
+		int segmentKey = operations[op * numOps + 7];
+
+
+        KW_GLOBAL_VAR REAL* part1A = (doEF)? (partials + child1PartialIndex):(partials + accumulation1PartialIndex);
+
+        KW_GLOBAL_VAR REAL* part2A = (doEF)? (partials + child2PartialIndex):(partials + accumulation2PartialIndex);
+
+        REAL val1A = part1A[state];
+        REAL val2A = 0;
+
+        if (child2PartialIndex >= 0) {
+            val2A = part2A[state];
+        }
+
+        nextA_val1 = val1A;
+        nextB_val1 = val1A * val1A;
+        nextA_val2 = val2A;
+        nextB_val2 = val2A * val2A;
+        nextSegmentKey = segmentKey;
+    }
+
+    for (int idx = opStart; idx < opEnd; ++idx) {
+        REAL currA_val1 = nextA_val1;
+        REAL currB_val1 = nextB_val1;
+        REAL currA_val2 = nextA_val2;
+        REAL currB_val2 = nextB_val2;
+
+        int segmentKey = nextSegmentKey;
+
+        next_op = idx + 1;
+        if (state < PADDED_STATE_COUNT && next_op < opEnd) {
+            int op = next_op;
+			int child1PartialIndex = operations[op * numOps + 1];
+			int child2PartialIndex = operations[op * numOps + 3];
+			int accumulation1PartialIndex = operations[op * numOps + 5];
+			int accumulation2PartialIndex = operations[op * numOps + 6];
+			int segmentKeyNext = operations[op * numOps + 7];
+
+        	KW_GLOBAL_VAR REAL* part1A = (doEF)? (partials + child1PartialIndex):(partials + accumulation1PartialIndex);
+
+        	KW_GLOBAL_VAR REAL* part2A = (doEF)? (partials + child2PartialIndex):(partials + accumulation2PartialIndex);
+
+        	REAL val1A = part1A[state];
+        	REAL val2A = 0;
+
+        	if (child2PartialIndex >= 0) {
+            	val2A = part2A[state];
+        	}
+
+        	nextA_val1 = val1A;
+        	nextB_val1 = val1A * val1A;
+        	nextA_val2 = val2A;
+        	nextB_val2 = val2A * val2A;
+
+            nextSegmentKey = segmentKeyNext;
+        } else {
+            nextA_val1 = nextB_val1 = 0;
+            nextA_val2 = nextB_val2 = 0;
+            nextSegmentKey = -1;
+        }
+
+        int isNewSegment = (segmentKey != currentSegmentKey) ? 1 : 0;
+
+        if (isNewSegment == 1 && idx != opStart) {
+        	int w = currentSegmentKey * PADDED_STATE_COUNT + state;
+
+                if (doEF) {
+                    // partialA => e, partialB => f
+                    atomicAdd(&e[w], partialA);
+                    atomicAdd(&f[w], partialB);
+                } else {
+                    // partialA => g, partialB => h
+                    atomicAdd(&g[w], partialA);
+                    atomicAdd(&h[w], partialB);
+                }
+
+            partialA = 0;
+            partialB = 0;
+            }
+
+        partialA += (currA_val1 + currA_val2);
+        partialB += (currB_val1 + currB_val2);
+
+        currentSegmentKey = segmentKey;
+    }
+
+	KW_LOCAL_FENCE;
+
+    REAL carryOutA = partialA;
+    REAL carryOutB = partialB;
+
+
+    KW_LOCAL_MEM REAL sCarryOutA[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutB[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+	KW_LOCAL_MEM REAL sSegmentFlags[BASTA_SUM_INTERVAL_BLOCK_SIZE];
+	KW_LOCAL_MEM REAL sCarryOutSegmentKeys[BASTA_SUM_INTERVAL_BLOCK_SIZE + 1];
+
+
+    if (state < PADDED_STATE_COUNT) {
+        sCarryOutA[threadId][state] = carryOutA;
+        sCarryOutB[threadId][state] = carryOutB;
+        sCarryOutSegmentKeys[threadId] = currentSegmentKey;
+    }
+
+	KW_LOCAL_FENCE;
+	if (state == 0 && opStart < end) {
+		if (threadId == 0) {
+	    	sSegmentFlags[threadId] = 1;
+		} else {
+	    	int prevSegmentKey = sCarryOutSegmentKeys[threadId - 1];
+	    	int currSegmentKey = sCarryOutSegmentKeys[threadId];
+
+	    	if (currSegmentKey != prevSegmentKey) {
+	        	sSegmentFlags[threadId] = 1;
+	    	} else {
+	        	sSegmentFlags[threadId] = 0;
+	    	}
+		}
+	}
+
+	KW_LOCAL_FENCE;
+
+    int n = BASTA_SUM_INTERVAL_BLOCK_SIZE;
+    for (int stride = 1; stride < n; stride *= 2) {
+        int index = (threadId + 1) * 2 * stride - 1;
+        if (index < n) {
+            if (sSegmentFlags[index] == 0) {
+                sCarryOutA[index][state] += sCarryOutA[index - stride][state];
+                sCarryOutB[index][state] += sCarryOutB[index - stride][state];
+                if (state == 0) {
+                    sSegmentFlags[index] = sSegmentFlags[index - stride];
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    for (int stride = n / 2; stride >= 1; stride /= 2) {
+        int index = (threadId + 1) * 2 * stride - 1;
+        if (index + stride < n) {
+            if (sSegmentFlags[index + stride] == 0) {
+                sCarryOutA[index + stride][state] += sCarryOutA[index][state];
+                sCarryOutB[index + stride][state] += sCarryOutB[index][state];
+                if (state == 0) {
+                    sSegmentFlags[index + stride] = sSegmentFlags[index];
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+
+    if (threadId == BASTA_SUM_INTERVAL_BLOCK_SIZE - 1 || sCarryOutSegmentKeys[threadId] != sCarryOutSegmentKeys[threadId + 1]) {
+        int reducedKey = sCarryOutSegmentKeys[threadId];
+        if (reducedKey >= 0) {
+    		int u = reducedKey * PADDED_STATE_COUNT + state;
+
+            if (doEF) {
+    			atomicAdd(&e[u], sCarryOutA[threadId][state]);
+    			atomicAdd(&f[u], sCarryOutB[threadId][state]);
+            } else {
+    			atomicAdd(&g[u], sCarryOutA[threadId][state]);
+    			atomicAdd(&h[u], sCarryOutB[threadId][state]);
+            }
+		}
+    }
+}
+
+
+
+KW_GLOBAL_KERNEL void kernelBastaReduceWithinIntervalMergedSlab(
+                                                    KW_GLOBAL_VAR int* KW_RESTRICT reduceOps,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+                                                    KW_GLOBAL_VAR REAL* dBastaMemory,
+                                                    int start,
+                                                    int end,
+                                                    int numBlocks,
+                                                    int kCoalescentBufferLength) {
+
+    const int BASTA_REDUCE_OPS_PER_THREAD = 8;
+    const int BASTA_REDUCE_STRIDE         = 5;
+
+    int state = KW_LOCAL_ID_0;
+    int threadId = KW_LOCAL_ID_1;
+    int blockY = KW_GROUP_ID_0;
+
+    int halfBlocks = numBlocks / 2;
+    int doEF = (blockY < halfBlocks) ? 1 : 0;
+
+    if (!doEF) { blockY = blockY - halfBlocks; }
+    int threadGlobalY = blockY * BASTA_SUM_INTERVAL_BLOCK_SIZE + threadId;
+    int opStart = start + threadGlobalY * BASTA_REDUCE_OPS_PER_THREAD;
+    int opEnd = opStart + BASTA_REDUCE_OPS_PER_THREAD;
+    if (opEnd > end) opEnd = end;
+
+    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+
+    int currentSegmentKey = -1;
+    REAL partialA = 0;
+    REAL partialB = 0;
+
+    int next_op = opStart;
+    int nextSegmentKey = -1;
+    REAL nextA_val1 = 0, nextB_val1 = 0;
+    REAL nextA_val2 = 0, nextB_val2 = 0;
+
+    if (state < PADDED_STATE_COUNT && next_op < opEnd) {
+        int op = next_op;
+        int child1PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 0];
+        int child2PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 1];
+        int accumulation1PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 2];
+        int accumulation2PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 3];
+        int segmentKey = reduceOps[op * BASTA_REDUCE_STRIDE + 4];
+
+        KW_GLOBAL_VAR REAL* part1A = (doEF) ? (partials + child1PartialIndex) : (partials + accumulation1PartialIndex);
+        KW_GLOBAL_VAR REAL* part2A = (doEF) ? (partials + child2PartialIndex) : (partials + accumulation2PartialIndex);
+
+        REAL val1A = part1A[state];
+        REAL val2A = 0;
+        if (child2PartialIndex >= 0) {
+            val2A = part2A[state];
+        }
+
+        nextA_val1 = val1A;
+        nextB_val1 = val1A * val1A;
+        nextA_val2 = val2A;
+        nextB_val2 = val2A * val2A;
+        nextSegmentKey = segmentKey;
+    }
+
+    for (int idx = opStart; idx < opEnd; ++idx) {
+        REAL currA_val1 = nextA_val1;
+        REAL currB_val1 = nextB_val1;
+        REAL currA_val2 = nextA_val2;
+        REAL currB_val2 = nextB_val2;
+        int segmentKey = nextSegmentKey;
+
+        next_op = idx + 1;
+        if (state < PADDED_STATE_COUNT && next_op < opEnd) {
+            int op = next_op;
+            int child1PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 0];
+            int child2PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 1];
+            int accumulation1PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 2];
+            int accumulation2PartialIndex = reduceOps[op * BASTA_REDUCE_STRIDE + 3];
+            int segmentKeyNext = reduceOps[op * BASTA_REDUCE_STRIDE + 4];
+
+            KW_GLOBAL_VAR REAL* part1A = (doEF) ? (partials + child1PartialIndex) : (partials + accumulation1PartialIndex);
+            KW_GLOBAL_VAR REAL* part2A = (doEF) ? (partials + child2PartialIndex) : (partials + accumulation2PartialIndex);
+
+            REAL val1A = part1A[state];
+            REAL val2A = 0;
+            if (child2PartialIndex >= 0) {
+                val2A = part2A[state];
+            }
+
+            nextA_val1 = val1A;
+            nextB_val1 = val1A * val1A;
+            nextA_val2 = val2A;
+            nextB_val2 = val2A * val2A;
+            nextSegmentKey = segmentKeyNext;
+        } else {
+            nextA_val1 = nextB_val1 = 0;
+            nextA_val2 = nextB_val2 = 0;
+            nextSegmentKey = -1;
+        }
+
+        int isNewSegment = (segmentKey != currentSegmentKey) ? 1 : 0;
+
+        if (isNewSegment == 1 && idx != opStart) {
+            int w = currentSegmentKey * PADDED_STATE_COUNT + state;
+
+            if (doEF) {
+                atomicAdd(&e[w], partialA);
+                atomicAdd(&f[w], partialB);
+            } else {
+                atomicAdd(&g[w], partialA);
+                atomicAdd(&h[w], partialB);
+            }
+
+            partialA = 0;
+            partialB = 0;
+        }
+
+        partialA += (currA_val1 + currA_val2);
+        partialB += (currB_val1 + currB_val2);
+
+        currentSegmentKey = segmentKey;
+    }
+
+    KW_LOCAL_FENCE;
+
+    REAL carryOutA = partialA;
+    REAL carryOutB = partialB;
+
+    KW_LOCAL_MEM REAL sCarryOutA[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCarryOutB[BASTA_SUM_INTERVAL_BLOCK_SIZE][PADDED_STATE_COUNT];
+
+    KW_LOCAL_MEM REAL sSegmentFlags[BASTA_SUM_INTERVAL_BLOCK_SIZE];
+    KW_LOCAL_MEM REAL sCarryOutSegmentKeys[BASTA_SUM_INTERVAL_BLOCK_SIZE + 1];
+
+    if (state < PADDED_STATE_COUNT) {
+        sCarryOutA[threadId][state] = carryOutA;
+        sCarryOutB[threadId][state] = carryOutB;
+        sCarryOutSegmentKeys[threadId] = currentSegmentKey;
+    }
+
+    KW_LOCAL_FENCE;
+    if (state == 0 && opStart < end) {
+        if (threadId == 0) {
+            sSegmentFlags[threadId] = 1;
+        } else {
+            int prevSegmentKey = sCarryOutSegmentKeys[threadId - 1];
+            int currSegmentKey = sCarryOutSegmentKeys[threadId];
+
+            if (currSegmentKey != prevSegmentKey) {
+                sSegmentFlags[threadId] = 1;
+            } else {
+                sSegmentFlags[threadId] = 0;
+            }
+        }
+    }
+
+    KW_LOCAL_FENCE;
+
+    int n = BASTA_SUM_INTERVAL_BLOCK_SIZE;
+    for (int stride = 1; stride < n; stride *= 2) {
+        int index = (threadId + 1) * 2 * stride - 1;
+        if (index < n) {
+            if (sSegmentFlags[index] == 0) {
+                sCarryOutA[index][state] += sCarryOutA[index - stride][state];
+                sCarryOutB[index][state] += sCarryOutB[index - stride][state];
+                if (state == 0) {
+                    sSegmentFlags[index] = sSegmentFlags[index - stride];
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    for (int stride = n / 2; stride >= 1; stride /= 2) {
+        int index = (threadId + 1) * 2 * stride - 1;
+        if (index + stride < n) {
+            if (sSegmentFlags[index + stride] == 0) {
+                sCarryOutA[index + stride][state] += sCarryOutA[index][state];
+                sCarryOutB[index + stride][state] += sCarryOutB[index][state];
+                if (state == 0) {
+                    sSegmentFlags[index + stride] = sSegmentFlags[index];
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+
+    if (threadId == BASTA_SUM_INTERVAL_BLOCK_SIZE - 1 || sCarryOutSegmentKeys[threadId] != sCarryOutSegmentKeys[threadId + 1]) {
+        int reducedKey = sCarryOutSegmentKeys[threadId];
+        if (reducedKey >= 0) {
+            int u = reducedKey * PADDED_STATE_COUNT + state;
+
+            if (doEF) {
+                atomicAdd(&e[u], sCarryOutA[threadId][state]);
+                atomicAdd(&f[u], sCarryOutB[threadId][state]);
+            } else {
+                atomicAdd(&g[u], sCarryOutA[threadId][state]);
+                atomicAdd(&h[u], sCarryOutB[threadId][state]);
+            }
+        }
+    }
+}
+
+KW_DEVICE_FUNC REAL bastaReduceAcrossTwoPasses(KW_LOCAL_VAR REAL* sPartials1,
+                                            REAL pass1Val,
+                                            REAL pass2Val,
+                                            int tid){
+    const int nReduce = BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT;
+
+    sPartials1[tid] = pass1Val;
+    KW_LOCAL_FENCE;
+
+    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (tid < i && tid + i < nReduce) {
+            sPartials1[tid] += sPartials1[tid + i];
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    REAL temp = -sPartials1[0] / 4;
+
+    sPartials1[tid] = pass2Val;
+    KW_LOCAL_FENCE;
+
+    for (int i = BASTA_SUM_ACROSS_BLOCK_SIZE * SMALLEST_POWER_OF_TWO / 2; i > 0; i >>= 1) {
+        if (tid < i && tid + i < nReduce) {
+            sPartials1[tid] += sPartials1[tid + i];
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    return temp + sPartials1[0];
+}
+
 
 KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT distance,
@@ -2553,14 +2832,13 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 													int intervalStartsCount,
 													int kCoalescentBufferLength) {
 
-#define SUM_INTERVAL_BLOCK_SIZE 4
 
         int intervalCount = intervalStartsCount - 1;
         int tid = KW_LOCAL_ID_0;
-        int tidTotal = __umul24(KW_GROUP_ID_0, SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
+        int tidTotal = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
         int state = tid % PADDED_STATE_COUNT;
         int intervalIdx = tid / PADDED_STATE_COUNT;
-        int intervalNumber = __umul24(KW_GROUP_ID_0, SUM_INTERVAL_BLOCK_SIZE) + intervalIdx;
+        int intervalNumber = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
         int u = state + intervalNumber * PADDED_STATE_COUNT;
 
 	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
@@ -2568,44 +2846,2030 @@ KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval(KW_GLOBAL_VAR REAL* KW_RES
 	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
 	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
 
-        KW_LOCAL_MEM REAL sPartials1[SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT];
-        KW_LOCAL_MEM REAL sPartials2[SUM_INTERVAL_BLOCK_SIZE];
+        KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
 
-        if (intervalNumber < intervalCount && (sizes[state] > 0)) {
-            sPartials1[tid] = (e[u] * e[u] - f[u] +
-                                 g[u] * g[u] - h[u]) * distance[intervalNumber] / sizes[state];
-        } else {
-            sPartials1[tid] = 0;
-        }
-        KW_LOCAL_FENCE;
-
-        if (tidTotal < intervalCount && (coalescent[u] != 0)) {
-            sPartials2[tid] = log(coalescent[u]);
-        } else {
-            sPartials2[tid] = 0;
-        }
-        KW_LOCAL_FENCE;
-
-
-        for (int i = SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-            if (tid < i) {
-                sPartials1[tid] += sPartials1[tid + i];
-            }
-            KW_LOCAL_FENCE;
+        REAL pass1Val = 0;
+        if (intervalNumber < intervalCount && sizes[state] > 0) {
+            pass1Val = (e[u] * e[u] - f[u] + g[u] * g[u] - h[u]) * distance[intervalNumber] / sizes[state];
         }
 
-        for (int i = SUM_INTERVAL_BLOCK_SIZE * PADDED_STATE_COUNT / 2; i > 0; i >>= 1) {
-            if (tid < i) {
-                sPartials2[tid] += sPartials2[tid + i];
-            }
-            KW_LOCAL_FENCE;
+        REAL pass2Val = 0;
+        if (tidTotal < intervalCount && coalescent[tidTotal] > 0) {
+            pass2Val = log(coalescent[tidTotal]);
         }
+
+        REAL result = bastaReduceAcrossTwoPasses(sPartials1, pass1Val, pass2Val, tid);
 
         if (tid == 0) {
-            REAL temp = - sPartials1[0] / 4 + sPartials2[0];
-            dLogL[KW_GROUP_ID_0] = temp;
+            dLogL[KW_GROUP_ID_0] = result;
         }
     }
+
+// _v5 (9-integer operations): integrals holds a row per intervalNumber, the integral of 1/N over the interval for each
+// state (the interval length included), in place of distance / sizes
+KW_GLOBAL_KERNEL void kernelBastaReduceAcrossInterval_v5(KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT integrals,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT dLogL,
+                                                    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+													int intervalStartsCount,
+													int kCoalescentBufferLength) {
+
+
+        int intervalCount = intervalStartsCount - 1;
+        int tid = KW_LOCAL_ID_0;
+        int tidTotal = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT) + tid;
+        int state = tid % PADDED_STATE_COUNT;
+        int intervalIdx = tid / PADDED_STATE_COUNT;
+        int intervalNumber = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + intervalIdx;
+        int u = state + intervalNumber * PADDED_STATE_COUNT;
+
+	    KW_GLOBAL_VAR REAL* e = dBastaMemory;
+	    KW_GLOBAL_VAR REAL* f = e + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* g = f + PADDED_STATE_COUNT * kCoalescentBufferLength;
+	    KW_GLOBAL_VAR REAL* h = g + PADDED_STATE_COUNT * kCoalescentBufferLength;
+
+        KW_LOCAL_MEM REAL sPartials1[BASTA_SUM_ACROSS_BLOCK_SIZE * PADDED_STATE_COUNT];
+
+        REAL pass1Val = 0;
+        if (intervalNumber < intervalCount && integrals[u] > 0) {
+            pass1Val = (e[u] * e[u] - f[u] + g[u] * g[u] - h[u]) * integrals[u];
+        }
+
+        REAL pass2Val = 0;
+        if (tidTotal < intervalCount && coalescent[tidTotal] > 0) {
+            pass2Val = log(coalescent[tidTotal]);
+        }
+
+        REAL result = bastaReduceAcrossTwoPasses(sPartials1, pass1Val, pass2Val, tid);
+
+        if (tid == 0) {
+            dLogL[KW_GROUP_ID_0] = result;
+        }
+    }
+
+// above 128 states a 16-column tile keeps kernelAdjointBastaPartials' shared memory under 32 KB at SP 256 (M1 OpenCL)
+// and under CUDA's 48 KB of static shared memory at DP 192 and 256
+#if PADDED_STATE_COUNT < 32
+    #define BASTA_MATVEC_K_TILE PADDED_STATE_COUNT
+#elif PADDED_STATE_COUNT >= 192
+    #define BASTA_MATVEC_K_TILE 16
+#else
+    #define BASTA_MATVEC_K_TILE 32
+#endif
+
+
+KW_DEVICE_FUNC REAL bastaTransposeMatVec(KW_GLOBAL_VAR REAL* KW_RESTRICT matrixPtr,
+    								KW_LOCAL_VAR REAL (*sMatrix)[BASTA_MATVEC_K_TILE + 1],
+    								KW_LOCAL_VAR REAL* sVec,
+    								int state, int patIdx, int stateCount) {
+
+    REAL transSum = 0;
+
+    const int linearTid = patIdx * PADDED_STATE_COUNT + state;
+    const int blockThreads = PADDED_STATE_COUNT * BASTA_SUM_ACROSS_BLOCK_SIZE;
+    const int tileElems = PADDED_STATE_COUNT * BASTA_MATVEC_K_TILE;
+
+    for (int kTile = 0; kTile < PADDED_STATE_COUNT;
+                        kTile += BASTA_MATVEC_K_TILE) {
+
+        for (int e = linearTid; e < tileElems; e += blockThreads) {
+            int row = e / BASTA_MATVEC_K_TILE;
+            int col = e - row * BASTA_MATVEC_K_TILE;
+            int srcCol = kTile + col;
+            REAL val = (row < stateCount && srcCol < stateCount)? matrixPtr[row * PADDED_STATE_COUNT + srcCol] : (REAL) 0.0;
+            sMatrix[row][col] = val;
+        }
+
+        KW_LOCAL_FENCE;
+
+        if (state < stateCount) {
+            int kMax = BASTA_MATVEC_K_TILE;
+            if (kTile + kMax > stateCount) kMax = stateCount - kTile;
+            for (int k = 0; k < kMax; k++) {
+                FMA(sMatrix[state][k], sVec[kTile + k], transSum);
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    return transSum;
+}
+
+
+KW_DEVICE_FUNC void bastaTransposeDualMatVecSameMat(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT mPtr,
+    KW_LOCAL_VAR REAL (*sMatrix)[BASTA_MATVEC_K_TILE + 1],
+    KW_LOCAL_VAR REAL* sVec1,
+    KW_LOCAL_VAR REAL* sVec2,
+    int state, int patIdx, int stateCount,
+    REAL* outTrans1,
+    REAL* outTrans2) {
+
+    REAL t1 = (REAL) 0.0;
+    REAL t2 = (REAL) 0.0;
+
+    const int linearTid = patIdx * PADDED_STATE_COUNT + state;
+    const int blockThreads = PADDED_STATE_COUNT * BASTA_SUM_ACROSS_BLOCK_SIZE;
+    const int tileElems = PADDED_STATE_COUNT * BASTA_MATVEC_K_TILE;
+
+    for (int kTile = 0; kTile < PADDED_STATE_COUNT;
+                        kTile += BASTA_MATVEC_K_TILE) {
+        for (int e = linearTid; e < tileElems; e += blockThreads) {
+            int row = e / BASTA_MATVEC_K_TILE;
+            int col = e - row * BASTA_MATVEC_K_TILE;
+            int srcCol = kTile + col;
+            REAL val = (row < stateCount && srcCol < stateCount)
+					   ? mPtr[row * PADDED_STATE_COUNT + srcCol]
+                       : (REAL) 0.0;
+            sMatrix[row][col] = val;
+        }
+        KW_LOCAL_FENCE;
+
+        if (state < stateCount) {
+            int kMax = BASTA_MATVEC_K_TILE;
+            if (kTile + kMax > stateCount) kMax = stateCount - kTile;
+            if (patIdx == 0) {
+                for (int k = 0; k < kMax; k++) {
+                    FMA(sMatrix[state][k], sVec1[kTile + k], t1);
+                }
+            } else if (patIdx == 1) {
+                for (int k = 0; k < kMax; k++) {
+                    FMA(sMatrix[state][k], sVec2[kTile + k], t2);
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    if (patIdx == 0) *outTrans1 = t1;
+    if (patIdx == 1) *outTrans2 = t2;
+}
+
+
+KW_GLOBAL_KERNEL void kernelComputeHazardAdjoints(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT dBastaMemory,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT intervalLengths,
+    KW_GLOBAL_VAR int*  KW_RESTRICT intervalNumbers,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT dHazardAdjoints,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT dPopSizeGrad,
+    int numIntervals,
+    int kCoalescentBufferLength) {
+
+    int state  = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int interval = KW_GROUP_ID_0 * KW_LOCAL_SIZE_1 + patIdx;
+
+    KW_LOCAL_MEM REAL sPop[BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+
+    REAL popContrib = (REAL) 0.0;
+
+    if (interval < numIntervals) {
+        REAL sz = sizes[state];
+        if (sz != (REAL) 0.0) {
+            int intervalNumber = intervalNumbers[interval];
+            REAL len = intervalLengths[interval];
+            REAL invSz = (REAL) 1.0 / sz;
+
+            int u = intervalNumber * PADDED_STATE_COUNT + state;
+            int stride = PADDED_STATE_COUNT * kCoalescentBufferLength;
+            REAL eVal = dBastaMemory[u];
+            REAL fVal = dBastaMemory[stride + u];
+            REAL gVal = dBastaMemory[2 * stride + u];
+            REAL hVal = dBastaMemory[3 * stride + u];
+
+            int base = interval * 4 * PADDED_STATE_COUNT + state;
+            int adjStride = PADDED_STATE_COUNT;
+            dHazardAdjoints[base] = -len * eVal * invSz / (REAL) 2.0;
+            dHazardAdjoints[base + adjStride] = len * invSz / (REAL) 4.0;
+            dHazardAdjoints[base + 2 * adjStride] = -len * gVal * invSz / (REAL) 2.0;
+            dHazardAdjoints[base + 3 * adjStride] = len * invSz / (REAL) 4.0;
+
+            popContrib = len * (eVal*eVal - fVal + gVal*gVal - hVal) /
+                         ((REAL) 4.0 * sz * sz);
+        }
+    }
+
+    sPop[patIdx][state] = popContrib;
+    KW_LOCAL_FENCE;
+
+    if (patIdx == 0) {
+        REAL sum = (REAL) 0.0;
+        int npat = (int) KW_LOCAL_SIZE_1;
+        for (int p = 0; p < npat; ++p) {
+            sum += sPop[p][state];
+        }
+        if (sum != (REAL) 0.0) {
+            atomicAdd(&dPopSizeGrad[state], sum);
+        }
+    }
+}
+
+
+
+KW_GLOBAL_KERNEL void kernelAdjointBastaPartials(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT partialAdj,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT scratchYBar,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT scratchX,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT coalRightYBar,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT coalRightX,
+    										KW_GLOBAL_VAR int*  KW_RESTRICT operations,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+   											KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT dHazardAdjoints,
+    										KW_GLOBAL_VAR REAL* KW_RESTRICT dPopSizeGrad,
+    										int interval,
+    										int start,
+    										int totalPatterns,
+    										int matTransIndex,
+    										int stateCount,
+    										int coalOp) {
+
+    int state = KW_LOCAL_ID_0;
+    int patIdx = KW_LOCAL_ID_1;
+    int validState = (state < stateCount) ? 1 : 0;
+    int pattern = __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE) + patIdx;
+    int op = pattern + start;
+    int numOps = BASTA_OP_COUNT;
+
+    KW_LOCAL_MEM REAL sMatrix[PADDED_STATE_COUNT][BASTA_MATVEC_K_TILE + 1];
+    KW_LOCAL_MEM REAL sYBar[BASTA_SUM_ACROSS_BLOCK_SIZE][PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sReduction[PADDED_STATE_COUNT];
+
+    const int hBase   = interval * 4 * PADDED_STATE_COUNT + state;
+    const int hStride = PADDED_STATE_COUNT;
+    const REAL adjE = dHazardAdjoints[hBase];
+    const REAL adjF = dHazardAdjoints[hBase + hStride];
+    const REAL adjG = dHazardAdjoints[hBase + 2 * hStride];
+    const REAL adjH = dHazardAdjoints[hBase + 3 * hStride];
+
+    int accBuf1Off = -1, accBuf2Off = -1, inBuf1Off = -1, inBuf2Off = -1;
+    REAL pAcc1 = 0.0, pAcc2 = 0.0, pIn1 = 0.0, pIn2 = 0.0;
+    int childMissing2 = 0;
+    if (pattern < totalPatterns) {
+        inBuf2Off = operations[op * numOps + 3];
+        childMissing2 = (inBuf2Off < 0);
+
+        if (validState) {
+            accBuf1Off = operations[op * numOps + 5];
+            accBuf2Off = operations[op * numOps + 6];
+            inBuf1Off  = operations[op * numOps + 1];
+
+            pAcc1 = partials[accBuf1Off + state];
+            if (accBuf2Off >= 0) pAcc2 = partials[accBuf2Off + state];
+            pIn1  = partials[inBuf1Off + state];
+            if (inBuf2Off >= 0)  pIn2 = partials[inBuf2Off + state];
+
+            partialAdj[accBuf1Off + state] += adjG + 2.0 * pAcc1 * adjH;
+            if (accBuf2Off >= 0)
+                partialAdj[accBuf2Off + state] += adjG + 2.0 * pAcc2 * adjH;
+            partialAdj[inBuf1Off + state] += adjE + 2.0 * pIn1 * adjF;
+            if (inBuf2Off >= 0)
+                partialAdj[inBuf2Off + state] += adjE + 2.0 * pIn2 * adjF;
+        }
+    }
+
+    KW_LOCAL_FENCE;
+
+
+    int coalBlockStart = start + __umul24(KW_GROUP_ID_0, BASTA_SUM_ACROSS_BLOCK_SIZE);
+    int isCoalBlock = (coalOp >= 0 && coalOp >= coalBlockStart &&
+                       coalOp < coalBlockStart + BASTA_SUM_ACROSS_BLOCK_SIZE) ? 1 : 0;
+
+    if (isCoalBlock) {
+        int destOff = operations[coalOp * numOps];
+        int inBuf1 = operations[coalOp * numOps + 1];
+        int inMat1 = operations[coalOp * numOps + 2];
+        int inBuf2 = operations[coalOp * numOps + 3];
+        int inMat2 = operations[coalOp * numOps + 4];
+        int accBuf1 = operations[coalOp * numOps + 5];
+        int accBuf2 = operations[coalOp * numOps + 6];
+        int intNum = operations[coalOp * numOps + 7];
+
+        REAL leftEnd  = validState ? partials[accBuf1 + state] : 0.0;
+        REAL rightEnd = validState ? partials[accBuf2 + state] : 0.0;
+        REAL sz = validState ? sizes[state] : 0.0;
+        REAL J = coalescent[intNum];
+
+        REAL zAdj = validState ? partialAdj[destOff + state] : 0.0;
+        REAL w_i = (sz > 0) ? leftEnd * rightEnd / sz : 0.0;
+        REAL dotZW = bastaParallelReduce(sReduction, zAdj * w_i, state, patIdx);
+
+        REAL adjJ = 1.0 / J - dotZW / (J * J);
+        REAL adjW = validState ? (zAdj / J + adjJ) : 0.0;
+        REAL leftEndBar  = validState ? (partialAdj[accBuf1 + state] + ((sz > 0) ? adjW * rightEnd / sz : 0.0)) : 0.0;
+        REAL rightEndBar = validState ? (partialAdj[accBuf2 + state] + ((sz > 0) ? adjW * leftEnd / sz : 0.0)) : 0.0;
+
+        REAL leftStart  = validState ? partials[inBuf1 + state] : 0.0;
+        REAL rightStart = validState ? partials[inBuf2 + state] : 0.0;
+
+        if (patIdx == 0) {
+            sYBar[0][state] = leftEndBar;
+            sYBar[1][state] = rightEndBar;
+        }
+        KW_LOCAL_FENCE;
+
+        REAL trans1 = (REAL) 0.0;
+        REAL trans2 = (REAL) 0.0;
+        bastaTransposeDualMatVecSameMat(matrices + inMat1, sMatrix,
+                                        sYBar[0], sYBar[1],
+                                        state, patIdx, stateCount,
+                                        &trans1, &trans2);
+
+        if (patIdx == 0 && validState) {
+            partialAdj[inBuf1 + state] += trans1;
+            if (sz > 0)
+                atomicAdd(&dPopSizeGrad[state], -adjW * leftEnd * rightEnd / (sz * sz));
+        }
+        if (patIdx == 1 && validState) {
+            partialAdj[inBuf2 + state] += trans2;
+        }
+
+        if (patIdx == 0) {
+            scratchYBar[coalOp * PADDED_STATE_COUNT + state] = leftEndBar;
+            scratchX[coalOp * PADDED_STATE_COUNT + state] = leftStart;
+            coalRightYBar[interval * PADDED_STATE_COUNT + state] = rightEndBar;
+            coalRightX[interval * PADDED_STATE_COUNT + state] = rightStart;
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    int myInBuf1Off = 0;
+    REAL myYBar = 0.0;
+    REAL myX = 0.0;
+
+    if (childMissing2 && validState) {
+        myInBuf1Off = inBuf1Off;
+        myYBar = partialAdj[accBuf1Off + state];
+        myX = pIn1;
+    }
+
+    sYBar[patIdx][state] = myYBar;
+    KW_LOCAL_FENCE;
+
+    REAL transResult = bastaTransposeMatVec(matrices + matTransIndex, sMatrix,
+                                            sYBar[patIdx], state, patIdx, stateCount);
+
+    if (childMissing2 && validState) {
+        partialAdj[myInBuf1Off + state] += transResult;
+    }
+
+    if (childMissing2) {
+        scratchYBar[op * PADDED_STATE_COUNT + state] = myYBar;
+        scratchX[op * PADDED_STATE_COUNT + state] = myX;
+    }
+}
+
+
+
+#define EIGEN_TILE 16
+
+KW_GLOBAL_KERNEL void kernelTiledBatchGemmABt(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT A,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT B,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT C,
+    int matrixCount) {
+
+    int tilesPerRow = (PADDED_STATE_COUNT + EIGEN_TILE - 1) / EIGEN_TILE;
+    int m = KW_GROUP_ID_0 / tilesPerRow;
+    int tileR = KW_GROUP_ID_0 % tilesPerRow;
+    int tileC = KW_GROUP_ID_1;
+    if (m >= matrixCount) return;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    KW_LOCAL_MEM REAL sA[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sB[EIGEN_TILE][EIGEN_TILE + 1];
+
+    int S = PADDED_STATE_COUNT;
+    int S2 = S * S;
+    REAL acc = 0.0;
+
+    KW_NO_UNROLL
+    for (int k = 0; k < S; k += EIGEN_TILE) {
+        // Load A[m][row, k+ty] into shared memory
+        sA[tx][ty] = (row < S && (k + ty) < S) ? A[m * S2 + row * S + k + ty] : 0.0;
+        // Load B[col, k+tx] for B^T access: B^T[k+tx, col] = B[col, k+tx]
+        sB[tx][ty] = (col < S && (k + tx) < S) ? B[col * S + k + tx] : 0.0;
+        KW_LOCAL_FENCE;
+        #pragma unroll
+        for (int j = 0; j < EIGEN_TILE; j++)
+            acc += sA[tx][j] * sB[j][ty];
+        KW_LOCAL_FENCE;
+    }
+
+    if (row < S && col < S)
+        C[m * S2 + row * S + col] = acc;
+}
+
+
+KW_GLOBAL_KERNEL void kernelTiledBatchGemmAtB(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT A,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT B,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT C,
+    int matrixCount) {
+
+    int tilesPerRow = (PADDED_STATE_COUNT + EIGEN_TILE - 1) / EIGEN_TILE;
+    int m = KW_GROUP_ID_0 / tilesPerRow;
+    int tileR = KW_GROUP_ID_0 % tilesPerRow;
+    int tileC = KW_GROUP_ID_1;
+    if (m >= matrixCount) return;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    KW_LOCAL_MEM REAL sA[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sB[EIGEN_TILE][EIGEN_TILE + 1];
+
+    int S = PADDED_STATE_COUNT;
+    int S2 = S * S;
+    REAL acc = 0.0;
+
+    KW_NO_UNROLL
+    for (int k = 0; k < S; k += EIGEN_TILE) {
+        // Load A^T[row, k+ty] = A[k+ty, row]  (transpose read from row-major A)
+        sA[tx][ty] = (row < S && (k + ty) < S) ? A[(k + ty) * S + row] : 0.0;
+        // Load B[m][k+tx, col]  (normal row-major read)
+        sB[tx][ty] = (col < S && (k + tx) < S) ? B[m * S2 + (k + tx) * S + col] : 0.0;
+        KW_LOCAL_FENCE;
+        #pragma unroll
+        for (int j = 0; j < EIGEN_TILE; j++)
+            acc += sA[tx][j] * sB[j][ty];
+        KW_LOCAL_FENCE;
+    }
+
+    if (row < S && col < S)
+        C[m * S2 + row * S + col] = acc;
+}
+
+
+KW_GLOBAL_KERNEL void kernelReduceMatrices(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT src,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT dst,
+    int matrixCount) {
+
+    int idx = KW_GROUP_ID_0 * KW_LOCAL_SIZE_0 + KW_LOCAL_ID_0;
+    int S2 = PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    if (idx >= S2) return;
+
+    int chunk = KW_GROUP_ID_1;
+    int numChunks = KW_NUM_GROUPS_1;
+
+    REAL sum = (REAL) 0.0;
+    for (int m = chunk; m < matrixCount; m += numChunks)
+        sum += src[m * S2 + idx];
+
+    if (numChunks == 1) {
+        dst[idx] = sum;
+    } else {
+        atomicAdd(&dst[idx], sum);
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelApplyComplexLoewnerInPlace(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT transformed,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchLengths,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    int matrixCount,
+    int stateCount,
+    int numBlocks) {
+
+    int flatIdx = KW_GROUP_ID_0;
+    int leftBlock = flatIdx / numBlocks;
+    int rightBlock = flatIdx % numBlocks;
+    if (leftBlock >= numBlocks) return;
+
+    KW_LOCAL_MEM int s_ls;
+    KW_LOCAL_MEM int s_ld;
+    KW_LOCAL_MEM int s_rs;
+    KW_LOCAL_MEM int s_rd;
+    KW_LOCAL_MEM REAL s_la_real;
+    KW_LOCAL_MEM REAL s_la_imag;
+    KW_LOCAL_MEM REAL s_rb_real;
+    KW_LOCAL_MEM REAL s_rb_imag;
+
+    if (KW_LOCAL_ID_0 == 0) {
+        s_ls = blockStarts[leftBlock];
+        s_ld = blockDims[leftBlock];
+        s_rs = blockStarts[rightBlock];
+        s_rd = blockDims[rightBlock];
+        s_la_real = eigenValues[s_ls];
+        s_la_imag = eigenValues[stateCount + s_ls];
+        s_rb_real = eigenValues[s_rs];
+        s_rb_imag = eigenValues[stateCount + s_rs];
+    }
+    KW_LOCAL_FENCE;
+
+    int m = KW_GROUP_ID_1 * KW_LOCAL_SIZE_0 + KW_LOCAL_ID_0;
+    if (m >= matrixCount) return;
+
+    int ls = s_ls, ld = s_ld, rs = s_rs, rd = s_rd;
+    if (ld == 0 || rd == 0) return;
+
+    REAL t = branchLengths[m];
+    int S2 = PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    KW_GLOBAL_VAR REAL* mat = transformed + m * S2;
+
+    if (ld == 1 && rd == 1) {
+        REAL la = s_la_real;
+        REAL lb = s_rb_real;
+        REAL tla = t * la, tlb = t * lb;
+        REAL coeff;
+        if (fabs(tla - tlb) < 1e-12) {
+            coeff = t * exp(tla);
+        } else {
+            coeff = (exp(tla) - exp(tlb)) / (la - lb);
+        }
+        mat[ls * PADDED_STATE_COUNT + rs] *= coeff;
+
+    } else if (ld == 1 && rd == 2) {
+        REAL la = s_la_real;
+        REAL rb_real = s_rb_real;
+        REAL rb_imag = s_rb_imag;
+        REAL shift_real = rb_real - la;
+        REAL denom = shift_real * shift_real + rb_imag * rb_imag;
+        REAL scale = exp(t * la);
+        REAL ic0, ic1;
+        if (denom < 1e-12) {
+            ic0 = t; ic1 = 0.0;
+        } else {
+            REAL ex = exp(t * shift_real);
+            REAL cs = cos(t * rb_imag), sn = sin(t * rb_imag);
+            ic0 = (ex * (shift_real * cs + rb_imag * sn) - shift_real) / denom;
+            ic1 = (ex * (shift_real * sn - rb_imag * cs) + rb_imag) / denom;
+        }
+        REAL c0 = scale * ic0, c1 = scale * ic1;
+        REAL in0 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in1 = mat[ls * PADDED_STATE_COUNT + rs + 1];
+
+        mat[ls * PADDED_STATE_COUNT + rs] = c0 * in0 + c1 * in1;
+        mat[ls * PADDED_STATE_COUNT + rs + 1] = -c1 * in0 + c0 * in1;
+
+    } else if (ld == 2 && rd == 1) {
+        REAL la_real = s_la_real;
+        REAL la_imag = s_la_imag;
+        REAL rb = s_rb_real;
+        REAL shift_real = rb - la_real;
+        REAL denom = shift_real * shift_real + la_imag * la_imag;
+        REAL cI = cos(t * la_imag), sI = sin(t * la_imag);
+        REAL ic0, ic1;
+        if (denom < 1e-12) {
+            ic0 = t; ic1 = 0.0;
+        } else {
+            REAL ex = exp(t * shift_real);
+            ic0 = (ex * (shift_real * cI + la_imag * sI) - shift_real) / denom;
+            ic1 = (ex * (shift_real * sI - la_imag * cI) + la_imag) / denom;
+        }
+
+        REAL expR = exp(t * la_real);
+        REAL l00 = expR * cI, l01 = -expR * sI;
+        REAL l10 = expR * sI, l11 = expR * cI;
+
+        REAL p0 = l00 * ic0 - l01 * ic1;
+        REAL p1 = l00 * ic1 + l01 * ic0;
+        REAL p2 = l10 * ic0 - l11 * ic1;
+        REAL p3 = l10 * ic1 + l11 * ic0;
+        REAL in0 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in1 = mat[(ls+1) * PADDED_STATE_COUNT + rs];
+        mat[ls * PADDED_STATE_COUNT + rs] = p0 * in0 + p1 * in1;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs] = p2 * in0 + p3 * in1;
+
+    } else {
+        REAL la_real = s_la_real;
+        REAL la_imag = s_la_imag;
+        REAL rb_real = s_rb_real;
+        REAL rb_imag = s_rb_imag;
+
+        REAL sr = rb_real - la_real, si1 = la_imag + rb_imag, si2 = rb_imag - la_imag;
+        REAL e1 = exp(t * la_real), tli = t * la_imag;
+        REAL er = e1 * cos(tli), ei = e1 * sin(tli);
+        REAL ex = exp(t * sr);
+        REAL int1r, int1i, int2r, int2i;
+
+        REAL d1 = sr * sr + si1 * si1;
+        if (d1 < 1e-12) {
+            int1r = t; int1i = 0.0;
+        } else {
+            REAL cs1 = cos(t * si1), sn1 = sin(t * si1);
+            int1r = (sr * (ex * cs1 - 1.0) + si1 * ex * sn1) / d1;
+            int1i = (sr * ex * sn1 - si1 * (ex * cs1 - 1.0)) / d1;
+        }
+
+        REAL d2 = sr * sr + si2 * si2;
+        if (d2 < 1e-12) {
+            int2r = t; int2i = 0.0;
+        } else {
+            REAL cs2 = cos(t * si2), sn2 = sin(t * si2);
+            int2r = (sr * (ex * cs2 - 1.0) + si2 * ex * sn2) / d2;
+            int2i = (sr * ex * sn2 - si2 * (ex * cs2 - 1.0)) / d2;
+        }
+
+        REAL pr = er * int1r + ei * int1i, pi = er * int1i - ei * int1r;
+        REAL mr = er * int2r - ei * int2i, mi = er * int2i + ei * int2r;
+
+        REAL A = (REAL) 0.5 * (mr + pr), B = (REAL) 0.5 * (mi + pi);
+        REAL C = (REAL) 0.5 * (pi - mi), D = (REAL) 0.5 * (mr - pr);
+
+        REAL in00 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in01 = mat[ls * PADDED_STATE_COUNT + rs + 1];
+        REAL in10 = mat[(ls+1) * PADDED_STATE_COUNT + rs];
+        REAL in11 = mat[(ls+1) * PADDED_STATE_COUNT + rs + 1];
+
+        mat[ls * PADDED_STATE_COUNT + rs] =  A*in00 + B*in01 + C*in10 + D*in11;
+        mat[ls * PADDED_STATE_COUNT + rs + 1] = -B*in00 + A*in01 - D*in10 + C*in11;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs] = -C*in00 - D*in01 + A*in10 + B*in11;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs + 1] = D*in00 - C*in01 - B*in10 + A*in11;
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelLoewnerExpPrecompute(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchLengths,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT loewnerExp,
+    int matrixCount,
+    int stateCount,
+    int numBlocks) {
+
+    int b = KW_GROUP_ID_0;
+    int m = KW_GROUP_ID_1 * KW_LOCAL_SIZE_0 + KW_LOCAL_ID_0;
+    if (b >= numBlocks || m >= matrixCount) return;
+
+    int s0 = blockStarts[b];
+    int d  = blockDims[b];
+    REAL t = branchLengths[m];
+    REAL re = eigenValues[s0];
+
+    int N = numBlocks * matrixCount;
+    int e = b * matrixCount + m;
+    loewnerExp[e] = exp(t * re);
+    if (d == 2) {
+        REAL im = eigenValues[stateCount + s0];
+        REAL cv, sv;
+        KW_SINCOS(t * im, sv, cv);
+        loewnerExp[N + e] = cv;
+        loewnerExp[2 * N + e] = sv;
+    } else {
+        loewnerExp[N + e] = (REAL) 1.0;
+        loewnerExp[2 * N + e] = (REAL) 0.0;
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelApplyComplexLoewnerInPlacePrecomp(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT transformed,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchLengths,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT loewnerExp,
+    int matrixCount,
+    int stateCount,
+    int numBlocks) {
+
+    int flatIdx = KW_GROUP_ID_0;
+    int leftBlock = flatIdx / numBlocks;
+    int rightBlock = flatIdx % numBlocks;
+    if (leftBlock >= numBlocks) return;
+
+    KW_LOCAL_MEM int s_ls;
+    KW_LOCAL_MEM int s_ld;
+    KW_LOCAL_MEM int s_rs;
+    KW_LOCAL_MEM int s_rd;
+    KW_LOCAL_MEM REAL s_la_real;
+    KW_LOCAL_MEM REAL s_la_imag;
+    KW_LOCAL_MEM REAL s_rb_real;
+    KW_LOCAL_MEM REAL s_rb_imag;
+
+    if (KW_LOCAL_ID_0 == 0) {
+        s_ls = blockStarts[leftBlock];
+        s_ld = blockDims[leftBlock];
+        s_rs = blockStarts[rightBlock];
+        s_rd = blockDims[rightBlock];
+        s_la_real = eigenValues[s_ls];
+        s_la_imag = eigenValues[stateCount + s_ls];
+        s_rb_real = eigenValues[s_rs];
+        s_rb_imag = eigenValues[stateCount + s_rs];
+    }
+    KW_LOCAL_FENCE;
+
+    int m = KW_GROUP_ID_1 * KW_LOCAL_SIZE_0 + KW_LOCAL_ID_0;
+    if (m >= matrixCount) return;
+
+    int ls = s_ls, ld = s_ld, rs = s_rs, rd = s_rd;
+    if (ld == 0 || rd == 0) return;
+
+    REAL t = branchLengths[m];
+    int S2 = PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    KW_GLOBAL_VAR REAL* mat = transformed + m * S2;
+
+    int N = numBlocks * matrixCount;
+    int eL = leftBlock * matrixCount + m;
+    int eR = rightBlock * matrixCount + m;
+    REAL E_left = loewnerExp[eL];
+    REAL C_left = loewnerExp[N + eL];
+    REAL Sn_left = loewnerExp[2 * N + eL];
+    REAL E_right = loewnerExp[eR];
+    REAL C_right = loewnerExp[N + eR];
+    REAL Sn_right= loewnerExp[2 * N + eR];
+
+    if (ld == 1 && rd == 1) {
+        REAL la = s_la_real;
+        REAL lb = s_rb_real;
+        REAL tla = t * la, tlb = t * lb;
+        REAL coeff;
+        if (fabs(tla - tlb) < 1e-12) {
+            coeff = t * E_left;
+        } else {
+            coeff = (E_left - E_right) / (la - lb);
+        }
+        mat[ls * PADDED_STATE_COUNT + rs] *= coeff;
+
+    } else if (ld == 1 && rd == 2) {
+        REAL la = s_la_real;
+        REAL rb_real = s_rb_real;
+        REAL rb_imag = s_rb_imag;
+        REAL shift_real = rb_real - la;
+        REAL denom = shift_real * shift_real + rb_imag * rb_imag;
+        REAL scale = E_left;
+        REAL ic0, ic1;
+        if (denom < 1e-12) {
+            ic0 = t; ic1 = 0.0;
+        } else {
+            REAL ex = exp(t * shift_real);
+            REAL cs = C_right, sn = Sn_right;
+            ic0 = (ex * (shift_real * cs + rb_imag * sn) - shift_real) / denom;
+            ic1 = (ex * (shift_real * sn - rb_imag * cs) + rb_imag) / denom;
+        }
+        REAL c0 = scale * ic0, c1 = scale * ic1;
+        REAL in0 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in1 = mat[ls * PADDED_STATE_COUNT + rs + 1];
+
+        mat[ls * PADDED_STATE_COUNT + rs] = c0 * in0 + c1 * in1;
+        mat[ls * PADDED_STATE_COUNT + rs + 1] = -c1 * in0 + c0 * in1;
+
+    } else if (ld == 2 && rd == 1) {
+        REAL la_real = s_la_real;
+        REAL rb = s_rb_real;
+        REAL shift_real = rb - la_real;
+        REAL la_imag = s_la_imag;
+        REAL denom = shift_real * shift_real + la_imag * la_imag;
+        REAL cI = C_left, sI = Sn_left;
+        REAL ic0, ic1;
+        if (denom < 1e-12) {
+            ic0 = t; ic1 = 0.0;
+        } else {
+            REAL ex = exp(t * shift_real);
+            ic0 = (ex * (shift_real * cI + la_imag * sI) - shift_real) / denom;
+            ic1 = (ex * (shift_real * sI - la_imag * cI) + la_imag) / denom;
+        }
+
+        REAL expR = E_left;
+        REAL l00 = expR * cI, l01 = -expR * sI;
+        REAL l10 = expR * sI, l11 = expR * cI;
+
+        REAL p0 = l00 * ic0 - l01 * ic1;
+        REAL p1 = l00 * ic1 + l01 * ic0;
+        REAL p2 = l10 * ic0 - l11 * ic1;
+        REAL p3 = l10 * ic1 + l11 * ic0;
+        REAL in0 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in1 = mat[(ls+1) * PADDED_STATE_COUNT + rs];
+        mat[ls * PADDED_STATE_COUNT + rs] = p0 * in0 + p1 * in1;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs] = p2 * in0 + p3 * in1;
+
+    } else {
+        REAL la_real = s_la_real;
+        REAL la_imag = s_la_imag;
+        REAL rb_real = s_rb_real;
+        REAL rb_imag = s_rb_imag;
+
+        REAL sr = rb_real - la_real, si1 = la_imag + rb_imag, si2 = rb_imag - la_imag;
+        REAL er = E_left * C_left, ei = E_left * Sn_left;
+        REAL ex = exp(t * sr);
+        REAL int1r, int1i, int2r, int2i;
+
+        REAL d1 = sr * sr + si1 * si1;
+        if (d1 < 1e-12) {
+            int1r = t; int1i = 0.0;
+        } else {
+            REAL cs1 = cos(t * si1), sn1 = sin(t * si1);
+            int1r = (sr * (ex * cs1 - 1.0) + si1 * ex * sn1) / d1;
+            int1i = (sr * ex * sn1 - si1 * (ex * cs1 - 1.0)) / d1;
+        }
+
+        REAL d2 = sr * sr + si2 * si2;
+        if (d2 < 1e-12) {
+            int2r = t; int2i = 0.0;
+        } else {
+            REAL cs2 = cos(t * si2), sn2 = sin(t * si2);
+            int2r = (sr * (ex * cs2 - 1.0) + si2 * ex * sn2) / d2;
+            int2i = (sr * ex * sn2 - si2 * (ex * cs2 - 1.0)) / d2;
+        }
+
+        REAL pr = er * int1r + ei * int1i, pi = er * int1i - ei * int1r;
+        REAL mr = er * int2r - ei * int2i, mi = er * int2i + ei * int2r;
+
+        REAL A = (REAL) 0.5 * (mr + pr), B = (REAL) 0.5 * (mi + pi);
+        REAL C = (REAL) 0.5 * (pi - mi), D = (REAL) 0.5 * (mr - pr);
+
+        REAL in00 = mat[ls * PADDED_STATE_COUNT + rs];
+        REAL in01 = mat[ls * PADDED_STATE_COUNT + rs + 1];
+        REAL in10 = mat[(ls+1) * PADDED_STATE_COUNT + rs];
+        REAL in11 = mat[(ls+1) * PADDED_STATE_COUNT + rs + 1];
+
+        mat[ls * PADDED_STATE_COUNT + rs] =  A*in00 + B*in01 + C*in10 + D*in11;
+        mat[ls * PADDED_STATE_COUNT + rs + 1] = -B*in00 + A*in01 - D*in10 + C*in11;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs] = -C*in00 - D*in01 + A*in10 + B*in11;
+        mat[(ls+1) * PADDED_STATE_COUNT + rs + 1] = D*in00 - C*in01 - B*in10 + A*in11;
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelTiledSingleGemmAtB(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT A,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT B,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT C) {
+
+    int tileR = KW_GROUP_ID_0;
+    int tileC = KW_GROUP_ID_1;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    KW_LOCAL_MEM REAL sA[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sB[EIGEN_TILE][EIGEN_TILE + 1];
+
+    int S = PADDED_STATE_COUNT;
+    REAL acc = 0.0;
+
+    KW_NO_UNROLL
+    for (int k = 0; k < S; k += EIGEN_TILE) {
+        sA[tx][ty] = (row < S && (k + ty) < S) ? A[(k + ty) * S + row] : 0.0;
+        sB[tx][ty] = (col < S && (k + tx) < S) ? B[(k + tx) * S + col] : 0.0;
+        KW_LOCAL_FENCE;
+        #pragma unroll
+        for (int j = 0; j < EIGEN_TILE; j++)
+            acc += sA[tx][j] * sB[j][ty];
+        KW_LOCAL_FENCE;
+    }
+
+    if (row < S && col < S)
+        C[row * S + col] = acc;
+}
+
+
+KW_GLOBAL_KERNEL void kernelTiledSingleGemmABt(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT A,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT B,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT C) {
+
+    int tileR = KW_GROUP_ID_0;
+    int tileC = KW_GROUP_ID_1;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    KW_LOCAL_MEM REAL sA[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sB[EIGEN_TILE][EIGEN_TILE + 1];
+
+    int S = PADDED_STATE_COUNT;
+    REAL acc = 0.0;
+
+    KW_NO_UNROLL
+    for (int k = 0; k < S; k += EIGEN_TILE) {
+        sA[tx][ty] = (row < S && (k + ty) < S) ? A[row * S + k + ty] : 0.0;
+        sB[tx][ty] = (col < S && (k + tx) < S) ? B[col * S + k + tx] : 0.0;
+        KW_LOCAL_FENCE;
+        #pragma unroll
+        for (int j = 0; j < EIGEN_TILE; j++)
+            acc += sA[tx][j] * sB[j][ty];
+        KW_LOCAL_FENCE;
+    }
+
+    if (row < S && col < S)
+        C[row * S + col] = acc;
+}
+
+
+KW_GLOBAL_KERNEL void kernelAccumulateMatrixAdjoints(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT scratchYBar,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT scratchX,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT coalRightYBar,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT coalRightX,
+    KW_GLOBAL_VAR int*  KW_RESTRICT intervalStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT matTransIndices,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalOps,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrixAdj,
+    int intervalCount) {
+
+    int interval = KW_GROUP_ID_0;
+    if (interval >= intervalCount) return;
+
+    int tilesPerRow = (PADDED_STATE_COUNT + EIGEN_TILE - 1) / EIGEN_TILE;
+    int tileFlat = KW_GROUP_ID_1;
+    int tileR = tileFlat / tilesPerRow;
+    int tileC = tileFlat - tileR * tilesPerRow;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    int start  = intervalStarts[interval];
+    int end = intervalStarts[interval + 1];
+    int matIdx = matTransIndices[interval];
+    int coalOp = coalOps[interval];
+    int numOps = end - start;
+
+    KW_LOCAL_MEM REAL sYBarTile[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sXTile[EIGEN_TILE][EIGEN_TILE + 1];
+
+    REAL acc = 0.0;
+    int S = PADDED_STATE_COUNT;
+
+    for (int opTile = 0; opTile < numOps; opTile += EIGEN_TILE) {
+        int opIdxA = opTile + ty;
+        if (opIdxA < numOps && row < S) {
+            int op = start + opIdxA;
+            sYBarTile[tx][ty] = scratchYBar[op * S + row];
+        } else {
+            sYBarTile[tx][ty] = 0.0;
+        }
+
+        int opIdxB = opTile + tx;
+        if (opIdxB < numOps && col < S) {
+            int op = start + opIdxB;
+            sXTile[tx][ty] = scratchX[op * S + col];
+        } else {
+            sXTile[tx][ty] = 0.0;
+        }
+
+        KW_LOCAL_FENCE;
+
+        for (int k = 0; k < EIGEN_TILE; k++) {
+            acc += sYBarTile[tx][k] * sXTile[k][ty];
+        }
+
+        KW_LOCAL_FENCE;
+    }
+
+    if (coalOp >= 0) {
+        REAL yR = (row < S) ? coalRightYBar[interval * S + row] : 0.0;
+        REAL xC = (col < S) ? coalRightX   [interval * S + col] : 0.0;
+        acc += yR * xC;
+    }
+
+    if (row < S && col < S) {
+        matrixAdj[matIdx + row * S + col] = acc;
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelAccumulateMatrixAdjointsSlabEigen(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT scratchYBar,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialsTilde,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opInBufOff,
+    KW_GLOBAL_VAR int*  KW_RESTRICT intervalOpStart,
+    KW_GLOBAL_VAR int*  KW_RESTRICT intervalOpList,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT matrixAdj,
+    int intervalCount) {
+
+    int interval = KW_GROUP_ID_0;
+    if (interval >= intervalCount) return;
+
+    int tilesPerRow = (PADDED_STATE_COUNT + EIGEN_TILE - 1) / EIGEN_TILE;
+    int tileFlat = KW_GROUP_ID_1;
+    int tileR = tileFlat / tilesPerRow;
+    int tileC = tileFlat - tileR * tilesPerRow;
+
+    int tx = KW_LOCAL_ID_0;
+    int ty = KW_LOCAL_ID_1;
+    int row = tileR * EIGEN_TILE + tx;
+    int col = tileC * EIGEN_TILE + ty;
+
+    int start = intervalOpStart[interval];
+    int end = intervalOpStart[interval + 1];
+    int numOps = end - start;
+
+    KW_LOCAL_MEM REAL sYBarTile[EIGEN_TILE][EIGEN_TILE + 1];
+    KW_LOCAL_MEM REAL sXTile[EIGEN_TILE][EIGEN_TILE + 1];
+
+    REAL acc = 0.0;
+    int S = PADDED_STATE_COUNT;
+    int matBase = interval * S * S;
+
+    for (int opTile = 0; opTile < numOps; opTile += EIGEN_TILE) {
+        int opIdxA = opTile + ty;
+        if (opIdxA < numOps && row < S) {
+            int op = intervalOpList[start + opIdxA];
+            sYBarTile[tx][ty] = scratchYBar[op * S + row];
+        } else {
+            sYBarTile[tx][ty] = 0.0;
+        }
+
+        int opIdxB = opTile + tx;
+        if (opIdxB < numOps && col < S) {
+            int op = intervalOpList[start + opIdxB];
+            int xtBase = opInBufOff[op];
+            sXTile[tx][ty] = partialsTilde[xtBase + col];
+        } else {
+            sXTile[tx][ty] = 0.0;
+        }
+
+        KW_LOCAL_FENCE;
+
+        for (int k = 0; k < EIGEN_TILE; k++) {
+            acc += sYBarTile[tx][k] * sXTile[k][ty];
+        }
+
+        KW_LOCAL_FENCE;
+    }
+
+    if (row < S && col < S) {
+        matrixAdj[matBase + row * S + col] = acc;
+    }
+}
+
+
+
+
+KW_DEVICE_FUNC REAL eigenDot(KW_GLOBAL_VAR REAL* KW_RESTRICT mat,
+                             KW_LOCAL_VAR REAL* sVec,
+                             int a,
+                             int stateCount) {
+    REAL acc0 = (REAL) 0.0, acc1 = (REAL) 0.0, acc2 = (REAL) 0.0, acc3 = (REAL) 0.0;
+    int i = 0;
+    for (; i + 3 < stateCount; i += 4) {
+        acc0 += mat[(i    ) * PADDED_STATE_COUNT + a] * sVec[i    ];
+        acc1 += mat[(i + 1) * PADDED_STATE_COUNT + a] * sVec[i + 1];
+        acc2 += mat[(i + 2) * PADDED_STATE_COUNT + a] * sVec[i + 2];
+        acc3 += mat[(i + 3) * PADDED_STATE_COUNT + a] * sVec[i + 3];
+    }
+    for (; i < stateCount; ++i) {
+        acc0 += mat[i * PADDED_STATE_COUNT + a] * sVec[i];
+    }
+    return (acc0 + acc1) + (acc2 + acc3);
+}
+
+
+KW_GLOBAL_KERNEL void kernelProjectHazardsToEigen(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT hazardAdjoints,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT evec,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opUOff,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opKIn,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opKAcc,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opHasAcc,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT hazardEigenPerOp,
+    int opCount,
+    int stateCount) {
+
+    int p = KW_LOCAL_ID_1;
+    int a  = KW_LOCAL_ID_0;
+    int globalOp = KW_GROUP_ID_0 * BASTA_HEIG_OPS_PER_BLOCK + p;
+
+    int validOp = (globalOp < opCount) ? 1 : 0;
+    int validA  = (a < stateCount) ? 1 : 0;
+
+    KW_LOCAL_MEM REAL sH[BASTA_HEIG_OPS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+
+    if (validOp) {
+        if (validA) {
+            int u_n = opUOff[globalOp];
+            int k_in = opKIn[globalOp];
+            int hasAcc = opHasAcc[globalOp];
+            int k_acc = hasAcc ? opKAcc[globalOp] : 0;
+
+            int inBase = k_in * 4 * PADDED_STATE_COUNT;
+            int accBase = k_acc * 4 * PADDED_STATE_COUNT;
+
+            REAL p_a = partials[u_n + a];
+            REAL h_a = hazardAdjoints[inBase + a]
+                     + (REAL) 2.0 * p_a *
+                       hazardAdjoints[inBase + PADDED_STATE_COUNT + a];
+            if (hasAcc) {
+                h_a += hazardAdjoints[accBase + 2 * PADDED_STATE_COUNT + a]
+                     + (REAL) 2.0 * p_a *
+                       hazardAdjoints[accBase + 3 * PADDED_STATE_COUNT + a];
+            }
+            sH[p][a] = h_a;
+        } else if (a < PADDED_STATE_COUNT) {
+            sH[p][a] = (REAL) 0.0;
+        }
+    } else if (a < PADDED_STATE_COUNT) {
+        sH[p][a] = (REAL) 0.0;
+    }
+    KW_LOCAL_FENCE;
+
+
+    if (validOp && validA) {
+        hazardEigenPerOp[globalOp * PADDED_STATE_COUNT + a] = eigenDot(evec, sH[p], a, stateCount);
+    } else if (validOp && a < PADDED_STATE_COUNT) {
+        hazardEigenPerOp[globalOp * PADDED_STATE_COUNT + a] = (REAL) 0.0;
+    }
+}
+
+
+
+KW_GLOBAL_KERNEL void kernelProjectPartialsToEigenbasis(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT inverseEvecT,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialsTilde,
+    KW_GLOBAL_VAR int*  KW_RESTRICT bufferIndices,
+    int bufferCount,
+    int stateCount,
+    int stride) {
+
+    int p = KW_LOCAL_ID_1;
+    int a = KW_LOCAL_ID_0;
+    int buf = KW_GROUP_ID_0 * BASTA_PROJECT_OPS_PER_BLOCK + p;
+
+    KW_LOCAL_MEM REAL sX[BASTA_PROJECT_OPS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+
+    int validBuf = (buf < bufferCount) ? 1 : 0;
+    int u = 0;
+    if (validBuf) {
+        u = bufferIndices[buf];
+        sX[p][a] = (a < stateCount) ? partials[u * stride + a] : (REAL) 0.0;
+    } else {
+        sX[p][a] = (REAL) 0.0;
+    }
+    KW_LOCAL_FENCE;
+
+    if (validBuf && a < stateCount) {
+        partialsTilde[u * stride + a] = eigenDot(inverseEvecT, sX[p], a, stateCount);
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelCoalescentSlab(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialAdj,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT popSizeGrad,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalDestBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalLeftAccBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalRightAccBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalIntervals,
+    int coalSlabOffset,
+    int coalCount,
+    int stateCount,
+    int stride) {
+
+    int yIdx = KW_LOCAL_ID_1;
+    int i = KW_LOCAL_ID_0;
+
+    int eventIdxInGrid = KW_GROUP_ID_0 * BASTA_COAL_EVENTS_PER_BLOCK + yIdx;
+    int validEvent = (eventIdxInGrid < coalCount) ? 1 : 0;
+    int validState = (i < stateCount) ? 1 : 0;
+    int c = eventIdxInGrid + coalSlabOffset;
+
+    KW_LOCAL_MEM REAL sRed[BASTA_COAL_EVENTS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+    KW_LOCAL_MEM REAL sPop[BASTA_COAL_EVENTS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+
+    REAL leftEnd  = 0.0;
+    REAL rightEnd = 0.0;
+    REAL N_i = 0.0;
+    REAL J = 0.0;
+    REAL z_i = 0.0;
+    REAL w_i = 0.0;
+    int leftAccOff = 0;
+    int rightAccOff = 0;
+
+    if (validEvent) {
+        int destOff = coalDestBufs[c];
+        leftAccOff  = coalLeftAccBufs[c];
+        rightAccOff = coalRightAccBufs[c];
+        int interval = coalIntervals[c];
+
+        leftEnd = validState ? partials[leftAccOff  + i] : (REAL) 0.0;
+        rightEnd = validState ? partials[rightAccOff + i] : (REAL) 0.0;
+        N_i = validState ? sizes[i] : (REAL) 0.0;
+        J = coalescent[interval];
+
+        z_i = validState ? partialAdj[destOff + i] : (REAL) 0.0;
+        w_i = (N_i > 0) ? (leftEnd * rightEnd / N_i) : (REAL) 0.0;
+    }
+
+    sRed[yIdx][i] = z_i * w_i;
+    KW_LOCAL_FENCE;
+    for (int s = SMALLEST_POWER_OF_TWO >> 1; s > 0; s >>= 1) {
+        if (i < s && i + s < PADDED_STATE_COUNT) sRed[yIdx][i] += sRed[yIdx][i + s];
+        KW_LOCAL_FENCE;
+    }
+    REAL dotZW = sRed[yIdx][0];
+
+    REAL popContrib = (REAL) 0.0;
+
+    if (validEvent && validState) {
+        REAL adjJ = (J != (REAL) 0.0) ? ((REAL) 1.0 / J - dotZW / (J * J)) : (REAL) 0.0;
+        REAL adjW_i = (J != (REAL) 0.0) ? ((z_i / J) + adjJ) : (REAL) 0.0;
+
+        REAL leftBar  = (N_i > 0) ? (adjW_i * rightEnd / N_i) : (REAL) 0.0;
+        REAL rightBar = (N_i > 0) ? (adjW_i * leftEnd  / N_i) : (REAL) 0.0;
+        partialAdj[leftAccOff  + i] = leftBar;
+        partialAdj[rightAccOff + i] = rightBar;
+
+        if (N_i > 0) {
+            popContrib = -adjW_i * leftEnd * rightEnd / (N_i * N_i);
+        }
+    }
+
+    sPop[yIdx][i] = popContrib;
+    KW_LOCAL_FENCE;
+
+    if (yIdx == 0 && validState) {
+        REAL sum = (REAL) 0.0;
+        int nev = (int) KW_LOCAL_SIZE_1;
+        for (int p = 0; p < nev; ++p) {
+            sum += sPop[p][i];
+        }
+        if (sum != (REAL) 0.0) {
+            atomicAdd(&popSizeGrad[i], sum);
+        }
+    }
+}
+
+
+
+
+#ifdef DOUBLE_PRECISION
+    #define SCA_EVEC_SHARED_CACHE (PADDED_STATE_COUNT * (PADDED_STATE_COUNT + 1) * 8 <= 49152)
+#else
+    #define SCA_EVEC_SHARED_CACHE (PADDED_STATE_COUNT * (PADDED_STATE_COUNT + 1) * 4 <= 49152)
+#endif
+
+KW_DEVICE_FUNC void findEigenBlock(KW_GLOBAL_VAR int* KW_RESTRICT blockStarts,
+                                   KW_GLOBAL_VAR int* KW_RESTRICT blockDims,
+                                   int idx,
+                                   int* bs,
+                                   int* bd) {
+    for (int eb = 0; eb < PADDED_STATE_COUNT; ++eb) {
+        int s0 = blockStarts[eb];
+        int d = blockDims[eb];
+        if (idx >= s0 && idx < s0 + d) {
+            *bs = s0;
+            *bd = d;
+            break;
+        }
+    }
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointBranchSlabLocal(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialAdj,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT scratchYBar,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT hazardAdjoints,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT hazardEigenPerOp,
+
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockBranchIdx,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkStart,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkLen,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkIdx,
+
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchKb,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchKTop,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchTopBuf,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchOpFirst,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchTimeStart,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchT,
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabCarryOut,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabAStash,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabYBottomEigen,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabAlpha,
+    int useAnchor,
+    int blockBase,
+    int numBlocks,
+    int numEvBlocks,
+    int stateCount,
+    int stride) {
+
+    if (KW_GROUP_ID_0 >= numBlocks) return;
+    int gGlobal = KW_GROUP_ID_0 + blockBase;
+
+    int a = KW_LOCAL_ID_0;
+    int t = KW_LOCAL_ID_1;
+    int validA = (a < stateCount) ? 1 : 0;
+
+    int branchIdx = slabBlockBranchIdx [gGlobal];
+    int chunkStart = slabBlockChunkStart[gGlobal];
+    int chunkLen = slabBlockChunkLen[gGlobal];
+    int chunkIdx = slabBlockChunkIdx[gGlobal];
+
+    int K_b = branchKb[branchIdx];
+    int kTop = branchKTop[branchIdx];
+    int topBufOff = branchTopBuf[branchIdx];
+    int opFirst = branchOpFirst[branchIdx];
+    int timeBase = branchTimeStart[branchIdx];
+
+
+    KW_LOCAL_MEM int sBlkStart[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM int sBlkDim[PADDED_STATE_COUNT];
+    if (t == 0) {
+        int bs = a;
+        int bd = 1;
+        if (validA) {
+            findEigenBlock(blockStarts, blockDims, a, &bs, &bd);
+        }
+        sBlkStart[a] = bs;
+        sBlkDim[a] = bd;
+    }
+    KW_LOCAL_FENCE;
+    int blockStart_a = sBlkStart[a];
+    int blockDim_a = sBlkDim[a];
+    REAL la_re = validA ? eigenValues[blockStart_a] : (REAL) 0.0;
+    REAL la_im = (validA && blockDim_a == 2)? eigenValues[stateCount + blockStart_a] : (REAL) 0.0;
+
+    REAL tau = (chunkStart > 0) ? branchT[timeBase + chunkStart - 1] : (REAL) 0.0;
+    if (useAnchor && t == 0 && validA) {
+        int nextIdx = chunkStart + BASTA_SLAB_OPS_PER_BLOCK - 1;
+        REAL alpha_re = (REAL) 0.0;
+        REAL alpha_im = (REAL) 0.0;
+        if (nextIdx < K_b) {
+            REAL span = branchT[timeBase + nextIdx] - tau;
+            REAL eS = exp(span * la_re);
+            if (blockDim_a == 1) {
+                alpha_re = eS;
+            } else {
+                REAL cS, sS;
+                KW_SINCOS(span * la_im, sS, cS);
+                alpha_re = eS * cS;
+                alpha_im = eS * sS;
+            }
+        }
+        slabAlpha[gGlobal * PADDED_STATE_COUNT * 2 + a] = alpha_re;
+        slabAlpha[gGlobal * PADDED_STATE_COUNT * 2 + PADDED_STATE_COUNT + a] = alpha_im;
+    }
+
+#if SCA_EVEC_SHARED_CACHE
+    KW_LOCAL_MEM REAL sEvecT[PADDED_STATE_COUNT * (PADDED_STATE_COUNT + 1)];
+#endif
+    KW_LOCAL_MEM REAL sH[BASTA_SLAB_OPS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+    KW_LOCAL_MEM REAL sChunk[BASTA_SLAB_OPS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+#if SCA_EVEC_SHARED_CACHE
+    {
+        int tid = t * PADDED_STATE_COUNT + a;
+        int bsz = BASTA_SLAB_OPS_PER_BLOCK * PADDED_STATE_COUNT;
+        for (int idx = tid; idx < PADDED_STATE_COUNT * PADDED_STATE_COUNT; idx += bsz) {
+            int r = idx / PADDED_STATE_COUNT;
+            int cc = idx - r * PADDED_STATE_COUNT;
+            sEvecT[r * (PADDED_STATE_COUNT + 1) + cc] = evecT[idx];
+        }
+    }
+#endif
+
+    KW_LOCAL_MEM REAL sBoundary[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sYbar[PADDED_STATE_COUNT];
+    if (t == 0 && validA) {
+        const int hbBase = kTop * 4 * PADDED_STATE_COUNT;
+        REAL p_a = partials[topBufOff + a];
+        REAL adjG_a = hazardAdjoints[hbBase + 2 * PADDED_STATE_COUNT + a];
+        REAL adjH_a = hazardAdjoints[hbBase + 3 * PADDED_STATE_COUNT + a];
+        sYbar[a] = partialAdj[topBufOff + a] + adjG_a + (REAL) 2.0 * p_a * adjH_a;
+    }
+    KW_LOCAL_FENCE;
+    {
+        REAL part = (REAL) 0.0;
+        if (validA) {
+            for (int i = t; i < stateCount; i += BASTA_SLAB_OPS_PER_BLOCK) {
+#if SCA_EVEC_SHARED_CACHE
+                FMA(sEvecT[a * (PADDED_STATE_COUNT + 1) + i], sYbar[i], part);
+#else
+                FMA(evecT[a * PADDED_STATE_COUNT + i], sYbar[i], part);
+#endif
+            }
+        }
+        sChunk[t][a] = part;
+    }
+    KW_LOCAL_FENCE;
+    for (int red = BASTA_SLAB_OPS_PER_BLOCK >> 1; red > 0; red >>= 1) {
+        if (t < red) {
+            sChunk[t][a] = sChunk[t][a] + sChunk[t + red][a];
+        }
+        KW_LOCAL_FENCE;
+    }
+    if (t == 0 && validA) {
+        REAL y0 = sChunk[0][a];
+        sBoundary[a] = y0;
+        if (chunkIdx == 0) {
+            scratchYBar[opFirst * PADDED_STATE_COUNT + a] = y0;
+        }
+    }
+    KW_LOCAL_FENCE;
+
+    if (useAnchor) {
+        REAL sb_re = (REAL) 0.0, sb_im = (REAL) 0.0;
+        if (t == 0 && validA && chunkIdx > 0) {
+            if (blockDim_a == 1) {
+                sb_re = sBoundary[a];
+            } else {
+                sb_re = sBoundary[blockStart_a];
+                sb_im = sBoundary[blockStart_a + 1];
+            }
+        }
+        KW_LOCAL_FENCE;
+        if (t == 0 && validA && chunkIdx > 0) {
+            REAL eT = exp(tau * la_re);
+            if (blockDim_a == 1) {
+                sBoundary[a] = eT * sb_re;
+            } else {
+                REAL c, s;
+                KW_SINCOS(tau * la_im, s, c);
+                if (a == blockStart_a) {
+                    sBoundary[a] = eT * (c * sb_re - s * sb_im);
+                } else {
+                    sBoundary[a] = eT * (s * sb_re + c * sb_im);
+                }
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+
+    int n = chunkStart + t + 1;
+    int valid_p = (t < chunkLen) && validA;
+
+    REAL t_n = (REAL) 0.0;
+    REAL A_re = (REAL) 1.0,  A_im    = (REAL) 0.0;
+    REAL Ainv_re = (REAL) 1.0,  Ainv_im = (REAL) 0.0;
+    REAL h_a = (REAL) 0.0;
+
+    if (valid_p) {
+        t_n = branchT[timeBase + (n - 1)];
+        if (useAnchor) {
+            REAL tdiff = t_n - tau;
+            REAL arg = tdiff * la_re;
+            REAL eR = exp(arg);
+            REAL eRI = exp(-arg);
+            if (blockDim_a == 1) {
+                A_re = eR;
+                A_im = (REAL) 0.0;
+                Ainv_re = eRI;
+                Ainv_im = (REAL) 0.0;
+            } else {
+                REAL c, s;
+                KW_SINCOS(tdiff * la_im, s, c);
+                A_re = eR * c;
+                A_im = eR * s;
+                Ainv_re = eRI * c;
+                Ainv_im = -eRI * s;
+            }
+        } else {
+            REAL arg = t_n * la_re;
+            REAL eR = exp(arg);
+            REAL eRI = exp(-arg);
+            if (blockDim_a == 1) {
+                A_re = eR;
+                A_im = (REAL) 0.0;
+                Ainv_re = eRI;
+                Ainv_im = (REAL) 0.0;
+            } else {
+                REAL c, s;
+                KW_SINCOS(t_n * la_im, s, c);
+                A_re = eR * c;
+                A_im = eR * s;
+                Ainv_re = eRI * c;
+                Ainv_im = -eRI * s;
+            }
+        }
+
+        int op_n = opFirst + (n - 1);
+        h_a = hazardEigenPerOp[op_n * PADDED_STATE_COUNT + a];
+
+        slabAStash[op_n * PADDED_STATE_COUNT * 2 + a] = A_re;
+        slabAStash[op_n * PADDED_STATE_COUNT * 2 + PADDED_STATE_COUNT + a] = A_im;
+    }
+
+    sH[t][a] = h_a;
+    KW_LOCAL_FENCE;
+
+    REAL myS = (REAL) 0.0;
+    if (valid_p) {
+        if (blockDim_a == 1) {
+            myS = h_a * Ainv_re;
+        } else {
+            REAL h_re = sH[t][blockStart_a];
+            REAL h_im = sH[t][blockStart_a + 1];
+            if (a == blockStart_a) {
+                myS = Ainv_re * h_re - Ainv_im * h_im;
+            } else {
+                myS = Ainv_re * h_im + Ainv_im * h_re;
+            }
+        }
+    }
+    sChunk[t][a] = myS;
+    KW_LOCAL_FENCE;
+
+    /* Hillis-Steele inclusive scan */
+    for (int stride_pow = 1; stride_pow < BASTA_SLAB_OPS_PER_BLOCK; stride_pow <<= 1) {
+        REAL prev = (REAL) 0.0;
+        if (t >= stride_pow) prev = sChunk[t - stride_pow][a];
+        KW_LOCAL_FENCE;
+        if (t >= stride_pow) sChunk[t][a] = sChunk[t][a] + prev;
+        KW_LOCAL_FENCE;
+    }
+
+    if (valid_p) {
+        REAL y_n = (REAL) 0.0;
+        if (blockDim_a == 1) {
+            REAL S_n = sChunk[t][a];
+            y_n = A_re * (sBoundary[a] + S_n);
+        } else {
+            REAL S_re = sChunk[t][blockStart_a];
+            REAL S_im = sChunk[t][blockStart_a + 1];
+            REAL sum_re = sBoundary[blockStart_a] + S_re;
+            REAL sum_im = sBoundary[blockStart_a + 1] + S_im;
+            if (a == blockStart_a) {
+                y_n = A_re * sum_re - A_im * sum_im;
+            } else {
+                y_n = A_re * sum_im + A_im * sum_re;
+            }
+        }
+        if (n < K_b) {
+            int op = opFirst + n;
+            scratchYBar[op * PADDED_STATE_COUNT + a] = y_n;
+        }
+        if (n == K_b) {
+            slabYBottomEigen[branchIdx * PADDED_STATE_COUNT + a] = y_n;
+        }
+    }
+    KW_LOCAL_FENCE;
+
+    if (t == 0 && validA) {
+        slabCarryOut[gGlobal * PADDED_STATE_COUNT + a] = sChunk[chunkLen - 1][a];
+    }
+}
+
+
+
+
+KW_GLOBAL_KERNEL void kernelAdjointBranchSlabSpinePerBranch(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabCarryOut,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabCarryPrefix,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabAlpha,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchSlabList,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchKb,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchFirstBlock,
+    int useAnchor,
+    int branchSlabOffset,
+    int numBranches,
+    int opsPerBlock,
+    int stateCount) {
+
+    int a = KW_LOCAL_ID_0;
+    if (a >= stateCount) return;
+
+    int gid = KW_GROUP_ID_0;
+    if (gid >= numBranches) return;
+
+    int branchIdx = branchSlabList[branchSlabOffset + gid];
+    int K_b = branchKb[branchIdx];
+    int firstBlk = branchFirstBlock[branchIdx];
+    int numChunks = (K_b + opsPerBlock - 1) / opsPerBlock;
+
+    slabCarryPrefix[firstBlk * PADDED_STATE_COUNT + a] = (REAL) 0.0;
+
+    if (useAnchor) {
+    int blockStart_a = a;
+    int blockDim_a = 1;
+    findEigenBlock(blockStarts, blockDims, a, &blockStart_a, &blockDim_a);
+
+    if (a == blockStart_a) {
+        if (blockDim_a == 1) {
+            REAL P = (REAL) 0.0;
+            for (int c = 1; c < numChunks; ++c) {
+                int src = firstBlk + c - 1;
+                REAL al = slabAlpha[src * PADDED_STATE_COUNT * 2 + a];
+                REAL cy = slabCarryOut[src * PADDED_STATE_COUNT + a];
+                P = al * (P + cy);
+                slabCarryPrefix[(firstBlk + c) * PADDED_STATE_COUNT + a] = P;
+            }
+        } else {
+            REAL Pr = (REAL) 0.0, Pi = (REAL) 0.0;
+            for (int c = 1; c < numChunks; ++c) {
+                int src = firstBlk + c - 1;
+                REAL alr = slabAlpha[src * PADDED_STATE_COUNT * 2 + a];
+                REAL ali = slabAlpha[src * PADDED_STATE_COUNT * 2 + PADDED_STATE_COUNT + a];
+                REAL cr = slabCarryOut[src * PADDED_STATE_COUNT + a];
+                REAL ci = slabCarryOut[src * PADDED_STATE_COUNT + a + 1];
+                REAL xr = Pr + cr, xi = Pi + ci;
+                Pr = alr * xr - ali * xi;
+                Pi = alr * xi + ali * xr;
+                slabCarryPrefix[(firstBlk + c) * PADDED_STATE_COUNT + a]     = Pr;
+                slabCarryPrefix[(firstBlk + c) * PADDED_STATE_COUNT + a + 1] = Pi;
+            }
+        }
+    }
+    } else {
+    REAL prefix = (REAL) 0.0;
+    for (int c = 1; c < numChunks; ++c) {
+        prefix = prefix + slabCarryOut[(firstBlk + c - 1) * PADDED_STATE_COUNT + a];
+        slabCarryPrefix[(firstBlk + c) * PADDED_STATE_COUNT + a] = prefix;
+    }
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelAdjointBranchSlabApply(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialAdj,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT scratchYBar,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT inverseEvecT,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabAStash,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabCarryPrefix,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT slabYBottomEigen,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockBranchIdx,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkStart,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkLen,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkIdx,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchKb,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchBotBuf,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchOpFirst,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+    int blockBase,
+    int numBlocks,
+    int numEvBlocks,
+    int opsPerBlock,
+    int stateCount,
+    int stride) {
+
+    if (KW_GROUP_ID_0 >= numBlocks) return;
+    int gGlobal = KW_GROUP_ID_0 + blockBase;
+
+    int a = KW_LOCAL_ID_0;
+    int t = KW_LOCAL_ID_1;
+    int validA = (a < stateCount) ? 1 : 0;
+
+    int branchIdx = slabBlockBranchIdx[gGlobal];
+    int chunkStart = slabBlockChunkStart[gGlobal];
+    int chunkLen = slabBlockChunkLen[gGlobal];
+    int chunkIdx = slabBlockChunkIdx [gGlobal];
+
+    int K_b = branchKb[branchIdx];
+    int botBuf = branchBotBuf [branchIdx];
+    int opFirst = branchOpFirst[branchIdx];
+
+    int numChunks = (K_b + opsPerBlock - 1) / opsPerBlock;
+    int isLastChunk = (chunkIdx == numChunks - 1);
+
+
+    KW_LOCAL_MEM int sBlkStart[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM int sBlkDim[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sPrefix[PADDED_STATE_COUNT + 1];
+    KW_LOCAL_MEM REAL sYbottom[PADDED_STATE_COUNT + 1];
+#if SCA_EVEC_SHARED_CACHE
+    KW_LOCAL_MEM REAL sInvEvecT[PADDED_STATE_COUNT * (PADDED_STATE_COUNT + 1)];
+#endif
+    if (t == 0) {
+        int bs = a;
+        int bd = 1;
+        if (validA) {
+            findEigenBlock(blockStarts, blockDims, a, &bs, &bd);
+            sPrefix[a] = slabCarryPrefix[gGlobal * PADDED_STATE_COUNT + a];
+        }
+        sBlkStart[a] = bs;
+        sBlkDim[a] = bd;
+    }
+    KW_LOCAL_FENCE;
+    int blockStart_a = sBlkStart[a];
+    int blockDim_a = sBlkDim[a];
+
+    if (chunkIdx > 0) {
+        int n = chunkStart + t + 1;
+        if (t < chunkLen && n < K_b && validA) {
+            int op_n = opFirst + (n - 1);
+            REAL A_re = slabAStash[op_n * PADDED_STATE_COUNT * 2 + a];
+            REAL A_im = slabAStash[op_n * PADDED_STATE_COUNT * 2 + PADDED_STATE_COUNT + a];
+            REAL pre_re, pre_im;
+            REAL corr;
+            if (blockDim_a == 1) {
+                pre_re = sPrefix[a];
+                corr = A_re * pre_re;
+            } else {
+                pre_re = sPrefix[blockStart_a];
+                pre_im = sPrefix[blockStart_a + 1];
+                if (a == blockStart_a) {
+                    corr = A_re * pre_re - A_im * pre_im;
+                } else {
+                    corr = A_re * pre_im + A_im * pre_re;
+                }
+            }
+            scratchYBar[(opFirst + n) * PADDED_STATE_COUNT + a] += corr;
+        }
+    }
+
+    if (isLastChunk) {
+#if SCA_EVEC_SHARED_CACHE
+        {
+            int tid = t * KW_LOCAL_SIZE_0 + a;
+            int bsz = KW_LOCAL_SIZE_0 * KW_LOCAL_SIZE_1;
+            for (int idx = tid; idx < PADDED_STATE_COUNT * PADDED_STATE_COUNT; idx += bsz) {
+                int r = idx / PADDED_STATE_COUNT;
+                int cc = idx - r * PADDED_STATE_COUNT;
+                sInvEvecT[r * (PADDED_STATE_COUNT + 1) + cc] = inverseEvecT[idx];
+            }
+        }
+#endif
+        if (t == 0 && validA) {
+            REAL y_K = slabYBottomEigen[branchIdx * PADDED_STATE_COUNT + a];
+            if (chunkIdx > 0) {
+                int op_K = opFirst + (K_b - 1);
+                REAL A_re = slabAStash[op_K * PADDED_STATE_COUNT * 2 + a];
+                REAL A_im = slabAStash[op_K * PADDED_STATE_COUNT * 2 + PADDED_STATE_COUNT + a];
+                REAL corr;
+                if (blockDim_a == 1) {
+                    corr = A_re * sPrefix[a];
+                } else {
+                    if (a == blockStart_a) {
+                        corr = A_re * sPrefix[blockStart_a]
+                             - A_im * sPrefix[blockStart_a + 1];
+                    } else {
+                        corr = A_re * sPrefix[blockStart_a + 1]
+                             + A_im * sPrefix[blockStart_a];
+                    }
+                }
+                y_K = y_K + corr;
+            }
+            sYbottom[a] = y_K;
+        }
+        KW_LOCAL_FENCE;
+
+        if (t == 0 && validA) {
+            REAL ybar_a = (REAL) 0.0;
+            for (int aa = 0; aa < stateCount; ++aa) {
+#if SCA_EVEC_SHARED_CACHE
+                FMA(sInvEvecT[a * (PADDED_STATE_COUNT + 1) + aa], sYbottom[aa], ybar_a);
+#else
+                FMA(inverseEvecT[a * PADDED_STATE_COUNT + aa], sYbottom[aa], ybar_a);
+#endif
+            }
+            partialAdj[botBuf + a] = ybar_a;
+        }
+    }
+}
+
+
+
+
+KW_GLOBAL_KERNEL void kernelForwardBranchSlab(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialsTilde,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT evecT,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT eigenValues,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockStarts,
+    KW_GLOBAL_VAR int*  KW_RESTRICT blockDims,
+
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockBranchIdx,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkStart,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkLen,
+    KW_GLOBAL_VAR int*  KW_RESTRICT slabBlockChunkIdx,
+
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchKb,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchTopBuf,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchBotBuf,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchOpFirst,
+    KW_GLOBAL_VAR int*  KW_RESTRICT branchTimeStart,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT branchT,
+    KW_GLOBAL_VAR int*  KW_RESTRICT opInBufOff,
+    int blockBase,
+    int numBlocks,
+    int numEvBlocks,
+    int stateCount,
+    int stride) {
+
+    if (KW_GROUP_ID_0 >= numBlocks) return;
+    int gGlobal = KW_GROUP_ID_0 + blockBase;
+
+    int s = KW_LOCAL_ID_0;
+    int t = KW_LOCAL_ID_1;
+    int validS = (s < stateCount) ? 1 : 0;
+
+    int branchIdx = slabBlockBranchIdx [gGlobal];
+    int chunkStart = slabBlockChunkStart[gGlobal];
+    int chunkLen = slabBlockChunkLen[gGlobal];
+    int chunkIdx = slabBlockChunkIdx[gGlobal];
+
+    int K_b = branchKb[branchIdx];
+    int topBuf = branchTopBuf [branchIdx];
+    int botBuf = branchBotBuf [branchIdx];
+    int opFirst = branchOpFirst[branchIdx];
+    int timeBase = branchTimeStart[branchIdx];
+
+    KW_LOCAL_MEM int sBlkStart_s[PADDED_STATE_COUNT];
+    KW_LOCAL_MEM int sBlkDim_s[PADDED_STATE_COUNT];
+    if (t == 0) {
+        int bs = s;
+        int bd = 1;
+        if (validS) {
+            findEigenBlock(blockStarts, blockDims, s, &bs, &bd);
+        }
+        sBlkStart_s[s] = bs;
+        sBlkDim_s[s] = bd;
+    }
+    KW_LOCAL_FENCE;
+    int blockStart_s = sBlkStart_s[s];
+    int blockDim_s = sBlkDim_s[s];
+    REAL la_re = validS ? eigenValues[blockStart_s] : (REAL) 0.0;
+    REAL la_im = (validS && blockDim_s == 2)
+                 ? -eigenValues[stateCount + blockStart_s] : (REAL) 0.0;
+
+    KW_LOCAL_MEM REAL sBotEigen[PADDED_STATE_COUNT + 1];
+    KW_LOCAL_MEM REAL sTauUp   [BASTA_SLAB_OPS_PER_BLOCK];
+
+    REAL totalT = (K_b > 0) ? branchT[timeBase + K_b - 1] : (REAL) 0.0;
+
+    int n_op    = chunkStart + t + 1;
+    int doWrite = (t < chunkLen) && (n_op < K_b);
+
+    if (t == 0) {
+        sBotEigen[s] = validS ? partialsTilde[botBuf + s] : (REAL) 0.0;
+    }
+    if (s == 0 && t < BASTA_SLAB_OPS_PER_BLOCK) {
+        sTauUp[t] = doWrite ? (totalT - branchT[timeBase + n_op - 1])
+                            : (REAL) 0.0;
+    }
+    KW_LOCAL_FENCE;
+    KW_LOCAL_MEM REAL sTilde[BASTA_SLAB_OPS_PER_BLOCK][PADDED_STATE_COUNT + 1];
+
+    REAL tilde_s = (REAL) 0.0;
+    if (doWrite && validS) {
+        REAL tau_up = sTauUp[t];
+        REAL eR     = exp(tau_up * la_re);
+        if (blockDim_s == 1) {
+            tilde_s = eR * sBotEigen[s];
+        } else {
+            REAL c, si;
+            KW_SINCOS(tau_up * la_im, si, c);
+            REAL p_re = sBotEigen[blockStart_s];
+            REAL p_im = sBotEigen[blockStart_s + 1];
+            if (s == blockStart_s) {
+                tilde_s = eR * (c * p_re - si * p_im);
+            } else {
+                tilde_s = eR * (si * p_re + c  * p_im);
+            }
+        }
+    }
+
+    if (t < BASTA_SLAB_OPS_PER_BLOCK && s < PADDED_STATE_COUNT) {
+        sTilde[t][s] = tilde_s;
+    }
+
+    KW_LOCAL_MEM REAL sTildeU0[PADDED_STATE_COUNT + 1];
+    if (chunkIdx == 0 && t == 0 && s < PADDED_STATE_COUNT) {
+        REAL tildeU0_s = (REAL) 0.0;
+        if (validS) {
+            REAL eR = exp(totalT * la_re);
+            if (blockDim_s == 1) {
+                tildeU0_s = eR * sBotEigen[s];
+            } else {
+                REAL c, si;
+                KW_SINCOS(totalT * la_im, si, c);
+                REAL p_re = sBotEigen[blockStart_s];
+                REAL p_im = sBotEigen[blockStart_s + 1];
+                if (s == blockStart_s) {
+                    tildeU0_s = eR * (c * p_re - si * p_im);
+                } else {
+                    tildeU0_s = eR * (si * p_re + c  * p_im);
+                }
+            }
+        }
+        sTildeU0[s] = tildeU0_s;
+    }
+    KW_LOCAL_FENCE;
+
+    KW_LOCAL_MEM REAL sV[BLOCK_PEELING_SIZE_SCA][PADDED_STATE_COUNT + 1];
+    REAL r_acc = (REAL) 0.0;
+    REAL r_acc_0 = (REAL) 0.0;
+    int  do_u0 = (chunkIdx == 0) && (t == 0);
+
+    KW_GLOBAL_VAR REAL* KW_RESTRICT vPtr = evecT;
+    for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE_SCA) {
+        if (t < BLOCK_PEELING_SIZE_SCA && s < PADDED_STATE_COUNT) {
+            sV[t][s] = vPtr[t * PADDED_STATE_COUNT + s];
+        }
+        KW_LOCAL_FENCE;
+
+        if (doWrite && validS) {
+            for (int j = 0; j < BLOCK_PEELING_SIZE_SCA; ++j) {
+                FMA(sV[j][s], sTilde[t][i + j], r_acc);
+            }
+        }
+        if (do_u0 && validS) {
+            for (int j = 0; j < BLOCK_PEELING_SIZE_SCA; ++j) {
+                FMA(sV[j][s], sTildeU0[i + j], r_acc_0);
+            }
+        }
+        vPtr += BLOCK_PEELING_SIZE_SCA * PADDED_STATE_COUNT;
+        KW_LOCAL_FENCE;
+    }
+
+    if (doWrite && validS) {
+        int uBufOff = opInBufOff[opFirst + (n_op - 1)];
+        partials[uBufOff + s] = r_acc;
+    }
+    if (do_u0 && validS) {
+        partials[topBuf + s] = r_acc_0;
+    }
+}
+
+
+KW_GLOBAL_KERNEL void kernelForwardCoalescentSlab(
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT partialsTilde,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT inverseEvecT,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT sizes,
+    KW_GLOBAL_VAR REAL* KW_RESTRICT coalescent,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalDestBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalLeftAccBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalRightAccBufs,
+    KW_GLOBAL_VAR int*  KW_RESTRICT coalIntervals,
+    int coalSlabOffset,
+    int coalCount,
+    int stateCount,
+    int stride) {
+
+    if (KW_GROUP_ID_0 >= coalCount) return;
+    int c = KW_GROUP_ID_0 + coalSlabOffset;
+    int s = KW_LOCAL_ID_0;
+    int validS = (s < stateCount) ? 1 : 0;
+
+    int destOff = coalDestBufs    [c];
+    int leftOff = coalLeftAccBufs [c];
+    int rightOff = coalRightAccBufs[c];
+    int interval = coalIntervals   [c];
+
+    REAL N_s = validS ? sizes[s]              : (REAL) 0.0;
+    REAL leftEnd = validS ? partials[leftOff  + s] : (REAL) 0.0;
+    REAL rightEnd = validS ? partials[rightOff + s] : (REAL) 0.0;
+
+    REAL raw = (N_s > (REAL) 0.0) ? (leftEnd * rightEnd / N_s) : (REAL) 0.0;
+
+    KW_LOCAL_MEM REAL sRed[PADDED_STATE_COUNT + 1];
+    sRed[s] = raw;
+    KW_LOCAL_FENCE;
+#ifdef IS_POWER_OF_TWO
+    for (int stridePow = PADDED_STATE_COUNT >> 1; stridePow > 0; stridePow >>= 1) {
+        if (s < stridePow) {
+            sRed[s] += sRed[s + stridePow];
+        }
+        KW_LOCAL_FENCE;
+    }
+#else
+    for (int stridePow = SMALLEST_POWER_OF_TWO / 2; stridePow > 0; stridePow >>= 1) {
+        if (s < stridePow && s + stridePow < PADDED_STATE_COUNT) {
+            sRed[s] += sRed[s + stridePow];
+        }
+        KW_LOCAL_FENCE;
+    }
+#endif
+    REAL phi = sRed[0];
+
+    REAL r_c = (phi != (REAL) 0.0) ? (raw / phi) : (REAL) 0.0;
+    if (validS) {
+        partials[destOff + s] = r_c;
+    }
+    if (s == 0) {
+        coalescent[interval] = phi;
+    }
+
+    KW_LOCAL_MEM REAL sRc[PADDED_STATE_COUNT + 1];
+    sRc[s] = r_c;
+    KW_LOCAL_FENCE;
+
+    REAL p_c = (REAL) 0.0;
+    if (validS) {
+        for (int ee = 0; ee < stateCount; ++ee) {
+            p_c += inverseEvecT[ee * PADDED_STATE_COUNT + s] * sRc[ee];
+        }
+    }
+    if (validS) {
+        partialsTilde[destOff + s] = p_c;
+    }
+}
+
+
 
 
 #ifdef CUDA

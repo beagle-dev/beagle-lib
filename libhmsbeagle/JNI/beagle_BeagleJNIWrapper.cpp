@@ -323,6 +323,19 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCPUThreadCount
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    ensureBufferCounts
+ * Signature: (IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_ensureBufferCounts
+  (JNIEnv *env, jobject obj, jint instance, jint partialsBufferCount, jint matrixBufferCount, jint scaleBufferCount)
+{
+    jint errCode = (jint)beagleEnsureBufferCounts(instance, partialsBufferCount, matrixBufferCount,
+                                                  scaleBufferCount);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPatternWeights
  * Signature: (I[D)I
  */
@@ -459,6 +472,26 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    getPartialsBatch
+ * Signature: (I[I[II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartialsBatch
+(JNIEnv *env, jobject obj, jint instance, jintArray bufferIndices, jintArray scaleIndices, jint count, jdoubleArray outPartials)
+{
+    jint *bufferIndicesPtr = env->GetIntArrayElements(bufferIndices, NULL);
+    jint *scaleIndicesPtr = env->GetIntArrayElements(scaleIndices, NULL);
+    jdouble *partials = env->GetDoubleArrayElements(outPartials, NULL);
+
+    jint errCode = (jint)beagleGetPartialsBatch(instance, (int *)bufferIndicesPtr, (int *)scaleIndicesPtr, count, (double *)partials);
+
+    env->ReleaseIntArrayElements(bufferIndices, bufferIndicesPtr, JNI_ABORT);
+    env->ReleaseIntArrayElements(scaleIndices, scaleIndicesPtr, JNI_ABORT);
+    env->ReleaseDoubleArrayElements(outPartials, partials, 0);
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    calculateEdgeDifferentials
  * Signature: (I[I[I[I[II[D[D[D)I
  */
@@ -559,6 +592,72 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateCrossProductDiffere
     return errCode;
 
 
+}
+
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProductDifferentials
+  (JNIEnv *env, jobject obj, jint instance,
+		jintArray postBufferIndices,
+		jintArray preBufferIndices,
+		jintArray eigenIndices,
+		jintArray categoryRatesIndices,
+		jintArray categoryWeightsIndices,
+		jint rootPostOrderIndex,
+		jint stateFrequenciesIndex,
+		jint count,
+		jdoubleArray outSumDerivatives,
+		jdoubleArray outSumSquaredDerivatives,
+		jintArray postScaleIndices,
+		jintArray preScaleIndices,
+		jint cumulativeScaleIndex) {
+
+    jdouble* jOutSumDerivatives = outSumDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumDerivatives, NULL);
+
+    jdouble* jOutSumSquaredDerivatives = outSumSquaredDerivatives == NULL ?
+            NULL : env->GetDoubleArrayElements(outSumSquaredDerivatives, NULL);
+
+    jint *jPostBufferIndices = env->GetIntArrayElements(postBufferIndices, NULL);
+    jint *jPreBufferIndices  = env->GetIntArrayElements(preBufferIndices, NULL);
+
+    jint *jEigenIndices = env->GetIntArrayElements(eigenIndices, NULL);
+    jint *jCategoryRatesIndices = env->GetIntArrayElements(categoryRatesIndices, NULL);
+    jint *jCategoryWeightsIndices = env->GetIntArrayElements(categoryWeightsIndices, NULL);
+
+    jint *jPostScaleIndices = postScaleIndices == NULL ?
+            NULL : env->GetIntArrayElements(postScaleIndices, NULL);
+    jint *jPreScaleIndices = preScaleIndices == NULL ?
+            NULL : env->GetIntArrayElements(preScaleIndices, NULL);
+
+    jint errCode = beagleCalculateAdjointCrossProductDerivative(instance, (int*)jPostBufferIndices, (int*)jPreBufferIndices,
+                                                         (int*)jEigenIndices,
+                                                         (int*)jCategoryRatesIndices, (int*)jCategoryWeightsIndices,
+                                                         rootPostOrderIndex, stateFrequenciesIndex, count,
+                                                         jOutSumDerivatives, jOutSumSquaredDerivatives,
+                                                         (int*)jPostScaleIndices, (int*)jPreScaleIndices,
+                                                         cumulativeScaleIndex);
+
+    env->ReleaseIntArrayElements(postBufferIndices, jPostBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(preBufferIndices, jPreBufferIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(eigenIndices, jEigenIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryRatesIndices, jCategoryRatesIndices, JNI_ABORT);
+    env->ReleaseIntArrayElements(categoryWeightsIndices, jCategoryWeightsIndices, JNI_ABORT);
+
+    if (postScaleIndices != NULL) {
+        env->ReleaseIntArrayElements(postScaleIndices, jPostScaleIndices, JNI_ABORT);
+    }
+    if (preScaleIndices != NULL) {
+        env->ReleaseIntArrayElements(preScaleIndices, jPreScaleIndices, JNI_ABORT);
+    }
+
+    if (outSumDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumDerivatives, jOutSumDerivatives, 0);
+    }
+
+    if (outSumSquaredDerivatives != NULL) {
+        env->ReleaseDoubleArrayElements(outSumSquaredDerivatives, jOutSumSquaredDerivatives, 0);
+    }
+
+    return errCode;
 }
 
 
@@ -913,6 +1012,23 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePrePartials_v5
+ * Signature: (I[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials_1v5
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScaleIndex, jint partialsType)
+{
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+
+    jint errCode = (jint)beagleUpdatePrePartials_v5(instance, (BeagleOperation*)operations, operationCount, cumulativeScaleIndex, (BeaglePartialsType)partialsType);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
+}
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePrePartials
  * Signature: (I[III)I
  */
@@ -956,6 +1072,18 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
     jint *operations = env->GetIntArrayElements(inOperations, NULL);
 
 	jint errCode = (jint)beagleUpdatePartials(instance, (BeagleOperation*)operations, operationCount, cumulativeScalingIndex);
+
+    env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
+
+    return errCode;
+}
+
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials_1v5
+  (JNIEnv *env, jobject obj, jint instance, jintArray inOperations, jint operationCount, jint cumulativeScalingIndex, jint partialsType)
+{
+    jint *operations = env->GetIntArrayElements(inOperations, NULL);
+
+	jint errCode = (jint)beagleUpdatePartials_v5(instance, (BeagleOperation*)operations, operationCount, cumulativeScalingIndex, (BeaglePartialsType)partialsType);
 
     env->ReleaseIntArrayElements(inOperations, operations, JNI_ABORT);
 
