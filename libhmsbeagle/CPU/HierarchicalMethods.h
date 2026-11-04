@@ -44,6 +44,8 @@ const size_t kHierarchicalTableBudget = 64 * 1024 * 1024;
 const int kHierarchicalAggregateMinStates = 9;
 const size_t kHierarchicalTopologyCacheSize = 8;
 const int kHierarchicalRaggedAlign = 8;
+const int kHierarchicalLiveTopologies = 3;
+const int kHierarchicalMixedTopology = -2;
 
 inline double hierarchicalAggregateThreshold(int categoryCount) {
     return categoryCount <= 1 ? 0.08 : (categoryCount <= 3 ? 0.15 : 0.25);
@@ -139,8 +141,7 @@ struct HierarchicalReduced {
 template <typename REALTYPE>
 struct HierarchicalClass {
     std::vector<int> observed;
-    int topologyId[2] = { -1, -1 };
-    HierarchicalReduced<REALTYPE> reduced[2];
+    HierarchicalReduced<REALTYPE> reduced[kHierarchicalLiveTopologies];
 };
 
 inline int hierarchicalBundleLength(int stateCount, int categoryCount) {

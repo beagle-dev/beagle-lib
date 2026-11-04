@@ -60,6 +60,9 @@ BEAGLE_CPU_TEMPLATE
 BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUHierarchicalImpl() {
     for (REALTYPE* ragged : gRagged)
         free(ragged);
+    for (auto& tips : gTipRagged)
+        for (REALTYPE* ragged : tips)
+            free(ragged);
     free(gRaggedW);
     free(gRaggedV);
 }
@@ -182,6 +185,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gRaggedCapacity.assign(kBufferCount, 0);
     gRaggedGeneration.assign(kBufferCount, 0);
     gRaggedPre.assign(kBufferCount, 0);
+    gRaggedTopology.assign(kBufferCount, -1);
+    gBufferTopology.assign(kBufferCount, -1);
     return returnCode;
 }
 
@@ -278,11 +283,14 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::aggregatedPartials(int parIn
                                                                        REALTYPE* cumulativeScaleFactors,
                                                                        int startPattern,
                                                                        int endPattern) {
+    const int live = liveSlotOf(slot1.topologyId);
     REALTYPE* destRagged = gRagged[parIndex];
-    const REALTYPE* ragged1 = states1 ? NULL : gRagged[child1Index];
-    const REALTYPE* ragged2 = singleChild || states2 ? NULL : gRagged[child2Index];
+    const REALTYPE* ragged1 = states1 ? NULL : (child1Index < kTipCount ? gTipRagged[live][child1Index]
+                                                                        : gRagged[child1Index]);
+    const REALTYPE* ragged2 = singleChild || states2 ? NULL : (child2Index < kTipCount ? gTipRagged[live][child2Index]
+                                                                                       : gRagged[child2Index]);
     for (int k = startPattern; k < endPattern; k++) {
-        const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[0];
+        const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[live];
         const int Sc = red.stateCount;
         const size_t off = gPatternOffset[k];
         REALTYPE* dest = destRagged + off;
@@ -473,7 +481,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int part
                                                                         const int* inPatternPartitions) {
     const bool reordered = kPatternsReordered;
     if (gAggregated)
-        expandRagged();
+        expandRagged(-1);
     int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(partitionCount, inPatternPartitions);
     if (kPatternsReordered != reordered)
         invalidateClasses(false);
@@ -493,16 +501,21 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setPartials(int bufferIndex,
         if (bufferIndex < (int) gTipPlanesEqual.size())
             gTipPlanesEqual[bufferIndex] = 0;
         gTipStamp++;
-    } else if (gAggregated) {
-        REALTYPE* ragged = ensureRagged(bufferIndex);
-        if (ragged == NULL)
-            return BEAGLE_ERROR_OUT_OF_MEMORY;
-        compressRange(gPartials[bufferIndex], ragged, 0, kPatternCount);
-        gRaggedGeneration[bufferIndex] = gClassGeneration;
-        gRaggedPre[bufferIndex] = 0;
-        if (kVerbose)
-            fprintf(stderr, "hrate aggregation: setPartials(%d) compressed, max deviation from constancy %.3g\n",
-                    bufferIndex, constancyDeviation(gPartials[bufferIndex]));
+    } else {
+        gBufferTopology[bufferIndex] = -1;
+        gRaggedGeneration[bufferIndex] = 0;
+        if (gAggregated) {
+            REALTYPE* ragged = ensureRagged(bufferIndex);
+            if (ragged == NULL)
+                return BEAGLE_ERROR_OUT_OF_MEMORY;
+            compressRange(gPartials[bufferIndex], ragged, gCurrentLive, 0, kPatternCount);
+            gRaggedGeneration[bufferIndex] = gClassGeneration;
+            gRaggedPre[bufferIndex] = 0;
+            gRaggedTopology[bufferIndex] = gLiveId[gCurrentLive];
+            if (kVerbose)
+                fprintf(stderr, "hrate aggregation: setPartials(%d) compressed, max deviation from constancy %.3g\n",
+                        bufferIndex, constancyDeviation(gPartials[bufferIndex], gCurrentLive));
+        }
     }
     return BEAGLE_SUCCESS;
 }
@@ -531,13 +544,19 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int*
                 row[k] = 0;
         }
     }
-    const double* piNode = gAggregated ? nodeFrequencies(stateFrequenciesIndices[0], gClassOps) : NULL;
+    if (bufferIndex >= kTipCount) {
+        gBufferTopology[bufferIndex] = -1;
+        gRaggedGeneration[bufferIndex] = 0;
+    }
+    const double* piNode = gAggregated && bufferIndex >= kTipCount ?
+                           nodeFrequencies(stateFrequenciesIndices[0], gLiveOps[gCurrentLive]) : NULL;
     if (piNode != NULL) {
         REALTYPE* ragged = ensureRagged(bufferIndex);
         if (ragged == NULL)
             return BEAGLE_ERROR_OUT_OF_MEMORY;
+        gRaggedTopology[bufferIndex] = gLiveId[gCurrentLive];
         for (int k = 0; k < kPatternCount; k++) {
-            const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[0];
+            const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[gCurrentLive];
             REALTYPE* p = ragged + gPatternOffset[k];
             for (int x = 0; x < red.stateCount; x++)
                 for (int l = 0; l < kCategoryCount; l++)
@@ -559,12 +578,13 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
 
     if (raggedReady(bufferIndex)) {
         const REALTYPE* ragged = gRagged[bufferIndex];
+        const int live = liveSlotOf(gRaggedTopology[bufferIndex]);
         std::vector<int> rowOf;
         int cached = -1;
         for (int k = 0; k < kPatternCount; k++) {
             const int c = gClassOfPattern[k];
             if (c != cached) {
-                hierarchicalRowOfState(gClassOps, kStateCount, gClasses[c].reduced[0], rowOf);
+                hierarchicalRowOfState(gLiveOps[live], kStateCount, gClasses[c].reduced[live], rowOf);
                 cached = c;
             }
             const REALTYPE* p = ragged + gPatternOffset[k];
@@ -798,11 +818,12 @@ double BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::rootLogLikelihoodRange(con
     const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
     REALTYPE* site = outLogLikelihoodsTmp;
 
-    const double* piNode = raggedReady(bufferIndex) ? nodeFrequencies(stateFrequenciesIndex, gClassOps) : NULL;
+    const int live = raggedReady(bufferIndex) ? liveSlotOf(gRaggedTopology[bufferIndex]) : -1;
+    const double* piNode = live >= 0 ? nodeFrequencies(stateFrequenciesIndex, gLiveOps[live]) : NULL;
     if (piNode != NULL) {
         const REALTYPE* ragged = gRagged[bufferIndex];
         for (int k = startPattern; k < endPattern; k++) {
-            const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[0];
+            const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[live];
             const REALTYPE* p = ragged + gPatternOffset[k];
             REALTYPE sum = 0.0;
             for (int x = 0; x < red.stateCount; x++) {
@@ -1102,14 +1123,17 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::preparePrZ0(const int* opera
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::invalidateClasses(bool expand) {
     if (expand && gAggregated)
-        expandRagged();
+        expandRagged(-1);
     gClassesValid = false;
+    gAggregateOn = false;
     gAggregated = false;
     gClasses.clear();
     gClassOfPattern.clear();
     gPatternCapacity.clear();
     gPatternOffset.clear();
     gRaggedSize = 0;
+    std::fill(gLiveId.begin(), gLiveId.end(), -1);
+    gClassGeneration++;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1160,18 +1184,32 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::observedSets(std::vector<int
 }
 
 BEAGLE_CPU_TEMPLATE
+int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::liveSlotOf(int topologyId) const {
+    if (topologyId < 0)
+        return -1;
+    for (int s = 0; s < kHierarchicalLiveTopologies; s++)
+        if (gLiveId[s] == topologyId)
+            return s;
+    return -1;
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::refreshPiRed() {
-    if (!gAggregated || gClassFrequencyStamp == gFrequencyStamp || gClasses.empty())
+    if (!gAggregateOn || gClasses.empty())
         return;
-    const double* piNode = nodeFrequencies(0, gClassOps);
-    if (piNode == NULL)
-        return;
-    for (auto& c : gClasses) {
-        HierarchicalReduced<REALTYPE>& red = c.reduced[0];
-        for (int x = 0; x < red.stateCount; x++)
-            red.piRed[x] = (REALTYPE) piNode[red.localToFull[x]];
+    for (int s = 0; s < kHierarchicalLiveTopologies; s++) {
+        if (gLiveId[s] < 0 || gLiveFrequencyStamp[s] == gFrequencyStamp)
+            continue;
+        const double* piNode = nodeFrequencies(0, gLiveOps[s]);
+        if (piNode == NULL)
+            continue;
+        for (auto& c : gClasses) {
+            HierarchicalReduced<REALTYPE>& red = c.reduced[s];
+            for (int x = 0; x < red.stateCount; x++)
+                red.piRed[x] = (REALTYPE) piNode[red.localToFull[x]];
+        }
+        gLiveFrequencyStamp[s] = gFrequencyStamp;
     }
-    gClassFrequencyStamp = gFrequencyStamp;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1185,19 +1223,36 @@ REALTYPE* BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::ensureRagged(int buffer
 }
 
 BEAGLE_CPU_TEMPLATE
+REALTYPE* BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::ensureTipRagged(int live, int tipIndex) {
+    std::vector<REALTYPE*>& tips = gTipRagged[live];
+    std::vector<size_t>& capacity = gTipRaggedCapacity[live];
+    if (tips.empty()) {
+        tips.assign(kTipCount, nullptr);
+        capacity.assign(kTipCount, 0);
+    }
+    if (capacity[tipIndex] < gRaggedSize) {
+        free(tips[tipIndex]);
+        tips[tipIndex] = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
+        capacity[tipIndex] = tips[tipIndex] == NULL ? 0 : gRaggedSize;
+    }
+    return tips[tipIndex];
+}
+
+BEAGLE_CPU_TEMPLATE
 bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::raggedReady(int bufferIndex) const {
     return gAggregated && bufferIndex >= kTipCount && bufferIndex < (int) gRagged.size() &&
            gRagged[bufferIndex] != NULL && gRaggedGeneration[bufferIndex] == gClassGeneration &&
-           !gRaggedPre[bufferIndex];
+           !gRaggedPre[bufferIndex] && liveSlotOf(gRaggedTopology[bufferIndex]) >= 0;
 }
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::compressRange(const REALTYPE* dense,
                                                                   REALTYPE* ragged,
+                                                                  int live,
                                                                   int startPattern,
                                                                   int endPattern) {
     for (int k = startPattern; k < endPattern; k++) {
-        const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[0];
+        const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[live];
         REALTYPE* p = ragged + gPatternOffset[k];
         for (int x = 0; x < red.stateCount; x++)
             for (int l = 0; l < kCategoryCount; l++)
@@ -1206,15 +1261,15 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::compressRange(const REALTYPE
 }
 
 BEAGLE_CPU_TEMPLATE
-double BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::constancyDeviation(const REALTYPE* dense) {
+double BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::constancyDeviation(const REALTYPE* dense, int live) {
     double deviation = 0.0;
     std::vector<int> rowOf;
     int cached = -1;
     for (int k = 0; k < kPatternCount; k++) {
         const int c = gClassOfPattern[k];
-        const HierarchicalReduced<REALTYPE>& red = gClasses[c].reduced[0];
+        const HierarchicalReduced<REALTYPE>& red = gClasses[c].reduced[live];
         if (c != cached) {
-            hierarchicalRowOfState(gClassOps, kStateCount, red, rowOf);
+            hierarchicalRowOfState(gLiveOps[live], kStateCount, red, rowOf);
             cached = c;
         }
         for (int l = 0; l < kCategoryCount; l++)
@@ -1229,58 +1284,70 @@ double BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::constancyDeviation(const R
 }
 
 BEAGLE_CPU_TEMPLATE
-bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildRaggedTips() {
-    if (gRaggedScratchSize < gRaggedSize) {
-        free(gRaggedW);
-        free(gRaggedV);
-        gRaggedW = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
-        gRaggedV = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
-        gRaggedScratchSize = (gRaggedW == NULL || gRaggedV == NULL) ? 0 : gRaggedSize;
-        if (gRaggedScratchSize == 0)
-            return false;
-    }
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::ensureRaggedScratch() {
+    if (gRaggedScratchSize >= gRaggedSize)
+        return true;
+    free(gRaggedW);
+    free(gRaggedV);
+    gRaggedW = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
+    gRaggedV = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * gRaggedSize);
+    gRaggedScratchSize = (gRaggedW == NULL || gRaggedV == NULL) ? 0 : gRaggedSize;
+    return gRaggedScratchSize != 0;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildRaggedTips(int live) {
     for (int t = 0; t < kTipCount; t++) {
         if (gTipStates[t] != NULL || gPartials[t] == NULL)
             continue;
-        REALTYPE* ragged = ensureRagged(t);
+        REALTYPE* ragged = ensureTipRagged(live, t);
         if (ragged == NULL)
             return false;
-        compressRange(gPartials[t], ragged, 0, kPatternCount);
-        gRaggedGeneration[t] = gClassGeneration;
-        gRaggedPre[t] = 0;
+        compressRange(gPartials[t], ragged, live, 0, kPatternCount);
     }
     return true;
 }
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::expandRagged() {
-    std::vector<int> rowOf;
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::expandRagged(int topologyId) {
     std::vector<int> order(kPatternCount);
     for (int k = 0; k < kPatternCount; k++)
         order[k] = k;
     std::stable_sort(order.begin(), order.end(),
                      [this](int a, int b) { return gClassOfPattern[a] < gClassOfPattern[b]; });
-    std::vector<int> buffers;
-    for (int b = kTipCount; b < kBufferCount; b++)
-        if (raggedReady(b) && gPartials[b] != NULL)
-            buffers.push_back(b);
-    int cached = -1;
-    for (int k : order) {
-        const int c = gClassOfPattern[k];
-        if (c != cached) {
-            hierarchicalRowOfState(gClassOps, kStateCount, gClasses[c].reduced[0], rowOf);
-            cached = c;
+    std::vector<int> rowOf;
+    for (int s = 0; s < kHierarchicalLiveTopologies; s++) {
+        if (gLiveId[s] < 0 || (topologyId >= 0 && gLiveId[s] != topologyId))
+            continue;
+        std::vector<int> buffers;
+        for (int b = kTipCount; b < kBufferCount; b++) {
+            if (gRagged[b] == NULL || gRaggedGeneration[b] != gClassGeneration || gRaggedTopology[b] != gLiveId[s])
+                continue;
+            if (gRaggedPre[b])
+                gRaggedGeneration[b] = 0;
+            else if (gPartials[b] != NULL)
+                buffers.push_back(b);
         }
-        for (int b : buffers) {
-            const REALTYPE* p = gRagged[b] + gPatternOffset[k];
-            REALTYPE* dense = gPartials[b];
-            for (int l = 0; l < kCategoryCount; l++)
-                for (int i = 0; i < kStateCount; i++)
-                    dense[pIdx(l, k, i)] = p[rowOf[i] * kCategoryCount + l];
+        if (buffers.empty())
+            continue;
+        int cached = -1;
+        for (int k : order) {
+            const int c = gClassOfPattern[k];
+            if (c != cached) {
+                hierarchicalRowOfState(gLiveOps[s], kStateCount, gClasses[c].reduced[s], rowOf);
+                cached = c;
+            }
+            for (int b : buffers) {
+                const REALTYPE* p = gRagged[b] + gPatternOffset[k];
+                REALTYPE* dense = gPartials[b];
+                for (int l = 0; l < kCategoryCount; l++)
+                    for (int i = 0; i < kStateCount; i++)
+                        dense[pIdx(l, k, i)] = p[rowOf[i] * kCategoryCount + l];
+            }
         }
+        for (int b : buffers)
+            gRaggedGeneration[b] = 0;
     }
-    for (int b : buffers)
-        gRaggedGeneration[b] = 0;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1295,66 +1362,57 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareRagged(const int* oper
             return BEAGLE_ERROR_OUT_OF_MEMORY;
         gRaggedGeneration[parIndex] = gClassGeneration;
         gRaggedPre[parIndex] = 0;
+        gRaggedTopology[parIndex] = gOpTopology[op];
     }
     for (int op = 0; op < count; op++) {
         const int* operation = operations + op * numOps;
+        const int topology = gOpTopology[op];
         for (int m = 3; m <= 5; m += 2) {
             const int child = operation[m];
-            if (child < 0 || child >= kBufferCount || gTipStates[child] != NULL || gPartials[child] == NULL ||
-                (gRaggedGeneration[child] == gClassGeneration && !gRaggedPre[child]))
+            if (child < kTipCount || child >= kBufferCount || gPartials[child] == NULL ||
+                (gRaggedGeneration[child] == gClassGeneration && !gRaggedPre[child] &&
+                 gRaggedTopology[child] == topology))
                 continue;
             REALTYPE* ragged = ensureRagged(child);
             if (ragged == NULL)
                 return BEAGLE_ERROR_OUT_OF_MEMORY;
-            compressRange(gPartials[child], ragged, 0, kPatternCount);
+            compressRange(gPartials[child], ragged, liveSlotOf(topology), 0, kPatternCount);
             gRaggedGeneration[child] = gClassGeneration;
             gRaggedPre[child] = 0;
+            gRaggedTopology[child] = topology;
         }
     }
     return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_TEMPLATE
-void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareClasses(const int* operations, int count, int numOps) {
-    if (!kMayAggregate || count == 0)
-        return;
-    const HierarchicalOps* ops = NULL;
-    int topology = -1;
-    bool mixed = false;
-    for (int op = 0; op < count && !mixed; op++) {
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::opTopologies(const int* operations, int count, int numOps) {
+    gOpTopology.resize(count);
+    for (int op = 0; op < count; op++) {
         const int* operation = operations + op * numOps;
-        const int last = operation[5] == BEAGLE_OP_NONE ? 4 : 6;
-        for (int m = 4; m <= last; m += 2) {
-            const HierarchicalSlot<REALTYPE>& slot = gSlots[operation[m]];
-            if (slot.topologyId < 0 || slot.ops->topologyId != slot.topologyId ||
-                (topology >= 0 && slot.topologyId != topology)) {
-                mixed = true;
-                break;
-            }
-            topology = slot.topologyId;
-            ops = slot.ops;
+        const HierarchicalSlot<REALTYPE>& slot1 = gSlots[operation[4]];
+        int topology = slot1.topologyId;
+        if (topology < 0 || slot1.ops->topologyId != topology)
+            topology = kHierarchicalMixedTopology;
+        if (operation[5] != BEAGLE_OP_NONE) {
+            const HierarchicalSlot<REALTYPE>& slot2 = gSlots[operation[6]];
+            if (slot2.topologyId != topology || slot2.ops->topologyId != topology)
+                topology = kHierarchicalMixedTopology;
         }
+        gOpTopology[op] = topology;
     }
-    if (mixed) {
-        if (kVerbose && (gClassesValid || gAggregated))
-            fprintf(stderr, "hrate aggregation: off, the operations use more than one character-tree topology\n");
-        invalidateClasses(true);
-        return;
-    }
-    if (gClassesValid && gClassTipStamp == gTipStamp && gClassTopology == topology) {
-        refreshPiRed();
-        return;
-    }
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildClasses(const HierarchicalOps& ops) {
     const auto start = std::chrono::steady_clock::now();
     invalidateClasses(true);
     std::vector<int> offsets, values;
     observedSets(offsets, values);
     hierarchicalClassify(offsets, values, kPatternCount, gClasses, gClassOfPattern);
-    const double* piNode = nodeFrequencies(0, *ops);
-    for (auto& c : gClasses) {
-        c.topologyId[0] = topology;
-        hierarchicalBuildReduced(*ops, kStateCount, piNode, c.observed, c.reduced[0]);
-    }
+    const double* piNode = nodeFrequencies(0, ops);
+    for (auto& c : gClasses)
+        hierarchicalBuildReduced(ops, kStateCount, piNode, c.observed, c.reduced[0]);
     long sumSc = 0;
     int maxSc = 0;
     for (int k = 0; k < kPatternCount; k++) {
@@ -1364,32 +1422,19 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareClasses(const int* op
     }
     const double r = (double) sumSc / ((double) kPatternCount * kStateCount);
     const double threshold = hierarchicalAggregateThreshold(kCategoryCount);
-    gAggregated = kAggregateMode == kHierarchicalAggregateOn || r < threshold;
+    gAggregateOn = kAggregateMode == kHierarchicalAggregateOn || r < threshold;
     gClassesValid = true;
     gClassTipStamp = gTipStamp;
-    gClassTopology = topology;
-    gClassFrequencyStamp = gFrequencyStamp;
     const size_t classCount = gClasses.size();
-    if (gAggregated) {
-        gPatternCapacity.resize(kPatternCount);
-        gPatternOffset.resize(kPatternCount + 1);
-        size_t offset = 0;
-        for (int k = 0; k < kPatternCount; k++) {
-            gPatternCapacity[k] = gClasses[gClassOfPattern[k]].reduced[0].stateCount;
-            gPatternOffset[k] = offset;
-            const size_t size = (size_t) kCategoryCount * gPatternCapacity[k];
-            offset += (size + kHierarchicalRaggedAlign - 1) / kHierarchicalRaggedAlign * kHierarchicalRaggedAlign;
-        }
-        gPatternOffset[kPatternCount] = offset;
-        gRaggedSize = offset;
-        gClassOps = *ops;
-        gClassGeneration++;
-        if (!buildRaggedTips()) {
-            if (kVerbose)
-                fprintf(stderr, "hrate aggregation: off, the ragged buffers could not be allocated\n");
-            invalidateClasses(false);
-            return;
-        }
+    bool allocated = true;
+    if (gAggregateOn) {
+        gLiveId[0] = ops.topologyId;
+        gLiveOps[0] = ops;
+        gLiveFrequencyStamp[0] = gFrequencyStamp;
+        gLiveUse[0] = ++gUseClock;
+        gCurrentLive = 0;
+        std::vector<int> added(1, 0);
+        allocated = layoutRagged(added);
     } else {
         gClasses.clear();
         gClassOfPattern.clear();
@@ -1399,8 +1444,239 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareClasses(const int* op
         fprintf(stderr, "hrate aggregation: %d patterns, %zu classes, mean S_c %.2f, max S_c %d, r %.4f, "
                 "threshold %.3f, %s, build %.2f ms\n", kPatternCount, classCount,
                 (double) sumSc / kPatternCount, maxSc, r, threshold,
-                gAggregated ? (kAggregateMode == kHierarchicalAggregateOn ? "on (forced)" : "on") : "off", ms);
+                gAggregateOn ? (kAggregateMode == kHierarchicalAggregateOn ? "on (forced)" : "on") : "off", ms);
     }
+    if (!allocated) {
+        if (kVerbose)
+            fprintf(stderr, "hrate aggregation: off, the ragged buffers could not be allocated\n");
+        invalidateClasses(false);
+        return false;
+    }
+    return true;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::layoutRagged(std::vector<int>& added) {
+    std::vector<int> need(kPatternCount, 1);
+    size_t needSize = 0, haveSize = 0;
+    bool grow = gPatternCapacity.size() != (size_t) kPatternCount;
+    for (int k = 0; k < kPatternCount; k++) {
+        const HierarchicalClass<REALTYPE>& c = gClasses[gClassOfPattern[k]];
+        for (int s = 0; s < kHierarchicalLiveTopologies; s++)
+            if (gLiveId[s] >= 0)
+                need[k] = std::max(need[k], c.reduced[s].stateCount);
+        needSize += (size_t) need[k];
+        if (!grow) {
+            haveSize += (size_t) gPatternCapacity[k];
+            grow = need[k] > gPatternCapacity[k];
+        }
+    }
+    const bool fresh = gPatternCapacity.size() != (size_t) kPatternCount;
+    if (!grow && 2 * haveSize <= 3 * needSize) {
+        for (int s : added)
+            if (!buildRaggedTips(s))
+                return false;
+        return true;
+    }
+    std::vector<size_t> offset(kPatternCount + 1);
+    size_t total = 0;
+    for (int k = 0; k < kPatternCount; k++) {
+        offset[k] = total;
+        const size_t size = (size_t) kCategoryCount * need[k];
+        total += (size + kHierarchicalRaggedAlign - 1) / kHierarchicalRaggedAlign * kHierarchicalRaggedAlign;
+    }
+    offset[kPatternCount] = total;
+    if (!fresh) {
+        std::vector<int> buffers;
+        std::vector<REALTYPE*> moved;
+        for (int b = kTipCount; b < kBufferCount; b++) {
+            if (gRagged[b] == NULL || gRaggedGeneration[b] != gClassGeneration || gRaggedPre[b] ||
+                liveSlotOf(gRaggedTopology[b]) < 0)
+                continue;
+            REALTYPE* to = (REALTYPE*) mallocAligned(sizeof(REALTYPE) * total);
+            if (to == NULL) {
+                for (REALTYPE* p : moved)
+                    free(p);
+                return false;
+            }
+            buffers.push_back(b);
+            moved.push_back(to);
+        }
+        for (int b = kTipCount; b < kBufferCount; b++)
+            if (gRaggedGeneration[b] == gClassGeneration && gRaggedPre[b])
+                gRaggedGeneration[b] = 0;
+        for (size_t j = 0; j < buffers.size(); j++) {
+            const int b = buffers[j];
+            const int s = liveSlotOf(gRaggedTopology[b]);
+            for (int k = 0; k < kPatternCount; k++)
+                std::memcpy(moved[j] + offset[k], gRagged[b] + gPatternOffset[k],
+                            sizeof(REALTYPE) * kCategoryCount * gClasses[gClassOfPattern[k]].reduced[s].stateCount);
+            free(gRagged[b]);
+            gRagged[b] = moved[j];
+            gRaggedCapacity[b] = total;
+        }
+    }
+    gPatternCapacity = need;
+    gPatternOffset = offset;
+    gRaggedSize = total;
+    if (!ensureRaggedScratch())
+        return false;
+    for (int s = 0; s < kHierarchicalLiveTopologies; s++)
+        if (gLiveId[s] >= 0 && !buildRaggedTips(s))
+            return false;
+    return true;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::addLiveTopology(const HierarchicalOps& ops,
+                                                                   const std::vector<int>& keep) {
+    int live = -1;
+    bool liveHeld = true;
+    for (int s = 0; s < kHierarchicalLiveTopologies; s++) {
+        if (gLiveId[s] < 0) {
+            live = s;
+            break;
+        }
+        if (std::find(keep.begin(), keep.end(), gLiveId[s]) != keep.end())
+            continue;
+        bool held = false;
+        for (int b = kTipCount; b < kBufferCount && !held; b++)
+            held = gRaggedTopology[b] == gLiveId[s] && gRaggedGeneration[b] == gClassGeneration &&
+                   gRagged[b] != NULL && !gRaggedPre[b];
+        if (live < 0 || (liveHeld && !held) || (liveHeld == held && gLiveUse[s] < gLiveUse[live])) {
+            live = s;
+            liveHeld = held;
+        }
+    }
+    if (live < 0)
+        return -1;
+    if (gLiveId[live] >= 0) {
+        if (kVerbose && liveHeld)
+            fprintf(stderr, "hrate aggregation: character tree %d leaves the live set, its buffers are expanded\n",
+                    gLiveId[live]);
+        expandRagged(gLiveId[live]);
+    }
+    gLiveId[live] = ops.topologyId;
+    gLiveOps[live] = ops;
+    gLiveFrequencyStamp[live] = gFrequencyStamp;
+    const double* piNode = nodeFrequencies(0, ops);
+    for (auto& c : gClasses)
+        hierarchicalBuildReduced(ops, kStateCount, piNode, c.observed, c.reduced[live]);
+    return live;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::aggregateCall(const int* operations,
+                                                                  int count,
+                                                                  int numOps,
+                                                                  const char*& reason) {
+    std::vector<int> ids;
+    for (int op = 0; op < count; op++) {
+        const int topology = gOpTopology[op];
+        if (topology < 0) {
+            reason = "an operation mixes character trees";
+            return false;
+        }
+        if (std::find(ids.begin(), ids.end(), topology) == ids.end())
+            ids.push_back(topology);
+    }
+    if ((int) ids.size() > kHierarchicalLiveTopologies) {
+        reason = "the operations use more character trees than the live set holds";
+        return false;
+    }
+    std::vector<int>& provenance = gProvenanceTmp;
+    provenance = gBufferTopology;
+    for (int op = 0; op < count; op++) {
+        const int* operation = operations + op * numOps;
+        const int topology = gOpTopology[op];
+        for (int m = 3; m <= 5; m += 2) {
+            const int child = operation[m];
+            if (child < kTipCount || child >= kBufferCount)
+                continue;
+            if (provenance[child] != topology && provenance[child] != -1) {
+                reason = "a child was computed under another character tree";
+                return false;
+            }
+        }
+        if (operation[0] >= kTipCount && operation[0] < kBufferCount)
+            provenance[operation[0]] = topology;
+    }
+    std::vector<int> added;
+    for (int op = 0; op < count; op++) {
+        const int topology = gOpTopology[op];
+        if (liveSlotOf(topology) >= 0)
+            continue;
+        const auto start = std::chrono::steady_clock::now();
+        const int live = addLiveTopology(*gSlots[operations[op * numOps + 4]].ops, ids);
+        if (live < 0) {
+            reason = "no live slot is free";
+            return false;
+        }
+        added.push_back(live);
+        if (kVerbose) {
+            long sumSc = 0;
+            for (int k = 0; k < kPatternCount; k++)
+                sumSc += gClasses[gClassOfPattern[k]].reduced[live].stateCount;
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            fprintf(stderr, "hrate aggregation: character tree %d in live slot %d, mean S_c %.2f, r %.4f, build %.2f ms\n",
+                    topology, live, (double) sumSc / kPatternCount,
+                    (double) sumSc / ((double) kPatternCount * kStateCount), ms);
+        }
+    }
+    if (!added.empty() && !layoutRagged(added)) {
+        reason = "the ragged buffers could not be allocated";
+        invalidateClasses(true);
+        return false;
+    }
+    for (int op = 0; op < count; op++)
+        gLiveUse[liveSlotOf(gOpTopology[op])] = ++gUseClock;
+    gCurrentLive = liveSlotOf(gOpTopology[count - 1]);
+    return true;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::stampBuffers(const int* operations, int count, int numOps) {
+    for (int op = 0; op < count; op++) {
+        const int* operation = operations + op * numOps;
+        int topology = gOpTopology[op];
+        for (int m = 3; m <= 5; m += 2) {
+            const int child = operation[m];
+            if (child >= kTipCount && child < kBufferCount && gBufferTopology[child] != topology &&
+                gBufferTopology[child] != -1)
+                topology = kHierarchicalMixedTopology;
+        }
+        if (operation[0] >= kTipCount && operation[0] < kBufferCount)
+            gBufferTopology[operation[0]] = topology;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareClasses(const int* operations, int count, int numOps) {
+    if (!kMayAggregate || count == 0)
+        return;
+    opTopologies(operations, count, numOps);
+    if (!gClassesValid || gClassTipStamp != gTipStamp) {
+        int first = 0;
+        while (first < count && gOpTopology[first] < 0)
+            first++;
+        if (first == count)
+            invalidateClasses(true);
+        else
+            buildClasses(*gSlots[operations[first * numOps + 4]].ops);
+    }
+    if (gClassesValid && gAggregateOn) {
+        const char* reason = NULL;
+        const bool aggregate = aggregateCall(operations, count, numOps, reason);
+        if (!aggregate && gAggregated) {
+            if (kVerbose)
+                fprintf(stderr, "hrate aggregation: dense for this call, %s\n", reason);
+            expandRagged(-1);
+        }
+        gAggregated = aggregate;
+        if (aggregate)
+            refreshPiRed();
+    }
+    stampBuffers(operations, count, numOps);
 }
 
 BEAGLE_CPU_TEMPLATE

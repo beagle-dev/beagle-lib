@@ -58,10 +58,12 @@ struct Probe : public Hier {
         return this->accumulateScaleFactors(scales, count, cumulative);
     }
     bool raggedLive(int b) const { return this->raggedReady(b); }
-    const Real* ragged(int b) const { return this->gRagged[b]; }
+    const Real* ragged(int b) const { return b < this->kTipCount ? this->gTipRagged[0][b] : this->gRagged[b]; }
     unsigned long raggedGeneration(int b) const { return this->gRaggedGeneration[b]; }
     unsigned long classGeneration() const { return this->gClassGeneration; }
-    const HierarchicalOps& classOps() const { return this->gClassOps; }
+    int liveSlot(int id) const { return this->liveSlotOf(id); }
+    int liveId(int s) const { return this->gLiveId[s]; }
+    const HierarchicalOps& classOps() const { return this->gLiveOps[this->gCurrentLive]; }
     Real denseValue(int b, int l, int k, int i) const { return this->gPartials[b][this->pIdx(l, k, i)]; }
 };
 
@@ -296,12 +298,13 @@ static SparseData makeSparse(int S, int K, int C, std::mt19937_64& rng) {
 }
 
 template <typename Hier, typename Real>
-static size_t roundTripMismatches(Probe<Hier, Real>& h, const HierarchicalOps& ops, int S, int K, int tips) {
+static size_t roundTripMismatches(Probe<Hier, Real>& h, const HierarchicalOps& ops, int S, int K, int tips,
+                                  int live = 0) {
     size_t bad = 0;
     std::vector<int> rowOf;
     std::vector<Real> col(S), red, back(S);
     for (int k = 0; k < K; ++k) {
-        const HierarchicalReduced<Real>& r = h.classList()[h.classOf()[k]].reduced[0];
+        const HierarchicalReduced<Real>& r = h.classList()[h.classOf()[k]].reduced[live];
         beagle::cpu::hierarchicalRowOfState(ops, S, r, rowOf);
         for (int t = 0; t < tips; ++t) {
             const int planes = t < 4 ? 1 : h.categories();
@@ -421,11 +424,13 @@ static void classCase(const char* label, int S, std::mt19937_64& rng) {
     h.updateTransitionMatrices(1, &matrix2, NULL, NULL, lengths, 1);
     const int mixedOps[7] = { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 0, 1, 2 };
     h.classes(mixedOps, 1);
-    report(name + " two topologies in one call turn it off", !h.aggregated() && !h.classesValid(), "");
+    report(name + " a mixed operation turns it off", !h.aggregated() && h.classesValid(), "");
     const int secondOps[7] = { 9, BEAGLE_OP_NONE, BEAGLE_OP_NONE, 0, 2, 1, 2 };
     h.classes(secondOps, 1);
-    report(name + " a single new topology rebuilds", h.aggregated() &&
-           roundTripMismatches(h, h.modelOps(1), S, K, tips) == 0, "");
+    report(name + " a second character tree takes live slot 1", h.aggregated() &&
+           h.liveSlot(h.modelOps(1).topologyId) == 1 && h.liveSlot(h.modelOps(0).topologyId) == 0 &&
+           roundTripMismatches(h, h.modelOps(1), S, K, tips, 1) == 0 &&
+           roundTripMismatches(h, h.modelOps(0), S, K, tips, 0) == 0, "");
 }
 
 template <typename Real, typename Hier>
@@ -627,8 +632,6 @@ static void entryCase(const char* label, int S, bool partitioned, std::mt19937_6
 
     size_t tipBad = 0;
     for (int t = 4; t < 8; ++t) {
-        if (b.h.raggedGeneration(t) != b.h.classGeneration())
-            ++tipBad;
         for (int k = 0; k < K; ++k) {
             const HierarchicalReduced<Real>& r = b.h.classList()[b.h.classOf()[k]].reduced[0];
             for (int x = 0; x < r.stateCount; ++x)
@@ -764,6 +767,308 @@ static void autoEntryCase(const char* label, std::mt19937_64& rng) {
            !a.h.raggedLive(14) && dl <= 1e-13 && dp <= 1e-12, relDetail(std::max(dl, dp)));
 }
 
+template <typename Hier, typename Real>
+struct MoveChain {
+    Probe<Hier, Real> h;
+    int rc = 0;
+    int eigen = 0;
+    int nodeSet[7] = { 0, 0, 0, 0, 0, 0, 0 };
+    int matrixSet[14] = { 0 };
+    double length[14] = { 0 };
+    bool partitioned = false;
+
+    int nodeBuffer(int n) const { return 8 + n + 7 * nodeSet[n]; }
+    int childBuffer(int c) const { return c < 8 ? c : nodeBuffer(c - 8); }
+    int matrix(int b) const { return b + 14 * matrixSet[b]; }
+
+    void setup(const char* env, int S, int K, int C, const SparseData& d, const StateTree& tree, bool byPartition) {
+        partitioned = byPartition;
+        setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+        rc = h.createInstance(8, 18, 4, S, K, 2, 32, C, 17, 0, 0,
+                              BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG, 0);
+        unsetenv("BEAGLE_HRATE_AGGREGATE");
+        std::vector<double> pi = tipFrequencies(tree), weights(K), rates(C), catWeights(C, 1.0 / C);
+        for (int l = 0; l < C; ++l)
+            rates[l] = 0.4 + 1.2 * l;
+        for (int k = 0; k < K; ++k)
+            weights[k] = 1.0 + k % 5;
+        rc |= h.setStateFrequencies(0, pi.data()) | h.setCategoryRates(rates.data()) |
+              h.setCategoryWeights(0, catWeights.data()) | h.setPatternWeights(weights.data());
+        if (partitioned) {
+            std::vector<int> partitions(K);
+            for (int k = 0; k < K; ++k)
+                partitions[k] = (k * 7 + k / 5) % 3;
+            rc |= h.setPatternPartitions(3, partitions.data());
+            rc |= h.setPatternWeights(weights.data());
+        }
+        for (int t = 0; t < 4; ++t)
+            rc |= h.setTipStates(t, d.states[t].data());
+        for (int t = 0; t < 3; ++t)
+            rc |= h.setTipPartials(4 + t, d.partials[t].data());
+        std::vector<double> full((size_t) C * K * S);
+        for (int l = 0; l < C; ++l)
+            std::copy(d.planes[l].begin(), d.planes[l].end(), full.begin() + (size_t) l * K * S);
+        rc |= h.setPartials(7, full.data());
+        for (int b = 0; b < 14; ++b)
+            length[b] = 0.05 + 0.03 * b;
+    }
+
+    void upload(int e, const StateTree& tree) {
+        ModelArrays model = modelArrays(tree);
+        rc |= h.setEigenDecomposition(e, model.vectors.data(), model.inverse.data(), model.values.data());
+    }
+
+    void matrices(const std::vector<int>& branches) {
+        for (int b : branches) {
+            const int m = matrix(b);
+            rc |= h.updateTransitionMatrices(eigen, &m, NULL, NULL, &length[b], 1);
+        }
+    }
+
+    void nodes(const std::vector<int>& list) {
+        std::vector<int> ops;
+        for (int p = 0; p < (partitioned ? 3 : 1); ++p)
+            for (int n : list) {
+                const int c1 = kEntryChildren[n][0], c2 = kEntryChildren[n][1];
+                const int o[7] = { nodeBuffer(n), nodeBuffer(n) - 8, BEAGLE_OP_NONE, childBuffer(c1), matrix(c1),
+                                   childBuffer(c2), matrix(c2) };
+                ops.insert(ops.end(), o, o + 7);
+                if (partitioned) {
+                    ops.push_back(p);
+                    ops.push_back(BEAGLE_OP_NONE);
+                }
+            }
+        if (partitioned)
+            rc |= h.updatePartialsByPartition(ops.data(), (int) ops.size() / 9);
+        else
+            rc |= h.updatePartials(ops.data(), (int) ops.size() / 7, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+    }
+
+    double evaluate() {
+        int scales[7];
+        for (int n = 0; n < 7; ++n)
+            scales[n] = nodeBuffer(n) - 8;
+        const int cumulative = 16, root = nodeBuffer(6), weightsIndex = 0, frequency = 0;
+        double logL = 0.0;
+        if (!partitioned) {
+            rc |= h.resetScaleFactors(cumulative);
+            rc |= h.accumulate(scales, 7, cumulative);
+            rc |= h.calculateRootLogLikelihoods(&root, &weightsIndex, &frequency, &cumulative, 1, &logL);
+            return logL;
+        }
+        for (int p = 0; p < 3; ++p) {
+            rc |= h.resetScaleFactorsByPartition(cumulative, p);
+            rc |= h.accumulateScaleFactorsByPartition(scales, 7, cumulative, p);
+        }
+        const int roots[3] = { root, root, root }, w[3] = { 0, 0, 0 }, f[3] = { 0, 0, 0 },
+                  cums[3] = { cumulative, cumulative, cumulative }, parts[3] = { 0, 1, 2 };
+        double byPartition[3];
+        rc |= h.calculateRootLogLikelihoodsByPartition(roots, w, f, cums, parts, 3, 1, byPartition, &logL);
+        return logL;
+    }
+};
+
+static const int kMoveParent[7] = { 4, 4, 5, 5, 6, 6, -1 };
+
+template <typename Hier, typename Real>
+static void chainFull(MoveChain<Hier, Real>& c, const StateTree& tree) {
+    c.eigen = 1 - c.eigen;
+    c.upload(c.eigen, tree);
+    std::vector<int> all;
+    for (int b = 0; b < 14; ++b) {
+        c.matrixSet[b] = 1 - c.matrixSet[b];
+        all.push_back(b);
+    }
+    c.matrices(all);
+    for (int n = 0; n < 7; ++n)
+        c.nodeSet[n] = 1 - c.nodeSet[n];
+    c.nodes({ 0, 1, 2, 3, 4, 5, 6 });
+}
+
+template <typename Hier, typename Real>
+static void chainBranch(MoveChain<Hier, Real>& c, int branch, double length) {
+    c.matrixSet[branch] = 1 - c.matrixSet[branch];
+    c.length[branch] = length;
+    c.matrices({ branch });
+    int n = 0;
+    while (kEntryChildren[n][0] != branch && kEntryChildren[n][1] != branch)
+        ++n;
+    std::vector<int> path;
+    for (; n >= 0; n = kMoveParent[n]) {
+        c.nodeSet[n] = 1 - c.nodeSet[n];
+        path.push_back(n);
+    }
+    c.nodes(path);
+}
+
+static StateTree withScaledLambda(const StateTree& tree, double factor) {
+    StateTree out = tree;
+    for (double& l : out.lambda)
+        l *= factor;
+    return out;
+}
+
+template <typename Real, typename Hier>
+static void topologyMoveCase(const char* label, int S, bool partitioned, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s topology moves S=%d%s", label, S, partitioned ? " partitioned" : "");
+    const std::string name(tag);
+    const int K = 60, C = 2;
+    const bool dp = sizeof(Real) == 8;
+    const double tol = dp ? 1e-12 : 1e-5;
+    SparseData d = makeSparse(S, K, C, rng);
+    StateTree current = makeRandomTree(S, rng, 0.7);
+    MoveChain<Hier, Real> a, b;
+    a.setup("0", S, K, C, d, current, partitioned);
+    b.setup("1", S, K, C, d, current, partitioned);
+    double worst = 0.0;
+    int evaluations = 0, raggedMisses = 0, notAggregated = 0;
+    auto check = [&]() {
+        const double la = a.evaluate(), lb = b.evaluate();
+        worst = std::max(worst, std::fabs(lb - la) / std::fabs(la));
+        ++evaluations;
+        notAggregated += b.h.aggregated() ? 0 : 1;
+        for (int n = 0; n < 7; ++n)
+            raggedMisses += b.h.raggedLive(b.nodeBuffer(n)) ? 0 : 1;
+    };
+    auto both = [&](auto&& step) {
+        step(a);
+        step(b);
+    };
+    both([&](auto& c) { chainFull(c, current); });
+    check();
+    const size_t firstSize = b.h.raggedSize();
+    size_t peakSize = firstSize;
+    struct Saved { int eigen; int nodeSet[7]; int matrixSet[14]; double length[14]; };
+    auto save = [](auto& c) {
+        Saved s;
+        s.eigen = c.eigen;
+        std::copy(c.nodeSet, c.nodeSet + 7, s.nodeSet);
+        std::copy(c.matrixSet, c.matrixSet + 14, s.matrixSet);
+        std::copy(c.length, c.length + 14, s.length);
+        return s;
+    };
+    auto restore = [](auto& c, const Saved& s) {
+        c.eigen = s.eigen;
+        std::copy(s.nodeSet, s.nodeSet + 7, c.nodeSet);
+        std::copy(s.matrixSet, s.matrixSet + 14, c.matrixSet);
+        std::copy(s.length, s.length + 14, c.length);
+    };
+    std::uniform_real_distribution<double> unit(0.0, 1.0);
+    int accepted = 0, rejected = 0, peakLive = 0;
+    for (int step = 0; step < 24; ++step) {
+        const Saved sa = save(a), sb = save(b);
+        const int kind = step % 3;
+        StateTree proposal = current;
+        if (kind == 0) {
+            proposal = makeRandomTree(S, rng, 0.7);
+            both([&](auto& c) { chainFull(c, proposal); });
+        } else if (kind == 1) {
+            proposal = withScaledLambda(current, 0.8 + 0.4 * unit(rng));
+            both([&](auto& c) { chainFull(c, proposal); });
+        } else {
+            const int branch = (int) (rng() % 14);
+            const double length = 0.02 + 0.3 * unit(rng);
+            both([&](auto& c) { chainBranch(c, branch, length); });
+        }
+        check();
+        int live = 0;
+        for (int s = 0; s < 3; ++s)
+            live += b.h.liveId(s) >= 0 ? 1 : 0;
+        peakLive = std::max(peakLive, live);
+        peakSize = std::max(peakSize, b.h.raggedSize());
+        if ((step / 3) % 2 == 1) {
+            restore(a, sa);
+            restore(b, sb);
+            ++rejected;
+            check();
+        } else {
+            current = proposal;
+            ++accepted;
+        }
+    }
+    report(name + " chain against the dense oracle", a.rc == 0 && b.rc == 0 && worst <= tol,
+           relDetail(worst) + ", " + std::to_string(evaluations) + " evaluations, " + std::to_string(accepted) +
+           " accepted, " + std::to_string(rejected) + " rejected");
+    report(name + " memory stays ragged", raggedMisses == 0 && notAggregated == 0 && peakLive >= 2,
+           std::to_string(raggedMisses) + " node buffers dense, " + std::to_string(notAggregated) +
+           " dense calls, peak live trees " + std::to_string(peakLive) + ", ragged values per buffer " +
+           std::to_string(firstSize) + " first, " + std::to_string(peakSize) + " peak, dense " +
+           std::to_string((size_t) C * K * S));
+
+    size_t staleRagged = 0;
+    for (int buffer = 8; buffer < 22; ++buffer)
+        staleRagged += b.h.raggedLive(buffer) ? 1 : 0;
+    report(name + " stale buffers keep their ragged copies", staleRagged == 14, std::to_string(staleRagged) + " of 14");
+}
+
+template <typename Real, typename Hier>
+static void topologyEvictionCase(const char* label, int S, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s topology eviction S=%d", label, S);
+    const std::string name(tag);
+    const int K = 60, C = 2;
+    const bool dp = sizeof(Real) == 8;
+    const double tol = dp ? 1e-12 : 1e-5;
+    SparseData d = makeSparse(S, K, C, rng);
+    std::vector<StateTree> trees;
+    for (int i = 0; i < 4; ++i)
+        trees.push_back(makeRandomTree(S, rng, 0.7));
+    MoveChain<Hier, Real> a, b;
+    a.setup("0", S, K, C, d, trees[0], false);
+    b.setup("1", S, K, C, d, trees[0], false);
+    double worst = 0.0;
+    auto rootOf = [&](auto& c, int buffer) {
+        const int cumulative = 16, weightsIndex = 0, frequency = 0;
+        double logL = 0.0;
+        c.rc |= c.h.resetScaleFactors(cumulative);
+        c.rc |= c.h.calculateRootLogLikelihoods(&buffer, &weightsIndex, &frequency, &cumulative, 1, &logL);
+        return logL;
+    };
+    auto compare = [&](int buffer) {
+        const double la = rootOf(a, buffer), lb = rootOf(b, buffer);
+        worst = std::max(worst, std::fabs(lb - la) / std::fabs(la));
+    };
+    auto subtree = [&](auto& c, int tree, int eigen, int buffer, int m1, int m2, int child1, int child2) {
+        c.upload(eigen, trees[tree]);
+        const int ms[2] = { m1, m2 };
+        const double ls[2] = { 0.11 + 0.01 * tree, 0.23 };
+        c.rc |= c.h.updateTransitionMatrices(eigen, ms, NULL, NULL, ls, 2);
+        const int op[7] = { buffer, BEAGLE_OP_NONE, BEAGLE_OP_NONE, child1, m1, child2, m2 };
+        c.rc |= c.h.updatePartials(op, 1, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+    };
+    for (auto* c : { &a, &b }) {
+        subtree(*c, 0, 0, 8, 0, 1, 0, 1);
+        subtree(*c, 1, 1, 9, 2, 3, 2, 3);
+        subtree(*c, 2, 0, 10, 4, 5, 4, 5);
+    }
+    for (int buffer : { 8, 9, 10 })
+        compare(buffer);
+    const bool threeLive = b.h.raggedLive(8) && b.h.raggedLive(9) && b.h.raggedLive(10);
+    for (auto* c : { &a, &b })
+        subtree(*c, 3, 1, 11, 6, 7, 6, 7);
+    compare(11);
+    const bool evicted = !b.h.raggedLive(8) && b.h.raggedLive(9) && b.h.raggedLive(10) && b.h.raggedLive(11);
+    compare(8);
+    report(name + " a fourth tree evicts the oldest and expands its buffer", threeLive && evicted && worst <= tol,
+           relDetail(worst));
+    for (auto* c : { &a, &b })
+        subtree(*c, 0, 0, 12, 8, 9, 8, 4);
+    compare(12);
+    report(name + " the expanded buffer feeds its own tree again", b.h.aggregated() && b.h.raggedLive(12) &&
+           worst <= tol, relDetail(worst));
+    for (auto* c : { &a, &b })
+        subtree(*c, 0, 0, 13, 10, 11, 9, 5);
+    compare(13);
+    report(name + " a child from another tree runs the call dense", !b.h.aggregated() && !b.h.raggedLive(13) &&
+           worst <= tol, relDetail(worst));
+    for (auto* c : { &a, &b })
+        subtree(*c, 0, 0, 14, 12, 13, 12, 6);
+    compare(14);
+    report(name + " the next consistent call aggregates again", b.h.aggregated() && b.h.raggedLive(14) &&
+           worst <= tol && a.rc == 0 && b.rc == 0, relDetail(worst));
+}
+
 int main() {
     std::mt19937_64 rng(20261101);
     const int stateCounts[5] = { 4, 8, 9, 17, 61 };
@@ -783,6 +1088,13 @@ int main() {
             entryCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, partitioned, rng);
         }
     autoEntryCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", rng);
+    for (int S : { 17, 61 })
+        for (bool partitioned : { false, true }) {
+            topologyMoveCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, partitioned, rng);
+            topologyMoveCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, partitioned, rng);
+        }
+    topologyEvictionCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 61, rng);
+    topologyEvictionCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", 61, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, NULL, NULL, false, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, NULL, true, rng);
