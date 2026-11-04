@@ -17,6 +17,13 @@
 #include <cstddef>
 #include <vector>
 
+// restrict-qualified pointers in GCC/Clang and MSVC spelling
+#if defined(_MSC_VER)
+#define BEAGLE_HIERARCHICAL_RESTRICT __restrict
+#else
+#define BEAGLE_HIERARCHICAL_RESTRICT __restrict__
+#endif
+
 namespace beagle {
 namespace cpu {
 
@@ -63,13 +70,13 @@ enum HierarchicalOutput {
 
 template <typename REALTYPE>
 struct HierarchicalPartialsTip {
-    const REALTYPE* __restrict__ row;
+    const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT row;
     inline REALTYPE operator[](int k) const { return row[k]; }
 };
 
 template <typename REALTYPE>
 struct HierarchicalStatesTip {
-    const int* __restrict__ states;
+    const int* BEAGLE_HIERARCHICAL_RESTRICT states;
     int state;
     int stateCount;
     inline REALTYPE operator[](int k) const {

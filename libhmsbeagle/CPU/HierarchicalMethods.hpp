@@ -209,43 +209,43 @@ void hierarchicalTransitionMatrices(const HierarchicalSlot<REALTYPE>& slot,
 }
 
 template <typename REALTYPE>
-static inline void hierarchicalScale(REALTYPE* __restrict__ out, REALTYPE a, const REALTYPE* __restrict__ x,
+static inline void hierarchicalScale(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, REALTYPE a, const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT x,
                                      int k0, int k1) {
     for (int k = k0; k < k1; k++)
         out[k] = a * x[k];
 }
 
 template <typename REALTYPE>
-static inline void hierarchicalAxpy(REALTYPE* __restrict__ out, REALTYPE a, const REALTYPE* __restrict__ x,
-                                    const REALTYPE* __restrict__ z, int k0, int k1) {
+static inline void hierarchicalAxpy(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, REALTYPE a, const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT x,
+                                    const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT z, int k0, int k1) {
     for (int k = k0; k < k1; k++)
         out[k] = a * x[k] + z[k];
 }
 
 template <typename REALTYPE>
-static inline void hierarchicalAdd(REALTYPE* __restrict__ out, const REALTYPE* __restrict__ x,
-                                   const REALTYPE* __restrict__ y, int k0, int k1) {
+static inline void hierarchicalAdd(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT x,
+                                   const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT y, int k0, int k1) {
     for (int k = k0; k < k1; k++)
         out[k] = x[k] + y[k];
 }
 
 template <typename REALTYPE, typename Tip>
-static inline void hierarchicalTipAxpby(REALTYPE* __restrict__ out, REALTYPE a, const Tip x, REALTYPE b,
+static inline void hierarchicalTipAxpby(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, REALTYPE a, const Tip x, REALTYPE b,
                                         const Tip y, int k0, int k1) {
     for (int k = k0; k < k1; k++)
         out[k] = a * x[k] + b * y[k];
 }
 
 template <typename REALTYPE, typename Tip>
-static inline void hierarchicalTipAxpy(REALTYPE* __restrict__ out, REALTYPE a, const Tip x,
-                                       const REALTYPE* __restrict__ z, int k0, int k1) {
+static inline void hierarchicalTipAxpy(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, REALTYPE a, const Tip x,
+                                       const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT z, int k0, int k1) {
     for (int k = k0; k < k1; k++)
         out[k] = a * x[k] + z[k];
 }
 
 template <int Mode, typename REALTYPE, typename Tip>
-static inline void hierarchicalTipOutput(REALTYPE* __restrict__ out, const REALTYPE* __restrict__ v, REALTYPE a,
-                                         const Tip x, const REALTYPE* __restrict__ invScale, int k0, int k1) {
+static inline void hierarchicalTipOutput(REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT out, const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT v, REALTYPE a,
+                                         const Tip x, const REALTYPE* BEAGLE_HIERARCHICAL_RESTRICT invScale, int k0, int k1) {
     if (Mode == kHierarchicalWrite) {
         for (int k = k0; k < k1; k++)
             out[k] = v[k] + a * x[k];

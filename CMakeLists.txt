@@ -132,20 +132,21 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
-if(WIN32)
+# MSVC options, not WIN32: the MinGW cross build is WIN32 with GCC
+if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
-else(WIN32)
+else(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread")
 	# the -O2 of RelWithDebInfo comes after CMAKE_CXX_FLAGS on the command line and would override the -O3 below
 	string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-endif(WIN32)
+endif(MSVC)
 
 if (NOT "${CMAKE_BUILD_TYPE}" MATCHES Debug)
-        if(WIN32)
+        if(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot")
-        else(WIN32)
+        else(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-        endif(WIN32)
+        endif(MSVC)
 endif()
 
 #if(NOT WIN32)
