@@ -53,12 +53,12 @@ static std::vector<double> roundTo(const std::vector<double>& v, bool doublePrec
     return r;
 }
 
-static int create(long requirements, int S, int P, int C, BeagleInstanceDetails* det) {
+static int create(long long requirements, int S, int P, int C, BeagleInstanceDetails* det) {
     return beagleCreateInstance(3, 5, 0, S, P, 1, 4, C, 0, nullptr, 0, 0, requirements, det);
 }
 
 static void apiCase(bool dp, int S, int C, int P, std::mt19937_64& rng) {
-    long prec = dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
+    long long prec = dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
     char tag[96];
     snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d", dp ? "double" : "single", S, C, P);
     std::string name(tag);
@@ -154,7 +154,7 @@ static void scalingCase(const char* label, int S, int C, int P, bool logScalers,
     char tag[128];
     snprintf(tag, sizeof(tag), "%s S=%d C=%d P=%d %s", label, S, C, P, logScalers ? "log" : "raw");
     std::string name(tag);
-    long prefs = logScalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW;
+    long long prefs = logScalers ? BEAGLE_FLAG_SCALERS_LOG : BEAGLE_FLAG_SCALERS_RAW;
 
     Probe<Hier, Real> hier;
     Probe<Base, Real> base;

@@ -143,7 +143,7 @@ static bool ok(Result& r, const char* call, int code) {
     return code >= 0;
 }
 
-static long scalingFlags(Scaling s) {
+static long long scalingFlags(Scaling s) {
     switch (s) {
         case Scaling::Manual: return BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG;
         case Scaling::ManualRaw: return BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_RAW;
@@ -156,10 +156,10 @@ static long scalingFlags(Scaling s) {
 static Result run(const Problem& pr, const Variant& v, bool hierarchical, std::mt19937_64& rng) {
     Result res;
     const int S = pr.S, C = pr.C, P = pr.P;
-    long prec = pr.dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
-    long requirements = BEAGLE_FLAG_PROCESSOR_CPU | prec |
+    long long prec = pr.dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
+    long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | prec |
                         (hierarchical ? BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION : BEAGLE_FLAG_VECTOR_NONE);
-    long prefs = prec | scalingFlags(v.scaling) | (v.threads > 1 ? BEAGLE_FLAG_THREADING_CPP : 0);
+    long long prefs = prec | scalingFlags(v.scaling) | (v.threads > 1 ? BEAGLE_FLAG_THREADING_CPP : 0);
     bool states = v.states && hierarchical;
     BeagleInstanceDetails det;
     int inst = beagleCreateInstance(kTips, states ? kNodes - kTips : kNodes, states ? kTips : 0, S, P, 1,

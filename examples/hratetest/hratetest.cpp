@@ -91,7 +91,7 @@ static std::vector<double> makePartials(const char* seq, int nStates) {
     return p;
 }
 
-static void printFlags(long f) {
+static void printFlags(long long f) {
     if (f & BEAGLE_FLAG_PROCESSOR_CPU)                printf(" CPU");
     if (f & BEAGLE_FLAG_PROCESSOR_GPU)                printf(" GPU");
     if (f & BEAGLE_FLAG_PRECISION_DOUBLE)             printf(" DOUBLE");
@@ -109,7 +109,7 @@ struct Options {
     int forceResource = -1;
     bool doublePrecision = false;
     int reps = 1;
-    long prefFlags = 0;
+    long long prefFlags = 0;
     bool hierarchical = true;
     int stateCount = 4;
     int threads = 1;
@@ -164,16 +164,16 @@ static bool call(Run& run, const char* name, int code) {
     return code >= 0;
 }
 
-static int createInstance(const Options& opts, bool hierarchical, bool oracle, long extraPrefs,
+static int createInstance(const Options& opts, bool hierarchical, bool oracle, long long extraPrefs,
                           BeagleInstanceDetails* det) {
     int resourceBuf = opts.forceResource;
     int* resources = (!oracle && opts.forceResource >= 0) ? &resourceBuf : nullptr;
     int nResources = (!oracle && opts.forceResource >= 0) ? 1 : 0;
-    long prec = opts.doublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
-    long requirements = BEAGLE_FLAG_PROCESSOR_CPU | prec;
+    long long prec = opts.doublePrecision ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
+    long long requirements = BEAGLE_FLAG_PROCESSOR_CPU | prec;
     if (hierarchical)
         requirements |= BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION;
-    long prefs = prec | extraPrefs;
+    long long prefs = prec | extraPrefs;
     bool states = opts.useStates && !opts.partialsTips && !oracle;
     int scaleBuffers = (oracle || opts.scaling == Scaling::None) ? 0 : 3;
     if (!oracle && opts.threads > 1)
@@ -183,7 +183,7 @@ static int createInstance(const Options& opts, bool hierarchical, bool oracle, l
                                 resources, nResources, prefs, requirements, det);
 }
 
-static long scalingFlags(Scaling s) {
+static long long scalingFlags(Scaling s) {
     switch (s) {
         case Scaling::Manual: return BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG;
         case Scaling::Always: return BEAGLE_FLAG_SCALING_ALWAYS;
@@ -335,7 +335,7 @@ int main(int argc, char** argv) {
     const double lambdaTransition = hky ? (opts.kappa - 1.0) * beta / 2.0 : 0.0;
     StateTree tree = hky ? makeAGCTTree(beta, lambdaTransition, lambdaTransition, tipPi) : makeStarTree(S, tipPi);
 
-    long extraPrefs = scalingFlags(opts.scaling);
+    long long extraPrefs = scalingFlags(opts.scaling);
     std::vector<bool> cascade;
     if      (forceCPU)   cascade = { true };
     else if (forcePlain) cascade = { false };

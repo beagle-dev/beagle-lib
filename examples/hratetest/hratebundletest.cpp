@@ -39,7 +39,7 @@ static double maxAbsDiff(const std::vector<double>& a, const std::vector<double>
 }
 
 static int createInstance(int S, int C, bool dp, int matrices) {
-    long prec = dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
+    long long prec = dp ? BEAGLE_FLAG_PRECISION_DOUBLE : BEAGLE_FLAG_PRECISION_SINGLE;
     BeagleInstanceDetails det;
     int instance = beagleCreateInstance(3, 5, 0, S, 10, 1, matrices, C, 0, nullptr, 0, 0,
                                         BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION | BEAGLE_FLAG_PROCESSOR_CPU | prec,
