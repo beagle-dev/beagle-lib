@@ -48,6 +48,7 @@ inline const long getBeagleCPUHierarchicalFlags() {
                  BEAGLE_FLAG_VECTOR_NONE |
                  BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
                  BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION |
+                 BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON | BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF |
                  BEAGLE_FLAG_FRAMEWORK_CPU;
     if (DOUBLE_PRECISION)
         flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
@@ -74,7 +75,8 @@ const char* BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::getName() {
 
 BEAGLE_CPU_TEMPLATE
 const long BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::getFlags() {
-    return getBeagleCPUHierarchicalFlags<BEAGLE_CPU_FACTORY_GENERIC>();
+    return getBeagleCPUHierarchicalFlags<BEAGLE_CPU_FACTORY_GENERIC>() &
+           ~(BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON | BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF);
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -95,6 +97,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
         fprintf(stderr, "BEAGLE_FLAG_SCALING_AUTO is not yet implemented for hierarchical representation\n");
         return BEAGLE_ERROR_NO_IMPLEMENTATION;
     }
+    const long aggregateFlags = (preferenceFlags | requirementFlags) &
+                                (BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON | BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF);
     int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(tipCount, partialsBufferCount,
                                                                        compactBufferCount, stateCount,
                                                                        patternCount, eigenDecompositionCount,
@@ -102,6 +106,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                                                        scaleBufferCount, resourceNumber,
                                                                        pluginResourceNumber,
                                                                        preferenceFlags, requirementFlags);
+    if (aggregateFlags == (BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON | BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF)) {
+        fprintf(stderr, "BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON and BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF exclude each other\n");
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
     kFlags &= ~(BEAGLE_FLAG_EIGEN_REAL | BEAGLE_FLAG_EIGEN_COMPLEX |
                 BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED);
     gSlots.assign(kMatrixCount, HierarchicalSlot<REALTYPE>());
@@ -169,12 +177,20 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gSiteScaleTmp.assign(kPaddedPatternCount, REALTYPE(0));
     gSiteAutoScaleTmp.assign(kPaddedPatternCount, 0.0);
     kAggregateMode = kHierarchicalAggregateAuto;
+    if (aggregateFlags == BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON)
+        kAggregateMode = kHierarchicalAggregateOn;
+    else if (aggregateFlags == BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF)
+        kAggregateMode = kHierarchicalAggregateOff;
     if (const char* aggregateEnv = getenv("BEAGLE_HRATE_AGGREGATE")) {
         if (std::strcmp(aggregateEnv, "0") == 0)
             kAggregateMode = kHierarchicalAggregateOff;
         else if (std::strcmp(aggregateEnv, "1") == 0)
             kAggregateMode = kHierarchicalAggregateOn;
     }
+    if (kAggregateMode == kHierarchicalAggregateOn)
+        kFlags |= BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON;
+    else if (kAggregateMode == kHierarchicalAggregateOff)
+        kFlags |= BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF;
     kMayAggregate = kAggregateMode == kHierarchicalAggregateOn ||
                     (kAggregateMode == kHierarchicalAggregateAuto && kStateCount >= kHierarchicalAggregateMinStates &&
                      !kSmallBand && !kFusedBand);

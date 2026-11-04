@@ -250,12 +250,25 @@ enum BeagleFlags {
      *
      * Aggregation of unobserved states: for each site pattern the CPU implementation may merge the states that no tip
      * observes into clade blocks of the state tree, which is exact for the hierarchical model (the likelihood changes
-     * only by rounding). The environment variable BEAGLE_HRATE_AGGREGATE selects it: 0 never aggregates, 1 always
-     * does, and unset decides per instance (never for S <= 8 or where the fused kernel applies, otherwise when the
-     * summed reduced state count over the patterns is below a category-dependent fraction of K * S).
-     * BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
+     * only by rounding). BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON makes the instance aggregate whenever it can and
+     * BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF makes it never aggregate; with neither the instance decides (never for
+     * S <= 8 or where the fused kernel applies, otherwise when the summed reduced state count over the patterns is
+     * below a category-dependent fraction of K * S). Asking for both fails. The environment variable
+     * BEAGLE_HRATE_AGGREGATE overrides the flags for comparison runs: 0 is off, 1 is on, and any other value or unset
+     * leaves the flags in charge. The instance flags report the setting in effect after the override (ON, OFF, or
+     * neither for automatic). BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
      */
-    BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41
+    BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41,
+
+    /**
+     * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION, always aggregate unobserved states (see that flag).
+     */
+    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON  = 1L << 42,
+
+    /**
+     * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION, never aggregate unobserved states (see that flag).
+     */
+    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF = 1L << 43
 };
 
 

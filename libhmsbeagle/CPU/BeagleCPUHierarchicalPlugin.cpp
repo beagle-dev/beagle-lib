@@ -29,6 +29,7 @@ Plugin("CPU-Hierarchical", "CPU-Hierarchical")
 	                        BEAGLE_FLAG_VECTOR_NONE |
 	                        BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
 	                        BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION |
+	                        BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON | BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF |
 	                        BEAGLE_FLAG_FRAMEWORK_CPU;
 	resource.requiredFlags = BEAGLE_FLAG_FRAMEWORK_CPU;
 	beagleResources.push_back(resource);

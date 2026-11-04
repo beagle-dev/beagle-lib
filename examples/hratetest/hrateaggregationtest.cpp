@@ -1196,6 +1196,70 @@ static void supportCase(const char* label, int S, int C, std::mt19937_64& rng) {
            b.h.slot(0).supportGeneration == 0 && a.rc == 0 && b.rc == 0 && c.rc == 0, relDetail(dt));
 }
 
+static const long kAggregateOn = BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON;
+static const long kAggregateOff = BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF;
+
+static const char* flagName(long flags) {
+    if (flags == (kAggregateOn | kAggregateOff))
+        return "ON|OFF";
+    return flags == kAggregateOn ? "ON" : flags == kAggregateOff ? "OFF" : "none";
+}
+
+template <typename Real, typename Hier>
+static void flagCase(int S, long flags, bool inPreference, const char* env, long expectFlag, bool expectMay) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "flags S=%d %s in %s AGGREGATE=%s", S, flagName(flags),
+             inPreference ? "preference" : "requirement", env ? env : "unset");
+    const std::string name(tag);
+    if (env)
+        setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+    else
+        unsetenv("BEAGLE_HRATE_AGGREGATE");
+    Probe<Hier, Real> h;
+    const long requirement = BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION | (inPreference ? 0 : flags);
+    const int rc = h.createInstance(4, 8, 4, S, 200, 1, 4, 1, 0, 0, 0, inPreference ? flags : 0, requirement);
+    unsetenv("BEAGLE_HRATE_AGGREGATE");
+    if (expectFlag < 0) {
+        report(name + " refused", rc != 0, "");
+        return;
+    }
+    BeagleInstanceDetails details;
+    h.getInstanceDetails(&details);
+    const long reported = details.flags & (kAggregateOn | kAggregateOff);
+    char detail[96];
+    snprintf(detail, sizeof(detail), "rc %d reported %s may %d", rc, flagName(reported), (int) h.mayAggregate());
+    report(name, rc == 0 && reported == expectFlag && h.mayAggregate() == expectMay &&
+                 (details.flags & BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION) != 0, detail);
+}
+
+static void apiFlagCase(long flags, const char* env, long expectFlag, bool expectInstance) {
+    char tag[160];
+    snprintf(tag, sizeof(tag), "api flags %s AGGREGATE=%s", flagName(flags), env ? env : "unset");
+    const std::string name(tag);
+    if (env)
+        setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+    else
+        unsetenv("BEAGLE_HRATE_AGGREGATE");
+    BeagleInstanceDetails details;
+    const int instance = beagleCreateInstance(4, 8, 4, 64, 200, 1, 4, 1, 0, NULL, 0, BEAGLE_FLAG_PRECISION_DOUBLE,
+                                              BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION | flags, &details);
+    unsetenv("BEAGLE_HRATE_AGGREGATE");
+    if (!expectInstance) {
+        report(name + " refused", instance < 0, "");
+        if (instance >= 0)
+            beagleFinalizeInstance(instance);
+        return;
+    }
+    const long reported = instance >= 0 ? details.flags & (kAggregateOn | kAggregateOff) : -1;
+    char detail[128];
+    snprintf(detail, sizeof(detail), "instance %d impl %s reported %s", instance,
+             instance >= 0 ? details.implName : "-", instance >= 0 ? flagName(reported) : "-");
+    report(name, instance >= 0 && reported == expectFlag &&
+                 std::string(details.implName).find("Hierarchical") != std::string::npos, detail);
+    if (instance >= 0)
+        beagleFinalizeInstance(instance);
+}
+
 int main() {
     std::mt19937_64 rng(20261101);
     const int stateCounts[5] = { 4, 8, 9, 17, 61 };
@@ -1237,6 +1301,26 @@ int main() {
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, "fused", false, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 256, 1200, NULL, NULL, true, rng);
     ruleCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", 256, 200, NULL, NULL, true, rng);
+    for (bool inPreference : { false, true }) {
+        flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(8, 0, inPreference, NULL, 0, false);
+        flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, 0, inPreference, NULL, 0, true);
+        flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(8, kAggregateOn, inPreference, NULL, kAggregateOn, true);
+        flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, kAggregateOff, inPreference, NULL, kAggregateOff, false);
+        flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, kAggregateOn | kAggregateOff, inPreference, NULL, -1, false);
+    }
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, kAggregateOn, false, "0", kAggregateOff, false);
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(8, kAggregateOff, false, "1", kAggregateOn, true);
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(8, 0, false, "1", kAggregateOn, true);
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, 0, false, "0", kAggregateOff, false);
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(8, kAggregateOn, false, "auto", kAggregateOn, true);
+    flagCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>(64, kAggregateOff, false, "", kAggregateOff, false);
+    flagCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>(8, kAggregateOn, false, NULL, kAggregateOn, true);
+    flagCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>(64, kAggregateOff, false, NULL, kAggregateOff, false);
+    apiFlagCase(0, NULL, 0, true);
+    apiFlagCase(kAggregateOn, NULL, kAggregateOn, true);
+    apiFlagCase(kAggregateOff, NULL, kAggregateOff, true);
+    apiFlagCase(kAggregateOn, "0", kAggregateOff, true);
+    apiFlagCase(kAggregateOn | kAggregateOff, NULL, 0, false);
     printf("%d of %d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
 }
