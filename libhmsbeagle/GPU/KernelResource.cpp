@@ -27,10 +27,18 @@ KernelResource::KernelResource(
         int inBlockPeelingSize,
         int inSlowReweighing,
         int inMultiplyBlockSize,
+        int inSumIntervalBlockSize,
+        int inSumAcrossBlockSize,
+        int inBlockPeelingSizeSCA,
+        int inSlabOpsPerBlock,
+        int inHazardMaxIntervalsPerBlock,
+        int inProjectOpsPerBlock,
+        int inHeigOpsPerBlock,
+        int inCoalEventsPerBlock,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
-        long inFlags
+        long long inFlags
         ) {
     paddedStateCount = inPaddedStateCount;
     kernelCode = inKernelString;
@@ -39,6 +47,14 @@ KernelResource::KernelResource(
     blockPeelingSize = inBlockPeelingSize,
     slowReweighing = inSlowReweighing;
     multiplyBlockSize = inMultiplyBlockSize;
+    sumIntervalBlockSize = inSumIntervalBlockSize;
+    sumAcrossBlockSize = inSumAcrossBlockSize;
+    blockPeelingSizeSCA = inBlockPeelingSizeSCA;
+    slabOpsPerBlock = inSlabOpsPerBlock;
+    hazardMaxIntervalsPerBlock = inHazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = inProjectOpsPerBlock;
+    heigOpsPerBlock = inHeigOpsPerBlock;
+    coalEventsPerBlock = inCoalEventsPerBlock;
     categoryCount = inCategoryCount;
     patternCount = inPatternCount;
     unpaddedPatternCount = inUnpaddedPatternCount;
@@ -54,6 +70,14 @@ KernelResource::KernelResource(const KernelResource& krIn,
     blockPeelingSize = krIn.blockPeelingSize,
     slowReweighing = krIn.slowReweighing;
     multiplyBlockSize = krIn.multiplyBlockSize;
+    sumIntervalBlockSize= krIn.sumIntervalBlockSize;
+    sumAcrossBlockSize= krIn.sumAcrossBlockSize;
+    blockPeelingSizeSCA = krIn.blockPeelingSizeSCA;
+    slabOpsPerBlock = krIn.slabOpsPerBlock;
+    hazardMaxIntervalsPerBlock = krIn.hazardMaxIntervalsPerBlock;
+    projectOpsPerBlock = krIn.projectOpsPerBlock;
+    heigOpsPerBlock = krIn.heigOpsPerBlock;
+    coalEventsPerBlock = krIn.coalEventsPerBlock;
     categoryCount = krIn.categoryCount;
     patternCount = krIn.patternCount;
     unpaddedPatternCount = krIn.unpaddedPatternCount;
@@ -72,6 +96,14 @@ KernelResource* KernelResource::copy(void) {
             blockPeelingSize,
             slowReweighing,
             multiplyBlockSize,
+            sumIntervalBlockSize,
+            sumAcrossBlockSize,
+            blockPeelingSizeSCA,
+            slabOpsPerBlock,
+            hazardMaxIntervalsPerBlock,
+            projectOpsPerBlock,
+            heigOpsPerBlock,
+            coalEventsPerBlock,
             categoryCount,
             patternCount,
             unpaddedPatternCount,

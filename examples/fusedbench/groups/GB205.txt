@@ -1,0 +1,17 @@
+# GB205 (PLAN-fused-uppartials.md section 7.2): the GB205 group, write, single precision
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree balanced --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 10 --tree pectinate --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update full --scaling write
+--states 61 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update branch-deep --scaling write

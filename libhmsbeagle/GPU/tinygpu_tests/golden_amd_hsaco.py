@@ -1,0 +1,121 @@
+"""Golden test for tinygpu_amd_compile.cpp (TODO.md plan step A1j): its HSACO of every BEAGLE variant (SP and DP, 9 padded state
+counts; gfx1100, and RDNA 4's gfx1200 and gfx1201 since TODO.md plan step N2) against tinygrad's own compile_hip of the same source, as the AMD daemon compiles it at run time
+(amd_compile_helper.compile_hip), through the same comgr. The two are not byte-identical, and two tinygrad runs are not
+either: clang names a marker symbol __hip_cuid_<16 hex digits> after the compile's temporary file, different in every
+process. So everything else must be the same: every other section byte for byte (the symbol and string tables and the
+two hash tables aside, which hash the names), and then what the GPU gets: elf_loader's image, the relocations and every
+kernel's descriptor. The hash is printed without leading zeros, so the string tables can differ in length: the symbol
+tables are compared symbol by symbol (name with the cuid blanked, value, size, binding, section). Needs tinygrad's comgr build (COMGR_PATH, default /opt/homebrew/lib/libamd_comgr.dylib).
+Each arch's two sides compile at once: tinygpu_amd_compile in one process with every variant, as make_tinygpu_hsaco.sh runs
+it, while this process runs tinygrad's compile_hip. With the build's spectral variants (TODO.md plan step S8.3), the same for
+tinygpu_amd_compile_spectral's SPEC_ variants of BeagleOpenCLSpectral_kernels.h, as parts of their own.
+    python golden_amd_hsaco.py [--part N/K]   (the N-th of PARTS only, K = len(PARTS): run_goldens.sh's jobs)
+    python golden_amd_hsaco.py --parts        (prints K)"""
+import os, sys, hashlib, subprocess
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import tgpaths
+tgpaths.setup()
+import amd_compile_helper as ach
+
+HERE, WORK = tgpaths.HERE, tgpaths.WORK
+COMGR = os.environ.get("COMGR_PATH", "/opt/homebrew/lib/libamd_comgr.dylib")
+VARIANTS = [f"{p}_{n}" for p in ("SP", "DP") for n in (4, 16, 32, 48, 64, 80, 128, 192, 256)]
+ARCHS = ["gfx1100", "gfx1200", "gfx1201"]   # the build embeds gfx1100's; RDNA 4's are compiled here only (TODO.md plan step N2)
+
+# the build has the spectral variants: make_tinygpu_hsaco.sh's table has SPEC_ rows
+SPECTRAL = '"SPEC_' in (tgpaths.GPU_DIR / "kernels/TinyGPUAMDHsaco.h").read_text()
+PARTS = [(arch, False) for arch in ARCHS] + ([(arch, True) for arch in ARCHS] if SPECTRAL else [])
+
+headers = {}
+def variant(name):   # as golden_amd_program.py: KERNELS_STRING_<name>, the source the plugin sends the daemon (SPEC_<name>: the
+    spectral = name.startswith("SPEC_")   # spectral header's KERNELS_STRING_<name>)
+    if spectral not in headers:
+        headers[spectral] = (tgpaths.GPU_DIR / ("kernels/BeagleOpenCLSpectral_kernels.h" if spectral else
+                                                "kernels/BeagleOpenCL_kernels.h")).read_text().split("\n")
+    hdr, name = headers[spectral], name[5:] if spectral else name
+    i = next(k for k, l in enumerate(hdr) if l.startswith(f"#define KERNELS_STRING_{name} \""))
+    lines = []
+    for l in hdr[i + 1:]:
+        if l == '"': break
+        lines.append(l[:-3].replace('\\"', '"').replace('\\\\', '\\'))
+    return "\n".join(lines) + "\n"
+
+import re, struct
+from tinygrad.runtime.support.elf import elf_loader
+CUID = re.compile(rb"__hip_cuid_[0-9a-f]+")   # its hash is printed without leading zeros: 15 or 16 digits
+def sections(b):
+    shoff, shnum, shstrndx = struct.unpack_from("<Q", b, 0x28)[0], *struct.unpack_from("<HH", b, 0x3c)
+    hs = [struct.unpack_from("<IIQQQQ", b, shoff + i * 64) for i in range(shnum)]
+    strtab = hs[shstrndx][4]
+    return {b[strtab + h[0]:b.index(b"\0", strtab + h[0])].decode(): b[h[4]:h[4] + h[5]] for h in hs}
+def symbols(secs, tab, strs):   # (name with the cuid blanked, value, size, info, other, shndx) of each Elf64_Sym
+    out = []
+    for i in range(len(secs[tab]) // 24):
+        st_name, info, other, shndx, value, size = struct.unpack_from("<IBBHQQ", secs[tab], i * 24)
+        name = secs[strs][st_name:secs[strs].index(b"\0", st_name)]
+        out.append((CUID.sub(b"__hip_cuid_", name), value, size, info, other, shndx))
+    return sorted(out)
+NAMES = (".symtab", ".strtab", ".dynsym", ".dynstr", ".gnu.hash", ".hash", ".dynamic")   # name-dependent: compared below
+def dynamic(secs):   # .dynamic's (d_tag, d_val) entries, DT_STRSZ (10) apart
+    d = [struct.unpack_from("<qQ", secs[".dynamic"], o) for o in range(0, len(secs[".dynamic"]), 16)]
+    return [e for e in d if e[0] != 10], next(v for t, v in d if t == 10)
+def compare(got, ref):
+    """"" if all that matters is the same, else what differs"""
+    gc, rc = CUID.findall(got), CUID.findall(ref)
+    if len(gc) != len(rc): return "the __hip_cuid_ symbols"
+    gs, rs = sections(got), sections(ref)
+    if gs.keys() != rs.keys(): return "the section list"
+    for name in gs:
+        if name not in NAMES and gs[name] != rs[name]: return f"section {name}"
+    (gd, gsz), (rd, rsz) = dynamic(gs), dynamic(rs)
+    # DT_STRSZ is .dynstr's size, which holds the cuid name once
+    if gd != rd or gsz - rsz != len(gc[0]) - len(rc[0]): return "section .dynamic"
+    for tab, strs in ((".symtab", ".strtab"), (".dynsym", ".dynstr")):
+        if symbols(gs, tab, strs) != symbols(rs, tab, strs): return f"the symbols of {tab}"
+    (gi, _, grel), (ri, _, rrel) = elf_loader(got), elf_loader(ref)
+    if bytes(gi) != bytes(ri) or grel != rrel: return "elf_loader's image or relocations"
+    if {k: (a, bytes(d)) for k, (a, d) in ach.parse_kernels(got)[1].items()} != {k: (a, bytes(d)) for k, (a, d) in ach.parse_kernels(ref)[1].items()}:
+        return "the kernel descriptors"
+    return ""
+
+def check_arch(arch, spectral=False):
+    """arch's variants (the SPEC_ ones with spectral) compared, a line each: the number that differ"""
+    out = WORK / ("hsaco_spec" if spectral else "hsaco"); out.mkdir(exist_ok=True)
+    for f in out.glob(f"*_{arch}.hsaco"): f.unlink()
+    variants = [f"SPEC_{v}" for v in VARIANTS] if spectral else VARIANTS
+    tool = "tinygpu_amd_compile_spectral" if spectral else "tinygpu_amd_compile"
+    # the compiler also refuses a variant whose kernels spill registers (STATUS.md R97), and the spectral one a variant the
+    # plugin's loader would refuse
+    cpp = subprocess.Popen([str(WORK / tool), COMGR, arch, str(out)] + variants, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, text=True)
+    try: refs = {v: ach.compile_hip(variant(v), arch) for v in variants}
+    except BaseException: cpp.kill(); raise
+    err = cpp.communicate()[1]
+    if cpp.returncode: raise RuntimeError(f"{tool} {arch}: exit {cpp.returncode}\n{err[-3000:]}")
+    fails = 0
+    for v in variants:
+        got = (out / f"{v}_{arch}.hsaco").read_bytes()
+        why = compare(got, refs[v])
+        fails += bool(why)
+        print(f"{v} {arch}: {len(got)} bytes, {len(ach.parse_kernels(got)[1])} kernels: " + ("IDENTICAL but for the compile's __hip_cuid_" if not why else f"DIFFERS: {why}"))
+    return fails
+
+def main(part=None):   # a part exits with its number of differing variants; run_goldens.sh prints the verdict
+    parts = [PARTS[part - 1]] if part else PARTS
+    if any(not s for _, s in parts):
+        tgpaths.build_cpp(tgpaths.GPU_DIR / "tinygpu_amd_compile.cpp", WORK / "tinygpu_amd_compile")
+    if any(s for _, s in parts):
+        tgpaths.build_cpp(tgpaths.GPU_DIR / "tinygpu_amd_compile.cpp", WORK / "tinygpu_amd_compile_spectral", "-DTINYGPU_AMD_SPECTRAL")
+    fails = sum(check_arch(arch, s) for arch, s in parts)
+    if part: sys.exit(fails)
+    print("A1j build-time HSACOs vs tinygrad's compile_hip:", "all identical" if not fails else "MISMATCH")
+    sys.exit(1 if fails else 0)
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["--parts"]:
+        print(len(PARTS))
+    elif sys.argv[1:2] == ["--part"]:
+        n, k = map(int, sys.argv[2].split("/"))
+        if k != len(PARTS) or not 1 <= n <= k: sys.exit(f"--part {sys.argv[2]}: golden_amd_hsaco has {len(PARTS)} parts")
+        main(n)
+    else: main()

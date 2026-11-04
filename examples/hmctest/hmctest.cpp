@@ -154,8 +154,10 @@ int main( int argc, const char* argv[] )
 
     bool doJC = true;
 
-    bool singlePrecision = false;
-    bool useSSE = true;
+    // --tinygpu as the last argument: the TinyGPU resource's flags, single precision with no SSE and no threads (TODO.md plan step D1)
+    bool tinygpu = argc > 1 && strcmp(argv[argc - 1], "--tinygpu") == 0;
+    bool singlePrecision = tinygpu;
+    bool useSSE = !tinygpu;
 
     // is nucleotides...
     int stateCount = 4;
@@ -166,8 +168,8 @@ int main( int argc, const char* argv[] )
 	int nPatterns = strlen(human) * nRepeats;
 
     // change # rate category to 2
-//    int rateCategoryCount = 4;
-    int rateCategoryCount = 1;
+    int rateCategoryCount = 2;
+//    int rateCategoryCount = 1;
 
     int scaleCount = (scaling ? 7 : 0);
 
@@ -208,6 +210,11 @@ int main( int argc, const char* argv[] )
         requirementFlags |= BEAGLE_FLAG_VECTOR_NONE;
     }
 
+    int threadCount = tinygpu ? 1 : 4;
+    if (threadCount > 1) {
+        requirementFlags |= BEAGLE_FLAG_THREADING_CPP;
+    }
+
     // create an instance of the BEAGLE library
 	int instance = beagleCreateInstance(
                                   3,				/**< Number of tip data elements (input) */
@@ -224,9 +231,20 @@ int main( int argc, const char* argv[] )
                                   preferenceFlags,
                                   requirementFlags, /**< Bit-flags indicating required implementation characteristics, see BeagleFlags (input) */
                                   &instDetails);
+    if (instance < 0 && useSSE) { // no SSE implementation on this platform (e.g. Linux ARM): use the plain CPU one
+        requirementFlags = (requirementFlags & ~BEAGLE_FLAG_VECTOR_SSE) | BEAGLE_FLAG_VECTOR_NONE;
+        instance = beagleCreateInstance(3, 10, useTipStates ? 3 : 0, stateCount, nPatterns, 1, 6 * 2,
+                                        rateCategoryCount, scaleCount,
+                                        whichDevice >= 0 ? &whichDevice : NULL, whichDevice >= 0 ? 1 : 0,
+                                        preferenceFlags, requirementFlags, &instDetails);
+    }
     if (instance < 0) {
 	    fprintf(stderr, "Failed to obtain BEAGLE instance\n\n");
 	    exit(1);
+    }
+
+    if (threadCount > 1) {
+        beagleSetCPUThreadCount(instance, threadCount);
     }
 
 
@@ -276,10 +294,10 @@ int main( int argc, const char* argv[] )
 ////        rates[i] = 3.0 * (i + 1) / (2 * rateCategoryCount + 1);
 //    }
 
-//    rates[0] = 0.14251623900062188;
-//    rates[1] = 1.857483760999378;
+    rates[0] = 0.14251623900062188;
+    rates[1] = 1.857483760999378;
 
-    rates[0] = 1.0;
+//    rates[0] = 1.0;
 
 	beagleSetCategoryRates(instance, &rates[0]);
 

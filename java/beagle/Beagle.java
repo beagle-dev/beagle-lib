@@ -142,6 +142,27 @@ public interface Beagle extends Serializable {
     void setCPUThreadCount(int threadCount);
 
     /**
+     * Ensure that the instance has at least the given numbers of partials, transition-matrix and scale buffers
+     *
+     * Grow-only resize, never shrinking. Counts are absolute and mean what they mean when the instance is created:
+     * afterwards partials indices [0, partialsBufferCount + compactBufferCount), matrix indices
+     * [0, matrixBufferCount) and scale indices [0, scaleBufferCount) are valid. A count not larger than the current
+     * count leaves that kind unchanged, so ensureBufferCounts(0, 0, 0) changes nothing and succeeds exactly when the
+     * implementation supports this method. Every index valid before keeps its contents; new buffers are
+     * uninitialized. Under SCALING_AUTO or SCALING_ALWAYS the scale count follows the partials count.
+     *
+     * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
+     * @param matrixBufferCount    Number of transition matrix buffers (input)
+     * @param scaleBufferCount     Number of scale buffers (input)
+     * @throws BeagleException with NO_IMPLEMENTATION_ERROR when the implementation (or an older native library)
+     *         cannot grow buffers; OUT_OF_RANGE_ERROR or OUT_OF_MEMORY_ERROR leave the instance unchanged (on a GPU,
+     *         after OUT_OF_MEMORY_ERROR the old contents are kept on a best-effort basis: if ensureBufferCounts(0, 0, 0)
+     *         then fails too, finalize the instance; on OpenCL a lazily committed allocation can still fail later
+     *         and exit)
+     */
+    void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
+
+    /**
      * Set the weights for each pattern
      * @param patternWeights    Array containing patternCount weights
      */
@@ -246,6 +267,23 @@ public interface Beagle extends Serializable {
     void getPartials(
             int bufferIndex,
             int scaleIndex,
+            final double[] outPartials);
+
+    /**
+     * Get partials for multiple buffers from an instance simultaneously
+     *
+     * This function copies multiple instance buffers into outPartials. The outPartials array should
+     * be count * stateCount * patternCount * categoryCount in length.
+     *
+     * @param bufferIndices  Indices of source partialsBuffers (input)
+     * @param scaleIndices   Indices of scaleBuffers to apply to each partialsBuffer (input)
+     * @param count          Number of partialsBuffers to retrieve (input)
+     * @param outPartials    Array to receive partialsBuffers (output)
+     */
+    void getPartialsBatch(
+            int[] bufferIndices,
+            int[] scaleIndices,
+            int count,
             final double[] outPartials);
 
     /**
@@ -450,6 +488,21 @@ public interface Beagle extends Serializable {
      * using the setEigenDecomposition and updateTransitionMatrices functions. The inMatrix array should be
      * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
      *
+     * With {@link BeagleFlag#HIERARCHICAL_REPRESENTATION}, inMatrix is instead one branch's hierarchical bundle and
+     * paddedValue is ignored. With S states, C rate categories and N = S - 1 internal state-tree nodes (tips are
+     * nodes 0 .. S-1 in state order, internal nodes S .. 2S-2, binary tree, indices stored as doubles):
+     * <pre>
+     *   [0]                   version * 65536 + N (version 1)
+     *   [1, 1 + 3N)           post-order triples (parent, left, right), children before parents, root last
+     *   [1 + 3N, 1 + 6N)      pre-order triples, the same set, parents before children, root first
+     *   then C blocks of N + S, one per category l:
+     *                         H for internal nodes S .. 2S-2 at time edgeLength * rate[l],
+     *                         then Pr(Z = 0) for the tips in state order
+     * </pre>
+     * The header is resent in every bundle; BEAGLE keeps no state tree between uploads. pi is not in the bundle: it is
+     * state frequencies buffer 0 ({@link #setStateFrequencies}), which must hold the pi used to compute H. See
+     * BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION in beagle.h for validation and the matrix getTransitionMatrix returns.
+     *
      * This function copies a finite-time transition probability matrix into a matrix buffer.
      * @param matrixIndex   Index of matrix buffer (input)
      * @param inMatrix      Pointer to source transition probability matrix (input)
@@ -514,6 +567,12 @@ public interface Beagle extends Serializable {
             final int[] operations,
             int operationCount,
             int cumulativeScaleIndex);
+
+    void updatePrePartials_v5(
+            final int[] operations,
+            int operationCount,
+            int cumulativeScaleIndex,
+            BeaglePartialsType partialsType);
 
     void updatePrePartialsByPartition(
             final int[] operations,
@@ -587,18 +646,41 @@ public interface Beagle extends Serializable {
      * @param preBufferIndices                  list of pre  order buffer indices
      * @param categoryWeightsIndices            category weights indices
      * @param count                             number of edges
-     * @param outDerivatives                    derivative-per-element output array
+     * @param outSumDerivatives                 derivative-per-element output array
      *
      */
     void calculateCrossProductDifferentials(
     		final int[] postBufferIndices,
         	final int[] preBufferIndices,
-    	    final int[] categoryRateIndices,
-    	    final int[] categoryWeightsIndices,
+    	        final int[] categoryRateIndices,
+    	        final int[] categoryWeightsIndices,
         	final double[] edgeLengths,
         	int count,
 	        double[] outSumDerivatives,
 	        double[] outSumSquaredDerivatives);
+
+    /**
+     * postScaleIndices/preScaleIndices/cumulativeScaleIndex are all CUMULATIVE
+     * (always-LOG, e.g. built via accumulateScaleFactors) scale buffers, needed
+     * only if the referenced post/pre-order partials were rescaled -- pass
+     * null / null / Beagle.NONE if none were. See
+     * beagleCalculateAdjointCrossProductDerivative in beagle.h for the full
+     * per-branch contract.
+     */
+    void calculateAdjointCrossProductDifferentials(
+    		final int[] postBufferIndices,
+        	final int[] preBufferIndices,
+    	        final int[] eigenIndices,
+    	        final int[] categoryRateIndices,
+    	        final int[] categoryWeightsIndices,
+        	final int rootPostOrderIndex,
+        	final int stateFrequenciesIndex,
+        	int count,
+	        double[] outSumDerivatives,
+	        double[] outSumSquaredDerivatives,
+	        final int[] postScaleIndices,
+	        final int[] preScaleIndices,
+	        final int cumulativeScaleIndex);
 
     /**
      * Calculate or queue for calculation partials using a list of operations
@@ -628,6 +710,12 @@ public interface Beagle extends Serializable {
             final int[] operations,
             int operationCount,
             int cumulativeScaleIndex);
+
+    void updatePartials_v5(
+            final int[] operations,
+            int operationCount,
+            int cumulativeScaleIndex,
+            BeaglePartialsType partialsType);
 
     /**
      * Calculate or queue for calculating partials by partition using a list of operations

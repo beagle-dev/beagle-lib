@@ -127,56 +127,136 @@ enum BeagleReturnCodes {
  * @brief Hardware and implementation capability flags
  *
  * This enumerates all possible hardware and implementation capability flags.
- * Each capability is a bit in a 'long'
+ * Each capability is a bit in a 'long long'. The flags at bit 31 and above are not in this enum: they are
+ * the 64-bit constants defined right after it.
  */
-enum BeagleFlags : long long {
-    BEAGLE_FLAG_PRECISION_SINGLE    = 1ULL << 0,    /**< Single precision computation */
-    BEAGLE_FLAG_PRECISION_DOUBLE    = 1ULL << 1,    /**< Double precision computation */
+enum BeagleFlags {
+    BEAGLE_FLAG_PRECISION_SINGLE    = 1 << 0,    /**< Single precision computation */
+    BEAGLE_FLAG_PRECISION_DOUBLE    = 1 << 1,    /**< Double precision computation */
 
-    BEAGLE_FLAG_COMPUTATION_SYNCH   = 1ULL << 2,    /**< Synchronous computation (blocking) */
-    BEAGLE_FLAG_COMPUTATION_ASYNCH  = 1ULL << 3,    /**< Asynchronous computation (non-blocking) */
+    BEAGLE_FLAG_COMPUTATION_SYNCH   = 1 << 2,    /**< Synchronous computation (blocking) */
+    BEAGLE_FLAG_COMPUTATION_ASYNCH  = 1 << 3,    /**< Asynchronous computation (non-blocking) */
 
-    BEAGLE_FLAG_EIGEN_REAL          = 1ULL << 4,    /**< Real eigenvalue computation */
-    BEAGLE_FLAG_EIGEN_COMPLEX       = 1ULL << 5,    /**< Complex eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_REAL          = 1 << 4,    /**< Real eigenvalue computation */
+    BEAGLE_FLAG_EIGEN_COMPLEX       = 1 << 5,    /**< Complex eigenvalue computation */
 
-    BEAGLE_FLAG_SCALING_MANUAL      = 1ULL << 6,    /**< Manual scaling */
-    BEAGLE_FLAG_SCALING_AUTO        = 1ULL << 7,    /**< Auto-scaling on (deprecated, may not work correctly) */
-    BEAGLE_FLAG_SCALING_ALWAYS      = 1ULL << 8,    /**< Scale at every updatePartials (deprecated, may not work correctly) */
-    BEAGLE_FLAG_SCALING_DYNAMIC     = 1ULL << 25,   /**< Manual scaling with dynamic checking (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_MANUAL      = 1 << 6,    /**< Manual scaling */
+    BEAGLE_FLAG_SCALING_AUTO        = 1 << 7,    /**< Auto-scaling on (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_ALWAYS      = 1 << 8,    /**< Scale at every updatePartials (deprecated, may not work correctly) */
+    BEAGLE_FLAG_SCALING_DYNAMIC     = 1 << 25,   /**< Manual scaling with dynamic checking (deprecated, may not work correctly) */
 
-    BEAGLE_FLAG_SCALERS_RAW         = 1ULL << 9,    /**< Save raw scalers */
-    BEAGLE_FLAG_SCALERS_LOG         = 1ULL << 10,   /**< Save log scalers */
+    BEAGLE_FLAG_SCALERS_RAW         = 1 << 9,    /**< Save raw scalers */
+    BEAGLE_FLAG_SCALERS_LOG         = 1 << 10,   /**< Save log scalers */
 
-    BEAGLE_FLAG_INVEVEC_STANDARD    = 1ULL << 20,   /**< Inverse eigen vectors passed to BEAGLE have not been transposed */
-    BEAGLE_FLAG_INVEVEC_TRANSPOSED  = 1ULL << 21,   /**< Inverse eigen vectors passed to BEAGLE have been transposed */
+    BEAGLE_FLAG_INVEVEC_STANDARD    = 1 << 20,   /**< Inverse eigen vectors passed to BEAGLE have not been transposed */
+    BEAGLE_FLAG_INVEVEC_TRANSPOSED  = 1 << 21,   /**< Inverse eigen vectors passed to BEAGLE have been transposed */
 
-    BEAGLE_FLAG_VECTOR_SSE          = 1ULL << 11,   /**< SSE computation */
-    BEAGLE_FLAG_VECTOR_AVX          = 1ULL << 24,   /**< AVX computation */
-    BEAGLE_FLAG_VECTOR_NONE         = 1ULL << 12,   /**< No vector computation */
+    BEAGLE_FLAG_VECTOR_SSE          = 1 << 11,   /**< SSE computation */
+    BEAGLE_FLAG_VECTOR_AVX          = 1 << 24,   /**< AVX computation */
+    /*  BEAGLE_FLAG_VECTOR_TENSOR           (1LL << 33), defined after this enum */
+    BEAGLE_FLAG_VECTOR_NONE         = 1 << 12,   /**< No vector computation */
 
-    BEAGLE_FLAG_THREADING_CPP       = 1ULL << 30,   /**< C++11 threading */
-    BEAGLE_FLAG_THREADING_OPENMP    = 1ULL << 13,   /**< OpenMP threading */
-    BEAGLE_FLAG_THREADING_NONE      = 1ULL << 14,   /**< No threading (default) */
+    BEAGLE_FLAG_THREADING_CPP       = 1 << 30,   /**< C++11 threading */
+    BEAGLE_FLAG_THREADING_OPENMP    = 1 << 13,   /**< OpenMP threading */
+    BEAGLE_FLAG_THREADING_NONE      = 1 << 14,   /**< No threading (default) */
 
-    BEAGLE_FLAG_PROCESSOR_CPU       = 1ULL << 15,   /**< Use CPU as main processor */
-    BEAGLE_FLAG_PROCESSOR_GPU       = 1ULL << 16,   /**< Use GPU as main processor */
-    BEAGLE_FLAG_PROCESSOR_FPGA      = 1ULL << 17,   /**< Use FPGA as main processor */
-    BEAGLE_FLAG_PROCESSOR_CELL      = 1ULL << 18,   /**< Use Cell as main processor */
-    BEAGLE_FLAG_PROCESSOR_PHI       = 1ULL << 19,   /**< Use Intel Phi as main processor */
-    BEAGLE_FLAG_PROCESSOR_OTHER     = 1ULL << 26,   /**< Use other type of processor */
+    BEAGLE_FLAG_PROCESSOR_CPU       = 1 << 15,   /**< Use CPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_GPU       = 1 << 16,   /**< Use GPU as main processor */
+    BEAGLE_FLAG_PROCESSOR_FPGA      = 1 << 17,   /**< Use FPGA as main processor */
+    BEAGLE_FLAG_PROCESSOR_CELL      = 1 << 18,   /**< Use Cell as main processor */
+    BEAGLE_FLAG_PROCESSOR_PHI       = 1 << 19,   /**< Use Intel Phi as main processor */
+    BEAGLE_FLAG_PROCESSOR_OTHER     = 1 << 26,   /**< Use other type of processor */
 
-    BEAGLE_FLAG_FRAMEWORK_CUDA      = 1ULL << 22,   /**< Use CUDA implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1ULL << 23,   /**< Use OpenCL implementation with GPU resources */
-    BEAGLE_FLAG_FRAMEWORK_CPU       = 1ULL << 27,   /**< Use CPU implementation */
+    BEAGLE_FLAG_FRAMEWORK_CUDA      = 1 << 22,   /**< Use CUDA implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,   /**< Use OpenCL implementation with GPU resources */
+    BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27,   /**< Use CPU implementation */
+    /*  BEAGLE_FLAG_FRAMEWORK_TINYGPU       (1LL << 45), defined after this enum */
 
-    BEAGLE_FLAG_PARALLELOPS_STREAMS = 1ULL << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
-    BEAGLE_FLAG_PARALLELOPS_GRID    = 1ULL << 29,   /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
+    BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29    /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
+    /*  BEAGLE_FLAG_PARALLELOPS_FUSED       (1LL << 46), defined after this enum */
 
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL = 1ULL << 30, /**< Pre-order transition matrices passed to BEAGLE have been transposed */
-    BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   = 1ULL << 31, /**< Automatically transpose pre-order transition matrices */
+    /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL (1LL << 34), defined after this enum */
+    /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31), defined after this enum */
 
-    BEAGLE_FLAG_COMPUTATION_ACTION        = 1ULL << 40    /**< Action computation */
+    /*  BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40), defined after this enum */
+    /*  BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 41), defined after this enum */
+    /*  BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 42), defined after this enum */
 };
+
+/*
+ * The flags at bit 31 and above. MSVC gives an enum the underlying type int, in C and in C++, so a
+ * value at bit 31 or above cannot be an enumerator there; and long is 32 bits on Windows, so these
+ * are long long constants.
+ */
+#define BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31) /**< Automatically transpose pre-order transition matrices */
+#define BEAGLE_FLAG_VECTOR_TENSOR             (1LL << 33) /**< Tensor cores */
+#define BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL (1LL << 34) /**< Pre-order transition matrices passed to BEAGLE have been transposed */
+
+/**
+ * Use spectral representation for transition probability calculation.
+ *
+ * A matrix buffer then holds a branch's eigen-system and time, set by beagleUpdateTransitionMatrices. Dense
+ * stateCount x stateCount storage for an index exists only once the index is written densely: by
+ * beagleSetTransitionMatrix, beagleSetTransitionMatrices or beagleSetDifferentialMatrix, or, on CPU, as the
+ * destination of beagleConvolveTransitionMatrices or beagleTransposeTransitionMatrices. A dense read of an index
+ * without dense contents returns BEAGLE_ERROR_OUT_OF_RANGE; the dense reads are beagleCalculateEdgeDerivatives,
+ * the beagleCalculateEdgeLogLikelihoods family, and the inputs of convolve and transpose.
+ * beagleGetTransitionMatrix returns the dense contents if present; otherwise the matrix of the eigen-system on
+ * CPU (BEAGLE_ERROR_OUT_OF_RANGE on GPU), and BEAGLE_ERROR_OUT_OF_RANGE for an index with neither. Writing one
+ * index both ways is unsupported.
+ *
+ * On GPU, beagleCalculateEdgeDerivatives is the only dense read: the beagleCalculateEdgeLogLikelihoods family,
+ * convolve, transpose, beagleUpdateTransitionMatricesWithModelCategories and ...WithMultipleModels, and pattern
+ * partitions (beagleSetPatternPartitions and the ...ByPartition updates) return BEAGLE_ERROR_NO_IMPLEMENTATION,
+ * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
+ */
+#define BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40)
+
+/**
+ * Use hierarchical state-tree representation for transition probability calculation.
+ *
+ * The application evaluates the hierarchical rate model and, for each branch, passes a self-contained bundle to
+ * beagleSetTransitionMatrix (or one bundle per index to beagleSetTransitionMatrices) in place of a dense matrix;
+ * paddedValue is ignored. BEAGLE stores no state tree between uploads. The stationary frequencies pi are not in
+ * the bundle: they are state frequencies buffer 0, set with beagleSetStateFrequencies, and must be the pi from which
+ * the application computed H. The bundle is an array of doubles; S is the state count, C the category count and N = S - 1 the number of internal state-tree
+ * nodes. Nodes 0 .. S-1 are the tips in state order and nodes S .. 2S-2 are the internal nodes; the state tree is
+ * binary. Node indices are stored as exactly representable doubles.
+ *
+ *   offset 0                 length 1      version * 65536 + N (version 1)
+ *   offset 1                 length 3N     post-order triples (parent, left child, right child), children
+ *                                          before parents; the last triple is the root's
+ *   offset 1 + 3N            length 3N     pre-order triples, the same set, parents before children; the
+ *                                          first triple is the root's
+ *   offset 1 + 6N            C blocks of N + S, one per rate category l:
+ *                                          H for the internal nodes S .. 2S-2 at time edgeLength * rate[l],
+ *                                          then Pr(Z = 0) for the tips in state order
+ *
+ * The header is the same for every branch and is resent in every bundle. A bundle with an unknown version,
+ * N != S - 1, an out-of-range node, a node appearing twice as a parent or twice as a child, a post-order list
+ * with a parent before its child, a pre-order list with a child before its parent, two lists that are not the
+ * same set of triples, a negative or non-finite H, or a Pr(Z = 0) outside [0, 1] is rejected with
+ * BEAGLE_ERROR_OUT_OF_RANGE and leaves the index unchanged. beagleGetTransitionMatrix returns the dense matrix
+ * P[x][y] = pi[y] * C(MRCA(x, y)) for x != y and P[x][x] = Pr(Z_x = 0) + pi[x] * C(parent(x)), where C(m) is the
+ * sum of H along the path from the root to m, built from the stored bundle and state frequencies buffer 0; it
+ * returns BEAGLE_ERROR_OUT_OF_RANGE for an index without a bundle or before the frequencies are set.
+ *
+ * beagleSetEigenDecomposition, beagleUpdateTransitionMatrices, beagleUpdateTransitionMatricesWithModelCategories
+ * and beagleUpdateTransitionMatricesWithMultipleModels return BEAGLE_ERROR_NO_IMPLEMENTATION. Category rates are
+ * not applied to the bundle, which is already per category; beagleSetCategoryWeights is still required for the
+ * root likelihood.
+ */
+#define BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 41)
+
+/**
+ * Action-based likelihood: a matrix buffer holds a sparse rate matrix (beagleSetSparseMatrix) and partials are
+ * propagated by the action of its exponential, without dense transition matrices.
+ */
+#define BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 42)
+
+#define BEAGLE_FLAG_FRAMEWORK_TINYGPU         (1LL << 45) /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
+#define BEAGLE_FLAG_PARALLELOPS_FUSED         (1LL << 46) /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
 
 
 /**
@@ -185,7 +265,7 @@ enum BeagleFlags : long long {
  * @brief Benchmarking mode flags for resource performance evaluation with beagleGetOrderedResourceList.
  *
  * This enumerates all possible benchmarking mode flags.
- * Each mode is a bit in a 'long'
+ * Each mode is a bit in a 'long long'
  */
 enum BeagleBenchmarkFlags {
     BEAGLE_BENCHFLAG_SCALING_NONE        = 1 << 0,    /**< No scaling */
@@ -204,8 +284,24 @@ enum BeagleOpCodes {
     BEAGLE_OP_COUNT              = 7, /**< Total number of integers per beagleUpdatePartials operation */
     BEAGLE_PARTITION_OP_COUNT    = 9, /**< Total number of integers per beagleUpdatePartialsByPartition operation */
     BEAGLE_BASTA_OP_COUNT        = 8,
+    BEAGLE_BASTA_OP_COUNT_V5     = 9, /**< Total number of integers per BASTA _v5 operation (BastaOperation_v5) */
     BEAGLE_OP_NONE               = -1 /**< Specify no use for indexed buffer */
 };
+
+/**
+ * @anchor BEAGLE_PARTIALS_TYPE
+ *
+ * @brief Type of per-order partials to compute
+ *
+ * This enumerates all posslbe pre-order partial types.
+ */
+enum BeaglePartialsFlags {
+	BEAGLE_PARTIALS_BOTTOM      = 1 << 0, /**< Partials include transition probability along current branch */
+	BEAGLE_PARTIALS_TOP         = 1 << 1, /**< Partials do not include transition probability along current branch */
+    BEAGLE_PARTIALS_USE_MATRIX  = 1 << 2, /**< Calculated using finite-time transition matrices */
+    BEAGLE_PARTIALS_USE_SPECTRA = 1 << 3  /**< Calculated using eigenvalue decomposition */
+};
+typedef long BeaglePartialsType;
 
 /**
  * @brief Information about a specific instance
@@ -227,8 +323,8 @@ typedef struct {
 typedef struct {
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
-    long long  supportFlags; /**< Bit-flags of supported capabilities on resource */
-    long long  requiredFlags;/**< Bit-flags that identify resource type */
+    long long supportFlags;  /**< Bit-flags of supported capabilities on resource */
+    long long requiredFlags; /**< Bit-flags that identify resource type */
 } BeagleResource;
 
 /**
@@ -246,11 +342,11 @@ typedef struct {
     int number;         /**< Resource number  */
     char* name;         /**< Name of resource as a NULL-terminated character string */
     char* description;  /**< Description of resource as a NULL-terminated character string */
-    long long  supportFlags; /**< Bit-flags of supported capabilities on resource */
-    long long  requiredFlags;/**< Bit-flags that identify resource type */
+    long long supportFlags;  /**< Bit-flags of supported capabilities on resource */
+    long long requiredFlags; /**< Bit-flags that identify resource type */
     int   returnCode;   /**< Return code of for benchmark attempt (see BeagleReturnCodes) */
     char* implName;     /**< Name of implementation used to benchmark resource */
-    long long  benchedFlags; /**< Bit-flags that characterize the activate
+    long long benchedFlags;  /**< Bit-flags that characterize the activate
                          *   capabilities of the resource and implementation for this benchmark */
     double benchmarkResult; /**< Benchmark result in milliseconds */
     double performanceRatio; /**< Performance ratio relative to default CPU resource */
@@ -433,6 +529,46 @@ BEAGLE_DLLEXPORT int beagleSetCPUThreadCount(int instance,
                                              int threadCount);
 
 /**
+ * @brief Ensure that an instance has at least the given numbers of partials, transition-matrix and scale buffers
+ *
+ * Grow-only resize (like std::vector::resize, never shrinking). Counts are absolute and mean what they mean in
+ * beagleCreateInstance: after BEAGLE_SUCCESS, partials indices [0, partialsBufferCount + compactBufferCount),
+ * matrix indices [0, matrixBufferCount) and scale indices [0, scaleBufferCount) are valid, where
+ * compactBufferCount is the value given to beagleCreateInstance. A count not larger than the current count leaves
+ * that kind unchanged, so beagleEnsureBufferCounts(instance, 0, 0, 0) changes nothing and returns BEAGLE_SUCCESS
+ * exactly when the implementation supports this function.
+ *
+ * Every index valid before the call keeps its buffer and contents (partials, tip data, transition matrices or
+ * spectral branch state, scale factors). New buffers are uninitialized, as after beagleCreateInstance (under
+ * BEAGLE_FLAG_SCALING_DYNAMIC new scale buffers are set as at creation). Under BEAGLE_FLAG_SCALING_AUTO or
+ * BEAGLE_FLAG_SCALING_ALWAYS the scale count follows the partials count and scaleBufferCount is ignored.
+ * Tip, compact, eigen, state, pattern and category counts, pattern partitions, pattern weights and the thread
+ * count do not change. An implementation may reserve more memory than requested; only the requested indices are
+ * valid. Must not run concurrently with any other call on the same instance. Synchronous: on a GPU it waits for
+ * queued work.
+ *
+ * @param instance             Instance number (input)
+ * @param partialsBufferCount  Number of partials buffers, excluding compact tip buffers (input)
+ * @param matrixBufferCount    Number of transition matrix buffers (input)
+ * @param scaleBufferCount     Number of scale buffers (input)
+ *
+ * @return BEAGLE_SUCCESS;
+ *         BEAGLE_ERROR_OUT_OF_RANGE for a negative count or a count whose sizes overflow (instance unchanged);
+ *         BEAGLE_ERROR_OUT_OF_MEMORY if an allocation fails (instance unchanged and usable; on a GPU, a buffer
+ *         pool that cannot grow is put back through host memory on a best-effort basis, and if that fails too,
+ *         beagleEnsureBufferCounts(instance, 0, 0, 0) also returns BEAGLE_ERROR_OUT_OF_MEMORY and the instance
+ *         must be finalized; on OpenCL a lazily committed allocation can still fail later and exit);
+ *         BEAGLE_ERROR_NO_IMPLEMENTATION if the implementation cannot grow buffers, for more scale buffers
+ *         under BEAGLE_FLAG_SCALING_DYNAMIC on a GPU other than CUDA, or for a growth once the instance has
+ *         BASTA buffers (beagleAllocateBastaBuffers, beagleAllocateBastaGradBuffers) (instance unchanged);
+ *         BEAGLE_ERROR_UNINITIALIZED_INSTANCE for an invalid instance.
+ */
+BEAGLE_DLLEXPORT int beagleEnsureBufferCounts(int instance,
+                                              int partialsBufferCount,
+                                              int matrixBufferCount,
+                                              int scaleBufferCount);
+
+/**
  * @brief Set the compact state representation for tip node
  *
  * This function copies a compact state representation into an instance buffer.
@@ -518,6 +654,26 @@ BEAGLE_DLLEXPORT int beagleSetPartials(int instance,
 BEAGLE_DLLEXPORT int beagleGetPartials(int instance,
                       int bufferIndex,
                       int scaleIndex,
+                      double* outPartials);
+
+/**
+ * @brief Get partials for multiple buffers from an instance simultaneously
+ *
+ * This function copies multiple instance buffers into the array outPartials. The outPartials array
+ * should be count * stateCount * patternCount * categoryCount in length.
+ *
+ * @param instance       Instance number from which to get partialsBuffers (input)
+ * @param bufferIndices  Indices of source partialsBuffers (input)
+ * @param scaleIndices   Indices of scaleBuffers to apply to each partialsBuffer (input)
+ * @param count          Number of partialsBuffers to retrieve (input)
+ * @param outPartials    Pointer to which to receive partialsBuffers (output)
+ *
+ * @return error code
+ */
+BEAGLE_DLLEXPORT int beagleGetPartialsBatch(int instance,
+                      const int* bufferIndices,
+                      const int* scaleIndices,
+                      int count,
                       double* outPartials);
 
 /**
@@ -846,11 +1002,13 @@ BEAGLE_DLLEXPORT int beagleUpdateTransitionMatricesWithMultipleModels(int instan
  * is used when the application wishes to explicitly set the transition probability matrix rather than
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the index dense storage (see that flag).
+ * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION inMatrix is a hierarchical bundle (see that flag for its layout).
  *
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
  * @param inMatrix      Pointer to source transition probability matrix (input)
- * @param paddedValue   Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
+ * @param paddedValue  Value to be used for padding for ambiguous states (e.g. 1 for probability matrices, 0 for derivative matrices) (input)
  *
  * @return error code
  */
@@ -864,6 +1022,7 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrix(int instance,
  *
  * This function copies a differential transition probability matrix into a matrix buffer. The inMatrix array should be
  * of size stateCount * stateCount * categoryCount and will contain one matrix for each rate category.
+ * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the index dense storage (see that flag).
  *
  * @param instance      Instance number (input)
  * @param matrixIndex   Index of matrix buffer (input)
@@ -880,7 +1039,9 @@ BEAGLE_DLLEXPORT int beagleSetDifferentialMatrix(int instance,
  *
  * This function copies a finite-time transition matrix buffer into the array outMatrix. The
  * outMatrix array should be of size stateCount * stateCount * categoryCount and will be filled
- * with one matrix for each rate category.
+ * with one matrix for each rate category. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION, see that flag for which
+ * contents are returned. With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION the matrix is built from the stored bundle
+ * (see that flag).
  *
  * @param instance     Instance number (input)
  * @param matrixIndex  Index of matrix buffer (input)
@@ -898,7 +1059,9 @@ BEAGLE_DLLEXPORT int beagleGetTransitionMatrix(int instance,
  * This function copies multiple transition matrices into matrix buffers. This function
  * is used when the application wishes to explicitly set the transition matrices rather than
  * using the beagleSetEigenDecomposition and beagleUpdateTransitionMatrices functions. The inMatrices array should be
- * of size stateCount * stateCount * categoryCount * count.
+ * of size stateCount * stateCount * categoryCount * count. With BEAGLE_FLAG_SPECTRAL_REPRESENTATION this gives the
+ * indices dense storage (see that flag). With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION inMatrices holds count
+ * hierarchical bundles back to back (see that flag for the layout of each).
  *
  * @param instance      Instance number (input)
  * @param matrixIndices Indices of matrix buffers (input)
@@ -917,15 +1080,59 @@ BEAGLE_DLLEXPORT int beagleSetTransitionMatrices(int instance,
 
 /**
  * @brief A list of integer indices which specify a partial likelihoods operation.
+ *
+ * For beagleUpdatePartials_v5() (post-order), the two child slots are simply
+ * this node's two children: (child1Partials, child1TransitionMatrix) and
+ * (child2Partials, child2TransitionMatrix) each name a child buffer and the
+ * transition matrix along *that child's own branch*.
+ *
+ * For beagleUpdatePrePartials_v5() (pre-order), the same six fields are
+ * reused with different roles: "child1" names this node's *parent* buffer
+ * and the transition matrix to reach it, "child2" names this node's
+ * *sibling* buffer and the transition matrix along the *sibling's own
+ * branch*. Concretely: child1Partials = index of the parent's own pre-order
+ * ("TOP") buffer; child1TransitionMatrix = the transition matrix along the
+ * *parent's own branch* (NOT this node's branch) — pass BEAGLE_OP_NONE here
+ * ONLY if child1Partials is the literal tree-root prior buffer (no branch
+ * above it to propagate through). For every other (deeper) parent, passing
+ * BEAGLE_OP_NONE is a silent correctness bug: the library skips propagating
+ * the parent's TOP partial through the parent's own branch before combining
+ * it with the sibling, producing a plausible-looking but wrong partial (no
+ * crash, no NaN) that corrupts any downstream gradient computed from it.
+ * child2Partials/child2TransitionMatrix are always the sibling's own buffer
+ * and its own branch's transition matrix, with no such special case.
+ *
+ * Example: for a rooted tree ((A,B):C, D) with root R, pre-order buffers
+ * built via BEAGLE_PARTIALS_TOP need, among others:
+ *   { C, ..., R, BEAGLE_OP_NONE, D, matrix(D) }   // C's parent R IS the root
+ *   { A, ..., C, matrix(C),      B, matrix(B) }   // A's parent C is NOT the root
+ *   { B, ..., C, matrix(C),      A, matrix(A) }   // B's parent C is NOT the root
+ * (destinationPartials/destinationScaleWrite/destinationScaleRead omitted
+ * above for brevity.) See beagleUpdatePrePartials_v5() and, for a worked
+ * multi-level example, `examples/hmctest/adjointtest4.cpp`.
+ *
+ * Degree-2 (single-child) nodes, e.g. at epoch transition times along a
+ * branch: set child2Partials to BEAGLE_OP_NONE (child2TransitionMatrix is
+ * then ignored). Post-order, the destination is the first child propagated
+ * along its own branch alone. Pre-order, the node has no sibling: the
+ * destination is the parent's pre-order partial propagated along
+ * child1TransitionMatrix (BOTTOM: this node's own branch; TOP: the parent's
+ * own branch, or copied unchanged when child1TransitionMatrix is
+ * BEAGLE_OP_NONE because the parent is the root). Supported by the CPU
+ * implementations (including the spectral representation) and by the GPU
+ * spectral representation, with scaling as on the CPU: AUTO leaves a degree-2
+ * node unscaled. As on the CPU, their products are clamped at zero. The
+ * standard (not spectral) GPU implementations return
+ * BEAGLE_ERROR_NO_IMPLEMENTATION without computing anything.
  */
 typedef struct {
     int destinationPartials;    /**< index of destination, or parent, partials buffer  */
     int destinationScaleWrite;  /**< index of scaling buffer to write to (if set to BEAGLE_OP_NONE then calculation of new scalers is disabled)  */
     int destinationScaleRead;   /**< index of scaling buffer to read from (if set to BEAGLE_OP_NONE then use of existing scale factors is disabled)  */
-    int child1Partials;         /**< index of first child partials buffer */
-    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
-    int child2Partials;         /**< index of second child partials buffer */
-    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int child1Partials;         /**< index of first child partials buffer (post-order) or parent partials buffer (pre-order) */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer (post-order) or of the PARENT's own branch (pre-order; BEAGLE_OP_NONE only if child1Partials is the literal root prior — see struct-level doc) */
+    int child2Partials;         /**< index of second child partials buffer (post-order) or sibling partials buffer (pre-order) */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer (post-order) or of the sibling's own branch (pre-order) */
 } BeagleOperation;
 
 /**
@@ -939,14 +1146,20 @@ typedef struct {
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ * @param partialsType              Type of partials calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePartials_v5(const int instance,
+                                             const BeagleOperation* operations,
+                                             int operationCount,
+                                             int cumulativeScaleIndex,
+                                             BeaglePartialsType partialsType);
+
 BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
                                           const BeagleOperation* operations,
                                           int operationCount,
                                           int cumulativeScaleIndex);
-
 /**
  * @brief Calculate or queue for calculation pre-order partials using a list of operations
  *
@@ -955,13 +1168,31 @@ BEAGLE_DLLEXPORT int beagleUpdatePartials(const int instance,
  * operations immediately and in order.
  * ///TODO: consider > 3 degree nodes?
  *
+ * IMPORTANT — see the BeagleOperation doc for the full field-reuse contract.
+ * Each operation's child1TransitionMatrix (reused here as "the transition
+ * matrix to the parent") must be BEAGLE_OP_NONE ONLY when child1Partials is
+ * the literal tree-root prior buffer. For any deeper parent (itself a
+ * previously-computed pre-order buffer from an earlier operation, in this
+ * call or an earlier one), child1TransitionMatrix must be that parent
+ * node's own transition-matrix index. Passing BEAGLE_OP_NONE for a
+ * non-root parent silently skips propagating the parent's partial through
+ * its own branch and produces an incorrect (but not obviously invalid)
+ * result with no error return — this is not caught by the implementation.
+ *
  * @param instance                  Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
  * @param cumulativeScaleIndex      Index number of scaleBuffer to store accumulated factors (input)
+ * @param partialsType              Type of partials calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartials_v5(const int instance,
+                                                const BeagleOperation* operations,
+                                                int operationCount,
+                                                int cumulativeScaleIndex,
+                                                BeaglePartialsType partialsType);
+
 BEAGLE_DLLEXPORT int beagleUpdatePrePartials(const int instance,
                                              const BeagleOperation* operations,
                                              int operationCount,
@@ -1006,12 +1237,20 @@ BEAGLE_DLLEXPORT int beagleUpdatePartialsByPartition(const int instance,
  * supporting ASYNCH may queue these calculations while other implementations perform these
  * operations immediately and in order.
  *
- * @param instance                  Instance number (input)
+ * beagleUpdatePrePartialsByPartition(), without partialsType, computes BEAGLE_PARTIALS_BOTTOM.
+ *
+ * @param instance                 Instance number (input)
  * @param operations                BeagleOperation list specifying operations (input)
  * @param operationCount            Number of operations (input)
+ * @param partialsType              Type of pre-order partial calculation (input)
  *
  * @return error code
  */
+BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition_v5(const int instance,
+                                                           const BeagleOperationByPartition* operations,
+                                                           int operationCount,
+                                                           BeaglePartialsType partialsType);
+
 BEAGLE_DLLEXPORT int beagleUpdatePrePartialsByPartition(const int instance,
                                                         const BeagleOperationByPartition* operations,
                                                         int operationCount);
@@ -1286,6 +1525,92 @@ BEAGLE_DLLEXPORT int beagleCalculateCrossProductDerivative(int instance,
                                                   double *outSumDerivatives,
                                                   double *outSumSquaredDerivatives);
 
+typedef struct {
+    int postOrderPartials;
+    int preOrderPartials;
+    int branchTransitionMatrix;
+    int resultSegment;
+} BeagleBranchOperation;
+
+/**
+ * @brief Calculate the adjoint cross-product derivative, correcting for rescaling
+ *
+ * postScaleIndices/preScaleIndices/cumulativeScaleIndex let a caller that
+ * rescaled post-order and/or pre-order partials (destinationScaleWrite on
+ * beagleUpdatePartials_v5/beagleUpdatePrePartials_v5) get a correct gradient
+ * back instead of one silently corrupted by each branch's own rescaling.
+ * Omitting them (BEAGLE_OP_NONE / NULL) is only valid when NONE of the
+ * partials referenced by postBufferIndices/preBufferIndices were themselves
+ * independently rescaled.
+ *
+ * postScaleIndices/preScaleIndices/cumulativeScaleIndex are ALL cumulative
+ * (always-LOG) scale buffers — the same kind built by
+ * beagleAccumulateScaleFactors, NOT a plain individual destinationScaleWrite
+ * buffer (whose RAW/LOG format instead follows BEAGLE_FLAG_SCALERS_LOG/RAW).
+ * A node's own post-order buffer generally carries more scaling than just
+ * its own scale-write: it inherits every rescaled descendant's scale factor
+ * too (e.g. a node whose child was itself rescaled), so postScaleIndices[i]
+ * must be built the same way as preScaleIndices[i] — one
+ * beagleAccumulateScaleFactors call over every rescaled node at-or-below the
+ * relevant point in the tree — never passed as a single individual buffer
+ * index, and never built by chaining accumulate calls where one call's
+ * output buffer is fed back in as a later call's input (accumulate always
+ * re-applies log() to its inputs, so an already-cumulative input would be
+ * silently corrupted; use beagleCopyScaleFactors to reuse an existing
+ * cumulative buffer's value instead, never as an accumulate input).
+ *
+ * For branch i (0-indexed into the count-length arrays):
+ *   postScaleIndices[i]: cumulative scale buffer for THIS BRANCH'S OWN
+ *     post-order node — the sum of its own scale-write (if rescaled) and
+ *     every rescaled descendant's, or BEAGLE_OP_NONE if nothing under it
+ *     (including itself) was ever independently rescaled (e.g. a tip whose
+ *     whole subtree, i.e. itself, is unscaled).
+ *   preScaleIndices[i]: cumulative scale buffer for the rescaling already
+ *     baked into this branch's pre-order partial by the post-order scale
+ *     factors of every sibling subtree incorporated while constructing it —
+ *     pre-order partials are not independently rescaled themselves, but
+ *     inherit scaling from the (rescaled) post-order partials they are built
+ *     from. BEAGLE_OP_NONE if the pre-order partial carries no such scaling
+ *     (e.g. the root's own two children).
+ * cumulativeScaleIndex: the single cumulative scale buffer already used to
+ *   correct beagleCalculateRootLogLikelihoods for rootPostOrderIndex.
+ *   BEAGLE_OP_NONE if rootPostOrderIndex was never rescaled.
+ *
+ * See TODO.md ("Adjoint cross-product gradient ignores rescaling") for the
+ * derivation and a worked example.
+ */
+BEAGLE_DLLEXPORT int beagleCalculateAdjointCrossProductDerivative(int instance,
+                                                  const int *postBufferIndices,
+                                                  const int *preBufferIndices,
+                                                  const int *eigenIndices,
+                                                  const int *categoryRateIndices,
+                                                  const int *categoryWeightsIndices,
+                                                  const int rootPostOrderIndex,
+                                                  const int stateFrequenciesIndex,
+                                                  int count,
+                                                  double *outSumDerivatives,
+                                                  double *outSumSquaredDerivatives,
+#ifdef __cplusplus
+                                                  const int *postScaleIndices = 0,
+                                                  const int *preScaleIndices = 0,
+                                                  const int cumulativeScaleIndex = BEAGLE_OP_NONE);
+#else
+                                                  const int *postScaleIndices,
+                                                  const int *preScaleIndices,
+                                                  const int cumulativeScaleIndex);
+#endif
+
+BEAGLE_DLLEXPORT int beagleCalculateAdjointDerivative(
+        const int instance,
+        const BeagleBranchOperation *operations,
+        const int categoryRateIndex,
+        const int categoryWeightsIndex,
+        const int rootPostOrderIndex,
+        const int stateFrequenciesIndex,
+        const int operationCount,
+        double *outSumDerivatives,
+        double *outSumSquaredDerivatives);
+
 /**
  * @brief Calculate site log likelihoods and derivatives along an edge
  *
@@ -1461,6 +1786,27 @@ typedef struct {
     int accumulation2Partials2;
     int intervalNumber;
 } BastaOperation;                                    
+
+/**
+ * @brief A BASTA operation for the _v5 functions: BastaOperation plus a population-size offset
+ *
+ * populationSizeOffset (p) is an element offset into the current population-size buffer (see
+ * beagleSetBastaPopulationSizes): sizes[p + k] is deme k's population size at the operation's coalescent event, and
+ * integrals[p + k] is the integral of 1 / N_k(t) over the interval, with the interval length included. Every
+ * operation with the same intervalNumber must carry the same offset, with 0 <= p and p + stateCount <=
+ * requiredStorageSize.
+ */
+typedef struct {
+    int destinationPartials;    /**< index of destination, or parent, partials buffer  */
+    int child1Partials;         /**< index of first child partials buffer */
+    int child1TransitionMatrix; /**< index of transition matrix of first partials child buffer  */
+    int child2Partials;         /**< index of second child partials buffer */
+    int child2TransitionMatrix; /**< index of transition matrix of second partials child buffer */
+    int accumulation1Partials;
+    int accumulation2Partials2;
+    int intervalNumber;
+    int populationSizeOffset;   /**< offset of the operation's sizes and integrals in the population-size buffer */
+} BastaOperation_v5;
                                                                 
 BEAGLE_DLLEXPORT int beagleUpdateBastaPartials(const int instance,
                                                const BastaOperation* operations,
@@ -1496,15 +1842,204 @@ BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad(const int instance,
                                                    const double* intervalLengths,
                                                    const int populationSizesIndex,
                                                    int coalescentIndex,
+                                                   int eigenIndex,
+                                                   int partialAdjointBufferBase,
+                                                   int matrixAdjointBufferBase,
+                                                   double* popSizeGradOut,
                                                    double* out);
+
+BEAGLE_DLLEXPORT int beagleUploadBastaSlabMetadata(const int instance,
+                                                   const int* packed,
+                                                   int packedLen);
+
+BEAGLE_DLLEXPORT int beagleGetBastaSlabConstants(const int instance,
+                                                 int* opsPerBlock,
+                                                 int* indexOffsetPat);
+
+BEAGLE_DLLEXPORT int beagleAllocateBastaGradBuffers(const int instance,
+                                                    const int partialsCount);
 
 BEAGLE_DLLEXPORT int beagleAllocateBastaBuffers(const int instance,
                                                 const int bufferCount,
-                                                const int bufferLength);
+                                                const int bufferLength,
+                                                const int partialsCount,
+                                                const int initial,
+                                                const int numThreads);
 
 BEAGLE_DLLEXPORT int beagleGetBastaBuffer(const int instance,
                                           const int bufferIndex,
                                           double* out);
+
+
+BEAGLE_DLLEXPORT int beagleAccumulateEigenBasisGradient(const int instance,
+                                                         int eigenIndex,
+                                                         int matrixAdjointBufferBase,
+                                                         const double* branchLengths,
+                                                         const int matrixCount,
+                                                         const int hasComplexEigenvalues,
+                                                         double* outRateGradient);
+
+/*
+ * BASTA population-size buffers (from basta_development)
+ *
+ * Each instance has two population-size buffers, 0 and 1, and a current buffer, which is 0 when the instance is
+ * created. A buffer holds 2 * requiredStorageSize values (R = requiredStorageSize): the sizes, sizes[0..R-1],
+ * followed by the integrals, integrals[0..R-1]. The values are converted to the instance's precision when they are
+ * set. The 8-integer BASTA functions above never read these buffers: they take population sizes from
+ * beagleSetStateFrequencies(populationSizesIndex), as before.
+ */
+
+/**
+ * @brief Copy population sizes and integrals into the current population-size buffer
+ *
+ * Copies 2 * requiredStorageSize values into the current buffer, which stays current.
+ *
+ * @param instance                  Instance number (input)
+ * @param combinedSizesIntegrals    sizes[0..R-1] followed by integrals[0..R-1] (input)
+ * @param requiredStorageSize       R, greater than 0 (input)
+ *
+ * @return BEAGLE_SUCCESS, BEAGLE_ERROR_GENERAL if combinedSizesIntegrals is NULL, or BEAGLE_ERROR_OUT_OF_RANGE if
+ * requiredStorageSize is not positive
+ */
+BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizes(const int instance,
+                                                    const double* combinedSizesIntegrals,
+                                                    const int requiredStorageSize);
+
+/**
+ * @brief Copy population sizes and integrals into a population-size buffer and make it current
+ *
+ * Copies 2 * requiredStorageSize values into buffer bufferIndex (0 or 1) and makes that buffer current: the
+ * proposal step of an MCMC store and restore.
+ *
+ * @param instance                  Instance number (input)
+ * @param combinedSizesIntegrals    sizes[0..R-1] followed by integrals[0..R-1] (input)
+ * @param requiredStorageSize       R, greater than 0 (input)
+ * @param bufferIndex               0 or 1 (input)
+ *
+ * @return BEAGLE_SUCCESS, BEAGLE_ERROR_GENERAL if combinedSizesIntegrals is NULL, or BEAGLE_ERROR_OUT_OF_RANGE if
+ * bufferIndex is not 0 or 1 or requiredStorageSize is not positive
+ */
+BEAGLE_DLLEXPORT int beagleSetBastaPopulationSizesBuffer(const int instance,
+                                                          const double* combinedSizesIntegrals,
+                                                          const int requiredStorageSize,
+                                                          const int bufferIndex);
+
+/**
+ * @brief Make a population-size buffer current without copying anything
+ *
+ * The restore step of an MCMC store and restore. Calls that read population-size buffers use the buffer that is
+ * current when they are called.
+ *
+ * @param instance      Instance number (input)
+ * @param bufferIndex   0 or 1 (input)
+ *
+ * @return BEAGLE_SUCCESS, or BEAGLE_ERROR_OUT_OF_RANGE if bufferIndex is not 0 or 1
+ */
+BEAGLE_DLLEXPORT int beagleSetCurrentPopulationSizeBuffer(const int instance,
+                                                           const int bufferIndex);
+
+/*
+ * BASTA _v5 functions: 9-integer operations (BastaOperation_v5, BEAGLE_BASTA_OP_COUNT_V5) whose population sizes come
+ * from the current population-size buffer
+ *
+ * They do what the functions of the same name without _v5 do, with these differences:
+ * - At a coalescent event the partials are divided by sizes[p + k], where p is the operation's populationSizeOffset.
+ * - Interval j adds -sum_k (e^2 - f + g^2 - h)_k * integrals[p_j + k] / 4 + log(prob_j) to the log likelihood,
+ *   with p_j taken from the interval's first operation: the integrals already include the interval length.
+ * - populationSizesIndex is ignored, and so are intervalLengths, which may be NULL; accumulateBastaPartialsGrad_v5
+ *   also ignores eigenIndex, partialAdjointBufferBase and matrixAdjointBufferBase.
+ * - Every call is checked before anything changes. BEAGLE_ERROR_OUT_OF_RANGE: an operation with intervalNumber
+ *   outside [0, bufferLength of beagleAllocateBastaBuffers), a negative offset, an offset with p + stateCount >
+ *   requiredStorageSize of the current buffer, two operations with the same intervalNumber and different offsets,
+ *   intervalStarts that do not index the operations, or, on the CPU, a coalescentIndex outside [0, bufferCount of
+ *   beagleAllocateBastaBuffers). BEAGLE_ERROR_GENERAL: BASTA buffers not allocated, or no population sizes set in
+ *   the current buffer. BEAGLE_ERROR_NO_IMPLEMENTATION: an instance in adjoint mode (beagleAllocateBastaGradBuffers
+ *   with a negative count), on a GPU an instance after beagleUploadBastaSlabMetadata, and the cases below. A rejected
+ *   call changes nothing.
+ * - Supported: on the CPU, the forward pass, the log likelihood and the legacy (forward-mode) gradient with respect
+ *   to the rate matrix; on a GPU, the forward pass and the log likelihood, which rely on the operations of each
+ *   interval carrying distinct intervalNumbers below intervalCount, as the 8-integer GPU functions do. Gradients on
+ *   a GPU, the adjoint gradient and a population-size gradient (popSizeGradOut != NULL) return
+ *   BEAGLE_ERROR_NO_IMPLEMENTATION.
+ */
+
+/**
+ * @brief beagleUpdateBastaPartials with 9-integer operations
+ *
+ * Each coalescent operation divides by sizes[populationSizeOffset + k] of the current population-size buffer.
+ * populationSizeIndex is ignored; coalescentIndex selects the coalescent buffer on the CPU and is ignored on a GPU,
+ * as in beagleUpdateBastaPartials.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartials_v5(const int instance,
+                                                  const BastaOperation_v5* operations,
+                                                  int operationCount,
+                                                  const int* intervalStarts,
+                                                  int intervalCount,
+                                                  int populationSizeIndex,
+                                                  int coalescentIndex);
+
+/**
+ * @brief beagleUpdateBastaPartialsGrad (legacy gradient) with 9-integer operations
+ *
+ * CPU only: it needs beagleAllocateBastaGradBuffers with a positive count (else BEAGLE_ERROR_GENERAL), and returns
+ * BEAGLE_ERROR_NO_IMPLEMENTATION on a GPU and in adjoint mode. populationSizeIndex is ignored.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleUpdateBastaPartialsGrad_v5(const int instance,
+                                                      const BastaOperation_v5* operations,
+                                                      int operationCount,
+                                                      const int* intervalStarts,
+                                                      int intervalCount,
+                                                      int populationSizeIndex,
+                                                      int coalescentIndex);
+
+/**
+ * @brief beagleAccumulateBastaPartials with 9-integer operations
+ *
+ * out[0] = sum_j [ -sum_k (e^2 - f + g^2 - h)_k * integrals[p_j + k] / 4 + log(prob_j) ], with p_j the offset of
+ * interval j's first operation. intervalLengths (which may be NULL) and populationSizesIndex are ignored.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartials_v5(const int instance,
+                                                      const BastaOperation_v5* operations,
+                                                      int operationCount,
+                                                      const int* intervalStarts,
+                                                      int intervalCount,
+                                                      const double* intervalLengths,
+                                                      const int populationSizesIndex,
+                                                      int coalescentIndex,
+                                                      double* out);
+
+/**
+ * @brief beagleAccumulateBastaPartialsGrad with 9-integer operations
+ *
+ * The parameters of beagleAccumulateBastaPartialsGrad. Only its legacy path is implemented: on the CPU, after
+ * beagleUpdateBastaPartialsGrad_v5 and beagleAccumulateBastaPartials_v5 on the same operations, out receives the
+ * stateCount x stateCount gradient with respect to the rate matrix (out[a * stateCount + b]), with the integrals of
+ * the current population-size buffer. eigenIndex, partialAdjointBufferBase, matrixAdjointBufferBase, intervalLengths
+ * and populationSizesIndex are ignored. popSizeGradOut must be NULL (else BEAGLE_ERROR_NO_IMPLEMENTATION); it needs
+ * beagleAllocateBastaGradBuffers with a positive count (else BEAGLE_ERROR_GENERAL); BEAGLE_ERROR_NO_IMPLEMENTATION on
+ * a GPU and in adjoint mode.
+ *
+ * @return BEAGLE_SUCCESS or an error code (see above)
+ */
+BEAGLE_DLLEXPORT int beagleAccumulateBastaPartialsGrad_v5(const int instance,
+                                                          const BastaOperation_v5* operations,
+                                                          int operationCount,
+                                                          const int* intervalStarts,
+                                                          int intervalCount,
+                                                          const double* intervalLengths,
+                                                          const int populationSizesIndex,
+                                                          int coalescentIndex,
+                                                          int eigenIndex,
+                                                          int partialAdjointBufferBase,
+                                                          int matrixAdjointBufferBase,
+                                                          double* popSizeGradOut,
+                                                          double* out);
 
 // END OF BASTA
 

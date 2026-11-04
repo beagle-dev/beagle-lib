@@ -18,26 +18,30 @@ endif(APPLE)
 
 install(TARGETS hmsbeagle-jni
         DESTINATION ${BEAGLE_INSTALL_DIR}
+        COMPONENT jni
         )
 
-if(BUILD_BASTA)
-	add_library(hmsbeagle-jni-basta SHARED
+if(BUILD_BIT)
+	add_library(hmsbeagle-jni-bit SHARED
 		beagle_basta_BastaJNIWrapper.cpp
 		beagle_basta_BastaJNIWrapper.h
 		)
 		
-	target_link_libraries(hmsbeagle-jni-basta hmsbeagle)
+	target_link_libraries(hmsbeagle-jni-bit hmsbeagle)
 	
 	if(APPLE)
-    	set_target_properties(hmsbeagle-jni-basta PROPERTIES PREFIX "lib" SUFFIX ".jnilib")
+    	set_target_properties(hmsbeagle-jni-bit PROPERTIES PREFIX "lib" SUFFIX ".jnilib")
 	elseif(WIN32)
-    	set_target_properties(hmsbeagle-jni-basta PROPERTIES PREFIX "" SUFFIX "64.dll")
+    	# hmsbeagle-bit64.dll, the name BEAST's BastaJNIWrapper loads (as BEAGLE's jar loads hmsbeagle64.dll, the core
+    	# library, which on Windows also holds the JNI wrapper)
+    	set_target_properties(hmsbeagle-jni-bit PROPERTIES PREFIX "" OUTPUT_NAME "hmsbeagle-bit" SUFFIX "64.dll")
 	elseif(UNIX)
-    	set_target_properties(hmsbeagle-jni-basta PROPERTIES PREFIX "lib" SUFFIX ".so")
+    	set_target_properties(hmsbeagle-jni-bit PROPERTIES PREFIX "lib" SUFFIX ".so")
 	endif(APPLE)	
 	
-	install(TARGETS hmsbeagle-jni-basta
+	install(TARGETS hmsbeagle-jni-bit
     	    DESTINATION ${BEAGLE_INSTALL_DIR}
+    	    COMPONENT jni_basta
         	)
 	
-endif(BUILD_BASTA)
+endif(BUILD_BIT)

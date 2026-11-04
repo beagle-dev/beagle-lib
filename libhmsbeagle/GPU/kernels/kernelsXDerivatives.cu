@@ -1,3 +1,4 @@
+#ifndef CUDA_TENSOR_CORES // kernelsXDerivativesTensorCore.cu has the tensor-core versions of the next four kernels
 KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTRICT partials1,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials2,
                                                     KW_GLOBAL_VAR REAL* KW_RESTRICT partials3,
@@ -32,6 +33,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     }
 
     REAL sum2 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -55,6 +57,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsGrowing(KW_GLOBAL_VAR REAL* KW_RESTR
     KW_LOCAL_FENCE; // TODO Remove?
 
     REAL sum1 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -121,6 +124,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
     KW_LOCAL_FENCE; // TODO Remove?
 
     REAL sum1 = 0;
+    KW_NO_UNROLL
     for (int i = 0; i < PADDED_STATE_COUNT; i += BLOCK_PEELING_SIZE) {
         /* load one row of matrices */
         if (patIdx < BLOCK_PEELING_SIZE) {
@@ -211,6 +215,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
+        KW_NO_UNROLL
         for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
             if (patIdx < NEW_BLOCK_PEELING_SIZE) {
@@ -348,6 +353,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
         FMA(lPartial1, lPartial2 * sWeights[c], denominator);
 
         REAL sum2 = 0;
+        KW_NO_UNROLL
         for (int i = 0; i < PADDED_STATE_COUNT; i += NEW_BLOCK_PEELING_SIZE) {
             /* load one row of matrices */
             if (patIdx < NEW_BLOCK_PEELING_SIZE) {
@@ -407,6 +413,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
 
 #endif
 }
+#endif // CUDA_TENSOR_CORES
 
 KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
                                                         const KW_GLOBAL_VAR int*  KW_RESTRICT states0,
@@ -515,9 +522,9 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesCrossProducts(KW_GLOBAL_VAR REAL* KW_R
 
                 patternDenominator += innerProduct[0] * weight;
                 numerator += pre[i] * post[j] * weight * scale;
-            }
 
-//            KW_LOCAL_FENCE; // TODO necessary?
+                KW_LOCAL_FENCE; // every thread has read pre, post and innerProduct[0] before they are overwritten
+            }
 
             if (patternDenominator > (REAL) 0.0) {
                 acrossPatterns += numerator * inPatternWeights[pattern] / patternDenominator;
@@ -635,6 +642,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsCrossProducts(KW_GLOBAL_VAR REAL* KW
 
                 patternDenominator += innerProduct[0] * weight;
                 numerator += post[i] * pre[j] * weight * scale;
+
+                KW_LOCAL_FENCE; // every thread has read pre, post and innerProduct[0] before they are overwritten
             }
 
             if (patternDenominator > (REAL) 0.0) {

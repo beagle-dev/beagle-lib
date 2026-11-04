@@ -48,6 +48,14 @@
             BLOCK_PEELING_SIZE_##prec##_##state##impl2, \
             SLOW_REWEIGHING_##prec##_##state, \
             MULTIPLY_BLOCK_SIZE_##prec##impl3, \
+            BASTA_SUM_INTERVAL_BLOCK_SIZE_##prec##_##state, \
+            BASTA_SUM_ACROSS_BLOCK_SIZE_##prec##_##state, \
+			BLOCK_PEELING_SIZE_SCA_##prec##_##state, \
+            BASTA_SLAB_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HAZARD_MAX_INTERVALS_PER_BLOCK_##prec##_##state, \
+            BASTA_PROJECT_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_HEIG_OPS_PER_BLOCK_##prec##_##state, \
+            BASTA_COAL_EVENTS_PER_BLOCK_##prec##_##state, \
             0,0,0,0);
 
 namespace opencl_device {
@@ -63,8 +71,16 @@ GPUInterface::GPUInterface() {
     openClContext = NULL;
     openClCommandQueues = NULL;
     openClProgram = NULL;
+    openClGenericVendor = false;
+    openClBaseAlign = 1;
 
     supportDoublePrecision = true;
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    debugBytes = 0;
+    debugPeakBytes = 0;
+    debugErrors = 0;
+#endif
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::GPUInterface\n");
@@ -76,7 +92,12 @@ GPUInterface::~GPUInterface() {
     fprintf(stderr,"\t\t\tEntering GPUInterface::~GPUInterface\n");
 #endif
 
-    // TODO: cleanup mem objects, kernels
+    // TODO: cleanup kernels
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    if (debugPeakBytes > 0 || debugErrors > 0)
+        ReportMemory("finalize");
+#endif
 
     if (openClProgram != NULL)
         SAFE_CL(clReleaseProgram(openClProgram));
@@ -97,21 +118,41 @@ GPUInterface::~GPUInterface() {
 }
 
 int GPUInterface::Initialize() {
+    const OpenCLDiscoveryApi discoveryApi = {clGetPlatformIDs, clGetDeviceIDs};
+    return Initialize(discoveryApi);
+}
+
+int GPUInterface::Initialize(const OpenCLDiscoveryApi& discoveryApi) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::Initialize\n");
 #endif
 
     cl_uint numPlatforms = 0;
-    SAFE_CL(clGetPlatformIDs(0, NULL, &numPlatforms));
+    cl_int status = discoveryApi.getPlatformIds(0, NULL, &numPlatforms);
+    if (status != CL_SUCCESS || numPlatforms == 0)
+        return 0;
+
     cl_platform_id* platforms = new cl_platform_id[numPlatforms];
-    SAFE_CL(clGetPlatformIDs(numPlatforms, platforms, NULL));
+    status = discoveryApi.getPlatformIds(numPlatforms, platforms, NULL);
+    if (status != CL_SUCCESS) {
+        delete[] platforms;
+        return 0;
+    }
 
     int deviceAdded = 0;
     for (int i=0; i<numPlatforms; i++) {
         cl_uint numDevices = 0;
-        SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices));
+        status = discoveryApi.getDeviceIds(platforms[i], CL_DEVICE_TYPE_ALL, 0, NULL,
+                                           &numDevices);
+        if (status != CL_SUCCESS || numDevices == 0)
+            continue;
         cl_device_id* deviceIds = new cl_device_id[numDevices];
-        SAFE_CL(clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, deviceIds, NULL));
+        status = discoveryApi.getDeviceIds(platforms[i], CL_DEVICE_TYPE_ALL, numDevices,
+                                           deviceIds, NULL);
+        if (status != CL_SUCCESS) {
+            delete[] deviceIds;
+            continue;
+        }
         for (int j=0; j<numDevices; j++) {
             openClDeviceId = deviceIds[j];
             BeagleDeviceImplementationCodes deviceCode = GetDeviceImplementationCode(-1);
@@ -305,7 +346,7 @@ void GPUInterface::SetDevice(int deviceNumber,
                              int paddedPatternCount,
                              int unpaddedPatternCount,
                              int tipCount,
-                             long flags) {
+                             long long flags) {
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tEntering GPUInterface::SetDevice\n");
@@ -316,6 +357,39 @@ void GPUInterface::SetDevice(int deviceNumber,
 #endif
 
     openClDeviceId = openClDeviceMap[deviceNumber];
+
+    // The sub-buffer and alignment policy of the platform, queried once for CreateSubPointer and AlignMemOffset
+    const size_t param_size = 256;
+    char param_value[param_size];
+    cl_platform_id platform;
+    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
+    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
+    // TODO REVERT after discussion with DA
+    openClGenericVendor = (strcmp(param_value, "NVIDIA Corporation") != 0 && strcmp(param_value, "Apple") != 0); //TODO: use the right platform + device check
+    if (openClGenericVendor) {
+        cl_uint baseAlign;
+        SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &baseAlign, NULL));
+        openClBaseAlign = baseAlign / 8; // convert bits to bytes;
+    }
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    // Test hook: give this device the policy of other vendors (a new cl_mem for every sub-buffer, offset 0 included)
+    // with offsets aligned to a multiple of BEAGLE_DEBUG_OPENCL_ALIGN bytes and of the device's base alignment
+    const char* forcedAlign = getenv("BEAGLE_DEBUG_OPENCL_ALIGN");
+    if (forcedAlign != NULL && atol(forcedAlign) > 0) {
+        cl_uint baseAlign;
+        SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &baseAlign, NULL));
+        size_t deviceAlign = baseAlign / 8;
+        size_t requested = (size_t) atol(forcedAlign);
+        openClGenericVendor = true;
+        openClBaseAlign = ((requested + deviceAlign - 1) / deviceAlign) * deviceAlign;
+        fprintf(stderr, "BEAGLE_DEBUG_OPENCL_ALIGN: every sub-buffer is a cl_mem, offsets aligned to %lu bytes\n",
+                (unsigned long) openClBaseAlign);
+    } else if (openClGenericVendor) { // the alignment AlignMemOffset uses, for tests that size the pools
+        fprintf(stderr, "OpenCL (BEAGLE_DEBUG_MEMORY): offsets aligned to %lu bytes, the device's base alignment\n",
+                (unsigned long) openClBaseAlign);
+    }
+#endif
 
     int err;
 
@@ -345,6 +419,9 @@ void GPUInterface::SetDevice(int deviceNumber,
     kernelResource->patternCount = paddedPatternCount;
     kernelResource->unpaddedPatternCount = unpaddedPatternCount;
     kernelResource->flags = flags;
+#ifdef BEAGLE_SPECTRAL_KERNELS
+    kernelResource->flags |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+#endif
 
 #if defined(FW_OPENCL_BINARY) || defined(FW_OPENCL_PROFILING)
     //=========================================================================================================
@@ -420,6 +497,8 @@ void GPUInterface::SetDevice(int deviceNumber,
         strcat(buildDefs, "-D FW_OPENCL_AMDGPU -D FW_OPENCL_APPLEAMDGPU");
     }  else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_INTEL_GPU) {
         strcat(buildDefs, "-D FW_OPENCL_INTELGPU -D FW_OPENCL_APPLEINTELGPU");
+    } else if (deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU) {
+        strcat(buildDefs, "-D FW_OPENCL_AMDGPU");
     }
 
     err = clBuildProgram(openClProgram, 0, NULL, buildDefs, NULL, NULL);
@@ -539,15 +618,31 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif
 
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
+    char kernelNameBuf[256] = {0};
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
+        fprintf(stderr, "[LaunchKernel] %s: parameterCountV=%d totalParameterCount=%d\n",
+                kernelNameBuf, parameterCountV, totalParameterCount);
+    }
+
     va_list parameters;
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        if (debugArgs) {
+            fprintf(stderr, "[LaunchKernel] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
+            fflush(stderr);
+        }
 
         SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(param), &param));
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
+        if (debugArgs) {
+            fprintf(stderr, "[LaunchKernel] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
+            fflush(stderr);
+        }
 
         SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(unsigned int), &param));
     }
@@ -564,6 +659,14 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernel] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
+                kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
+                localWorkSize[0], localWorkSize[1], localWorkSize[2],
+                globalWorkSize[0], globalWorkSize[1], globalWorkSize[2]);
+        fflush(stderr);
+    }
+
 #ifdef BEAGLE_DEBUG_VALUES
     for (int i=0; i<3; i++) {
         printf("localWorkSize[%d]  = %lu\n", i, localWorkSize[i]);
@@ -574,6 +677,23 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     printf("local = %lu\n\n", local);
 #endif
 
+    if (debugArgs) {
+        size_t maxLocal = 0;
+        clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_WORK_GROUP_SIZE,
+                                  sizeof(maxLocal), &maxLocal, NULL);
+        size_t prefMultiple = 0;
+        clGetKernelWorkGroupInfo(deviceFunction, openClDeviceId, CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+                                  sizeof(prefMultiple), &prefMultiple, NULL);
+        fprintf(stderr, "[LaunchKernel] %s: CL_KERNEL_WORK_GROUP_SIZE=%zu preferredMultiple=%zu (requested local=%zu)\n",
+                kernelNameBuf, maxLocal, prefMultiple, localWorkSize[0]);
+        fflush(stderr);
+    }
+
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernel] %s: about to enqueue\n", kernelNameBuf);
+        fflush(stderr);
+    }
+
     if (globalWorkSize[1] == 1 && globalWorkSize[2] == 1) {
         SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 1, NULL,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
@@ -583,6 +703,14 @@ void GPUInterface::LaunchKernel(GPUFunction deviceFunction,
     } else {
         SAFE_CL(clEnqueueNDRangeKernel(openClCommandQueues[0], deviceFunction, 3, NULL,
                                        globalWorkSize, localWorkSize, 0, NULL, NULL));
+    }
+
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernel] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
+        fflush(stderr);
+        clFinish(openClCommandQueues[0]);
+        fprintf(stderr, "[LaunchKernel] %s: clFinish returned OK\n", kernelNameBuf);
+        fflush(stderr);
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -602,15 +730,31 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     fprintf(stderr,"\t\t\tEntering GPUInterface::LaunchKernel\n");
 #endif
 
+    const bool debugArgs = (getenv("BEAGLE_DEBUG_KERNEL_ARGS") != NULL);
+    char kernelNameBuf[256] = {0};
+    if (debugArgs) {
+        clGetKernelInfo(deviceFunction, CL_KERNEL_FUNCTION_NAME, sizeof(kernelNameBuf), kernelNameBuf, NULL);
+        fprintf(stderr, "[LaunchKernelConcurrent] %s: parameterCountV=%d totalParameterCount=%d streamIndex=%d waitIndex=%d\n",
+                kernelNameBuf, parameterCountV, totalParameterCount, streamIndex, waitIndex);
+    }
+
     va_list parameters;
     va_start(parameters, totalParameterCount);
     for(int i = 0; i < parameterCountV; i++) {
         void* param = (void*)(size_t)va_arg(parameters, GPUPtr);
+        if (debugArgs) {
+            fprintf(stderr, "[LaunchKernelConcurrent] %s: ptr arg[%d] = %p\n", kernelNameBuf, i, param);
+            fflush(stderr);
+        }
 
         SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(param), &param));
     }
     for(int i = parameterCountV; i < totalParameterCount; i++) {
         unsigned int param = va_arg(parameters, unsigned int);
+        if (debugArgs) {
+            fprintf(stderr, "[LaunchKernelConcurrent] %s: int arg[%d] = %u (signed: %d)\n", kernelNameBuf, i, param, (int)param);
+            fflush(stderr);
+        }
 
         SAFE_CL(clSetKernelArg(deviceFunction, i, sizeof(unsigned int), &param));
     }
@@ -627,6 +771,14 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
     globalWorkSize[1] = block.y * grid.y;
     globalWorkSize[2] = block.z * grid.z;
 
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernelConcurrent] %s: block=(%d,%d,%d) grid=(%d,%d,%d) local=(%zu,%zu,%zu) global=(%zu,%zu,%zu)\n",
+                kernelNameBuf, block.x, block.y, block.z, grid.x, grid.y, grid.z,
+                localWorkSize[0], localWorkSize[1], localWorkSize[2],
+                globalWorkSize[0], globalWorkSize[1], globalWorkSize[2]);
+        fflush(stderr);
+    }
+
 #ifdef BEAGLE_DEBUG_VALUES
     for (int i=0; i<3; i++) {
         printf("localWorkSize[%d]  = %lu\n", i, localWorkSize[i]);
@@ -642,6 +794,11 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
         dims = 1;
     } else if (globalWorkSize[2] == 1) {
         dims = 2;
+    }
+
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernelConcurrent] %s: about to enqueue (dims=%d)\n", kernelNameBuf, dims);
+        fflush(stderr);
     }
 
     // if (streamIndex != -1) {
@@ -683,10 +840,25 @@ void GPUInterface::LaunchKernelConcurrent(GPUFunction deviceFunction,
                                        globalWorkSize, localWorkSize,
                                        0, NULL, NULL));
     // }
+    if (debugArgs) {
+        fprintf(stderr, "[LaunchKernelConcurrent] %s: enqueued OK, calling clFinish\n", kernelNameBuf);
+        fflush(stderr);
+        clFinish(openClCommandQueues[0]);
+        fprintf(stderr, "[LaunchKernelConcurrent] %s: clFinish returned OK\n", kernelNameBuf);
+        fflush(stderr);
+    }
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::LaunchKernel\n");
 #endif
 }
+
+// CUDA Graphs API: stubs (OpenCL has no equivalent abstraction).
+bool GPUInterface::SupportsGraphCapture() { return false; }
+bool GPUInterface::BeginGraphCapture()    { return false; }
+void* GPUInterface::EndGraphCapture()     { return NULL;  }
+bool GPUInterface::LaunchGraph(void*)     { return false; }
+void GPUInterface::SynchronizeGraph()     { }
+void GPUInterface::DestroyGraph(void*)    { }
 
 void* GPUInterface::MallocHost(size_t memSize) {
 #ifdef BEAGLE_DEBUG_FLOW
@@ -745,6 +917,10 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t memSize, bool writeCombined,
     void* deviceBuffer = (void*) clCreateBuffer(openClContext, flags, memSize, NULL, &err);
     SAFE_CL(err);
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer((GPUPtr) deviceBuffer, memSize);
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
    fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocatePinnedHostMemory\n");
 #endif
@@ -784,8 +960,39 @@ GPUPtr GPUInterface::AllocateMemory(size_t memSize) {
     data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, memSize, NULL, &err);
     SAFE_CL(err);
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(data, memSize);
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateMemory\n");
+#endif
+
+    return data;
+}
+
+GPUPtr GPUInterface::TryAllocateMemory(size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr,"\t\t\tEntering GPUInterface::TryAllocateMemory\n");
+#endif
+
+    GPUPtr data;
+
+    int err;
+    data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, memSize, NULL, &err);
+    if (err == CL_MEM_OBJECT_ALLOCATION_FAILURE || err == CL_OUT_OF_RESOURCES ||
+        err == CL_INVALID_BUFFER_SIZE || err == CL_OUT_OF_HOST_MEMORY) { // also a size above CL_DEVICE_MAX_MEM_ALLOC_SIZE
+        data = (GPUPtr) NULL;
+    } else {
+        SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_MEMORY
+        DebugAddBuffer(data, memSize);
+#endif
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::TryAllocateMemory\n");
 #endif
 
     return data;
@@ -802,6 +1009,10 @@ GPUPtr GPUInterface::AllocateRealMemory(size_t length) {
     data = clCreateBuffer(openClContext, CL_MEM_READ_WRITE, SIZE_REAL * length, NULL,
                           &err);
     SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(data, SIZE_REAL * length);
+#endif
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateRealMemory\n");
@@ -822,6 +1033,10 @@ GPUPtr GPUInterface::AllocateIntMemory(size_t length) {
                           &err);
     SAFE_CL(err);
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugAddBuffer(data, SIZE_INT * length);
+#endif
+
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::AllocateIntMemory\n");
 #endif
@@ -841,14 +1056,8 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
 #else
     GPUPtr subPtr;
 
-    const size_t param_size = 256;
-    char param_value[param_size];
-    cl_platform_id platform;
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
-
-    // TODO REVERT after discussion with DA
-    if ((strcmp(param_value, "NVIDIA Corporation") != 0 && strcmp(param_value, "Apple") != 0) || offset != 0) { //TODO: use the right platform + device check
+    // NVIDIA and Apple: offset 0 is the parent itself (openClGenericVendor, cached by SetDevice)
+    if (openClGenericVendor || offset != 0) {
         cl_buffer_region dPtrRegion;
         dPtrRegion.origin = offset;
         dPtrRegion.size = size;
@@ -856,6 +1065,10 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
         int err;
         subPtr = clCreateSubBuffer(dPtr, 0, CL_BUFFER_CREATE_TYPE_REGION, &dPtrRegion, &err);
         SAFE_CL(err);
+
+#ifdef BEAGLE_DEBUG_MEMORY
+        debugSubBuffers[subPtr]++;
+#endif
     } else {
         subPtr = dPtr;
     }
@@ -868,6 +1081,29 @@ GPUPtr GPUInterface::CreateSubPointer(GPUPtr dPtr,
     return subPtr;
 }
 
+void GPUInterface::ReleaseSubPointer(GPUPtr subPtr,
+                                     GPUPtr dPtr) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::ReleaseSubPointer\n");
+#endif
+
+    if (subPtr != dPtr) {
+#ifdef BEAGLE_DEBUG_MEMORY
+        std::map<GPUPtr, int>::iterator it = debugSubBuffers.find(subPtr);
+        if (it == debugSubBuffers.end()) {
+            debugErrors++;
+        } else if (--(it->second) == 0) {
+            debugSubBuffers.erase(it);
+        }
+#endif
+        SAFE_CL(clReleaseMemObject(subPtr));
+    }
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::ReleaseSubPointer\n");
+#endif
+}
+
 size_t GPUInterface::AlignMemOffset(size_t offset) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::AlignMemOffset\n");
@@ -875,18 +1111,8 @@ size_t GPUInterface::AlignMemOffset(size_t offset) {
 
     size_t alignedOffset = offset;
 
-    const size_t param_size = 256;
-    char param_value[param_size];
-    cl_platform_id platform;
-    SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, NULL));
-    SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, param_size, param_value, NULL));
-
-    // TODO REVERT after discussion with DA
-    if ((strcmp(param_value, "NVIDIA Corporation") != 0 && strcmp(param_value, "Apple") != 0)) { //TODO: use the right platform + device check
-        cl_uint baseAlign;
-        SAFE_CL(clGetDeviceInfo(openClDeviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &baseAlign, NULL));
-        baseAlign /= 8; // convert bits to bytes;
-        alignedOffset = ceil((float)offset/baseAlign) * baseAlign;
+    if (openClGenericVendor) { // cached by SetDevice
+        alignedOffset = ((offset + openClBaseAlign - 1) / openClBaseAlign) * openClBaseAlign;
     }
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -912,6 +1138,36 @@ void GPUInterface::MemsetShort(GPUPtr dest,
 
 }
 
+void GPUInterface::MemsetZero(GPUPtr dest,
+                              size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemsetZero\n");
+#endif
+
+    /* Deliberately not clEnqueueFillBuffer: on this OpenCL implementation
+     * (observed on Apple M1 Max), a kernel launched afterward on the same
+     * in-order queue intermittently read stale/garbage data from a
+     * clEnqueueFillBuffer-zeroed region — completion wasn't reliably
+     * ordered before the next command despite the in-order queue, even
+     * with an explicit clFinish() inserted right after the fill (residual
+     * ~1/30 failure rate on adjointtest4 with clFinish, 0/45 with the
+     * blocking write below). Falls back to the same blocking
+     * clEnqueueWriteBuffer path MemcpyHostToDevice already uses elsewhere
+     * in this file, which has no such issue.  */
+    void* hZero = calloc(1, memSize);
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_TRUE, 0, memSize, hZero, 0,
+                                 NULL, NULL));
+    free(hZero);
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemsetZero\n");
+#endif
+}
+
+void GPUInterface::MemsetZeroAsync(GPUPtr dest,
+                                   size_t byteCount) {
+    MemsetZero(dest, byteCount);
+}
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
                                       const void* src,
@@ -925,6 +1181,21 @@ void GPUInterface::MemcpyHostToDevice(GPUPtr dest,
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDevice\n");
+#endif
+}
+
+void GPUInterface::MemcpyHostToDeviceNoWait(GPUPtr dest,
+                                            const void* src,
+                                            size_t memSize) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tEntering GPUInterface::MemcpyHostToDeviceNoWait\n");
+#endif
+
+    SAFE_CL(clEnqueueWriteBuffer(openClCommandQueues[0], dest, CL_FALSE, 0, memSize, src, 0,
+                                 NULL, NULL));
+
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\t\tLeaving  GPUInterface::MemcpyHostToDeviceNoWait\n");
 #endif
 }
 
@@ -983,6 +1254,10 @@ void GPUInterface::FreePinnedHostMemory(void* hPtr) {
    fprintf(stderr, "\t\t\tEntering GPUInterface::FreePinnedHostMemory\n");
 #endif
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugRemoveBuffer((GPUPtr) hPtr);
+#endif
+
     SAFE_CL(clReleaseMemObject((GPUPtr) hPtr));
 
 #ifdef BEAGLE_DEBUG_FLOW
@@ -995,12 +1270,46 @@ void GPUInterface::FreeMemory(GPUPtr dPtr) {
     fprintf(stderr, "\t\t\tEntering GPUInterface::FreeMemory\n");
 #endif
 
+#ifdef BEAGLE_DEBUG_MEMORY
+    DebugRemoveBuffer(dPtr);
+#endif
+
     SAFE_CL(clReleaseMemObject(dPtr));
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr,"\t\t\tLeaving  GPUInterface::FreeMemory\n");
 #endif
 }
+
+void GPUInterface::ReportMemory(const char* event) {
+#ifdef BEAGLE_DEBUG_MEMORY
+    int subBuffers = 0;
+    for (std::map<GPUPtr, int>::iterator it = debugSubBuffers.begin(); it != debugSubBuffers.end(); ++it)
+        subBuffers += it->second;
+    fprintf(stderr, "BEAGLE_DEBUG_MEMORY %s: %d buffers, %d sub-buffers, %lu bytes (peak %lu), %d errors\n",
+            event, (int) debugBuffers.size(), subBuffers, (unsigned long) debugBytes,
+            (unsigned long) debugPeakBytes, debugErrors);
+#endif
+}
+
+#ifdef BEAGLE_DEBUG_MEMORY
+void GPUInterface::DebugAddBuffer(GPUPtr dPtr, size_t memSize) {
+    debugBuffers[dPtr] = memSize;
+    debugBytes += memSize;
+    if (debugBytes > debugPeakBytes)
+        debugPeakBytes = debugBytes;
+}
+
+void GPUInterface::DebugRemoveBuffer(GPUPtr dPtr) {
+    std::map<GPUPtr, size_t>::iterator it = debugBuffers.find(dPtr);
+    if (it == debugBuffers.end()) {
+        debugErrors++; // not a live allocation: a sub-buffer, or a second release
+    } else {
+        debugBytes -= it->second;
+        debugBuffers.erase(it);
+    }
+}
+#endif
 
 GPUPtr GPUInterface::GetDeviceHostPointer(void* hPtr) {
     assert(0); // TODO: write function
@@ -1051,6 +1360,9 @@ void GPUInterface::GetDeviceName(int deviceNumber,
     char param_value[param_size];
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_VERSION, param_size, param_value, NULL));
 
+    size_t vlen = strlen(param_value);
+    while (vlen > 0 && param_value[vlen - 1] == ' ') param_value[--vlen] = '\0';
+
     strcat(deviceName, " (");
     strcat(deviceName, param_value);
     strcat(deviceName, ")");
@@ -1065,6 +1377,9 @@ bool GPUInterface::GetSupportsDoublePrecision(int deviceNumber) {
     cl_uint supportsDouble = 0;
 
     SAFE_CL(clGetDeviceInfo(openClDeviceMap[deviceNumber], CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, sizeof(cl_uint), &supportsDouble, NULL));
+
+    if (supportsDouble && GetDeviceImplementationCode(deviceNumber) == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU)
+        return false;
 
     return supportsDouble;
 }
@@ -1108,7 +1423,7 @@ void GPUInterface::PrintfDeviceInt(GPUPtr dPtr,
     free(hPtr);
 }
 
-long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
+long long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\t\tEntering GPUInterface::GetDeviceTypeFlag\n");
 #endif
@@ -1124,7 +1439,7 @@ long GPUInterface::GetDeviceTypeFlag(int deviceNumber) {
     SAFE_CL(clGetDeviceInfo(deviceId, CL_DEVICE_TYPE,
                             sizeof(cl_device_type), &deviceType, NULL));
 
-    long deviceTypeFlag;
+    long long deviceTypeFlag;
     if (deviceType == CL_DEVICE_TYPE_GPU)
         deviceTypeFlag = BEAGLE_FLAG_PROCESSOR_GPU;
     else if (deviceType == CL_DEVICE_TYPE_CPU)
@@ -1162,7 +1477,7 @@ BeagleDeviceImplementationCodes GPUInterface::GetDeviceImplementationCode(int de
                             sizeof(cl_platform_id), &platform, NULL));
     SAFE_CL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, param_size, platform_string, NULL));
 
-    long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
+    long long deviceTypeFlag = GetDeviceTypeFlag(deviceNumber);
 
     if (!strncmp("Intel", platform_string, strlen("Intel"))) {
         if (deviceTypeFlag == BEAGLE_FLAG_PROCESSOR_CPU)
@@ -1323,4 +1638,3 @@ void GPUInterface::ReleaseDevice(int deviceNumber) {
 
 
 }; // namespace
-

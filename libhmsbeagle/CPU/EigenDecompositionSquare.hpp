@@ -6,7 +6,8 @@
  */
 #ifndef _EigenDecompositionSquare_hpp_
 #define _EigenDecompositionSquare_hpp_
-#include "EigenDecompositionSquare.h"
+
+#include "libhmsbeagle/CPU/EigenDecompositionSquare.h"
 #include "libhmsbeagle/beagle.h"
 
 //#if defined (BEAGLE_IMPL_DEBUGGING_OUTPUT) && BEAGLE_IMPL_DEBUGGING_OUTPUT
@@ -24,8 +25,9 @@ BEAGLE_CPU_EIGEN_TEMPLATE
 EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int decompositionCount,
 											       int stateCount,
 											       int categoryCount,
-											       long flags)
-	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags) {
+											       long long flags)
+	: EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>(decompositionCount,stateCount,categoryCount, flags),
+	  gAdjointStale(decompositionCount, false) {
 
 	isComplex = kFlags & BEAGLE_FLAG_EIGEN_COMPLEX;
 
@@ -46,6 +48,10 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
        if (gIMatrices == NULL)
        	throw std::bad_alloc();
 
+    gRawIMatrices = (REALTYPE**) malloc(sizeof(REALTYPE*) * kEigenDecompCount);
+    if (gRawIMatrices == NULL)
+        throw std::bad_alloc();
+
     for (int i = 0; i < kEigenDecompCount; i++) {
     	gEMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
     	if (gEMatrices[i] == NULL)
@@ -53,6 +59,10 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::EigenDecompositionSquare(int
 
     	gIMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
     	if (gIMatrices[i] == NULL)
+    		throw std::bad_alloc();
+
+    	gRawIMatrices[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kStateCount * kStateCount);
+    	if (gRawIMatrices[i] == NULL)
     		throw std::bad_alloc();
 
     	gEigenValues[i] = (REALTYPE*) malloc(sizeof(REALTYPE) * kEigenValuesSize);
@@ -69,14 +79,16 @@ EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::~EigenDecompositionSquare() 
 	for(int i=0; i<kEigenDecompCount; i++) {
 		free(gEMatrices[i]);
 		free(gIMatrices[i]);
+		free(gRawIMatrices[i]);
 		free(gEigenValues[i]);
 	}
 	free(gEMatrices);
 	free(gIMatrices);
+	free(gRawIMatrices);
 	free(gEigenValues);
 	free(matrixTmp);
 }
-    
+
 /**
  * @brief Transposes a square matrix in place
  */
@@ -97,13 +109,50 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::setEigenDecomposition(i
 										             const double* inEigenVectors,
                                                      const double* inInverseEigenVectors,
                                                      const double* inEigenValues) {
-    
+
 	beagleMemCpy(gEigenValues[eigenIndex],inEigenValues,kEigenValuesSize);
 	const int len = kStateCount * kStateCount;
 	beagleMemCpy(gEMatrices[eigenIndex],inEigenVectors,len);
 	beagleMemCpy(gIMatrices[eigenIndex],inInverseEigenVectors,len);
+
+	beagleMemCpy(gRawIMatrices[eigenIndex],inInverseEigenVectors,len);
     if (kFlags & BEAGLE_FLAG_INVEVEC_TRANSPOSED) // TODO: optimize, might not need to transpose here
         transposeSquareMatrix(gIMatrices[eigenIndex], kStateCount);
+
+    gAdjointStale[eigenIndex] = true; // the adjoint gradient's matrices are built on first use (prepareAdjoint)
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::prepareAdjoint(int eigenIndex) {
+    if (!gAdjointStale[eigenIndex]) {
+        return;
+    }
+    if (!gAdjointStorage) {
+        gAdjointStorage.reset(new EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>(
+                kEigenDecompCount, kStateCount, kCategoryCount, standardInverseFlags(kFlags)));
+    }
+    // gIMatrices is in the standard layout already
+    const int size = kStateCount * kStateCount;
+    const std::vector<double> vectors(gEMatrices[eigenIndex], gEMatrices[eigenIndex] + size);
+    const std::vector<double> inverse(gIMatrices[eigenIndex], gIMatrices[eigenIndex] + size);
+    const std::vector<double> values(gEigenValues[eigenIndex], gEigenValues[eigenIndex] + kEigenValuesSize);
+    gAdjointStorage->setEigenDecomposition(eigenIndex, vectors.data(), inverse.data(), values.data());
+    gAdjointStale[eigenIndex] = false;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+int EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getRawEigenDecomposition(
+        int eigenIndex,
+        const REALTYPE** outEigenVectors,
+        const REALTYPE** outInverseEigenVectors,
+        const REALTYPE** outEigenValues) {
+    if (eigenIndex < 0 || eigenIndex >= kEigenDecompCount) {
+        return BEAGLE_ERROR_OUT_OF_RANGE;
+    }
+    if (outEigenVectors != NULL) *outEigenVectors = gEMatrices[eigenIndex];
+    if (outInverseEigenVectors != NULL) *outInverseEigenVectors = gRawIMatrices[eigenIndex];
+    if (outEigenValues != NULL) *outEigenValues = gEigenValues[eigenIndex];
+    return BEAGLE_SUCCESS;
 }
 
 BEAGLE_CPU_EIGEN_TEMPLATE
@@ -125,7 +174,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
         const double edgeLength = edgeLengths[u];
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
-			const REALTYPE distance = categoryRates[l] * edgeLength;
+			const REALTYPE distance = static_cast<REALTYPE>(categoryRates[l] * edgeLength);
         	for(int i=0; i<kStateCount; i++) {
         		if (!isComplex || EvalImag[i] == 0) {
         			const REALTYPE tmp = exp(Eval[i] * distance);
@@ -169,10 +218,10 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
                         transitionMat[n] = 0;
                     n++;
                 }
-if (T_PAD != 0) {
-                transitionMat[n] = 1.0;
-                n += T_PAD;
-}
+                if (T_PAD != 0) {
+                    transitionMat[n] = 1.0;
+                    n += T_PAD;
+                }
             }
         }
 
@@ -181,6 +230,121 @@ if (T_PAD != 0) {
             fprintf(stderr,"transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLengths[u]);
             for ( int w = 0; w < (20 > kMatrixSize ? 20 : kMatrixSize); ++w)
                 fprintf(stderr,"transitionMat[%d] = %.5f\n", w, transitionMat[w]);
+        }
+    }
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenValuesPtr(int eigenIndex) const {
+    return gEigenValues[eigenIndex];
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getEigenVectorsPtr(int eigenIndex) const {
+    return gAdjointStorage ? gAdjointStorage->getEigenVectorsPtr(eigenIndex) : nullptr;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getInverseEigenVectorsPtr(int eigenIndex) const {
+    return gAdjointStorage ? gAdjointStorage->getInverseEigenVectorsPtr(eigenIndex) : nullptr;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsEigenVectorsPtr(int eigenIndex) const {
+    return gAdjointStorage ? gAdjointStorage->getBackwardsEigenVectorsPtr(eigenIndex) : nullptr;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+const REALTYPE* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getBackwardsInverseEigenVectorsPtr(
+        int eigenIndex) const {
+    return gAdjointStorage ? gAdjointStorage->getBackwardsInverseEigenVectorsPtr(eigenIndex) : nullptr;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+AdjointIntegralPlan<REALTYPE>* EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::getAdjointMethodsPtr(
+        int eigenIndex) const {
+    return gAdjointStorage ? gAdjointStorage->getAdjointMethodsPtr(eigenIndex) : nullptr;
+}
+
+BEAGLE_CPU_EIGEN_TEMPLATE
+void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatricesParallel(
+    int eigenIndex,
+    const int* probabilityIndices,
+    const int* firstDerivativeIndices,
+    const int* secondDerivativeIndices,
+    const double* edgeLengths,
+    const double* categoryRates,
+    REALTYPE** transitionMatrices,
+    int count,
+    int numThreads)
+{
+    const REALTYPE* Ievc     = gIMatrices[eigenIndex];
+    const REALTYPE* Evec     = gEMatrices[eigenIndex];
+    const REALTYPE* Eval     = gEigenValues[eigenIndex];
+    const REALTYPE* EvalImag = Eval + kStateCount;
+    const int matrixSize     = kStateCount * kStateCount;
+
+    #pragma omp parallel for num_threads(numThreads)
+    for (int u = 0; u < count; u++) {
+    	std::vector<REALTYPE> matrixTmp_local(matrixSize);
+//         REALTYPE matrixTmp_local[matrixSize];
+
+        REALTYPE* transitionMat = transitionMatrices[probabilityIndices[u]];
+        const double edgeLength   = edgeLengths[u];
+        int n = 0;
+
+        for (int l = 0; l < kCategoryCount; l++) {
+            const REALTYPE distance = static_cast<REALTYPE>(categoryRates[l] * edgeLength);
+
+            for (int i = 0; i < kStateCount; i++) {
+                if (!isComplex || EvalImag[i] == 0) {
+                    const REALTYPE tmp = exp(Eval[i] * distance);
+
+                    for (int j = 0; j < kStateCount; j++) {
+                        matrixTmp_local[i * kStateCount + j] = Ievc[i * kStateCount + j] * tmp;
+                    }
+                } else {
+                    int i2 = i + 1;
+                    const REALTYPE b            = EvalImag[i];
+                    const REALTYPE expat        = exp(Eval[i] * distance);
+                    const REALTYPE expatcosbt   = expat * cos(b * distance);
+                    const REALTYPE expatsinbt   = expat * sin(b * distance);
+
+                    for (int j = 0; j < kStateCount; j++) {
+                        matrixTmp_local[i * kStateCount + j] =
+                            expatcosbt * Ievc[i * kStateCount + j] + expatsinbt * Ievc[i2 * kStateCount + j];
+                        matrixTmp_local[i2 * kStateCount + j] =
+                            expatcosbt * Ievc[i2 * kStateCount + j] - expatsinbt * Ievc[i * kStateCount + j];
+                    }
+                    i++;
+                }
+            }
+
+            for (int i = 0; i < kStateCount; i++) {
+                for (int j = 0; j < kStateCount; j++) {
+                    REALTYPE sum = 0.0;
+
+                    for (int k = 0; k < kStateCount; k++) {
+                        sum += Evec[i * kStateCount + k] * matrixTmp_local[k * kStateCount + j];
+                    }
+                    transitionMat[n++] = (sum > 0) ? sum : 0;
+                }
+                if (T_PAD != 0) {
+                    transitionMat[n] = 1.0;
+                    n += T_PAD;
+                }
+            }
+        }
+
+        if (DEBUGGING_OUTPUT) {
+            const int kMatrixSize = kStateCount * kStateCount;
+            #pragma omp critical
+            {
+                fprintf(stderr, "transitionMat index=%d brlen=%.5f\n", probabilityIndices[u], edgeLength);
+                for (int w = 0; w < ((20 > kMatrixSize) ? 20 : kMatrixSize); w++) {
+                    fprintf(stderr, "transitionMat[%d] = %.5f\n", w, transitionMat[w]);
+                }
+            }
         }
     }
 }
@@ -199,7 +363,7 @@ void EigenDecompositionSquare<BEAGLE_CPU_EIGEN_GENERIC>::updateTransitionMatrice
         const double edgeLength = edgeLengths[u];
         int n = 0;
         for (int l = 0; l < kCategoryCount; l++) {
-            const REALTYPE distance = edgeLength;
+            const REALTYPE distance = static_cast<REALTYPE>(edgeLength);
             const REALTYPE* Ievc = gIMatrices[eigenIndices[l]];
             const REALTYPE* Evec = gEMatrices[eigenIndices[l]];
             const REALTYPE* Eval = gEigenValues[eigenIndices[l]];
@@ -266,5 +430,5 @@ if (T_PAD != 0) {
 }
 }
 
-#endif 
+#endif
 

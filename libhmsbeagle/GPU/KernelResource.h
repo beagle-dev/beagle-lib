@@ -28,10 +28,18 @@ public:
         int inBlockPeelingSize,
         int inSlowReweighing,
         int inMultiplyBlockSize,
+        int inSumIntervalBlockSize,
+        int inSumAcrossBlockSize,
+        int inBlockPeelingSizeSCA,
+        int inSlabOpsPerBlock,
+        int inHazardMaxIntervalsPerBlock,
+        int inProjectOpsPerBlock,
+        int inHeigOpsPerBlock,
+        int inCoalEventsPerBlock,
         int inCategoryCount,
         int inPatternCount,
         int inUnpaddedPatternCount,
-        long inFlags
+        long long inFlags
         );
 
     KernelResource(const KernelResource& krIn,
@@ -46,12 +54,20 @@ public:
     char* kernelCode;
     int patternBlockSize;
     int matrixBlockSize;
+    int sumIntervalBlockSize;
+    int sumAcrossBlockSize;
+    int blockPeelingSizeSCA;
+    int slabOpsPerBlock;
+    int hazardMaxIntervalsPerBlock;
+    int projectOpsPerBlock;
+    int heigOpsPerBlock;
+    int coalEventsPerBlock;
     int blockPeelingSize;
     int isPowerOfTwo;
     int smallestPowerOfTwo;
     int slowReweighing;
     int multiplyBlockSize;
-    long flags;
+    long long flags;
 
     KernelResource* copy();
 };

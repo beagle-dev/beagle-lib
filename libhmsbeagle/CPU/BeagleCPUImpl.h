@@ -25,6 +25,7 @@
 #include "libhmsbeagle/BeagleImpl.h"
 #include "libhmsbeagle/CPU/Precision.h"
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
+#include "libhmsbeagle/CPU/AdjointMethods.h"
 
 #include <vector>
 #include <thread>
@@ -47,12 +48,21 @@
 
 //  TODO: assess following cut-offs dynamically
 #define BEAGLE_CPU_ASYNC_HW_THREAD_COUNT_THRESHOLD     16  // CPU category threshold
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW        256  // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
-#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH       768  // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_LOW         256 // do not use CPU auto-threading for problems with fewer patterns on CPUs with many cores
+#define BEAGLE_CPU_ASYNC_MIN_PATTERN_COUNT_HIGH        768 // do not use CPU auto-threading for problems with fewer patterns on CPUs with few cores
 #define BEAGLE_CPU_ASYNC_LIMIT_PATTERN_COUNT       262144  // do not use all CPU cores for problems with fewer patterns
 
 namespace beagle {
 namespace cpu {
+
+template <typename T>
+struct always_false : std::false_type {};
+
+struct States {};
+struct Partials {};
+struct None {};
+
+struct WithRotation {};
 
 BEAGLE_CPU_TEMPLATE
 class BeagleCPUImpl : public BeagleImpl {
@@ -77,14 +87,16 @@ protected:
     int kMatrixSize; /// stored for convenience. kMatrixSize = kStateCount*(kStateCount + 1)
 
     int kInternalPartialsBufferCount;
+    int kCompactBufferCount; /// as given to createInstance; kBufferCount = partials + compact
 
     int kPartitionCount;
     int kMaxPartitionCount;
     bool kPartitionsInitialised;
     bool kPatternsReordered;
     int kMinPatternCount;
+	int kBastaNumThreads;
 
-    long kFlags;
+    long long kFlags;
 
     REALTYPE realtypeMin;
     int scalingExponentThreshold;
@@ -105,10 +117,9 @@ protected:
     //      tipStates field should be switched to vectors of vectors (to make
     //      memory management less error prone
     REALTYPE** gPartials;
-    REALTYPE**** gPartialsGrad;
-    REALTYPE*** coalescentGrad;
-    // REALTYPE**** efghGrad;
-    REALTYPE** tempGrad;
+    REALTYPE* gPartialsGrad;      // Flat layout: [node][ab][state] = (node * S² + a*S + b) * S_pad + i
+    int kPartialsGradCount;       // the buffers gPartialsGrad holds
+    REALTYPE* coalescentGrad;     // Flat layout: [ab][interval] = (a*S + b) * L + interval
     int** gTipStates;
     REALTYPE** gScaleBuffers;
 
@@ -124,7 +135,6 @@ protected:
     // Each kStateCount x (kStateCount+1) matrix that is flattened
     //  into a single array
     REALTYPE** gTransitionMatrices;
-    REALTYPE**** gTransitionMatricesGrad;
 
     REALTYPE* integrationTmp;
     REALTYPE* firstDerivTmp;
@@ -138,6 +148,54 @@ protected:
 //    REALTYPE* grandNumeratorUpperBoundDerivTmp;
 
     REALTYPE* outLogLikelihoodsTmp;
+
+    std::vector<REALTYPE> gPatternScaleTmp;
+    std::vector<REALTYPE> gAdjointPartitionBuffers;
+    std::vector<REALTYPE> gOuterProductTmp;
+    // Per-thread/per-partition scratch holding gPatternScaleTmp[k] with the
+    // requesting branch's rescaling (post-order + pre-order cumulative, minus
+    // the root's cumulative scale) divided back out; see calcAdjointCrossProductsRange.
+    std::vector<REALTYPE> gAdjointScaleCorrectedLk;
+    // USE_BRANCH_LIKELIHOOD only: [node][pattern] (absolute node/pattern indices,
+    // sized count * kPatternCount), holding each branch's own category-marginal
+    // (weighted-summed) site likelihood, recomputed directly from that branch's
+    // (possibly independently rescaled) partials -- see
+    // calcAdjointBranchMarginalLikelihoods and calcAdjointCrossProductsRange.
+    std::vector<REALTYPE> gAdjointBranchLikelihoodTmp;
+
+    struct BranchEigenInfo {
+        REALTYPE branchLength;
+
+        int eigenIndex;
+        int categoryRatesIndex;
+
+        bool allReal;
+
+        REALTYPE* time;
+
+        REALTYPE* expat;
+        REALTYPE* cosbt;
+        REALTYPE* sinbt;
+        REALTYPE* expatcosbt;
+        REALTYPE* expatsinbt;
+
+        const REALTYPE* eval;
+    };
+    std::vector<BranchEigenInfo> gBranchEigenInfo;
+
+    // The per-matrix eigen info that BranchEigenInfo points into (time, expat, cosbt, sinbt, expatcosbt,
+    // expatsinbt), in chunks of 32 matrices. A chunk is one block holding the six sub-arrays, at the offsets
+    // kEigenInfoChunkOffset; it is allocated zero-filled when one of its matrices is first updated and never
+    // moves, so the stored pointers stay valid. 32 matrices keep a chunk below 32 KiB for S <= 20 with one rate
+    // category, or S = 4 with four (macOS rounds larger blocks up to a multiple of 32 KiB).
+    static const int kEigenInfoChunkShift = 5;
+    std::vector<REALTYPE*> gEigenInfoChunks;
+    size_t kEigenInfoChunkOffset[6];
+    size_t kEigenInfoChunkSize;
+
+    std::vector<REALTYPE> gPartialTmp1;
+    std::vector<REALTYPE> gPartialTmp2;
+
     REALTYPE* outFirstDerivativesTmp;
     REALTYPE* outSecondDerivativesTmp;
 
@@ -147,8 +205,42 @@ protected:
     std::vector<REALTYPE> gBastaBuffers;
     std::vector<REALTYPE> gBastaGradBuffers;
     std::vector<REALTYPE> gCoalescentBuffers;
+    std::vector<REALTYPE> gEdgeLengthsGrad;
+    bool kBastaBuffersAllocated; // allocateBastaBuffers or allocateBastaGradBuffers has run: ensureBufferCounts refuses to grow
     int kCoalescentBufferLength;
     int kCoalescentBufferCount;
+    int kCoalescentGradLength;
+
+    // the two population-size buffers, each [sizes[0..R-1] | integrals[0..R-1]] (empty until set), and the current one
+    std::vector<REALTYPE> gBastaPopulationSizes[2];
+    int kCurrentPopulationSizeBuffer;
+
+    struct CoalescentDetail {
+        int outputBuffer;
+        int inputBuffer1;
+        int inputBuffer2;
+        int inputMatrix1;
+        int inputMatrix2;
+        int accBuffer1;
+        int accBuffer2;
+        int intervalNumber;
+        REALTYPE j;
+    };
+
+
+    std::vector<CoalescentDetail> gCoalescentDetails;
+    std::vector<double> gExpmKernels;
+    bool kAdjointBuffersAllocated;
+    bool kUseAdjointGradient;
+    bool kAdjointReversePassDone;
+    bool kUnclampedForwardDone;
+    std::vector<double> gCachedIntervalLengths;
+
+    std::vector<REALTYPE> gAdjointWorkE, gAdjointWorkF, gAdjointWorkG, gAdjointWorkH;
+    std::vector<REALTYPE> gAdjointWorkW;
+    std::vector<REALTYPE> gAdjointWorkIexp;
+    std::vector<REALTYPE> gAdjointWorkTemp;
+    std::vector<REALTYPE> gAdjointYBar;
 
     struct threadData
     {
@@ -195,6 +287,9 @@ public:
 
     int setCPUThreadCount(int threadCount);
 
+    // see beagleEnsureBufferCounts; every CPU implementation grows its buffers here
+    int ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
+
     // set the states for a given tip
     //
     // tipIndex the index of the tip
@@ -224,6 +319,11 @@ public:
     int getPartials(int bufferIndex,
 					int scaleBuffer,
                     double* outPartials);
+
+    int getPartialsBatch(const int* bufferIndices,
+                         const int* scaleIndices,
+                         int count,
+                         double* outPartials);
 
     // sets the Eigen decomposition for a given matrix
     //
@@ -309,6 +409,11 @@ public:
                                  const double* edgeLengths,
                                  int count);
 
+    int updateBranchEigenInfo(int eigenIndex,
+                              const int* probabilityIndices,
+                              const double* edgeLengths,
+                              int count);
+
     int updateTransitionMatricesGrad(const int* probabilityIndices,
                                      const double* edgeLengths,
                                      int count);
@@ -336,17 +441,20 @@ public:
     // rescale indicate if partials should be rescaled during peeling
     int updatePartials(const int* operations,
                        int operationCount,
-                       int cumulativeScalingIndex);
+                       int cumulativeScalingIndex,
+                       BeaglePartialsType partialsType);
 
     int updatePrePartials(const int *operations,
                           int operationCount,
-                          int cumulativeScalingIndex);
+                          int cumulativeScalingIndex,
+                          BeaglePartialsType partialsType);
 
     int updatePartialsByPartition(const int* operations,
                                   int operationCount);
 
     int updatePrePartialsByPartition(const int* operations,
-                                     int operationCount);
+                                     int operationCount,
+                                     BeaglePartialsType partialsType);
 
     // Block until all calculations that write to the specified partials have completed.
     //
@@ -467,6 +575,29 @@ public:
                                double *outSumDerivatives,
                                double *outSumSquaredDerivatives);
 
+    int calculateAdjointCrossProducts(const int *postBufferIndices,
+                                      const int *preBufferIndices,
+                                      const int *eigenIndices,
+                                      const int *categoryRatesIndices,
+                                      const int *categoryWeightsIndices,
+                                      const int rootPostOrderIndex,
+                                      const int stateFrequenciesIndex,
+                                      int count,
+                                      double *outSumDerivatives,
+                                      double *outSumSquaredDerivatives,
+                                      const int *postScaleIndices = nullptr,
+                                      const int *preScaleIndices = nullptr,
+                                      const int cumulativeScaleIndex = BEAGLE_OP_NONE);
+
+    int calculateAdjointDerivative(const BeagleBranchOperation *operations,
+                                   const int categoryRatesIndex,
+                                   const int categoryWeightsIndex,
+                                   const int rootPostOrderIndex,
+                                   const int stateFrequenciesIndex,
+                                   const int operationCount,
+                                   double *outSumDerivatives,
+                                   double *outSumSquaredDerivatives);
+
     int getLogLikelihood(double* outSumLogLikelihood);
 
     int getDerivatives(double* outSumFirstDerivative,
@@ -500,20 +631,79 @@ public:
                                 int coalescentIndex,
                                 double* out);
 
-    int accumulateBastaPartialsGrad(const int *operations, 
-                                    const int operationCount, 
-                                    const int *intervalStarts, 
-                                    const int intervalStartsCount, 
-                                    const double *intervalLengths, 
-                                    const int populationSizesIndex, 
-                                    const int coalescentIndex, 
+    int accumulateBastaPartialsGrad(const int *operations,
+                                    const int operationCount,
+                                    const int *intervalStarts,
+                                    const int intervalStartsCount,
+                                    const double *intervalLengths,
+                                    const int populationSizesIndex,
+                                    const int coalescentIndex,
+                                    int eigenIndex,
+                                    int partialAdjointBufferBase,
+                                    int matrixAdjointBufferBase,
+                                    double *popSizeGradOut,
                                     double *out);
 
-    int allocateBastaBuffers(int bufferCount,
-                             int bufferLength);
+    int uploadBastaSlabMetadata(const int* packed, int packedLen);
+
+    int getBastaSlabConstants(int* opsPerBlock, int* indexOffsetPat);
+
+    int allocateBastaBuffers(int bufferCount, int bufferLength, int partialsCount, int initial, int numThreads);
 
     int getBastaBuffer(int bufferIndex,
                        double* out);
+
+    int accumulateEigenBasisGradient(int eigenIndex,
+                                     int matrixAdjointBufferBase,
+                                     const double* branchLengths,
+                                     int matrixCount,
+                                     int hasComplexEigenvalues,
+                                     double* outRateGradient);
+
+    int setBastaPopulationSizes(const double* combinedSizesIntegrals,
+                                int requiredStorageSize);
+
+    int setBastaPopulationSizesBuffer(const double* combinedSizesIntegrals,
+                                      int requiredStorageSize,
+                                      int bufferIndex);
+
+    int setCurrentPopulationSizeBuffer(int bufferIndex);
+
+    int updateBastaPartials_v5(const int* operations,
+                               int operationCount,
+                               const int* intervals,
+                               int intervalCount,
+                               int populationSizesIndex,
+                               int coalescentIndex);
+
+    int updateBastaPartialsGrad_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervals,
+                                   int intervalCount,
+                                   int populationSizesIndex,
+                                   int coalescentIndex);
+
+    int accumulateBastaPartials_v5(const int* operations,
+                                   int operationCount,
+                                   const int* intervalStarts,
+                                   int intervalStartsCount,
+                                   const double* intervalLengths,
+                                   const int populationSizesIndex,
+                                   int coalescentIndex,
+                                   double* out);
+
+    int accumulateBastaPartialsGrad_v5(const int* operations,
+                                       int operationCount,
+                                       const int* intervalStarts,
+                                       int intervalStartsCount,
+                                       const double* intervalLengths,
+                                       const int populationSizesIndex,
+                                       int coalescentIndex,
+                                       int eigenIndex,
+                                       int partialAdjointBufferBase,
+                                       int matrixAdjointBufferBase,
+                                       double* popSizeGradOut,
+                                       double* out);
 
     void reduceWithinInterval(REALTYPE* e, REALTYPE* f, // TODO move to protected
                               REALTYPE* g, REALTYPE* h,
@@ -521,8 +711,8 @@ public:
                               int endBuffer1, int endBuffer2,
                               int interval);
 
-    void reduceWithinIntervalGrad(REALTYPE*** eGrad, REALTYPE*** fGrad,
-                                  REALTYPE*** gGrad, REALTYPE*** hGrad,
+    void reduceWithinIntervalGrad(REALTYPE* eGrad, REALTYPE* fGrad,
+                                  REALTYPE* gGrad, REALTYPE* hGrad,
                                   int startBuffer1, int startBuffer2,
                                   int endBuffer1, int endBuffer2,
                                   int interval);
@@ -535,29 +725,65 @@ public:
     
     void reduceAcrossIntervalsGrad(REALTYPE *e, REALTYPE *f, 
                                    REALTYPE *g, REALTYPE *h, 
-                                   REALTYPE ***eGrad, REALTYPE ***fGrad, 
-                                   REALTYPE ***gGrad, REALTYPE ***hGrad, 
-                                   REALTYPE **resultGrad, 
+                                   REALTYPE *eGrad, REALTYPE *fGrad, 
+                                   REALTYPE *gGrad, REALTYPE *hGrad, 
+                                   REALTYPE *resultGrad, 
                                    int interval, REALTYPE length, 
                                    const REALTYPE *sizes, 
                                    const REALTYPE *coalescent);
+
+    // the _v5 reductions: integrals[k] (the interval's block of the population-size buffer, length included) in place
+    // of length / sizes[k]
+    REALTYPE reduceAcrossIntervals_v5(REALTYPE* e, REALTYPE* f,
+                                      REALTYPE* g, REALTYPE* h,
+                                      int interval,
+                                      const REALTYPE* integrals,
+                                      const REALTYPE* coalescent);
+
+    void reduceAcrossIntervalsGrad_v5(REALTYPE* e, REALTYPE* f,
+                                      REALTYPE* g, REALTYPE* h,
+                                      REALTYPE* eGrad, REALTYPE* fGrad,
+                                      REALTYPE* gGrad, REALTYPE* hGrad,
+                                      REALTYPE* resultGrad,
+                                      int interval,
+                                      const REALTYPE* integrals,
+                                      const REALTYPE* coalescent);
 
     int block(void);
 
 	virtual const char* getName();
 
-	virtual long long getFlags();
+	virtual const long long getFlags();
 
 protected:
+
+    virtual EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(
+        int decompositionCount,
+        int stateCount,
+        int categoryCount,
+        long long flags);
+
     virtual int upPartials(bool byPartition,
                            const int* operations,
                            int operationCount,
-                           int cumulativeScalingIndex);
+                           int cumulativeScalingIndex,
+                           BeaglePartialsType partialsType);
 
     virtual int upPrePartials(bool byPartition,
                               const int* operations,
                               int count,
-                              int cumulativeScaleIndex);
+                              int cumulativeScaleIndex,
+                              BeaglePartialsType preorderType);
+
+    virtual int upPrePartialsBottom(bool byPartition,
+                                    const int* operations,
+                                    int count,
+                                    int cumulativeScaleIndex);
+
+    virtual int upPrePartialsTop(bool byPartition,
+                                 const int* operations,
+                                 int count,
+                                 int cumulativeScaleIndex);
 
 
     virtual int calcEdgeLogDerivativesByAutoPartitionAsync(const int *operations,
@@ -609,6 +835,103 @@ protected:
                                   double *outSumDerivatives,
                                   double *outSumSquaredDerivatives);
 
+    // Before an adjoint gradient over these branches starts any thread: lets the eigen decomposition (and a
+    // subclass) build what the gradient reads on first use
+    virtual void prepareAdjoint(const int *branchEigenIndices, int count);
+
+    virtual int calcAdjointCrossProducts(const int *postBufferIndices,
+                                         const int *preBufferIndices,
+                                         const int *eigenIndices,
+                                         const int *categoryRatesIndices,
+                                         const int *categoryWeightsIndices,
+                                         const int rootPostOrderIndex,
+                                         const int stateFrequenciesIndex,
+                                         int count,
+                                         double *outSumDerivatives,
+                                         double *outSumSquaredDerivatives,
+                                         const int *postScaleIndices,
+                                         const int *preScaleIndices,
+                                         const int cumulativeScaleIndex);
+
+    virtual void calcAdjointCrossProductsRange(const int *postBufferIndices,
+                                               const int *preBufferIndices,
+                                               const int *branchEigenIndices,
+                                               const double *categoryRates,
+                                               const REALTYPE *categoryWeights,
+                                               const REALTYPE *perSiteLikelihoods,
+                                               REALTYPE *buffer,
+                                               int startNode,
+                                               int endNode,
+                                               int startPattern,
+                                               int endPattern,
+                                               int currentPartition,
+                                               const int *postScaleIndices,
+                                               const int *preScaleIndices,
+                                               const int cumulativeScaleIndex,
+                                               REALTYPE *branchMarginalLk);
+
+    // USE_BRANCH_LIKELIHOOD only: fills branchMarginalLk[nodeNum * kPatternCount + k]
+    // (absolute node/pattern indices) with each branch's own category-marginal site
+    // likelihood, recomputed directly from that branch's own (possibly independently
+    // rescaled) pre-/post-order partials -- see calcAdjointCrossProductsRange for why.
+    void calcAdjointBranchMarginalLikelihoods(const int *postBufferIndices,
+                                              const int *preBufferIndices,
+                                              const int *branchEigenIndices,
+                                              const double *categoryRates,
+                                              const REALTYPE *categoryWeights,
+                                              REALTYPE *branchMarginalLk,
+                                              int startNode,
+                                              int endNode,
+                                              int startPattern,
+                                              int endPattern,
+                                              int currentPartition);
+
+    template <typename T, typename V, typename COLLECTOR>
+    void calcAdjointCrossProducts(const REALTYPE* partialsPost,
+                                  const int* tipsPost,
+                                  const REALTYPE* partialsPre,
+                                  const int branchIndex,
+                                  const REALTYPE* perSiteLikelihoods,
+                                  const int category,
+                                  const REALTYPE categoryWeight,
+                                  COLLECTOR& collector,
+                                  int startPattern,
+                                  int endPattern,
+                                  int currentPartition);
+
+    template <typename First, typename Second, typename Body>
+    inline void matVecDual(
+            const REALTYPE* mat1, const REALTYPE* vec1, const int state1,
+            const REALTYPE* mat2, const REALTYPE* vec2, const int state2,
+            const int matrixIncr,
+            Body body);
+
+    int calcAdjointCrossProductsByPartitionAsync(const int *postBufferIndices,
+                                                 const int *preBufferIndices,
+                                                 const int *branchEigenIndices,
+                                                 const double *categoryRates,
+                                                 const REALTYPE *categoryWeights,
+                                                 const REALTYPE *perSiteLikelihoods,
+                                                 REALTYPE *buffer,
+                                                 int count,
+                                                 const int *postScaleIndices,
+                                                 const int *preScaleIndices,
+                                                 const int cumulativeScaleIndex,
+                                                 REALTYPE *branchMarginalLk);
+
+    int calcAdjointCrossProductsByNodeAsync(const int *postBufferIndices,
+                                            const int *preBufferIndices,
+                                            const int *branchEigenIndices,
+                                            const double *categoryRates,
+                                            const REALTYPE *categoryWeights,
+                                            const REALTYPE *perSiteLikelihoods,
+                                            REALTYPE *buffer,
+                                            int count,
+                                            const int *postScaleIndices,
+                                            const int *preScaleIndices,
+                                            const int cumulativeScaleIndex,
+                                            REALTYPE *branchMarginalLk);
+
     virtual void calcCrossProductsStates(const int *tipStates,
                                          const REALTYPE *preOrderPartial,
                                          const double *categoryRates,
@@ -639,7 +962,8 @@ protected:
                                            int operationCount);
 
     virtual int upPrePartialsByPartitionAsync(const int* operations,
-                                           int operationCount);
+                                              int operationCount,
+                                              BeaglePartialsType partialsType);
 
     virtual int reorderPatternsByPartition();
 
@@ -683,6 +1007,72 @@ protected:
                                          const REALTYPE* matrices2,
                                          int startPattern,
                                          int endPattern);
+
+    virtual void calcPrePartialsStatesTop(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const int* states2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsStatesTopRoot(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const int* states2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsPartialsTop(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    virtual void calcPrePartialsPartialsTopRoot(REALTYPE* destP,
+                                         const REALTYPE* partials1,
+                                         const REALTYPE* matrices1,
+                                         const REALTYPE* partials2,
+                                         const REALTYPE* matrices2,
+                                         int startPattern,
+                                         int endPattern);
+
+    // Degree-2 (single-child) nodes, signalled by a second child (post-order) or sibling (pre-order) of
+    // BEAGLE_OP_NONE. A non-NULL scaleFactors divides the result (fixed scaling).
+    virtual void calcStatesDegree2(REALTYPE* destP,
+                                   const int* states1,
+                                   const REALTYPE* matrices1,
+                                   const REALTYPE* scaleFactors,
+                                   int startPattern,
+                                   int endPattern);
+
+    virtual void calcPartialsDegree2(REALTYPE* destP,
+                                     const REALTYPE* partials1,
+                                     const REALTYPE* matrices1,
+                                     const REALTYPE* scaleFactors,
+                                     int startPattern,
+                                     int endPattern);
+
+    // Pre-order partials through a single branch: destP = matrices1^T partials1; a copy of partials1 when
+    // matrices1 is NULL (top partials below the root).
+    virtual void calcDegree2PrePartials(REALTYPE* destP,
+                                        const REALTYPE* partials1,
+                                        const REALTYPE* matrices1,
+                                        int startPattern,
+                                        int endPattern);
+
+    // Any state count: First is States or Partials; with FixedScaling the result is divided by scaleFactors.
+    template <typename First, bool FixedScaling>
+    void calcDegree2Partials(REALTYPE* destP,
+                             const int* states1,
+                             const REALTYPE* partials1,
+                             const REALTYPE* matrices1,
+                             const REALTYPE* scaleFactors,
+                             int startPattern,
+                             int endPattern);
 
     virtual int calcRootLogLikelihoods(const int bufferIndex,
                                         const int categoryWeightsIndex,
@@ -869,29 +1259,99 @@ protected:
 
     void* mallocAligned(size_t size);
 
+    REALTYPE* allocateEigenInfoChunk(int chunkIndex);
+
+    // true when gTransitionMatrices[i] is allocated only once index i is first written densely (spectral)
+    virtual bool denseMatricesOnDemand() const { return false; }
+
+    // the dense matrix of index i, allocated if needed; NULL if out of memory
+    REALTYPE* writableMatrix(int matrixIndex);
+
+    // with dense matrices on demand, whether any of the given indices has no dense contents yet
+    bool missingDenseMatrix(const int* matrixIndices, int count);
+
+#ifdef BEAGLE_INDEX_CHECKS
+    // BEAGLE_INDEX_CHECKS: whether a call would read or write a partials, matrix, scale or partition index out of
+    // range; the entry points then return BEAGLE_ERROR_OUT_OF_RANGE. Only indices the call dereferences are checked.
+    bool badPartials(int index) const { return index < 0 || index >= kBufferCount; }
+    bool badMatrix(int index) const { return index < 0 || index >= kMatrixCount; }
+    bool badScale(int index) const; // gScaleBuffers has one entry under SCALING_AUTO
+    bool badPartition(int index) const { return !kPartitionsInitialised || index < 0 || index >= kPartitionCount; }
+    bool badMatrices(const int* indices, int count) const;
+    bool badPartialsIndices(const int* indices, int count) const;
+    // whether the root kernels read every scale index other than BEAGLE_OP_NONE (the 4-state ones) or skip every
+    // negative one (the generic ones)
+    virtual bool rootReadsNegativeScale() const { return false; }
+    bool badRootScale(int index, bool readsNegative) const {
+        return index >= 0 ? badScale(index) : (readsNegative && index != BEAGLE_OP_NONE);
+    }
+    bool badRootIndices(const int* bufferIndices, const int* categoryWeightsIndices,
+                        const int* cumulativeScaleIndices, int count) const;
+    bool badEdgeIndices(const int* parentBufferIndices, const int* childBufferIndices, const int* probabilityIndices,
+                        const int* firstDerivativeIndices, const int* secondDerivativeIndices,
+                        const int* cumulativeScaleIndices, int count);
+    bool badOperations(const int* operations, int count, bool byPartition, int cumulativeScaleIndex,
+                       bool preOrder, bool top);
+    bool badDerivativeMatrices(const int* firstDerivativeIndices, const int* secondDerivativeIndices, int count) const;
+#endif
+
     void threadWaiting(threadData* tData);
 
+    // stops and joins the threads of the pool, if there is one, and frees their operation buffers
+    void stopThreads();
+
+    // OPS: the integers per operation (BEAGLE_BASTA_OP_COUNT, or 9 for the _v5 functions)
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartials(const int* operations, // TODO make protected
                                   const int begin,
                                   const int end,
                                   const REALTYPE* sizes,
                                   REALTYPE* coalescent);
 
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartials2(const int* operations, // TODO make protected
                                   const int op,
                                   const REALTYPE* sizes,
                                   REALTYPE* coalescent);
-    
+
+    template <int OPS = BEAGLE_BASTA_OP_COUNT>
     void updateInnerBastaPartialsGrad(const int* operations,
                                     const int begin,
                                     const int end,
                                     const REALTYPE* sizes,
                                     const REALTYPE* coalescent);
-    
+
     void matrixMultiply(const REALTYPE* matrices1,
                         const REALTYPE* matrices2,
                         REALTYPE* output,
                         int n);
+
+    int allocateBastaGradBuffers(int partialsCount);
+
+    // ensureBufferCounts' growth, without its refusal once BASTA buffers exist (for allocateBastaBuffers' regrow)
+    int growBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount);
+
+    void adjointPushReductionAdjoints(const REALTYPE* partials, REALTYPE* partialAdj,
+                                      const REALTYPE* adjSum, const REALTYPE* adjSq);
+
+    void adjointAddMatTVecAndOuterInPlace(REALTYPE* transposeVecTarget, REALTYPE* outerTarget,
+                                          const REALTYPE* matrix, const REALTYPE* left, const REALTYPE* right,
+                                          int matrixIncr);
+
+    void adjointAddMatTVecInPlace(REALTYPE* transposeVecTarget, const REALTYPE* matrix,
+                                  const REALTYPE* left, int matrixIncr);
+
+    void adjointAddOuterInPlace(REALTYPE* outerTarget, const REALTYPE* left, const REALTYPE* right,
+                                int matrixIncr);
+
+    void adjointReversePass(const int* operations, int count,
+                            const int* intervals, int intervalCount,
+                            const double* intervalLengths,
+                            const REALTYPE* sizes, const REALTYPE* coalescent,
+                            int eigenIndex,
+                            int partialAdjointBufferBase,
+                            int matrixAdjointBufferBase,
+                            REALTYPE* popSizeGradOut);
 
 private:
 
@@ -907,6 +1367,51 @@ private:
     template <bool DoDerivatives, bool DoSum, bool DoSumSquared>
     void accumulateDerivativesImpl(double *outDerivatives, double *outSumDerivatives,
                                    double *outSumSquaredDerivatives, int offset);
+
+    // the bodies of updateBastaPartials, updateBastaPartialsGrad (legacy gradient), accumulateBastaPartials and
+    // accumulateBastaPartialsGrad (legacy gradient) for OPS integers per operation, with the population sizes given
+    template <int OPS>
+    int updateBastaPartialsCore(const int* operations,
+                                const int count,
+                                const int* intervals,
+                                const int intervalCount,
+                                const REALTYPE* sizes,
+                                const int coalescentIndex);
+
+    template <int OPS>
+    void updateBastaPartialsGradLegacy(const int* operations,
+                                       const int* intervals,
+                                       const int intervalCount,
+                                       const REALTYPE* sizes,
+                                       const REALTYPE* coalescent);
+
+    template <int OPS>
+    int accumulateBastaPartialsCore(const int* operations,
+                                    const int operationCount,
+                                    const int* intervalStarts,
+                                    const int intervalStartsCount,
+                                    const double* intervalLengths,
+                                    const REALTYPE* sizes,
+                                    const REALTYPE* integrals,
+                                    const int coalescentIndex,
+                                    double* out);
+
+    template <int OPS>
+    void accumulateBastaPartialsGradLegacy(const int* operations,
+                                           const int* intervalStarts,
+                                           const int intervalStartsCount,
+                                           const double* intervalLengths,
+                                           const REALTYPE* sizes,
+                                           const REALTYPE* integrals,
+                                           const int coalescentIndex,
+                                           double* out);
+
+    // the checks of every _v5 call before it changes anything (BastaPopulationSizes.h); BEAGLE_SUCCESS or the error
+    int checkBastaCall_v5(const int* operations,
+                          int count,
+                          const int* intervalStarts,
+                          int intervalStartsCount,
+                          int coalescentIndex);
 };
 
 BEAGLE_CPU_FACTORY_TEMPLATE
@@ -928,7 +1433,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 //typedef BeagleCPUImplGeneral<double> BeagleCPUImpl;

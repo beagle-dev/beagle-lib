@@ -1,0 +1,52 @@
+name: MASCOT
+
+# The MASCOT component (libhmsbeagle/mascot) on the five release platforms: its library, JNI library and
+# self-contained tests (mascot_selftest). The log line "mascot_selftest: kernel B ...; default instance ..." records
+# which kernels and FP mode each runner used (x86 runs the FMA builds only where CPUID reports FMA and AVX state).
+
+on:
+  push:
+    branches:
+    - "*"
+  pull_request:
+    branches:
+    - "*"
+
+jobs:
+  test:
+    name: MASCOT on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: Linux x86_64 (GCC)
+          os: ubuntu-latest
+        - name: Linux aarch64 (GCC)
+          os: ubuntu-24.04-arm
+        - name: macOS arm64 (clang)
+          os: macos-latest
+        - name: macOS x86_64 (clang)
+          os: macos-15-intel
+        - name: Windows x64 (MSVC, kernel A only)
+          os: windows-2022
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Java (for the JNI library)
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - name: Configure
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_MASCOT=ON -DBUILD_JNI=ON -DBUILD_OPENCL=OFF -DBUILD_CUDA=OFF
+
+    - name: Build
+      run: cmake --build build --config Release --parallel --target hmsbeagle-mascot hmsbeagle-jni-mascot mascot_selftest mascot_golden_test mascot_api_test mascot_bench
+
+    - name: Test
+      run: ctest --test-dir build -C Release -R mascot --output-on-failure

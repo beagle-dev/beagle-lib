@@ -1,0 +1,7 @@
+# NVDP (PLAN-fused-uppartials.md section 7.2): the NV double-precision subset; run with --double
+--states 61 --patterns 500 --categories 4 --taxa 1000 --tree balanced --update full --scaling read
+--states 61 --patterns 500 --categories 4 --taxa 1000 --tree balanced --update full --scaling write
+--states 61 --patterns 500 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling read
+--states 61 --patterns 500 --categories 4 --taxa 1000 --tree balanced --update branch-deep --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree pectinate --update full --scaling write
+--states 4 --patterns 1000 --categories 4 --taxa 1000 --tree balanced --update full --scaling read

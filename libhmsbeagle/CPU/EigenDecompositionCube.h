@@ -8,7 +8,11 @@
 #ifndef EIGENDECOMPOSITIONCUBE_H_
 #define EIGENDECOMPOSITIONCUBE_H_
 
+#include <memory>
+#include <vector>
+
 #include "libhmsbeagle/CPU/EigenDecomposition.h"
+#include "libhmsbeagle/CPU/EigenDecompositionSpectral.h"
 
 namespace beagle {
 namespace cpu {
@@ -27,12 +31,21 @@ class EigenDecompositionCube : public EigenDecomposition<BEAGLE_CPU_EIGEN_GENERI
 
 protected:
     REALTYPE** gCMatrices;
+    REALTYPE** gRawEMatrices;
+    REALTYPE** gRawIMatrices;
+
+    // V, V^{-1}, their transposes and the integral plan in the layout of the spectral representation, which
+    // BeagleCPUImpl's adjoint gradient reads. Built on the first gradient after setEigenDecomposition
+    // (prepareAdjoint) from copies of that call's arguments: V, V^{-1} as given, then the eigenvalues.
+    std::unique_ptr<EigenDecompositionSpectral<BEAGLE_CPU_EIGEN_GENERIC>> gAdjointStorage;
+    std::vector<std::vector<double>> gAdjointInput;
+    std::vector<bool> gAdjointStale;
 
 public:
 	EigenDecompositionCube(int decompositionCount, 
 						   int stateCount, 
 						   int categoryCount,
-                           long flags);
+                           long long flags);
 	
 	virtual ~EigenDecompositionCube();
 	
@@ -50,6 +63,12 @@ public:
                                  REALTYPE** transitionMatrices,
                                  int count);
 	
+	virtual void updateTransitionMatricesParallel(int eigenIndex, const int* probabilityIndices,
+	                                      const int* firstDerivativeIndices,
+	                                      const int* secondDerivativeIndices, const double* edgeLengths,
+	                                      const double* categoryRates, REALTYPE** transitionMatrices, int count,
+	                                      int numThreads);
+
     virtual void updateTransitionMatricesWithModelCategories(int* eigenIndices,
                                  const int* probabilityIndices,
                                  const int* firstDerivativeIndices,
@@ -57,6 +76,37 @@ public:
                                  const double* edgeLengths,
                                  REALTYPE** transitionMatrices,
                                  int count);
+
+    virtual const REALTYPE* getEigenValuesPtr(int eigenIndex) const {
+        return gEigenValues[eigenIndex];
+    }
+
+    virtual const REALTYPE* getEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage ? gAdjointStorage->getEigenVectorsPtr(eigenIndex) : nullptr;
+    }
+
+    virtual const REALTYPE* getInverseEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage ? gAdjointStorage->getInverseEigenVectorsPtr(eigenIndex) : nullptr;
+    }
+
+    virtual const REALTYPE* getBackwardsEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage ? gAdjointStorage->getBackwardsEigenVectorsPtr(eigenIndex) : nullptr;
+    }
+
+    virtual const REALTYPE* getBackwardsInverseEigenVectorsPtr(int eigenIndex) const {
+        return gAdjointStorage ? gAdjointStorage->getBackwardsInverseEigenVectorsPtr(eigenIndex) : nullptr;
+    }
+
+    virtual AdjointIntegralPlan<REALTYPE>* getAdjointMethodsPtr(int eigenIndex) const {
+        return gAdjointStorage ? gAdjointStorage->getAdjointMethodsPtr(eigenIndex) : nullptr;
+    }
+
+    virtual void prepareAdjoint(int eigenIndex);
+
+	virtual int getRawEigenDecomposition(int eigenIndex,
+	                                     const REALTYPE** outEigenVectors,
+	                                     const REALTYPE** outInverseEigenVectors,
+	                                     const REALTYPE** outEigenValues);
 };
 
 }

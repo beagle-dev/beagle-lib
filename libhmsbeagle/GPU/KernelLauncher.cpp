@@ -27,8 +27,19 @@
 
 /**************CODE***********/
 
+// A sync after a launch that only orders it before the next one. TinyGPU runs a process's launches in order on one queue
+// and flushes and waits for them before every copy, so there it would only add a round trip to the eGPU per launch
+// (STATUS.md R120); the other frameworks keep it.
+#ifdef FW_TINYGPU
+#define SYNCHRONIZE_FOR_ORDER()
+#else
+#define SYNCHRONIZE_FOR_ORDER() gpu->SynchronizeDevice()
+#endif
+
 #ifdef CUDA
 namespace cuda_device {
+#elif defined(FW_TINYGPU)
+namespace tinygpu_device {
 #else
 namespace opencl_device {
 #endif
@@ -47,6 +58,7 @@ KernelLauncher::~KernelLauncher() {
 void KernelLauncher::SetupKernelBlocksAndGrids() {
     kCPUImplementation = false;
     kAppleCPUImplementation = false;
+    kAdjointBlockSizeN = ADJOINT_BLOCK_SP_N_DEFAULT;
 
 #ifdef FW_OPENCL
     BeagleDeviceImplementationCodes deviceCode = gpu->GetDeviceImplementationCode(-1);
@@ -58,6 +70,12 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
         kCPUImplementation = true;
         kAppleCPUImplementation = true;
     }
+    // the devices whose kernels GPUInterface::SetDevice builds with FW_OPENCL_AMDGPU
+    if (deviceCode == BEAGLE_OPENCL_DEVICE_AMD_GPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_AMD_GPU ||
+        deviceCode == BEAGLE_OPENCL_DEVICE_APPLE_APPLE_GPU) {
+        kAdjointBlockSizeN = ADJOINT_BLOCK_SP_N_AMDGPU;
+    }
 #endif
 
     kPaddedStateCount = gpu->kernelResource->paddedStateCount;
@@ -65,11 +83,16 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
     kPatternCount = gpu->kernelResource->patternCount;
     kUnpaddedPatternCount = gpu->kernelResource->unpaddedPatternCount;
     kMultiplyBlockSize = gpu->kernelResource->multiplyBlockSize;
+    kSumIntervalBlockSize = gpu->kernelResource->sumIntervalBlockSize;
+    kSumAcrossBlockSize = gpu->kernelResource->sumAcrossBlockSize;
     kPatternBlockSize = gpu->kernelResource->patternBlockSize;
     kSlowReweighing = gpu->kernelResource->slowReweighing;
     kMatrixBlockSize = gpu->kernelResource->matrixBlockSize;
     kSumSitesBlockSize = SUM_SITES_BLOCK_SIZE;
     kFlags = gpu->kernelResource->flags;
+    if (getenv("ADJBENCH_DEBUG_BLOCKSIZE"))
+        fprintf(stderr, "DEBUG kPaddedStateCount=%d kPatternBlockSize=%d\n",
+                kPaddedStateCount, kPatternBlockSize);
 
     // Set up block/grid for transition matrices computation
     bgTransitionProbabilitiesBlock = Dim3Int(kMultiplyBlockSize, kMultiplyBlockSize);
@@ -108,6 +131,19 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
             bgPeelingGrid.x += 1;
         }
     }
+
+    // Set up block/grid for spectral peeling kernels.
+    // Spectral kernels always use a (state, patIdx) thread layout regardless of state count:
+    //   KW_LOCAL_ID_0 = state (0..S-1), KW_LOCAL_ID_1 = patIdx (0..PBS-1)
+    //   KW_GROUP_ID_0 = pattern block,  KW_GROUP_ID_1 = category
+    // For kPaddedStateCount == 4, bgPeelingBlock uses (16, PBS) to pack state+pat into
+    // dimension 0 (non-spectral layout), so a separate spectral block/grid is required.
+    // For kPaddedStateCount >= 16, bgPeelingBlock == (S, PBS) already matches the
+    // spectral layout, but we set bgSpectralPeelingBlock explicitly for clarity.
+    bgSpectralPeelingBlock = Dim3Int(kPaddedStateCount, kPatternBlockSize);
+    bgSpectralPeelingGrid  = Dim3Int(kPatternCount / kPatternBlockSize, kCategoryCount);
+    if (kPatternCount % kPatternBlockSize != 0)
+        bgSpectralPeelingGrid.x += 1;
 
     // Set up block/grid for likelihood computation
     if (kPaddedStateCount == 4) {
@@ -239,17 +275,41 @@ void KernelLauncher::SetupKernelBlocksAndGrids() {
 
     //Set up block for basta partials
 
-    bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, 4);
-    bgBastaPeelingGrid = Dim3Int(30,1);
+    bgBastaPeelingBlock = Dim3Int(kPaddedStateCount, kSumAcrossBlockSize);
+    bgBastaPeelingGrid = Dim3Int(10,1);
 
-    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, 4);
-    bgBastaReductionGrid = Dim3Int(18162, 1);
+    bgBastaReductionBlock = Dim3Int(kPaddedStateCount, kSumIntervalBlockSize);
+    bgBastaReductionGrid = Dim3Int(10,1);
 
-    bgBastaPreBlock = Dim3Int(32);
-    bgBastaPreGrid = Dim3Int(1);
+    // bgBastaPreBlock = Dim3Int(32);
+    // bgBastaPreGrid = Dim3Int(1);
 
-    bgBastaSumBlock = Dim3Int(128);
-    bgBastaSumGrid = Dim3Int(400);
+    bgBastaSumBlock = Dim3Int(kSumAcrossBlockSize * kPaddedStateCount);
+    bgBastaSumGrid = Dim3Int(10);
+
+    bgAdjointBastaPeelingBlock = Dim3Int(kPaddedStateCount, kSumAcrossBlockSize);
+    bgAdjointBastaPeelingGrid = Dim3Int(10, 1);
+
+    int hazardMaxIntervalsPerBlock = gpu->kernelResource->hazardMaxIntervalsPerBlock;
+    int hazardIntervalsPerBlock = 1024 / kPaddedStateCount;
+    if (hazardIntervalsPerBlock > hazardMaxIntervalsPerBlock)
+        hazardIntervalsPerBlock = hazardMaxIntervalsPerBlock;
+    if (hazardIntervalsPerBlock < 2) hazardIntervalsPerBlock = 2;
+    bgHazardAdjointBlock = Dim3Int(kPaddedStateCount, hazardIntervalsPerBlock);
+
+    bgEigenTileBlock = Dim3Int(16, 16);
+    bgReduceBlock = Dim3Int(256, 1);
+
+    bgCoalescentSlabBlock = Dim3Int(kPaddedStateCount,
+                                    (unsigned int)gpu->kernelResource->coalEventsPerBlock);
+    bgPartialProjectBlock = Dim3Int(kPaddedStateCount,
+                                    (unsigned int)gpu->kernelResource->projectOpsPerBlock);
+    bgHazardEigenBlock = Dim3Int(kPaddedStateCount,
+                                 (unsigned int)gpu->kernelResource->heigOpsPerBlock);
+
+    kSlabOpsPerBlock = (unsigned int)gpu->kernelResource->slabOpsPerBlock;
+    bgSlabSegLocalBlock = Dim3Int(kPaddedStateCount, kSlabOpsPerBlock);
+    bgSlabSegApplyBlock = Dim3Int(kPaddedStateCount, kSlabOpsPerBlock);
 }
 
 
@@ -285,19 +345,48 @@ void KernelLauncher::LoadKernels() {
 	}
 
     fPartialsPartialsByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsNoScaleSpectral" :
             "kernelPartialsPartialsNoScale");
 
+//    fPartialsPartialsByPatternBlockCoherentTensorCores = gpu->GetFunction(
+//            "kernelPartialsPartialsNoScaleTensorCores");
+
     fPartialsPartialsByPatternBlockFixedScaling = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsFixedScaleSpectral" :
             "kernelPartialsPartialsFixedScale");
 
     fPartialsPartialsByPatternBlockAutoScaling = gpu->GetFunction(
-                "kernelPartialsPartialsAutoScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelPartialsPartialsAutoScaleSpectral" :
+            "kernelPartialsPartialsAutoScale");
 
-    fPartialsPartialsGrowing = gpu->GetFunction(
-            "kernelPartialsPartialsGrowing");
+    fPartialsPartialsGrowing = gpu->GetFunction("kernelPartialsPartialsGrowing");
+    fPartialsStatesGrowing   = gpu->GetFunction("kernelPartialsStatesGrowing");
 
-    fPartialsStatesGrowing = gpu->GetFunction(
-            "kernelPartialsStatesGrowing");
+//    fPartialsPartialsGrowingTensorCores = gpu->GetFunction(
+//            "kernelPartialsPartialsGrowingTensorCores");
+
+    if (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) {
+        fPartialsPartialsGrowingSpectral       = gpu->GetFunction("kernelPartialsPartialsGrowingSpectral");
+        fPartialsStatesGrowingSpectral         = gpu->GetFunction("kernelPartialsStatesGrowingSpectral");
+        fPartialsPartialsGrowingTopSpectral    = gpu->GetFunction("kernelPartialsPartialsGrowingTopSpectral");
+        fPartialsStatesGrowingTopSpectral      = gpu->GetFunction("kernelPartialsStatesGrowingTopSpectral");
+        fPartialsPartialsGrowingTopRootSpectral= gpu->GetFunction("kernelPartialsPartialsGrowingTopRootSpectral");
+        fPartialsStatesGrowingTopRootSpectral  = gpu->GetFunction("kernelPartialsStatesGrowingTopRootSpectral");
+        fPartialsDegree2NoScaleSpectral        = gpu->GetFunction("kernelPartialsDegree2NoScaleSpectral");
+        fPartialsDegree2FixedScaleSpectral     = gpu->GetFunction("kernelPartialsDegree2FixedScaleSpectral");
+        fStatesDegree2NoScaleSpectral          = gpu->GetFunction("kernelStatesDegree2NoScaleSpectral");
+        fStatesDegree2FixedScaleSpectral       = gpu->GetFunction("kernelStatesDegree2FixedScaleSpectral");
+        fPartialsDegree2GrowingSpectral        = gpu->GetFunction("kernelPartialsDegree2GrowingSpectral");
+
+        if (kPaddedStateCount == 4) {
+            fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
+        } else {
+            fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
+        }
+    }
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
             "kernelPartialsPartialsEdgeFirstDerivatives");
@@ -327,17 +416,25 @@ void KernelLauncher::LoadKernels() {
     }
 
     fStatesPartialsByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesPartialsNoScaleSpectral" :
             "kernelStatesPartialsNoScale");
 
     fStatesStatesByPatternBlockCoherent = gpu->GetFunction(
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesStatesNoScaleSpectral" :
             "kernelStatesStatesNoScale");
 
 //    if (kPaddedStateCount != 4) {
         fStatesPartialsByPatternBlockFixedScaling = gpu->GetFunction(
-                "kernelStatesPartialsFixedScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesPartialsFixedScaleSpectral" :
+            "kernelStatesPartialsFixedScale");
 
         fStatesStatesByPatternBlockFixedScaling = gpu->GetFunction(
-                "kernelStatesStatesFixedScale");
+            (kFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION) ?
+            "kernelStatesStatesFixedScaleSpectral" :
+            "kernelStatesStatesFixedScale");
 //    }
 
     fPartialsPartialsEdgeLikelihoods = gpu->GetFunction(
@@ -418,13 +515,33 @@ void KernelLauncher::LoadKernels() {
     fSumSites3 = gpu->GetFunction("kernelSumSites3");
 
     fInnerBastaPartialsCoalescent = gpu->GetFunction("kernelInnerBastaPartialsCoalescent");
-    fReduceWithinInterval = gpu->GetFunction("kernelBastaReduceWithinInterval");
-    fReduceWithinIntervalSerial = gpu->GetFunction("kernelBastaReduceWithinIntervalSerial");
+    fReduceWithinIntervalMerged = gpu->GetFunction("kernelBastaReduceWithinIntervalMerged");
+    fReduceWithinIntervalMergedSlab = gpu->GetFunction("kernelBastaReduceWithinIntervalMergedSlab");
     fReduceAcrossInterval = gpu->GetFunction("kernelBastaReduceAcrossInterval");
-    fPreProcessBastaFlags = gpu->GetFunction("kernelPreProcessBastaFlags");
-    fAccumulateCarryOut = gpu->GetFunction("kernelAccumulateCarryOut");
-    fAccumulateCarryOutFinal = gpu->GetFunction("kernelAccumulateCarryOutFinal");
+    fReduceAcrossInterval_v5 = gpu->GetFunction("kernelBastaReduceAcrossInterval_v5");
 
+    fComputeHazardAdjoints = gpu->GetFunction("kernelComputeHazardAdjoints");
+    fAdjointBastaPartials = gpu->GetFunction("kernelAdjointBastaPartials");
+    fTiledBatchGemmABt = gpu->GetFunction("kernelTiledBatchGemmABt");
+    fTiledBatchGemmAtB = gpu->GetFunction("kernelTiledBatchGemmAtB");
+    fReduceMatrices = gpu->GetFunction("kernelReduceMatrices");
+    fApplyComplexLoewnerInPlace = gpu->GetFunction("kernelApplyComplexLoewnerInPlace");
+    fLoewnerExpPrecompute = gpu->GetFunction("kernelLoewnerExpPrecompute");
+    fApplyComplexLoewnerInPlacePrecomp = gpu->GetFunction("kernelApplyComplexLoewnerInPlacePrecomp");
+    fTiledSingleGemmAtB = gpu->GetFunction("kernelTiledSingleGemmAtB");
+    fTiledSingleGemmABt = gpu->GetFunction("kernelTiledSingleGemmABt");
+    fAccumulateMatrixAdjoints = gpu->GetFunction("kernelAccumulateMatrixAdjoints");
+    fAccumulateMatrixAdjointsSlabEigen = gpu->GetFunction("kernelAccumulateMatrixAdjointsSlabEigen");
+
+
+    fProjectPartialsToEigenbasis = gpu->GetFunction("kernelProjectPartialsToEigenbasis");
+    fProjectHazardsToEigen = gpu->GetFunction("kernelProjectHazardsToEigen");
+    fCoalescentSlab = gpu->GetFunction("kernelCoalescentSlab");
+    fAdjointBranchSlabLocal = gpu->GetFunction("kernelAdjointBranchSlabLocal");
+    fAdjointBranchSlabSpinePerBranch = gpu->GetFunction("kernelAdjointBranchSlabSpinePerBranch");
+    fAdjointBranchSlabApply = gpu->GetFunction("kernelAdjointBranchSlabApply");
+    fForwardBranchSlab = gpu->GetFunction("kernelForwardBranchSlab");
+    fForwardCoalescentSlab = gpu->GetFunction("kernelForwardCoalescentSlab");
 
     fReorderPatterns = gpu->GetFunction("kernelReorderPatterns");
 
@@ -611,7 +728,7 @@ void KernelLauncher::TransposeTransitionMatrices(GPUPtr dMatrices,
 			bgTransitionProbabilitiesGrid, parameterCountV,
 			totalParameterCount, dMatrices, dPtrQueue, totalMatrixCount);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 	bgTransitionProbabilitiesGrid.x /= totalMatrixCount; // Reset value
 
@@ -760,15 +877,24 @@ void KernelLauncher::PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 #endif
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgDerivativeBlocky = bgDerivativeBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsStatesEdgeFirstDerivatives,
                       bgDerivativeBlock, bgDerivativeGrid,
                       6, 9,
                       out, states0, partials0, matrices0, instructions, weights,
                       instructionOffset, patternCount, categoryCount);
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = tmpBgDerivativeBlocky;
+    }
+#endif
     if (synchronize) {
-        gpu->SynchronizeDevice();
+        SYNCHRONIZE_FOR_ORDER();
     }
 
     bgDerivativeGrid.y = saved;
@@ -795,6 +921,13 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
     unsigned int saved = bgDerivativeGrid.y;
     bgDerivativeGrid.y = nodeCount;
 
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgDerivativeBlocky = bgDerivativeBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = 4;
+    }
+#endif
+
 //    fprintf(stderr, "Executing for %d nodes\n", nodeCount);
 //    fprintf(stderr, "block = %d %d\n", bgDerivativeBlock.x, bgDerivativeBlock.y);
 //    fprintf(stderr, "grid  = %d %d\n", bgDerivativeGrid.x, bgDerivativeGrid.y);
@@ -805,8 +938,14 @@ void KernelLauncher::PartialsPartialsEdgeFirstDerivatives(GPUPtr out,
                       out, partials0, matrices0, instructions, weights,
                       instructionOffset, patternCount, categoryCount);
 
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgDerivativeBlock.y = tmpBgDerivativeBlocky;
+    }
+#endif
+
     if (synchronize) {
-        gpu->SynchronizeDevice();
+        SYNCHRONIZE_FOR_ORDER();
     }
 
     bgDerivativeGrid.y = saved;
@@ -848,12 +987,12 @@ void KernelLauncher::PartialsStatesCrossProducts(GPUPtr out,
     gpu->LaunchKernel(fPartialsStatesCrossProducts,
                       bgCrossProductBlock, grid,
                       7, 14,
-                      out, states0, partials, lengths, instructions, 
+                      out, states0, partials, lengths, instructions,
                       categoryWeights, patternWeights,
-                      instructionOffset, 
+                      instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate, missingState);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesCrossProducts\n");
@@ -896,7 +1035,7 @@ void KernelLauncher::PartialsPartialsCrossProducts(GPUPtr out,
                       instructionOffset,
                       patternCount, nodeCount, categoryCount, rateOffset, accumulate);
 
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsCrossProducts\n");
@@ -925,7 +1064,7 @@ void KernelLauncher::MultipleNodeSiteReduction(GPUPtr outSiteValues,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,
                       3, 5,
                       outSiteValues, inSiteValues, weights, outputOffset, stride);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
     bgMultiNodeSumGrid.x = saved;
 
@@ -956,7 +1095,7 @@ void KernelLauncher::MultipleNodeSiteSquaredReduction(GPUPtr outSiteValues,
                       bgMultiNodeSumBlock, bgMultiNodeSumGrid,
                       3, 5,
                       outSiteValues, inSiteValues, weights, outputOffset, stride);
-    gpu->SynchronizeDevice();
+    SYNCHRONIZE_FOR_ORDER();
 
     bgMultiNodeSumGrid.x = saved;
 
@@ -976,14 +1115,23 @@ void KernelLauncher::PartialsStatesGrowing(GPUPtr partials1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsStatesGrowing\n");
 #endif
-
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsStatesGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, states2, partials3, matrices1, matrices2,
                       patternCount);
-    gpu->SynchronizeDevice();
-
+    SYNCHRONIZE_FOR_ORDER();
+#ifdef CUDA_TENSOR_CORES
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = tmpBgPeelingBlocky;
+    }
+#endif
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsStatesGrowing\n");
 #endif
@@ -1001,16 +1149,281 @@ void KernelLauncher::PartialsPartialsGrowing(GPUPtr partials1,
     fprintf(stderr, "\t\tEntering KernelLauncher::PartialsPartialsGrowing\n");
 #endif
 
+//#ifdef BEAGLE_TENSOR_CORES
+//
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\t\tEntering PartialsPartialsGrowing on tensor cores\n");
+//    fprintf(stderr, "\t\t\tBlock size %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y);
+//#endif
+//    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+//    int tmpPeelingBlocky = bgPeelingBlock.y;
+//    bgPeelingBlock.y = 4;// TODO: Setup new block sizes for tensor core kernels
+//    gpu->LaunchKernel(fPartialsPartialsGrowingTensorCores,
+//                      bgPeelingBlock, bgPeelingGrid,
+//                      5, 6,
+//                      partials1, partials2, partials3, matrices1, matrices2,
+//                      patternCount);
+//    gpu->SynchronizeDevice();
+//    bgPeelingBlock.y = tmpPeelingBlocky;
+//    fprintf(stderr, "\n\n\t\tNumber of patterns: %d\n", patternCount);
+//    fprintf(stderr, "\n\n\t\tblock: %d %d %d\n", bgPeelingBlock.x, bgPeelingBlock.y, bgPeelingBlock.z);
+//    fprintf(stderr, "\n\n\t\tgrid: %d %d %d\n", bgPeelingGrid.x, bgPeelingGrid.y, bgPeelingGrid.z);
+//    double tmp[256] ={-1};
+//    int npartials = patternCount * 4;
+//    fprintf(stderr, "\n\n\t\tPrinting partials1\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting matrices1\n");
+//    gpu->MemcpyDeviceToHost(&tmp, matrices1, sizeof(double) * 16);
+//    for(int i = 0; i < 16; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials2\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials2, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting matrices2\n");
+//    gpu->MemcpyDeviceToHost(&tmp, matrices2, sizeof(double) * 16);
+//    for(int i = 0; i < 16; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+//    for(int i = 0; i < 256; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials3\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials3, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//#ifdef BEAGLE_DEBUG_FLOW
+//    fprintf(stderr, "\n\t\tLeaving PartialsPartialsGrowing on tensor cores\n");
+//#endif
+//#else
+//    GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
     gpu->LaunchKernel(fPartialsPartialsGrowing,
                       bgPeelingBlock, bgPeelingGrid,
                       5, 6,
                       partials1, partials2, partials3, matrices1, matrices2,
                       patternCount);
-    gpu->SynchronizeDevice();
-
+    SYNCHRONIZE_FOR_ORDER();
+#ifdef CUDA_TENSOR_CORES
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = tmpBgPeelingBlocky;
+    }
+#endif
+//    double tmp[256] ={-1};
+//    int npartials = 256;
+//    fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//    gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials1\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials1, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//    fprintf(stderr, "\n\n\t\tPrinting partials2\n");
+//    gpu->MemcpyDeviceToHost(&tmp, partials2, sizeof(double) * npartials);
+//    for(int i = 0; i < npartials; i++) {
+//        fprintf(stderr, " %f, ", tmp[i]);
+//        tmp[i] = 0;
+//    }
+//#endif
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving KernelLauncher::PartialsPartialsGrowing\n");
 #endif
+}
+
+void KernelLauncher::PartialsPartialsGrowingSpectral(GPUPtr partials1,
+                                                     GPUPtr partials2,
+                                                     GPUPtr partials3,
+                                                     GPUPtr evecT1, GPUPtr ievcT1,
+                                                     GPUPtr eigenValues1, GPUPtr distances1,
+                                                     GPUPtr ievc2, GPUPtr evec2,
+                                                     GPUPtr eigenValues2, GPUPtr distances2,
+                                                     unsigned int patternCount,
+                                                     unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsPartialsGrowingSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      11, 12,
+                      partials1, partials2, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsStatesGrowingSpectral(GPUPtr partials1,
+                                                   GPUPtr states2,
+                                                   GPUPtr partials3,
+                                                   GPUPtr evecT1, GPUPtr ievcT1,
+                                                   GPUPtr eigenValues1, GPUPtr distances1,
+                                                   GPUPtr ievc2, GPUPtr evec2,
+                                                   GPUPtr eigenValues2, GPUPtr distances2,
+                                                   unsigned int patternCount,
+                                                   unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsStatesGrowingSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      11, 12,
+                      partials1, states2, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsPartialsGrowingSpectralTop(GPUPtr partials1,
+                                                        GPUPtr partials2,
+                                                        GPUPtr partials3,
+                                                        GPUPtr evecT1, GPUPtr ievcT1,
+                                                        GPUPtr eigenValues1, GPUPtr distances1,
+                                                        GPUPtr ievc2, GPUPtr evec2,
+                                                        GPUPtr eigenValues2, GPUPtr distances2,
+                                                        unsigned int patternCount,
+                                                        unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsPartialsGrowingTopSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      11, 12,
+                      partials1, partials2, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsStatesGrowingSpectralTop(GPUPtr partials1,
+                                                      GPUPtr states2,
+                                                      GPUPtr partials3,
+                                                      GPUPtr evecT1, GPUPtr ievcT1,
+                                                      GPUPtr eigenValues1, GPUPtr distances1,
+                                                      GPUPtr ievc2, GPUPtr evec2,
+                                                      GPUPtr eigenValues2, GPUPtr distances2,
+                                                      unsigned int patternCount,
+                                                      unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsStatesGrowingTopSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      11, 12,
+                      partials1, states2, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsPartialsGrowingSpectralTopRoot(GPUPtr partials1,
+                                                            GPUPtr partials2,
+                                                            GPUPtr partials3,
+                                                            GPUPtr ievc2, GPUPtr evec2,
+                                                            GPUPtr eigenValues2, GPUPtr distances2,
+                                                            unsigned int patternCount,
+                                                            unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsPartialsGrowingTopRootSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      7, 8,
+                      partials1, partials2, partials3,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsStatesGrowingSpectralTopRoot(GPUPtr partials1,
+                                                          GPUPtr states2,
+                                                          GPUPtr partials3,
+                                                          GPUPtr ievc2, GPUPtr evec2,
+                                                          GPUPtr eigenValues2, GPUPtr distances2,
+                                                          unsigned int patternCount,
+                                                          unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsStatesGrowingTopRootSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      7, 8,
+                      partials1, states2, partials3,
+                      ievc2, evec2, eigenValues2, distances2,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
+                                                    GPUPtr partials3,
+                                                    GPUPtr evecT1, GPUPtr ievcT1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount) {
+    gpu->LaunchKernel(fPartialsDegree2GrowingSpectral,
+                      bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                      6, 7,
+                      partials1, partials3,
+                      evecT1, ievcT1, eigenValues1, distances1,
+                      patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+
+void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
+                                                         GPUPtr statesOrigin,
+                                                         GPUPtr evecTOrigin,
+                                                         GPUPtr ievcOrigin,
+                                                         GPUPtr evalOrigin,
+                                                         GPUPtr distOrigin,
+                                                         GPUPtr patternWeights,
+                                                         GPUPtr categoryWeights,
+                                                         GPUPtr perSiteLikelihoods,
+                                                         GPUPtr gradientOrigin,
+                                                         GPUPtr adjointQueue,
+                                                         unsigned int patternCount,
+                                                         unsigned int categoryCount,
+                                                         int branchCount) {
+    Dim3Int block(128);
+    Dim3Int grid(categoryCount, branchCount);
+    gpu->LaunchKernel(fAdjointMerged4, block, grid, 11, 13,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        gradientOrigin, adjointQueue,
+        (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
+                                                         GPUPtr statesOrigin,
+                                                         GPUPtr evecTOrigin,
+                                                         GPUPtr ievcOrigin,
+                                                         GPUPtr evalOrigin,
+                                                         GPUPtr distOrigin,
+                                                         GPUPtr patternWeights,
+                                                         GPUPtr categoryWeights,
+                                                         GPUPtr perSiteLikelihoods,
+                                                         GPUPtr gradientOrigin,
+                                                         GPUPtr adjointQueue,
+                                                         unsigned int patternCount,
+                                                         unsigned int categoryCount,
+                                                         int branchCount) {
+    Dim3Int block(kAdjointBlockSizeN);
+    Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
+    gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 13,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        gradientOrigin, adjointQueue,
+        (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
+    SYNCHRONIZE_FOR_ORDER();
 }
 
 
@@ -1043,7 +1456,9 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           partials1, partials2, partials3, matrices1, matrices2, dRescalingTrigger,
                           patternCount);
 
-        gpu->SynchronizeDevice();
+        // the kernel writes the trigger into mapped host memory, read just below; the host waits for LaunchKernel's
+        // stream only (only CUDA has dynamic scaling): a context-wide wait fails while another instance captures a graph
+        gpu->SynchronizeGraph();
 //        printf("hRescalingTrigger (no factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
@@ -1076,7 +1491,9 @@ void KernelLauncher::PartialsPartialsPruningDynamicCheckScaling(GPUPtr partials1
                           dScalingFactors[readScalingIndex], dRescalingTrigger,
                           patternCount);
 
-        gpu->SynchronizeDevice();
+        // the kernel writes the trigger into mapped host memory, read just below; the host waits for LaunchKernel's
+        // stream only (only CUDA has dynamic scaling): a context-wide wait fails while another instance captures a graph
+        gpu->SynchronizeGraph();
 //        printf("hRescalingTrigger (existing factors) %d\n", *hRescalingTrigger);
         if (*hRescalingTrigger) { // check if any partials need rescaling
             if (dScalingFactors[writeScalingIndex] != dScalingFactorsMaster[writeScalingIndex])
@@ -1175,29 +1592,73 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
 
     if (doRescaling == 2) { // auto-rescaling
         bgPeelingGrid.x = tmpGridx;
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr, "\t\tLaunching fPartialsPartialsByPatternBlockAutoScaling\n");
+#endif
         gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
                           bgPeelingBlock, bgPeelingGrid,
                           6, 7,
                           partials1, partials2, partials3, matrices1, matrices2, scalingFactors,
                           patternCount);
+#ifdef BEAGLE_DEBUG_FLOW
+        fprintf(stderr, "\t\tLeaving fPartialsPartialsByPatternBlockAutoScaling\n");
+#endif
     } else if (doRescaling != 0) {
         // Compute partials without any rescaling
 
         if (endPattern != 0) {
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLaunching fPartialsPartialsByPatternBlockCoherentPartition doRescaling = %d\n", doRescaling);
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherentPartition,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 8,
                                         partials1, partials2, partials3, matrices1, matrices2,
                                         startPattern, endPattern, patternCount);
-
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLeaving fPartialsPartialsByPatternBlockCoherentPartition\n");
+#endif
         } else {
+//#ifdef BEAGLE_TENSOR_CORES
+//            fprintf(stderr, "\n\t\tEntering PartialsPartialsNoScale on tensor cores doRescaling = %d\n", doRescaling);
+//            int tmpPeelingBlocky = bgPeelingBlock.y;
+//            bgPeelingBlock.y = 4; // TODO: Setup new block sizes for tensor core kernels
+//            GPUPtr tmpAcc = gpu->AllocateMemory(256 * sizeof(double));
+//            gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherentTensorCores,
+//                                        bgPeelingBlock, bgPeelingGrid,
+//                                        streamIndex, waitIndex,
+//                                        5, 6,
+//                                        partials1, partials2, partials3, matrices1, matrices2,
+//                                        patternCount);
+//            bgPeelingBlock.y = tmpPeelingBlocky;
+//            fprintf(stderr, "\n\n\t\tPrinting tmpAcc\n");
+//            double tmp[256] = {-1};
+//            gpu->MemcpyDeviceToHost(&tmp, tmpAcc, sizeof(double) * 256);
+//            for(int i = 0; i < 256; i++) {
+//                fprintf(stderr, " %f, ", tmp[i]);
+//                tmp[i] = 0;
+//            }
+//            fprintf(stderr, "\n\t\tLeaving PartialsPartialsNoScale on tensor cores\n");
+//#else
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+    int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 6,
                                         partials1, partials2, partials3, matrices1, matrices2,
                                         patternCount);
+#ifdef CUDA_TENSOR_CORES
+            if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+                bgPeelingBlock.y = tmpBgPeelingBlocky;
+            }
+#endif
+//#endif
         }
 
         // Rescale partials and save scaling factors
@@ -1215,6 +1676,9 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
     } else {
         // Compute partials with known rescalings
         if (endPattern != 0) {
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLaunching fPartialsPartialsByPatternBlockFixedScalingPartition doRescaling = %d\n", doRescaling);
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockFixedScalingPartition,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
@@ -1222,7 +1686,13 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                                         partials1, partials2, partials3, matrices1, matrices2,
                                         scalingFactors,
                                         startPattern, endPattern, patternCount);
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLeaving fPartialsPartialsByPatternBlockFixedScalingPartition\n");
+#endif
         } else {
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLaunching fPartialsPartialsByPatternBlockFixedScaling doRescaling = %d\n", doRescaling);
+#endif
             gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockFixedScaling,
                               bgPeelingBlock, bgPeelingGrid,
                               streamIndex, waitIndex,
@@ -1230,6 +1700,9 @@ void KernelLauncher::PartialsPartialsPruningDynamicScaling(GPUPtr partials1,
                               partials1, partials2, partials3, matrices1, matrices2,
                               scalingFactors,
                               patternCount);
+#ifdef BEAGLE_DEBUG_FLOW
+            fprintf(stderr, "\t\tLaunching fPartialsPartialsByPatternBlockFixedScaling\n");
+#endif
         }
     }
 
@@ -1335,12 +1808,23 @@ void KernelLauncher::StatesPartialsPruningDynamicScaling(GPUPtr states1,
                                         startPattern, endPattern, patternCount);
 
         } else {
+#ifdef CUDA_TENSOR_CORES // TODO: Temporary fix. Ideally define new peeling block sizes for tensor cores
+            int tmpBgPeelingBlocky = bgPeelingBlock.y;
+    if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = 4;
+    }
+#endif
             gpu->LaunchKernelConcurrent(fStatesPartialsByPatternBlockCoherent,
                                         bgPeelingBlock, bgPeelingGrid,
                                         streamIndex, waitIndex,
                                         5, 6,
                                         states1, partials2, partials3, matrices1, matrices2,
                                         patternCount);
+#ifdef CUDA_TENSOR_CORES
+            if (kPaddedStateCount > 4 && !kCPUImplementation && ! kAppleCPUImplementation) {
+        bgPeelingBlock.y = tmpBgPeelingBlocky;
+    }
+#endif
         }
 
         // Rescale partials and save scaling factors
@@ -1527,7 +2011,6 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
                                         states1, states2, partials3, matrices1, matrices2,
                                         patternCount);
         }
-
         // Rescale partials and save scaling factors
         if (doRescaling > 0) {
             if (endPattern == 0 ) {
@@ -1608,6 +2091,206 @@ void KernelLauncher::StatesStatesPruningDynamicScaling(GPUPtr states1,
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::StatesStatesPruningDynamicScaling\n");
 #endif
+}
+
+void KernelLauncher::PartialsPartialsPruningSpectral(GPUPtr partials1,
+                                                      GPUPtr partials2,
+                                                      GPUPtr partials3,
+                                                      GPUPtr ievc1, GPUPtr evec1,
+                                                      GPUPtr eigenValues1, GPUPtr distances1,
+                                                      GPUPtr ievc2, GPUPtr evec2,
+                                                      GPUPtr eigenValues2, GPUPtr distances2,
+                                                      GPUPtr scalingFactors,
+                                                      GPUPtr cumulativeScaling,
+                                                      unsigned int patternCount,
+                                                      unsigned int categoryCount,
+                                                      int doRescaling,
+                                                      int streamIndex,
+                                                      int waitIndex) {
+    if (doRescaling == 2) { // auto-rescaling
+        gpu->LaunchKernel(fPartialsPartialsByPatternBlockAutoScaling,
+                          bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                          12, 13,
+                          partials1, partials2, partials3,
+                          ievc1, evec1, eigenValues1, distances1,
+                          ievc2, evec2, eigenValues2, distances2,
+                          scalingFactors,
+                          patternCount);
+    } else if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    partials1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fPartialsPartialsByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    partials1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesPartialsPruningSpectral(GPUPtr states1,
+                                                    GPUPtr partials2,
+                                                    GPUPtr partials3,
+                                                    GPUPtr ievc1, GPUPtr evec1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    GPUPtr ievc2, GPUPtr evec2,
+                                                    GPUPtr eigenValues2, GPUPtr distances2,
+                                                    GPUPtr scalingFactors,
+                                                    GPUPtr cumulativeScaling,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount,
+                                                    int doRescaling,
+                                                    int streamIndex,
+                                                    int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesPartialsByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    states1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesPartialsByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    states1, partials2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesStatesPruningSpectral(GPUPtr states1,
+                                                  GPUPtr states2,
+                                                  GPUPtr partials3,
+                                                  GPUPtr ievc1, GPUPtr evec1,
+                                                  GPUPtr eigenValues1, GPUPtr distances1,
+                                                  GPUPtr ievc2, GPUPtr evec2,
+                                                  GPUPtr eigenValues2, GPUPtr distances2,
+                                                  GPUPtr scalingFactors,
+                                                  GPUPtr cumulativeScaling,
+                                                  unsigned int patternCount,
+                                                  unsigned int categoryCount,
+                                                  int doRescaling,
+                                                  int streamIndex,
+                                                  int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockCoherent,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    11, 12,
+                                    states1, states2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesStatesByPatternBlockFixedScaling,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    12, 13,
+                                    states1, states2, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    ievc2, evec2, eigenValues2, distances2,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+// a single child never gets AUTO's doRescaling 2 (BeagleGPUImpl::upPartials leaves it unscaled, as the CPU does)
+void KernelLauncher::PartialsDegree2PruningSpectral(GPUPtr partials1,
+                                                    GPUPtr partials3,
+                                                    GPUPtr ievc1, GPUPtr evec1,
+                                                    GPUPtr eigenValues1, GPUPtr distances1,
+                                                    GPUPtr scalingFactors,
+                                                    GPUPtr cumulativeScaling,
+                                                    unsigned int patternCount,
+                                                    unsigned int categoryCount,
+                                                    int doRescaling,
+                                                    int streamIndex,
+                                                    int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fPartialsDegree2NoScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    6, 7,
+                                    partials1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fPartialsDegree2FixedScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    7, 8,
+                                    partials1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    scalingFactors,
+                                    patternCount);
+    }
+}
+
+void KernelLauncher::StatesDegree2PruningSpectral(GPUPtr states1,
+                                                  GPUPtr partials3,
+                                                  GPUPtr ievc1, GPUPtr evec1,
+                                                  GPUPtr eigenValues1, GPUPtr distances1,
+                                                  GPUPtr scalingFactors,
+                                                  GPUPtr cumulativeScaling,
+                                                  unsigned int patternCount,
+                                                  unsigned int categoryCount,
+                                                  int doRescaling,
+                                                  int streamIndex,
+                                                  int waitIndex) {
+    if (doRescaling != 0) {
+        gpu->LaunchKernelConcurrent(fStatesDegree2NoScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    6, 7,
+                                    states1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    patternCount);
+        if (doRescaling > 0) {
+            KernelLauncher::RescalePartials(partials3, scalingFactors, cumulativeScaling,
+                                            patternCount, categoryCount, 0, streamIndex, -1);
+        }
+    } else {
+        gpu->LaunchKernelConcurrent(fStatesDegree2FixedScaleSpectral,
+                                    bgSpectralPeelingBlock, bgSpectralPeelingGrid,
+                                    streamIndex, waitIndex,
+                                    7, 8,
+                                    states1, partials3,
+                                    ievc1, evec1, eigenValues1, distances1,
+                                    scalingFactors,
+                                    patternCount);
+    }
 }
 
 void KernelLauncher::IntegrateLikelihoodsDynamicScaling(GPUPtr dResult,
@@ -2427,13 +3110,15 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
                               GPUPtr operations,
                               const GPUPtr sizes,
                               GPUPtr coalescent,
-                              unsigned int intervalNUmber,
                               unsigned int start,
                               unsigned int numOps,
-                              unsigned int patternCount) {
+                              unsigned int patternCount,
+                              unsigned int sizesStride) {
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr, "\t\tEntering KernelLauncher::InnerBastaPartialsCoalescent\n");
 #endif
+    int peelingGrid = patternCount / kSumAcrossBlockSize + 1;
+    bgBastaPeelingGrid = Dim3Int(peelingGrid, 1);
 
         int parameterCountV = 5;
         int totalParameterCount = 9;
@@ -2441,7 +3126,7 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
                           bgBastaPeelingBlock, bgBastaPeelingGrid,
                           parameterCountV, totalParameterCount,
                           partials, matrices, operations, sizes, coalescent,
-                          intervalNUmber, start, numOps, patternCount);
+                          start, numOps, patternCount, sizesStride);
 
 #ifdef BEAGLE_DEBUG_FLOW
         fprintf(stderr, "\t\tLeaving  KernelLauncher::InnerBastaPartialsCoalescent\n");
@@ -2479,118 +3164,51 @@ void KernelLauncher::InnerBastaPartialsCoalescent(GPUPtr partials,
 //
 // }
 
-    void KernelLauncher::reduceWithinInterval(GPUPtr operations,
-                              GPUPtr partials,
-                              GPUPtr dBastaBlockResMemory,
-                              GPUPtr intervals,
-                              unsigned int numOps,
-                              unsigned int start,
-                              unsigned int end,
-                              unsigned int numSubinterval) {
+    void KernelLauncher::reduceWithinIntervalMerged(GPUPtr operations,
+                                                    GPUPtr partials,
+                                                    GPUPtr dBastaMemory,
+                                                    unsigned int numOps,
+                                                    unsigned int start,
+                                                    unsigned int end,
+                                                    unsigned int numBlocks,
+                                                    unsigned int kCoalescentBufferLength) {
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
 #endif
-
-    int parameterCountV = 4;
+    int parameterCountV = 3;
     int totalParameterCount = 8;
-    gpu->LaunchKernel(fReduceWithinInterval,
+    bgBastaReductionGrid = Dim3Int(numBlocks, 1);
+    gpu->LaunchKernel(fReduceWithinIntervalMerged,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      operations, partials, dBastaBlockResMemory, intervals, numOps, start, end, numSubinterval);
-
+                      operations, partials, dBastaMemory, numOps, start, end, numBlocks, kCoalescentBufferLength);
 #ifdef BEAGLE_DEBUG_FLOW
     fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
 #endif
 
 }
 
-    void KernelLauncher::reduceWithinIntervalSerial(GPUPtr operations,
-                          GPUPtr partials,
-                          GPUPtr dBastaMemory,
-                          unsigned int numOps,
-                          unsigned int start,
-                          unsigned int end,
-                          unsigned int kCoalescentBufferLength) {
+
+void KernelLauncher::reduceWithinIntervalMergedSlab(GPUPtr reduceOps,
+                                                    GPUPtr partials,
+                                                    GPUPtr dBastaMemory,
+                                                    unsigned int start,
+                                                    unsigned int end,
+                                                    unsigned int numBlocks,
+                                                    unsigned int kCoalescentBufferLength) {
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceWithinInterval\n");
-#endif
-
-    int parameterCountV = 4;
-    int totalParameterCount = 8;
-    gpu->LaunchKernel(fReduceWithinIntervalSerial,
-                      bgBastaPreBlock, bgBastaPreGrid,
-                      parameterCountV, totalParameterCount,
-                      operations, partials, dBastaMemory, numOps, start, end, kCoalescentBufferLength);
-
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceWithinInterval\n");
-#endif
-
-}
-
-    void KernelLauncher::preProcessBastaFlags(GPUPtr dBastaInterval,
-                              GPUPtr dBastaFlags,
-                              GPUPtr dBlockSegmentKeysEnd,
-                              unsigned int operationCount,
-                              unsigned int  numBlocks) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
+    fprintf(stderr, "\t\tEntering KernelLauncher::reduceWithinIntervalMergedSlab\n");
 #endif
     int parameterCountV = 3;
-    int totalParameterCount = 5;
-
-    gpu->LaunchKernel(fPreProcessBastaFlags,
-                      bgBastaPreBlock, bgBastaPreGrid,
-                      parameterCountV, totalParameterCount,
-                      dBastaInterval, dBastaFlags, dBlockSegmentKeysEnd, operationCount, numBlocks);
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
-#endif
-
-}
-
-
-    void KernelLauncher::accumulateCarryOut(GPUPtr dBastaBlockResMemory,
-                                            GPUPtr dBastaFinalResMemory,
-                                            GPUPtr dBastaFlags,
-                                            unsigned int numSubinterval,
-                                            unsigned int  numSubintervalFinal) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
-#endif
-    int parameterCountV = 3;
-    int totalParameterCount = 5;
-
-    gpu->LaunchKernel(fAccumulateCarryOut,
+    int totalParameterCount = 7;
+    bgBastaReductionGrid = Dim3Int(numBlocks, 1);
+    gpu->LaunchKernel(fReduceWithinIntervalMergedSlab,
                       bgBastaReductionBlock, bgBastaReductionGrid,
                       parameterCountV, totalParameterCount,
-                      dBastaBlockResMemory, dBastaFinalResMemory, dBastaFlags, numSubinterval, numSubintervalFinal);
+                      reduceOps, partials, dBastaMemory, start, end, numBlocks, kCoalescentBufferLength);
 #ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::reduceWithinIntervalMergedSlab\n");
 #endif
-
-}
-
-    void KernelLauncher::accumulateCarryOutFinal(GPUPtr dBastaFinalResMemory,
-                                        GPUPtr dBastaMemory,
-                                        GPUPtr dBastaFlags,
-                                        unsigned int numSubinterval,
-                                        unsigned int  numSubintervalFinal,
-                                        unsigned int kCoalescentBufferLength) {
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tEntering KernelLauncher::ReduceAcrossinInterval\n");
-#endif
-    int parameterCountV = 3;
-    int totalParameterCount = 6;
-
-    gpu->LaunchKernel(fAccumulateCarryOutFinal,
-                      bgBastaReductionBlock, bgBastaReductionGrid,
-                      parameterCountV, totalParameterCount,
-                      dBastaFinalResMemory, dBastaMemory, dBastaFlags, numSubinterval, numSubintervalFinal, kCoalescentBufferLength);
-#ifdef BEAGLE_DEBUG_FLOW
-    fprintf(stderr, "\t\tLeaving  KernelLauncher::ReduceAcrossinInterval\n");
-#endif
-
 }
 
 void KernelLauncher::reduceAcrossIntervals(GPUPtr dBastaMemory,
@@ -2605,6 +3223,8 @@ void KernelLauncher::reduceAcrossIntervals(GPUPtr dBastaMemory,
 #endif
     int parameterCountV = 5;
     int totalParameterCount = 7;
+    int reductionGrid = intervalNumber / kSumAcrossBlockSize + 1;
+    bgBastaSumGrid = Dim3Int(reductionGrid);
     gpu->LaunchKernel(fReduceAcrossInterval,
                       bgBastaSumBlock, bgBastaSumGrid,
                       parameterCountV, totalParameterCount,
@@ -2614,6 +3234,492 @@ void KernelLauncher::reduceAcrossIntervals(GPUPtr dBastaMemory,
 #endif
 
 }
+
+void KernelLauncher::reduceAcrossIntervals_v5(GPUPtr dBastaMemory,
+                                              GPUPtr integrals,
+                                              GPUPtr dLogL,
+                                              GPUPtr coalescent,
+                                              unsigned int intervalStartsCount,
+                                              unsigned int kCoalescentBufferLength) {
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tEntering KernelLauncher::reduceAcrossIntervals_v5\n");
+#endif
+    int parameterCountV = 4;
+    int totalParameterCount = 6;
+    int reductionGrid = intervalStartsCount / kSumAcrossBlockSize + 1;
+    bgBastaSumGrid = Dim3Int(reductionGrid);
+    gpu->LaunchKernel(fReduceAcrossInterval_v5,
+                      bgBastaSumBlock, bgBastaSumGrid,
+                      parameterCountV, totalParameterCount,
+                      dBastaMemory, integrals, dLogL, coalescent, intervalStartsCount, kCoalescentBufferLength);
+#ifdef BEAGLE_DEBUG_FLOW
+    fprintf(stderr, "\t\tLeaving  KernelLauncher::reduceAcrossIntervals_v5\n");
+#endif
+}
+
+void KernelLauncher::ComputeHazardAdjoints(GPUPtr dBastaMemory,
+                                            GPUPtr intervalLengths,
+                                            GPUPtr intervalNumbers,
+                                            GPUPtr sizes,
+                                            GPUPtr dHazardAdjoints,
+                                            GPUPtr dPopSizeGrad,
+                                            unsigned int numIntervals,
+                                            unsigned int kCoalescentBufferLength) {
+    int intervalsPerBlock = bgHazardAdjointBlock.y;
+    int numBlocks = (numIntervals + intervalsPerBlock - 1) / intervalsPerBlock;
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 6;
+    int totalParameterCount = 8;
+    gpu->LaunchKernel(fComputeHazardAdjoints,
+                      bgHazardAdjointBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      dBastaMemory, intervalLengths, intervalNumbers, sizes,
+                      dHazardAdjoints, dPopSizeGrad,
+                      numIntervals, kCoalescentBufferLength);
+}
+
+void KernelLauncher::AdjointBastaPartials(GPUPtr partials, GPUPtr partialAdj,
+                                           GPUPtr matrices,
+                                           GPUPtr scratchYBar, GPUPtr scratchX,
+                                           GPUPtr coalRightYBar, GPUPtr coalRightX,
+                                           GPUPtr operations, GPUPtr sizes,
+                                           GPUPtr coalescent,
+                                           GPUPtr dHazardAdjoints, GPUPtr dPopSizeGrad,
+                                           unsigned int interval, unsigned int start,
+                                           unsigned int totalPatterns,
+                                           unsigned int matTransIndex,
+                                           unsigned int stateCount, int coalOp) {
+    int peelingGrid = totalPatterns / kSumAcrossBlockSize + 1;
+    Dim3Int grid(peelingGrid, 1);
+
+
+    int parameterCountV = 12;
+    int totalParameterCount = 18;
+    gpu->LaunchKernel(fAdjointBastaPartials,
+                      bgAdjointBastaPeelingBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, partialAdj, matrices, scratchYBar, scratchX,
+                      coalRightYBar, coalRightX,
+                      operations, sizes, coalescent, dHazardAdjoints, dPopSizeGrad,
+                      interval, start, totalPatterns, matTransIndex, stateCount, coalOp);
+}
+
+void KernelLauncher::AccumulateMatrixAdjoints(GPUPtr scratchYBar, GPUPtr scratchX,
+                                              GPUPtr coalRightYBar, GPUPtr coalRightX,
+                                              GPUPtr intervalStarts,
+                                              GPUPtr matTransIndices,
+                                              GPUPtr coalOps,
+                                              GPUPtr matrixAdj,
+                                              unsigned int intervalCount) {
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(intervalCount, tilesPerRow * tilesPerCol);
+
+    int parameterCountV = 8;
+    int totalParameterCount = 9;
+    gpu->LaunchKernel(fAccumulateMatrixAdjoints,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      scratchYBar, scratchX,
+                      coalRightYBar, coalRightX,
+                      intervalStarts, matTransIndices, coalOps,
+                      matrixAdj,
+                      intervalCount);
+}
+
+void KernelLauncher::AccumulateMatrixAdjointsSlabEigen(
+        GPUPtr scratchYBar, GPUPtr partialsTilde,
+        GPUPtr opInBufOff,
+        GPUPtr intervalOpStart, GPUPtr intervalOpList,
+        GPUPtr matrixAdj, unsigned int intervalCount) {
+    if (intervalCount == 0) return;
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(intervalCount, tilesPerRow * tilesPerCol);
+
+
+    int parameterCountV = 6;
+    int totalParameterCount = 7;
+    gpu->LaunchKernel(fAccumulateMatrixAdjointsSlabEigen,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      scratchYBar, partialsTilde,
+                      opInBufOff,
+                      intervalOpStart, intervalOpList,
+                      matrixAdj,
+                      intervalCount);
+}
+
+void KernelLauncher::TiledBatchGemmABt(GPUPtr A, GPUPtr B, GPUPtr C,
+                                       unsigned int matrixCount) {
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(matrixCount * tilesPerRow, tilesPerCol);
+    int parameterCountV = 3;
+    int totalParameterCount = 4;
+    gpu->LaunchKernel(fTiledBatchGemmABt,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      A, B, C,
+                      matrixCount);
+}
+
+void KernelLauncher::TiledBatchGemmAtB(GPUPtr A, GPUPtr B, GPUPtr C,
+                                        unsigned int matrixCount) {
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(matrixCount * tilesPerRow, tilesPerCol);
+    int parameterCountV = 3;
+    int totalParameterCount = 4;
+    gpu->LaunchKernel(fTiledBatchGemmAtB,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      A, B, C,
+                      matrixCount);
+}
+
+void KernelLauncher::ReduceMatrices(GPUPtr src, GPUPtr dst,
+                                     unsigned int matrixCount) {
+    int S2 = kPaddedStateCount * kPaddedStateCount;
+    int numGridBlocks = (S2 + 256 - 1) / 256;
+
+    int numChunks = 1;
+    if (matrixCount > 0) {
+        const int targetBlocks = 512;
+        int desired = (targetBlocks + numGridBlocks - 1) / numGridBlocks;
+        int maxByWork = (int) matrixCount / 8;
+        numChunks = (desired < maxByWork) ? desired : maxByWork;
+        if (numChunks > (int) matrixCount) numChunks = (int) matrixCount;
+        if (numChunks < 1) numChunks = 1;
+    }
+
+    if (numChunks > 1) {
+        size_t realBytes = (kFlags & BEAGLE_FLAG_PRECISION_DOUBLE)
+                           ? sizeof(double) : sizeof(float);
+        gpu->MemsetZeroAsync(dst, (size_t) S2 * realBytes);
+    }
+
+    Dim3Int grid(numGridBlocks, numChunks);
+    int parameterCountV = 2;
+    int totalParameterCount = 3;
+    gpu->LaunchKernel(fReduceMatrices,
+                      bgReduceBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      src, dst,
+                      matrixCount);
+}
+
+void KernelLauncher::ApplyComplexLoewnerInPlace(GPUPtr transformed, GPUPtr eigenValues,
+                                                 GPUPtr branchLengths, GPUPtr blockStarts,
+                                                 GPUPtr blockDims,
+                                                 unsigned int matrixCount,
+                                                 unsigned int stateCount,
+                                                 unsigned int /*numBlocks*/) {
+
+    const unsigned int effectiveBlocks = (unsigned int) kPaddedStateCount;
+    unsigned int numPairs = effectiveBlocks * effectiveBlocks;
+    unsigned int blockSize = 64;
+    unsigned int numMatrixBlocks = (matrixCount + blockSize - 1) / blockSize;
+    if (numMatrixBlocks == 0) numMatrixBlocks = 1;
+    Dim3Int block((int) blockSize, 1);
+    Dim3Int grid((int) numPairs, (int) numMatrixBlocks);
+    int parameterCountV = 5;
+    int totalParameterCount = 8;
+    gpu->LaunchKernel(fApplyComplexLoewnerInPlace,
+                      block, grid,
+                      parameterCountV, totalParameterCount,
+                      transformed, eigenValues, branchLengths, blockStarts, blockDims,
+                      matrixCount, stateCount, effectiveBlocks);
+}
+
+void KernelLauncher::LoewnerExpPrecompute(GPUPtr eigenValues, GPUPtr branchLengths,
+                                          GPUPtr blockStarts, GPUPtr blockDims,
+                                          GPUPtr loewnerExp,
+                                          unsigned int matrixCount,
+                                          unsigned int stateCount,
+                                          unsigned int) {
+    const unsigned int effectiveBlocks = (unsigned int) kPaddedStateCount;
+    unsigned int blockSize = 64;
+    unsigned int numMatrixBlocks = (matrixCount + blockSize - 1) / blockSize;
+    if (numMatrixBlocks == 0) numMatrixBlocks = 1;
+    Dim3Int block((int) blockSize, 1);
+    Dim3Int grid((int) effectiveBlocks, (int) numMatrixBlocks);
+    int parameterCountV = 5;
+    int totalParameterCount = 8;
+    gpu->LaunchKernel(fLoewnerExpPrecompute,
+                      block, grid,
+                      parameterCountV, totalParameterCount,
+                      eigenValues, branchLengths, blockStarts, blockDims, loewnerExp,
+                      matrixCount, stateCount, effectiveBlocks);
+}
+
+void KernelLauncher::ApplyComplexLoewnerInPlacePrecomp(GPUPtr transformed, GPUPtr eigenValues,
+                                                       GPUPtr branchLengths, GPUPtr blockStarts,
+                                                       GPUPtr blockDims, GPUPtr loewnerExp,
+                                                       unsigned int matrixCount,
+                                                       unsigned int stateCount,
+                                                       unsigned int) {
+    const unsigned int effectiveBlocks = (unsigned int) kPaddedStateCount;
+    unsigned int numPairs = effectiveBlocks * effectiveBlocks;
+    unsigned int blockSize = 64;
+    unsigned int numMatrixBlocks = (matrixCount + blockSize - 1) / blockSize;
+    if (numMatrixBlocks == 0) numMatrixBlocks = 1;
+    Dim3Int block((int) blockSize, 1);
+    Dim3Int grid((int) numPairs, (int) numMatrixBlocks);
+    int parameterCountV = 6;
+    int totalParameterCount = 9;
+    gpu->LaunchKernel(fApplyComplexLoewnerInPlacePrecomp,
+                      block, grid,
+                      parameterCountV, totalParameterCount,
+                      transformed, eigenValues, branchLengths, blockStarts, blockDims, loewnerExp,
+                      matrixCount, stateCount, effectiveBlocks);
+}
+
+void KernelLauncher::TiledSingleGemmAtB(GPUPtr A, GPUPtr B, GPUPtr C) {
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(tilesPerRow, tilesPerCol);
+    int parameterCountV = 3;
+    int totalParameterCount = 3;
+    gpu->LaunchKernel(fTiledSingleGemmAtB,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      A, B, C);
+}
+
+void KernelLauncher::TiledSingleGemmABt(GPUPtr A, GPUPtr B, GPUPtr C) {
+    int tilesPerRow = (kPaddedStateCount + 16 - 1) / 16;
+    int tilesPerCol = tilesPerRow;
+    Dim3Int grid(tilesPerRow, tilesPerCol);
+    int parameterCountV = 3;
+    int totalParameterCount = 3;
+    gpu->LaunchKernel(fTiledSingleGemmABt,
+                      bgEigenTileBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      A, B, C);
+}
+
+
+
+void KernelLauncher::ProjectPartialsToEigenbasis(GPUPtr partials,
+                                                  GPUPtr inverseEvec,
+                                                  GPUPtr partialsTilde,
+                                                  GPUPtr bufferIndices,
+                                                  unsigned int bufferCount,
+                                                  unsigned int stateCount,
+                                                  unsigned int stride) {
+    int OPS_PER_BLOCK = gpu->kernelResource->projectOpsPerBlock;
+    int numBlocks = ((int)bufferCount + OPS_PER_BLOCK - 1) / OPS_PER_BLOCK;
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 4;
+    int totalParameterCount = 7;
+    gpu->LaunchKernel(fProjectPartialsToEigenbasis,
+                      bgPartialProjectBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, inverseEvec, partialsTilde, bufferIndices,
+                      bufferCount, stateCount, stride);
+}
+
+
+void KernelLauncher::ProjectHazardsToEigen(GPUPtr partials,
+                                            GPUPtr hazardAdjoints,
+                                            GPUPtr evecT,
+                                            GPUPtr opUOff, GPUPtr opKIn,
+                                            GPUPtr opKAcc, GPUPtr opHasAcc,
+                                            GPUPtr hazardEigenPerOp,
+                                            unsigned int opCount,
+                                            unsigned int stateCount) {
+
+    const int OPS_PER_BLOCK = gpu->kernelResource->heigOpsPerBlock;
+    int numBlocks = ((int)opCount + OPS_PER_BLOCK - 1) / OPS_PER_BLOCK;
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 8;
+    int totalParameterCount = 10;
+    gpu->LaunchKernel(fProjectHazardsToEigen,
+                      bgHazardEigenBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, hazardAdjoints, evecT,
+                      opUOff, opKIn, opKAcc, opHasAcc,
+                      hazardEigenPerOp,
+                      opCount, stateCount);
+}
+
+
+void KernelLauncher::CoalescentSlab(GPUPtr partials, GPUPtr partialAdj,
+                                     GPUPtr sizes, GPUPtr coalescent,
+                                     GPUPtr popSizeGrad,
+                                     GPUPtr coalDestBufs,
+                                     GPUPtr coalLeftAccBufs,
+                                     GPUPtr coalRightAccBufs,
+                                     GPUPtr coalIntervals,
+                                     unsigned int coalSlabOffset,
+                                     unsigned int coalCount,
+                                     unsigned int stateCount,
+                                     unsigned int stride) {
+    const int EVENTS_PER_BLOCK = gpu->kernelResource->coalEventsPerBlock;
+    int numBlocks = ((int)coalCount + EVENTS_PER_BLOCK - 1) / EVENTS_PER_BLOCK;
+    if (numBlocks < 1) numBlocks = 1;
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 9;
+    int totalParameterCount = 13;
+    gpu->LaunchKernel(fCoalescentSlab,
+                      bgCoalescentSlabBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, partialAdj, sizes, coalescent, popSizeGrad,
+                      coalDestBufs, coalLeftAccBufs, coalRightAccBufs,
+                      coalIntervals,
+                      coalSlabOffset, coalCount, stateCount, stride);
+}
+
+
+
+void KernelLauncher::AdjointBranchSlabLocal(
+        GPUPtr partials, GPUPtr partialAdj, GPUPtr scratchYBar,
+        GPUPtr evecT,
+        GPUPtr eigenValues, GPUPtr blockStarts, GPUPtr blockDims,
+        GPUPtr hazardAdjoints, GPUPtr hazardEigenPerOp,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchKTop,
+        GPUPtr branchTopBuf, GPUPtr branchOpFirst,
+        GPUPtr branchTimeStart, GPUPtr branchT,
+        GPUPtr slabCarryOut, GPUPtr slabAStash, GPUPtr slabYBottomEigen,
+        GPUPtr slabAlpha,
+        int useAnchor,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks,
+        unsigned int stateCount, unsigned int stride) {
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 23;
+    int totalParameterCount = 29;
+    gpu->LaunchKernel(fAdjointBranchSlabLocal,
+                      bgSlabSegLocalBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, partialAdj, scratchYBar,
+                      evecT,
+                      eigenValues, blockStarts, blockDims,
+                      hazardAdjoints, hazardEigenPerOp,
+                      slabBlockBranchIdx, slabBlockChunkStart,
+                      slabBlockChunkLen, slabBlockChunkIdx,
+                      branchKb, branchKTop,
+                      branchTopBuf, branchOpFirst,
+                      branchTimeStart, branchT,
+                      slabCarryOut, slabAStash, slabYBottomEigen,
+                      slabAlpha,
+                      useAnchor,
+                      blockBase, numBlocks, numEvBlocks,
+                      stateCount, stride);
+}
+
+
+void KernelLauncher::AdjointBranchSlabSpinePerBranch(
+        GPUPtr slabCarryOut, GPUPtr slabCarryPrefix,
+        GPUPtr slabAlpha, GPUPtr blockStarts, GPUPtr blockDims,
+        GPUPtr branchSlabList, GPUPtr branchKb, GPUPtr branchFirstBlock,
+        int useAnchor,
+        unsigned int branchSlabOffset, unsigned int numBranches,
+        unsigned int opsPerBlock, unsigned int stateCount) {
+    if (numBranches == 0) return;
+    Dim3Int block(kPaddedStateCount, 1);
+    Dim3Int grid((int)numBranches, 1);
+    int parameterCountV = 8;
+    int totalParameterCount = 13;
+    gpu->LaunchKernel(fAdjointBranchSlabSpinePerBranch,
+                      block, grid,
+                      parameterCountV, totalParameterCount,
+                      slabCarryOut, slabCarryPrefix,
+                      slabAlpha, blockStarts, blockDims,
+                      branchSlabList, branchKb, branchFirstBlock,
+                      useAnchor,
+                      branchSlabOffset, numBranches,
+                      opsPerBlock, stateCount);
+}
+
+
+
+void KernelLauncher::AdjointBranchSlabApply(
+        GPUPtr partialAdj, GPUPtr scratchYBar,
+        GPUPtr inverseEvecT,
+        GPUPtr slabAStash, GPUPtr slabCarryPrefix, GPUPtr slabYBottomEigen,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchBotBuf, GPUPtr branchOpFirst,
+        GPUPtr blockStarts, GPUPtr blockDims,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks, unsigned int opsPerBlock,
+        unsigned int stateCount, unsigned int stride) {
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 15;
+    int totalParameterCount = 21;
+    gpu->LaunchKernel(fAdjointBranchSlabApply,
+                      bgSlabSegApplyBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partialAdj, scratchYBar,
+                      inverseEvecT,
+                      slabAStash, slabCarryPrefix, slabYBottomEigen,
+                      slabBlockBranchIdx, slabBlockChunkStart,
+                      slabBlockChunkLen, slabBlockChunkIdx,
+                      branchKb, branchBotBuf, branchOpFirst,
+                      blockStarts, blockDims,
+                      blockBase, numBlocks,
+                      numEvBlocks, opsPerBlock,
+                      stateCount, stride);
+}
+
+
+void KernelLauncher::ForwardBranchSlab(
+        GPUPtr partials, GPUPtr partialsTilde,
+        GPUPtr evecT,
+        GPUPtr eigenValues, GPUPtr blockStarts, GPUPtr blockDims,
+        GPUPtr slabBlockBranchIdx, GPUPtr slabBlockChunkStart,
+        GPUPtr slabBlockChunkLen,  GPUPtr slabBlockChunkIdx,
+        GPUPtr branchKb, GPUPtr branchTopBuf, GPUPtr branchBotBuf,
+        GPUPtr branchOpFirst, GPUPtr branchTimeStart, GPUPtr branchT,
+        GPUPtr opInBufOff,
+        unsigned int blockBase, unsigned int numBlocks,
+        unsigned int numEvBlocks,
+        unsigned int stateCount, unsigned int stride) {
+    Dim3Int grid(numBlocks, 1);
+    int parameterCountV = 17;
+    int totalParameterCount = 22;
+    gpu->LaunchKernel(fForwardBranchSlab,
+                      bgSlabSegLocalBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, partialsTilde,
+                      evecT, eigenValues, blockStarts, blockDims,
+                      slabBlockBranchIdx, slabBlockChunkStart,
+                      slabBlockChunkLen,  slabBlockChunkIdx,
+                      branchKb, branchTopBuf, branchBotBuf,
+                      branchOpFirst, branchTimeStart, branchT,
+                      opInBufOff,
+                      blockBase, numBlocks, numEvBlocks,
+                      stateCount, stride);
+}
+
+
+void KernelLauncher::ForwardCoalescentSlab(
+        GPUPtr partials, GPUPtr partialsTilde,
+        GPUPtr inverseEvecT,
+        GPUPtr sizes, GPUPtr coalescent,
+        GPUPtr coalDestBufs, GPUPtr coalLeftAccBufs, GPUPtr coalRightAccBufs,
+        GPUPtr coalIntervals,
+        unsigned int coalSlabOffset, unsigned int coalCount,
+        unsigned int stateCount, unsigned int stride) {
+    Dim3Int grid(coalCount, 1);
+    Dim3Int fwdCoalBlock(bgCoalescentSlabBlock.x, 1);
+    int parameterCountV = 9;
+    int totalParameterCount = 13;
+    gpu->LaunchKernel(fForwardCoalescentSlab,
+                      fwdCoalBlock, grid,
+                      parameterCountV, totalParameterCount,
+                      partials, partialsTilde,
+                      inverseEvecT,
+                      sizes, coalescent,
+                      coalDestBufs, coalLeftAccBufs, coalRightAccBufs,
+                      coalIntervals,
+                      coalSlabOffset, coalCount, stateCount, stride);
+}
+
 
 }; // namespace
 

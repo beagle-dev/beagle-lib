@@ -58,8 +58,18 @@
         dest##01 = _mm_load_pd(&src[v + 0]); \
         dest##23 = _mm_load_pd(&src[v + 2]);
 
+#if defined(__SSE4_1__) || defined(__aarch64__) // _mm_dp_pd is SSE4.1 (sse2neon provides it on aarch64)
 #define SSE_VECTORIZED_INNER_PRODUCT(lhs, rhs) \
         VEC_ADD(_mm_dp_pd(lhs##01, rhs##01, 0xff), _mm_dp_pd(lhs##23, rhs##23, 0xff))
+#else
+// SSE2 only (e.g. GCC's default x86-64 target): a0 * b0 + a1 * b1 in both lanes, as _mm_dp_pd(a, b, 0xff) gives
+static inline __m128d sseDotProductPd(__m128d a, __m128d b) {
+    const __m128d products = _mm_mul_pd(a, b);
+    return _mm_add_pd(products, _mm_shuffle_pd(products, products, 1));
+}
+#define SSE_VECTORIZED_INNER_PRODUCT(lhs, rhs) \
+        VEC_ADD(sseDotProductPd(lhs##01, rhs##01), sseDotProductPd(lhs##23, rhs##23))
+#endif
 
 #define SSE_SCHUR_PRODUCT_PARTIALS(dest, src, v, srcq) \
 		V_Real tmp_##dest##01, tmp_##dest##23; \
@@ -551,6 +561,307 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStates(doub
     }
 }
 
+/*
+ * Top pre-order partials when the sibling has partials: (matrices_q^T partials_q) * (matrices_r partials_r), with
+ * partials_q the parent's top pre-order partials and matrices_q the parent's transition matrices
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartialsTop(double* destP,
+                                                                              const double*  partials_q,
+                                                                              const double*  matrices_q,
+                                                                              const double*  partials_r,
+                                                                              const double*  matrices_r,
+                                                                              int startPattern,
+                                                                              int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23, destr_01, destr_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_PRE_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+            SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
+
+            destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+            destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+            destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+            destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = VEC_MULT(destq_01, destr_01);
+            destPvec[1] = VEC_MULT(destq_23, destr_23);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials when the sibling is a tip with states: (matrices_q^T partials_q) * (column of matrices_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStatesTop(double* destP,
+                                                                            const double*  partials_q,
+                                                                            const double*  matrices_q,
+                                                                            const int*     states_r,
+                                                                            const double*  matrices_r,
+                                                                            int startPattern,
+                                                                            int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23;
+    VecUnion vu_mq[OFFSET][2], vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_PRE_MATRICES(matrices_q + w, matrices_r + w, vu_mq, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state_r = states_r[k];
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = VEC_MULT(destq_01, vu_mr[state_r][0].vx);
+            destPvec[1] = VEC_MULT(destq_23, vu_mr[state_r][1].vx);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials below the root, whose top pre-order partials are partials_q: partials_q * (matrices_r
+ * partials_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsPartialsTopRoot(double* destP,
+                                                                                  const double*  partials_q,
+                                                                                  const double*  matrices_q,
+                                                                                  const double*  partials_r,
+                                                                                  const double*  matrices_r,
+                                                                                  int startPattern,
+                                                                                  int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destr_01, destr_23;
+    VecUnion vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_MATRIX(matrices_r + w, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpr_0, vpr_1, vpr_2, vpr_3;
+            SSE_PREFETCH_PARTIALS(vpr_,partials_r,v);
+
+            destr_01 = VEC_MULT(vpr_0, vu_mr[0][0].vx);
+            destr_01 = VEC_MADD(vpr_1, vu_mr[1][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_2, vu_mr[2][0].vx, destr_01);
+            destr_01 = VEC_MADD(vpr_3, vu_mr[3][0].vx, destr_01);
+            destr_23 = VEC_MULT(vpr_0, vu_mr[0][1].vx);
+            destr_23 = VEC_MADD(vpr_1, vu_mr[1][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_2, vu_mr[2][1].vx, destr_23);
+            destr_23 = VEC_MADD(vpr_3, vu_mr[3][1].vx, destr_23);
+
+            destPvec[0] = VEC_MULT(VEC_LOAD(partials_q + v), destr_01);
+            destPvec[1] = VEC_MULT(VEC_LOAD(partials_q + v + 2), destr_23);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Top pre-order partials below the root when the sibling is a tip with states: partials_q * (column of matrices_r)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcPrePartialsStatesTopRoot(double* destP,
+                                                                                const double*  partials_q,
+                                                                                const double*  matrices_q,
+                                                                                const int*     states_r,
+                                                                                const double*  matrices_r,
+                                                                                int startPattern,
+                                                                                int endPattern) {
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    VecUnion vu_mr[OFFSET][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load transition-probability matrices into vectors */
+        SSE_PREFETCH_MATRIX(matrices_r + w, vu_mr);
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            const int state_r = states_r[k];
+
+            destPvec[0] = VEC_MULT(VEC_LOAD(partials_q + v), vu_mr[state_r][0].vx);
+            destPvec[1] = VEC_MULT(VEC_LOAD(partials_q + v + 2), vu_mr[state_r][1].vx);
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
+/*
+ * Pre-order partials through a single branch: matrices_q^T partials_q, or a copy of partials_q when matrices_q is
+ * NULL (top partials below the root)
+ */
+BEAGLE_CPU_4_SSE_TEMPLATE
+void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcDegree2PrePartials(double* destP,
+                                                                          const double*  partials_q,
+                                                                          const double*  matrices_q,
+                                                                          int startPattern,
+                                                                          int endPattern) {
+
+    if (matrices_q == NULL) {
+        BeagleCPU4StateImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcDegree2PrePartials(destP, partials_q, matrices_q,
+                                                                            startPattern, endPattern);
+        return;
+    }
+
+    int patternDefficit = kPatternCount + kExtraPatterns - endPattern;
+
+    int v = 0;
+    int w = 0;
+
+    V_Real	destq_01, destq_23;
+    VecUnion vu_mq[4][2];
+    V_Real *destPvec = (V_Real *)destP;
+
+    for (int l = 0; l < kCategoryCount; l++) {
+        destPvec += startPattern*2;
+        v += startPattern*4;
+        /* Load the rows of the transition-probability matrix into vectors */
+        for (int i = 0; i < 4; i++) {
+            const double* row = matrices_q + w + i * OFFSET;
+            vu_mq[i][0].x[0] = row[0];
+            vu_mq[i][0].x[1] = row[1];
+            vu_mq[i][1].x[0] = row[2];
+            vu_mq[i][1].x[1] = row[3];
+        }
+
+        for (int k = startPattern; k < endPattern; k++) {
+
+            V_Real vpq_0, vpq_1, vpq_2, vpq_3;
+            SSE_PREFETCH_PARTIALS(vpq_,partials_q,v);
+
+            destq_01 = VEC_MULT(vpq_0, vu_mq[0][0].vx);
+            destq_01 = VEC_MADD(vpq_1, vu_mq[1][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_2, vu_mq[2][0].vx, destq_01);
+            destq_01 = VEC_MADD(vpq_3, vu_mq[3][0].vx, destq_01);
+            destq_23 = VEC_MULT(vpq_0, vu_mq[0][1].vx);
+            destq_23 = VEC_MADD(vpq_1, vu_mq[1][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_2, vu_mq[2][1].vx, destq_23);
+            destq_23 = VEC_MADD(vpq_3, vu_mq[3][1].vx, destq_23);
+
+            destPvec[0] = destq_01;
+            destPvec[1] = destq_23;
+            destPvec += 2;
+
+            v += 4;
+        }
+        w += OFFSET*4;
+        if (kExtraPatterns) {
+            destPvec += kExtraPatterns * 2;
+            v += kExtraPatterns * 4;
+        }
+        destPvec += patternDefficit * 2;
+        v += patternDefficit * 4;
+    }
+}
+
 BEAGLE_CPU_4_SSE_TEMPLATE
 void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcCrossProductsPartials(const double *postOrderPartial,
                                                                                 const double *preOrderPartial,
@@ -650,8 +961,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
     int k = 0;
     for (; k < kPatternCount - 1; k += 2) {
 
-        V_Real numerator = VEC_LOAD(grandNumeratorDerivTmp + k);
-        V_Real denominator = VEC_LOAD(grandDenominatorDerivTmp + k);
+        V_Real numerator = VEC_LOAD(grandNumeratorDerivTmp + k + offset);
+        V_Real denominator = VEC_LOAD(grandDenominatorDerivTmp + k + offset);
         V_Real derivative = VEC_DIV(numerator, denominator);
         V_Real patternWeight = VEC_LOAD(gPatternWeights + k);
 
@@ -681,7 +992,7 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::accumulateDerivativesImpl(
     }
 
     for (; k < kPatternCount; ++k) {
-        double derivative = grandNumeratorDerivTmp[k] / grandDenominatorDerivTmp[k];
+        double derivative = grandNumeratorDerivTmp[k + offset] / grandDenominatorDerivTmp[k + offset];
         if (DoDerivatives) {
             outDerivatives[k] = derivative;
         }
@@ -757,7 +1068,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
                                                                                      const int scalingFactorsIndex,
                                                                                      double* outDerivatives,
                                                                                      double* outSumDerivatives,
-                                                                                     double* outSumSquaredDerivatives) {
+                                                                                     double* outSumSquaredDerivatives,
+                                                                                     int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -810,8 +1122,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesPart
             double numer = _mm_cvtsd_f64(vnumer) * wt[l];
             double denon = _mm_cvtsd_f64(vdenom) * wt[l];
 
-            grandNumeratorDerivTmp[k] += numer; // TODO Merge [numer, denom] into single SSE transactions
-            grandDenominatorDerivTmp[k] += denon;
+            grandNumeratorDerivTmp[cacheOffset + k] += numer; // TODO Merge [numer, denom] into single SSE transactions
+            grandDenominatorDerivTmp[cacheOffset + k] += denon;
 
             v += 4;
         }
@@ -832,7 +1144,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
                                                                                    const double* categoryWeights,
                                                                                    double *outDerivatives,
                                                                                    double *outSumDerivatives,
-                                                                                   double *outSumSquaredDerivatives) {
+                                                                                   double *outSumSquaredDerivatives,
+                                                                                   int cacheOffset) {
     double* cl_p = integrationTmp;
     memset(cl_p, 0, (kPatternCount * kStateCount)*sizeof(double));
 
@@ -867,8 +1180,8 @@ void BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::calcEdgeLogDerivativesStat
             double numer = _mm_cvtsd_f64(vnumer);
             double denom = cl_r[stateChild & 3]; cl_r += 4;
 
-            grandNumeratorDerivTmp[k] += numer * wt[l];
-            grandDenominatorDerivTmp[k] += denom * wt[l];
+            grandNumeratorDerivTmp[cacheOffset + k] += numer * wt[l];
+            grandDenominatorDerivTmp[cacheOffset + k] += denom * wt[l];
         }
         w += OFFSET*4;
         vcl_r += 2 * kExtraPatterns;
@@ -1329,7 +1642,7 @@ const char* BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getName() {
 
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
+const long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_SINGLE |
@@ -1338,7 +1651,7 @@ long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_FLOAT>::getFlags() {
 }
 
 BEAGLE_CPU_4_SSE_TEMPLATE
-long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getFlags() {
+const long long BeagleCPU4StateSSEImpl<BEAGLE_CPU_4_SSE_DOUBLE>::getFlags() {
     return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_PROCESSOR_CPU |
             BEAGLE_FLAG_PRECISION_DOUBLE |
@@ -1405,8 +1718,8 @@ const char* BeagleCPU4StateSSEImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName()
 }
 
 template <>
-long long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
-    return BEAGLE_FLAG_COMPUTATION_SYNCH |
+const long long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
@@ -1417,11 +1730,15 @@ long long BeagleCPU4StateSSEImplFactory<double>::getFlags() {
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
            BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
            BEAGLE_FLAG_FRAMEWORK_CPU;
+#ifdef BEAGLE_OPENMP_ENABLED
+    flags |= BEAGLE_FLAG_THREADING_OPENMP;
+#endif
+    return flags;
 }
 
 template <>
-long long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
-    return BEAGLE_FLAG_COMPUTATION_SYNCH |
+const long long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
+    long long flags = BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
@@ -1432,6 +1749,10 @@ long long BeagleCPU4StateSSEImplFactory<float>::getFlags() {
            BEAGLE_FLAG_INVEVEC_STANDARD | BEAGLE_FLAG_INVEVEC_TRANSPOSED |
            BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
            BEAGLE_FLAG_FRAMEWORK_CPU;
+#ifdef BEAGLE_OPENMP_ENABLED
+    flags |= BEAGLE_FLAG_THREADING_OPENMP;
+#endif
+    return flags;
 }
 
 

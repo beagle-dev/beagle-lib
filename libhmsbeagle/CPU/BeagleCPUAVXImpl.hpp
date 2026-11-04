@@ -524,7 +524,7 @@ const char* BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::getName() {
 }
 
 BEAGLE_CPU_AVX_TEMPLATE
-long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_FLOAT>::getFlags() {
+const long long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_FLOAT>::getFlags() {
 	return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
@@ -533,7 +533,7 @@ long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_FLOAT>::getFlags() {
 }
 
 BEAGLE_CPU_AVX_TEMPLATE
-long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::getFlags() {
+const long long BeagleCPUAVXImpl<BEAGLE_CPU_AVX_DOUBLE>::getFlags() {
     return  BEAGLE_FLAG_COMPUTATION_SYNCH |
             BEAGLE_FLAG_THREADING_NONE |
             BEAGLE_FLAG_PROCESSOR_CPU |
@@ -556,7 +556,7 @@ BeagleImpl* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::createImpl(int 
                                              int categoryCount,
                                              int scaleBufferCount,
                                              int resourceNumber,
-                                             int pluginResourceNumber,                                             
+                                             int pluginResourceNumber,
                                              long long preferenceFlags,
                                              long long requirementFlags,
                                              int* errorCode) {
@@ -613,7 +613,7 @@ const char* BeagleCPUAVXImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getName() {
 }
 
 template <>
-long BeagleCPUAVXImplFactory<double>::getFlags() {
+const long long BeagleCPUAVXImplFactory<double>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |
@@ -628,7 +628,7 @@ long BeagleCPUAVXImplFactory<double>::getFlags() {
 }
 
 template <>
-long BeagleCPUAVXImplFactory<float>::getFlags() {
+const long long BeagleCPUAVXImplFactory<float>::getFlags() {
     return BEAGLE_FLAG_COMPUTATION_SYNCH |
            BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
            BEAGLE_FLAG_THREADING_NONE |

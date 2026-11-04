@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.18)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build type" FORCE)
+endif()
+
 project(BEAGLE)
 
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
-set(BEAGLE_VERSION_MINOR "0")
-set(BEAGLE_VERSION_PATCH "2")
+set(BEAGLE_VERSION_MINOR "3")
+set(BEAGLE_VERSION_PATCH "0")
 
 set(GENERIC_API_VERSION "1")
 
@@ -14,17 +18,38 @@ set(BEAGLE_PLUGIN_VERSION "${BEAGLE_VERSION_MAJOR}${BEAGLE_VERSION_MINOR}")
 message(STATUS "BEAGLE_VERSION = ${BEAGLE_VERSION}")
 message(STATUS "BEAGLE_PLUGIN_VERSION = ${BEAGLE_PLUGIN_VERSION}")
 
-# -march=native makes the fastest code for the build machine, but the binaries may not run on other CPUs
-# (Illegal instruction).  Turn it off for binaries that are distributed or cached across machines.
-option(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH "Compile with -march=native (not portable to other CPUs)" ON)
+option(BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH "Compile for the build machine's CPU (-march=native); turn off for binaries that run on other machines, such as a CI cache" ON)
+
+set(BEAGLE_CPACK_PACKAGE_NAME "BEAGLE")
+set(BASTA_EXTENSION "BIT")
 
 option(BUILD_OPENCL "Build beagle with OpenCL library" ON)
 option(BUILD_CUDA "Build beagle with CUDA library" ON)
+# TinyGPU (macOS only: TinyGPU.app, IOKit): on by default where its kernel tools (nvcc, ptxas; libhmsbeagle/GPU/CMakeLists.txt's
+# lookups) are found, so a plain build elsewhere skips it; -DBUILD_TINYGPU=ON requires them
+if(NOT DEFINED BUILD_TINYGPU AND APPLE)
+	find_program(TINYGPU_NVCC NAMES nvcc HINTS "$ENV{HOME}/.local/bin" "/usr/local/cuda/bin")
+	find_program(TINYGPU_PTXAS NAMES ptxas HINTS "$ENV{HOME}/.local/bin" "/usr/local/cuda/bin")
+endif()
+if(APPLE AND TINYGPU_NVCC AND TINYGPU_PTXAS)
+	set(BUILD_TINYGPU_DEFAULT ON)
+else()
+	set(BUILD_TINYGPU_DEFAULT OFF)
+endif()
+option(BUILD_TINYGPU "Build beagle with TinyGPU library (an eGPU through TinyGPU.app, booted in C++)" ${BUILD_TINYGPU_DEFAULT})
+if(NOT BUILD_TINYGPU)
+	message(STATUS "TinyGPU: not built (macOS with nvcc and ptxas only; -DBUILD_TINYGPU=ON requires them)")
+endif()
 option(BUILD_JNI "Build beagle with JNI library" ON)
-option(BUILD_OPENMP "Build beagle with OpenMP library" ON)
+option(BUILD_OPENMP "Build beagle with OpenMP library" OFF)
 option(BUILD_ACTION "Build beagle with action-based calculations" ON)
 option(BUILD_SSE "Build beagle with SSE library" ON)
-option(BUILD_BASTA "Build beagle with mbasta library" OFF)
+option(BUILD_SPECTRAL "Build beagle with spectral representation" ON)
+option(BUILD_FUSED "TEST fused post-order implementation (hmsbeagle-opencl-fused; fused kernel in TinyGPU modules)" OFF)
+option(BUILD_HIERARCHICAL "Build beagle with hierarchical representation" ON)
+option(BUILD_BIT "Build beagle with basta library" OFF)
+# MASCOT builds with clang, GCC and MSVC (MSVC: kernel A only)
+option(BUILD_MASCOT "Build the MASCOT structured-coalescent component" ON)
 
 # Old config.h settings
 
@@ -32,8 +57,11 @@ OPTION(BEAGLE_BENCHMARK "Print runtimes" OFF)
 OPTION(BEAGLE_DEBUG_FLOW "Print flow" OFF)
 OPTION(BEAGLE_DEBUG_VALUES "Print debug values" OFF)
 OPTION(BEAGLE_DEBUG_SYNCH "Synchronize threads on GPU for timing" OFF)
+OPTION(BEAGLE_TENSOR_CORES "Compile with support for tensor cores" OFF)
 OPTION(BEAGLE_BENCHMARK_ENERGY "Print energy consumption" OFF)
 OPTION(BEAGLE_BASTA_CPU_ACCUM "Use CPU for final accumulation for reduction" OFF)
+OPTION(BEAGLE_INDEX_CHECKS "Range-check partials, matrix and scale indices on the CPU (BEAGLE_ERROR_OUT_OF_RANGE); for CI and testing" OFF)
+OPTION(BEAGLE_DEBUG_MEMORY "Count GPU buffers, sub-buffers and device bytes per instance and report them on stderr; OpenCL also honours BEAGLE_DEBUG_OPENCL_ALIGN" OFF)
 
 IF(BEAGLE_BENCHMARK)
     ADD_DEFINITIONS(-DBEAGLE_BENCHMARK)
@@ -51,6 +79,10 @@ IF(BEAGLE_DEBUG_VALUES)
     ADD_DEFINITIONS(-DBEAGLE_DEBUG_VALUES)
 ENDIF(BEAGLE_DEBUG_VALUES)
 
+IF(BEAGLE_TENSOR_CORES)
+	ADD_DEFINITIONS(-DBEAGLE_TENSOR_CORES)
+ENDIF(BEAGLE_TENSOR_CORES)
+
 IF(BEAGLE_DEBUG_SYNCH)
 	ADD_DEFINITIONS(-DBEAGLE_DEBUG_SYNCH)
 ENDIF(BEAGLE_DEBUG_SYNCH)
@@ -59,6 +91,18 @@ IF(BEAGLE_BASTA_CPU_ACCUM)
 	ADD_DEFINITIONS(-DBEAGLE_BASTA_CPU_ACCUM)
 ENDIF(BEAGLE_BASTA_CPU_ACCUM)
 
+# a compile definition, so it applies whatever CMAKE_BUILD_TYPE is
+IF(BEAGLE_INDEX_CHECKS)
+	ADD_DEFINITIONS(-DBEAGLE_INDEX_CHECKS)
+ENDIF(BEAGLE_INDEX_CHECKS)
+
+IF(BEAGLE_DEBUG_MEMORY)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_MEMORY)
+ENDIF(BEAGLE_DEBUG_MEMORY)
+
+IF(BEAGLE_DEBUG_LOAD)
+	ADD_DEFINITIONS(-DBEAGLE_DEBUG_LOAD)
+ENDIF(BEAGLE_DEBUG_LOAD)
 
 add_definitions(
 	-DPACKAGE_BUGREPORT="beagle-dev@googlegroups.com"
@@ -70,7 +114,7 @@ add_definitions(
 	-DPLUGIN_VERSION="${BEAGLE_PLUGIN_VERSION}"
 	)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT DEFINED CMAKE_BUILD_TYPE)
@@ -88,21 +132,21 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
-if (MSVC)
+# MSVC options, not WIN32: the MinGW cross build is WIN32 with GCC
+if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MT")
-else ()
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-endif ()
-
+else(MSVC)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pthread")
+	# the -O2 of RelWithDebInfo comes after CMAKE_CXX_FLAGS on the command line and would override the -O3 below
+	string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+endif(MSVC)
 
 if (NOT "${CMAKE_BUILD_TYPE}" MATCHES Debug)
         if(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ot")
-        else()
+        else(MSVC)
 	        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-        	#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
-	        #set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
-        endif()
+        endif(MSVC)
 endif()
 
 #if(NOT WIN32)
@@ -116,21 +160,21 @@ include_directories(
         ${PROJECT_SOURCE_DIR}
 )
 
-find_package(JNI)
-if(JNI_FOUND)
-    message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
-    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
-    message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
+if(BUILD_JNI)
+	find_package(JNI)
+	if(JNI_FOUND)
+    	message (STATUS "JAVA_HOME=$ENV{JAVA_HOME}")
+	    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+    	message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
 
-	include_directories(
-    	    $ENV{JAVA_HOME}/include
-	        ${JNI_INCLUDE_DIRS}
-	)
-else(JNI_FOUND)
-	if(BUILD_JNI)
+		include_directories(
+    		    $ENV{JAVA_HOME}/include
+	    	    ${JNI_INCLUDE_DIRS}
+		)
+	else(JNI_FOUND)
 		message (FATAL_ERROR "No JNI includes and libraries found")
-	endif(BUILD_JNI)
-endif(JNI_FOUND)
+	endif(JNI_FOUND)
+endif(BUILD_JNI)
 
 if(BUILD_OPENMP)
 	find_package(OpenMP)
@@ -175,14 +219,6 @@ if(BUILD_ACTION)
 	add_definitions(-DBEAGLE_ACTION)
 #	add_definitions(-DBEAGLE_DEBUG_FLOW)
 endif(BUILD_ACTION)
-
-if (BUILD_BASTA)
-    IF(BEAGLE_DEBUG_KERNELS)
-       add_subdirectory(tests/basta)
-    ENDIF(BEAGLE_DEBUG_KERNELS)
-
-    add_definitions(-DBEAGLE_BEASTA)
-endif(BUILD_BASTA)
 
 link_directories(
         ${PROJECT_SOURCE_DIR}/libhmsbeagle
@@ -246,13 +282,8 @@ if (BEAGLE_OPTIMIZE_FOR_NATIVE_ARCH)
 	endif()
 endif()
 
-
-include(CheckIncludeFileCXX)
-check_include_file_cxx("cpuid.h" HAVE_CPUID_H)
-if (HAVE_CPUID_H)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_CPUID_H")
-endif()
-
+# MASCOT's golden tests and tests/opencl (added by libhmsbeagle/GPU) are registered from inside libhmsbeagle
+enable_testing()
 add_subdirectory(libhmsbeagle)
 
 link_libraries(hmsbeagle)
@@ -261,10 +292,23 @@ enable_testing()
 
 add_subdirectory(examples)
 
+IF(BEAGLE_DEBUG_KERNELS)
+    add_subdirectory(tests/tensor_cores)
+    add_subdirectory(tests/basta)
+ENDIF(BEAGLE_DEBUG_KERNELS)
+
 set(CPACK_PACKAGE_VERSION "${BEAGLE_VERSION}")
 set(CPACK_PACKAGE_MAJOR "${BEAGLE_VERSION_MAJOR}")
 set(CPACK_PACKAGE_MINOR "${BEAGLE_VERSION_MINOR}")
 set(CPACK_PACKAGE_PATCH "${BEAGLE_VERSION_PATCH}")
+
+if(BUILD_BIT)
+	set(CPACK_PACKAGE_NAME "${BEAGLE_CPACK_PACKAGE_NAME}-${BASTA_EXTENSION}")
+else(BUILD_BIT)
+	set(CPACK_PACKAGE_NAME "${BEAGLE_CPACK_PACKAGE_NAME}")
+endif(BUILD_BIT)
+
+message(STATUS "CPack package name: ${CPACK_PACKAGE_NAME}")
 
 if(WIN32)
 	set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
@@ -276,7 +320,49 @@ if(WIN32)
     set(CPACK_WIX_LICENSE_RTF "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/LICENSE.rtf")
     set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/banner.jpg")
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/welcome.jpg")
-    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml")
+    set(CPACK_WIX_PATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/project/beagle-vs-2019-wix/patch.xml") # MAS commented out for testing
+
+# 	get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
+#
+# 	include(CPackComponent)
+#
+# 	cpack_add_component(main
+# 			DISPLAY_NAME "Main library"
+# 			DESCRIPTION "BEAGLE main library"
+# 			REQUIRED)
+#
+# 	cpack_add_component(cpu
+#   			DISPLAY_NAME "CPU plugin"
+# 		  	DESCRIPTION "CPU plugin"
+#   			REQUIRED)
+#
+#   	cpack_add_component(cpu_sse
+#   			DISPLAY_NAME "CPU-SSE plugin"
+#   			DESCRIPTION "CPU-SSE plugin")
+#
+#   	cpack_add_component(cpu_omp
+#   			DISPLAY_NAME "CPU-OMP plugin"
+#   			DESCRIPTION "CPU-OMP plugin")
+#
+#   	cpack_add_component(jni
+#   			DISPLAY_NAME "JNI plugin"
+#   			DESCRIPTION "JNI plugin")
+#
+#   	cpack_add_component(jni_basta
+#   			DISPLAY_NAME "JNI-${BASTA_EXTENSION} plugin"
+#   			DESCRIPTION "JNI-${BASTA_EXTENSION} plugin")
+#
+#   	cpack_add_component(cuda
+#   			DISPLAY_NAME "CUDA plugin"
+#   			DESCRIPTION "CUDA plugin")
+#
+#   	cpack_add_component(opencl
+#   			DISPLAY_NAME "OpenCL plugin"
+#   			DESCRIPTION "OpenCL plugin")
+#
+# # Install files directly to the root
+# install(FILES my_file.txt DESTINATION "/")
+
 endif(WIN32)
 
 if(APPLE)
@@ -309,15 +395,47 @@ if(APPLE)
 			DISPLAY_NAME "CPU-Action plugin"
 			DESCRIPTION "CPU-Action plugin")
 
+  	cpack_add_component(cpu_omp
+  			DISPLAY_NAME "CPU-OMP plugin"
+  			DESCRIPTION "CPU-OMP plugin")
+
+  	cpack_add_component(cpu_hierarchical
+  			DISPLAY_NAME "CPU-Hierarchical plugin"
+  			DESCRIPTION "CPU plugin for hierarchical state-tree substitution models")
+
+  	cpack_add_component(jni
+  			DISPLAY_NAME "JNI plugin"
+  			DESCRIPTION "JNI plugin")
+
+  	cpack_add_component(jni_basta
+  			DISPLAY_NAME "JNI-${BASTA_EXTENSION} plugin"
+  			DESCRIPTION "JNI-${BASTA_EXTENSION} plugin")
+
   	cpack_add_component(cuda
   			DISPLAY_NAME "CUDA plugin"
   			DESCRIPTION "CUDA plugin")
+
+	cpack_add_component(cuda_tensor_cores
+			DISPLAY_NAME "Tensor Cores plugin"
+			DESCRIPTION "Tensor Cores plugin")
 
   	cpack_add_component(opencl
   			DISPLAY_NAME "OpenCL plugin"
   			DESCRIPTION "OpenCL plugin")
 
 	set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local")
+
+	set(CPACK_BUNDLE_APPLE_CERT_APP "Developer ID Applicaton: Marc Suchard (LC992Z5R7E)")
 endif(APPLE)
 
 include(CPack)
+
+if(APPLE)
+#         <exec executable="codesign">
+#             <arg value="-s"/>
+#             <arg value="${AppleSigner}"/>
+#             <arg value="-v"/>
+#             <arg value="${release_dir}/${BEAST_package_name} v${version}.dmg"/>
+#         </exec>
+# codesign -s "Marc Suchard (LC992Z5R7E)" -v release/BEAST\ X\ v10.5.0.dmg
+endif(APPLE)

@@ -65,6 +65,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setCPUThreadCount
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    ensureBufferCounts
+ * Signature: (IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_ensureBufferCounts
+  (JNIEnv *, jobject, jint, jint, jint, jint);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    setPatternWeights
  * Signature: (I[D)I
  */
@@ -126,6 +134,14 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_setPartials
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartials
         (JNIEnv *, jobject, jint, jint, jint, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    getPartialsBatch
+ * Signature: (I[I[II[D)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_getPartialsBatch
+  (JNIEnv *, jobject, jint, jintArray, jintArray, jint, jdoubleArray);
 
 /*
  * Class:     beagle_BeagleJNIWrapper
@@ -257,9 +273,17 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updateTransitionMatricesWith
 
 /*
  * Class:     beagle_BeagleJNIWrapper
+ * Method:    updatePrePartials_v5
+ * Signature: (I[IIII)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials_1v5
+  (JNIEnv *, jobject, jint, jintArray, jint, jint, jint);
+
+ /*
+ * Class:     beagle_BeagleJNIWrapper
  * Method:    updatePrePartials
  * Signature: (I[III)I
- */
+ */ 
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartials
         (JNIEnv *, jobject, jint, jintArray, jint, jint);
 
@@ -276,6 +300,9 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePrePartialsByPartition
  * Method:    updatePartials
  * Signature: (I[III)I
  */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials_1v5
+  (JNIEnv *, jobject, jint, jintArray, jint, jint, jint);
+
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_updatePartials
         (JNIEnv *, jobject, jint, jintArray, jint, jint);
 
@@ -398,6 +425,27 @@ JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateCrossProductDiffere
  */
 JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateEdgeDerivative
         (JNIEnv *, jobject, jint, jintArray, jintArray, jint, jintArray, jintArray, jint, jint, jint, jintArray, jint, jdoubleArray, jdoubleArray);
+
+/*
+ * Class:     beagle_BeagleJNIWrapper
+ * Method:    calculateAdjointCrossProductDifferentials
+ * Signature: (I[I[I[I[I[IIII[D[D[I[II)I
+ */
+JNIEXPORT jint JNICALL Java_beagle_BeagleJNIWrapper_calculateAdjointCrossProductDifferentials
+  (JNIEnv *env, jobject obj, jint instance,
+		jintArray postBufferIndices,
+		jintArray preBufferIndices,
+		jintArray eigenIndices,
+		jintArray categoryRatesIndices,
+		jintArray categoryWeightsIndices,
+		jint rootPostOrderIndex,
+		jint stateFrequenciesIndex,
+		jint count,
+		jdoubleArray outSumDerivatives,
+		jdoubleArray outSumSquaredDerivatives,
+		jintArray postScaleIndices,
+		jintArray preScaleIndices,
+		jint cumulativeScaleIndex);
 
 #ifdef __cplusplus
 }

@@ -203,6 +203,12 @@ public class GeneralBeagleImpl implements Beagle {
         System.arraycopy(this.partials[bufferIndex], 0, partials, 0, partialsSize);
     }
 
+    public void getPartialsBatch(int[] bufferIndices, int[] scaleIndices, int count, final double[] outPartials) {
+        for (int i = 0; i < count; i++) {
+            System.arraycopy(this.partials[bufferIndices[i]], 0, outPartials, i * partialsSize, partialsSize);
+        }
+    }
+
     @Override
     public void getLogScaleFactors(int scaleIndex, double[] outFactors) {
         throw new UnsupportedOperationException("Not implemented. Email Marc Suchard if required (offer coauthorship for enhanced service)");
@@ -424,6 +430,11 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updatePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        throw new BeagleException("updatePartials_v5", -1);
+    }
+
+
     /**
      * Operations list is a list of 7-tuple integer indices, with one 7-tuple per operation.
      * Format of 7-tuple operation: {destinationPartials,
@@ -459,6 +470,10 @@ public class GeneralBeagleImpl implements Beagle {
         }
     }
 
+    public void updatePrePartials_v5(final int[] operations, final int operationCount, final int cumulativeScaleIndex, final BeaglePartialsType partialsType) {
+        throw new BeagleException("updatePrePartials_v5", -1);
+    }
+    
     public void updatePrePartialsByPartition(final int[] operations, final int operationCount) {
         throw new BeagleException("updatePrePartialsByPartition", -1);
     }
@@ -484,6 +499,23 @@ public class GeneralBeagleImpl implements Beagle {
                                            		   int count,
                                            		   double[] outSumDerivatives,
                                            		   double[] outSumSquaredDerivatives) {
+		throw new RuntimeException("Not yet implemented");
+    }
+
+	@Override
+    public void calculateAdjointCrossProductDifferentials(final int[] postBufferIndices,
+                                           		          final int[] preBufferIndices,
+                                           		          final int[] eigenIndices,
+                                           		          final int[] categoryRateIndices,
+                                           		          final int[] categoryWeightsIndices,
+                                                          final int rootPostOrderIndex,
+                                                          final int stateFrequenciesIndex,
+                                           		          int count,
+                                           		          double[] outSumDerivatives,
+                                           		          double[] outSumSquaredDerivatives,
+                                           		          final int[] postScaleIndices,
+                                           		          final int[] preScaleIndices,
+                                           		          final int cumulativeScaleIndex) {
 		throw new RuntimeException("Not yet implemented");
     }
 
@@ -575,6 +607,11 @@ public class GeneralBeagleImpl implements Beagle {
        throw new UnsupportedOperationException("setCPUThreadCount not implemented in GeneralBeagleImpl");
     }
 
+    public void ensureBufferCounts(int partialsBufferCount, int matrixBufferCount, int scaleBufferCount) {
+        // a BeagleException, as from the native implementations, so that a probe treats every implementation alike
+        throw new BeagleException("ensureBufferCounts", BeagleErrorCode.NO_IMPLEMENTATION_ERROR.getErrCode());
+    }
+
     public void accumulateScaleFactors(int[] scaleIndices, int count, int outScaleIndex) {
 //        throw new UnsupportedOperationException("accumulateScaleFactors not implemented in GeneralBeagleImpl");
     }
@@ -605,7 +642,7 @@ public class GeneralBeagleImpl implements Beagle {
 
     /**
      * Calculates partial likelihoods at a node when both children have states.
-     * @returns the larges absolute exponent
+     * @return the larges absolute exponent
      */
     protected int updateStatesStates(int bufferIndex1, int matrixIndex1, int bufferIndex2, int matrixIndex2, int bufferIndex3)
     {

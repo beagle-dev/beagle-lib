@@ -133,7 +133,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
     if (t < 0) t = n;
 
     // Defer to normP1 if p=1 and n is small or we want an exact answer.
-    if (p == 1 and (n <= 4 or t == n))
+    if (p == 1 && (n <= 4 || t == n))
 	return normP1(A);
 
     // (0) Choose starting matrix X that is (n,t) with columns of unit 1-norm.
@@ -166,7 +166,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	auto [est, j] = ArgNormP1(Y);
 
-	if (est > est_old or k == 2)
+	if (est > est_old || k == 2)
 	{
 	    // Note that j is in [0,t-1], but indices[j] is in [0,n-1].
 	    ind_best = indices[j];
@@ -176,7 +176,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	assert(ind_best < n);
 
         // (1) of Algorithm 2.4
-	if (est < est_old and k >= 2)
+	if (est < est_old && k >= 2)
 	{
 	    // std::cerr<<"  The new estimate ("<<est<<") is smaller than the old estimate ("<<est_old<<")\n";
 	    return est_old;
@@ -193,7 +193,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	prodS = (S_old.transpose() * S).matrix().cwiseAbs().cast<int>() ;
 
 	// (2) If each columns in S is parallel to SOME column of S_old
-	if (prodS.colwise().maxCoeff().sum() == n * t and k >= 2)
+	if (prodS.colwise().maxCoeff().sum() == n * t && k >= 2)
 	{
 	    // std::cerr<<"  All columns of S parallel to S_old\n";
 	    return est;
@@ -232,7 +232,7 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 	h = Z.cwiseAbs().rowwise().maxCoeff();  // (n,t) -> (n,1)
 
 	// (4) of Algorithm 2.4
-	if (k >= 2 and h.maxCoeff() == h[ind_best])
+	if (k >= 2 && h.maxCoeff() == h[ind_best])
 	{
 	    // std::cerr<<"  The best column ("<<ind_best<<") is not new\n";
 
@@ -266,16 +266,16 @@ double normest1(const SpMatrix& A, int p, int t=2, int itmax=5)
 
 	// find the first t indices that are not in ind_hist
 	int l=0;
-	for(int i=0;i<indices.size() and l < t;i++)
+	for(int i=0;i<indices.size() && l < t;i++)
 	{
-	    if (not ind_hist[indices[i]])
+	    if (!ind_hist[indices[i]])
 	    {
 		indices[l] = indices[i];
 		l++;
 	    }
 	}
 	indices.resize( std::min(l,t) );
-	assert(not indices.empty());
+	assert(!indices.empty());
 
 	int tmax = std::min<int>(t, indices.size());
 
@@ -348,7 +348,7 @@ std::vector<double> normest1_merged(const SpMatrix& A, int pMax, int t=2, int it
     all_indices.resize(n);
     std::vector<bool> all_ind_hist(n,false);
 
-    for(int k=1; k<=itmax and X.cols() > 0; k++)
+    for(int k=1; k<=itmax && X.cols() > 0; k++)
     {
         for(int p=1; p<=pMax; p++)
         {
@@ -364,7 +364,7 @@ std::vector<double> normest1_merged(const SpMatrix& A, int pMax, int t=2, int it
 
             if (k == itmax) continue;
 
-            if (est > est_old[p] or k == 2)
+            if (est > est_old[p] || k == 2)
             {
                 // Note that j is in [0,t-1], but indices[j] is in [0,n-1].
                 ind_best[p] = all_indices[j];
@@ -389,7 +389,7 @@ std::vector<double> normest1_merged(const SpMatrix& A, int pMax, int t=2, int it
             // reorder idx so that the highest values of h[indices[i]] come first.
             std::optional<int> i;
             for(int l=0;l<h.size();l++)
-                if (not all_ind_hist[l] and ((not i) or h[l] > h[i.value()]))
+                if (!all_ind_hist[l] && ((!i) || h[l] > h[i.value()]))
                     i = l;
 
             new_indices[p] = i.value();
@@ -400,7 +400,7 @@ std::vector<double> normest1_merged(const SpMatrix& A, int pMax, int t=2, int it
         for(int p=1;p<=pMax;p++)
         {
             int i = new_indices[p];
-            if (not all_ind_hist[i])
+            if (!all_ind_hist[i])
             {
                 all_indices.push_back(i);
                 all_ind_hist[i] = true;
@@ -539,7 +539,8 @@ namespace beagle {
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::upPartials(bool byPartition,
                                                                       const int *operations,
                                                                       int operationCount,
-                                                                      int cumulativeScaleIndex) {
+                                                                      int cumulativeScaleIndex,
+                                                                      BeaglePartialsType partialsType) {
             double *cumulativeScaleBuffer = NULL;
             if (cumulativeScaleIndex != BEAGLE_OP_NONE)
                 cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
@@ -581,8 +582,8 @@ namespace beagle {
                     startPattern = this->gPatternPartitionsStartPatterns[currentPartition];
                     endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
 
-                    assert(startPattern >= 0 and startPattern <= kPatternCount);
-                    assert(endPattern >= 0 and endPattern <= kPatternCount);
+                    assert(startPattern >= 0 && startPattern <= kPatternCount);
+                    assert(endPattern >= 0 && endPattern <= kPatternCount);
                     assert(startPattern <= endPattern);
                 }
 
@@ -633,7 +634,10 @@ namespace beagle {
         int BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::upPrePartials(bool byPartition,
                                                                          const int *operations,
                                                                          int operationCount,
-                                                                         int cumulativeScaleIndex) {
+                                                                         int cumulativeScaleIndex,
+                                                                         BeaglePartialsType partialsType) {
+            if (partialsType & BEAGLE_PARTIALS_TOP)
+                return BEAGLE_ERROR_NO_IMPLEMENTATION;
             double *cumulativeScaleBuffer = NULL;
             if (cumulativeScaleIndex != BEAGLE_OP_NONE)
                 cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
@@ -677,8 +681,8 @@ namespace beagle {
                     startPattern = this->gPatternPartitionsStartPatterns[currentPartition];
                     endPattern = this->gPatternPartitionsStartPatterns[currentPartition + 1];
 
-                    assert(startPattern >= 0 and startPattern <= kPatternCount);
-                    assert(endPattern >= 0 and endPattern <= kPatternCount);
+                    assert(startPattern >= 0 && startPattern <= kPatternCount);
+                    assert(endPattern >= 0 && endPattern <= kPatternCount);
                     assert(startPattern <= endPattern);
                 }
 
@@ -1236,7 +1240,7 @@ namespace beagle {
 		V[k] = A*V[k-1] / k; // L3
 	    // L4
 	    double S = ceil(pow( normP1(V[m+1])/tol, 1.0/(m+1) )); // L5
-	    if (not (S >= 1))
+	    if (!(S >= 1))
 	    {
 		// Handle the case where Qt - mu*I = 0
 		// Handle the case where normP1( ) is NaN.
@@ -1326,7 +1330,7 @@ namespace beagle {
             double bestS = INT_MAX;  // Not all the values of s can fit in a 32-bit int.
             for (auto& [thisM, thetaM]: thetaConstants) {
                 const double thisS = ceil(gB1Norms[eigenIndex] * edgeMultiplier / thetaM);
-                if (bestM == INT_MAX or ((double) thisM) * thisS < bestM * bestS) {
+                if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
                     bestS = thisS;
                     bestM = thisM;
                 }
@@ -1359,10 +1363,10 @@ namespace beagle {
             int workComputingDs = 0;
             for (int p = 2; p <= pMax; p++)
             {
-                if (not hasDValue(p, eigenIndex))
+                if (!hasDValue(p, eigenIndex))
                     workComputingDs += 4.0 * l * p;
 
-                if (not hasDValue(p+1, eigenIndex))
+                if (!hasDValue(p+1, eigenIndex))
                     workComputingDs += 4.0 * l * (p+1);
 
                 // Stop computing D values before it ends up being more expensive to compute them than to compute the action.
@@ -1378,7 +1382,7 @@ namespace beagle {
                         const double alpha = std::max(dValueP, dValuePPlusOne) * edgeMultiplier;
                         // part of equation 3.10
                         const double thisS = ceil(alpha / thetaConstants.at(thisM));
-                        if (bestM == INT_MAX or ((double) thisM) * thisS < bestM * bestS) {
+                        if (bestM == INT_MAX || ((double) thisM) * thisS < bestM * bestS) {
                             bestS = thisS;
                             bestM = thisM;
                         }
@@ -1440,7 +1444,7 @@ namespace beagle {
         }
 
         BEAGLE_CPU_ACTION_TEMPLATE
-        long long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
+        const long long BeagleCPUActionImpl<BEAGLE_CPU_ACTION_DOUBLE>::getFlags() {
             return  BEAGLE_FLAG_COMPUTATION_SYNCH |
                     BEAGLE_FLAG_COMPUTATION_ACTION |
                     BEAGLE_FLAG_PROCESSOR_CPU |
@@ -1506,7 +1510,7 @@ namespace beagle {
         }
 
         template <>
-        long long BeagleCPUActionImplFactory<double>::getFlags() {
+        const long long BeagleCPUActionImplFactory<double>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
@@ -1521,7 +1525,7 @@ namespace beagle {
         }
 
         template <>
-        long long BeagleCPUActionImplFactory<float>::getFlags() {
+        const long long BeagleCPUActionImplFactory<float>::getFlags() {
             return BEAGLE_FLAG_COMPUTATION_SYNCH | BEAGLE_FLAG_COMPUTATION_ACTION |
                    BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_AUTO |
                    BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |

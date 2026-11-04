@@ -210,7 +210,7 @@ int main( int argc, const char* argv[] )
 	if (!strcmp(argv[i],"--gpu"))
 	{
 	    useGpu = true;
-	    if (i+1<argc and has_only_digits(argv[i+1]))
+	    if (i+1<argc && has_only_digits(argv[i+1]))
 		whichDevice = std::stoi(argv[i+1]);
 	}
     }

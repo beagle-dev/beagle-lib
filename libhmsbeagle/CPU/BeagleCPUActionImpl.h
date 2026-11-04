@@ -157,7 +157,7 @@ namespace beagle {
 
             virtual const char* getName();
 
-            virtual long long getFlags();
+            virtual const long long getFlags();
 
             virtual int createInstance(int tipCount,
                                        int partialsBufferCount,
@@ -181,12 +181,15 @@ namespace beagle {
             virtual int upPartials(bool byPartition,
 				   const int *operations,
 				   int operationCount,
-				   int cumulativeScalingIndex);
+				   int cumulativeScalingIndex,
+				   BeaglePartialsType partialsType) override;
 
+            // Only BEAGLE_PARTIALS_BOTTOM pre-order partials
             virtual int upPrePartials(bool byPartition,
 				      const int *operations,
 				      int operationCount,
-				      int cumulativeScalingIndex);
+				      int cumulativeScalingIndex,
+				      BeaglePartialsType partialsType) override;
 
             virtual int calcEdgeLogDerivatives(const int *postBufferIndices,
                                                const int *preBufferIndices,
@@ -310,7 +313,7 @@ public:
                                    int* errorCode);
 
     virtual const char* getName();
-    virtual long long getFlags();
+    virtual const long long getFlags();
 };
 
 
