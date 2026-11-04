@@ -187,6 +187,12 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     gRaggedPre.assign(kBufferCount, 0);
     gRaggedTopology.assign(kBufferCount, -1);
     gBufferTopology.assign(kBufferCount, -1);
+    const char* supportEnv = getenv("BEAGLE_HRATE_SUPPORT");
+    kSupportBuild = !(supportEnv != NULL && std::strcmp(supportEnv, "0") == 0);
+    gModelStamp.assign(kEigenDecompCount, 0);
+    gBuildInputs.assign(kEigenDecompCount, nullptr);
+    gBuildInputsModelStamp.assign(kEigenDecompCount, 0);
+    gBuildInputsFrequencyStamp.assign(kEigenDecompCount, 0);
     return returnCode;
 }
 
@@ -621,6 +627,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eig
     if (eigenIndex < 0 || eigenIndex >= kEigenDecompCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
     int returnCode = decodeHierarchicalModel(inEigenVectors, inEigenValues, kStateCount, gModels[eigenIndex]);
+    gModelStamp[eigenIndex]++;
     if (returnCode == BEAGLE_SUCCESS && kMayAggregate)
         gModels[eigenIndex].ops.topologyId = topologyIdOf(gModels[eigenIndex].ops);
     if (returnCode == BEAGLE_SUCCESS && kSmallBand)
@@ -645,6 +652,31 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setStateFrequencies(int state
 }
 
 BEAGLE_CPU_TEMPLATE
+std::shared_ptr<const HierarchicalBuildInputs> BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildInputs(
+        int modelIndex,
+        int categoryRatesIndex) {
+    const HierarchicalModel& model = gModels[modelIndex];
+    const double* rates = gCategoryRates[categoryRatesIndex];
+    std::shared_ptr<const HierarchicalBuildInputs>& cached = gBuildInputs[modelIndex];
+    if (cached && gBuildInputsModelStamp[modelIndex] == gModelStamp[modelIndex] &&
+        gBuildInputsFrequencyStamp[modelIndex] == gFrequencyStamp &&
+        std::equal(cached->rates.begin(), cached->rates.end(), rates))
+        return cached;
+    std::shared_ptr<HierarchicalBuildInputs> inputs = std::make_shared<HierarchicalBuildInputs>();
+    inputs->lambda = model.lambda;
+    inputs->piNode.resize(2 * kStateCount - 1);
+    hierarchicalNodeFrequencies(model, gFrequenciesDouble[0].data(), kStateCount, inputs->piNode.data());
+    for (int m = kStateCount; m < 2 * kStateCount - 1; m++)
+        if (!std::isfinite(inputs->piNode[m]) || inputs->piNode[m] <= 0.0)
+            return nullptr;
+    inputs->rates.assign(rates, rates + kCategoryCount);
+    cached = inputs;
+    gBuildInputsModelStamp[modelIndex] = gModelStamp[modelIndex];
+    gBuildInputsFrequencyStamp[modelIndex] = gFrequencyStamp;
+    return cached;
+}
+
+BEAGLE_CPU_TEMPLATE
 int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildBundles(int modelIndex,
                                                                 int categoryRatesIndex,
                                                                 const int* probabilityIndices,
@@ -655,6 +687,20 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildBundles(int modelIndex,
         gCategoryRates[categoryRatesIndex] == NULL || gFrequenciesDouble[0].empty())
         return BEAGLE_ERROR_OUT_OF_RANGE;
     const HierarchicalModel& model = gModels[modelIndex];
+    const int live = kSupportBuild && gAggregated ? liveSlotOf(model.ops.topologyId) : -1;
+    if (live >= 0) {
+        const std::shared_ptr<const HierarchicalBuildInputs> inputs = buildInputs(modelIndex, categoryRatesIndex);
+        if (!inputs)
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+        for (int i = 0; i < count; i++) {
+            const int index = probabilityIndices[i];
+            if (index < 0 || index >= kMatrixCount || !std::isfinite(edgeLengths[i]) || edgeLengths[i] < 0.0)
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+            hierarchicalBuildSupportBundle(model.ops, gSupport[live], kStateCount, inputs, kCategoryCount,
+                                           edgeLengths[i], gPrZ0Tmp.data(), gSlots[index]);
+        }
+        return BEAGLE_SUCCESS;
+    }
     double* piNode = gPiNodeTmp.data();
     hierarchicalNodeFrequencies(model, gFrequenciesDouble[0].data(), kStateCount, piNode);
     for (int m = kStateCount; m < 2 * kStateCount - 1; m++)
@@ -669,6 +715,32 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildBundles(int modelIndex,
                                 gPrZ0Tmp.data(), kMayAggregate, gSlots[index]);
     }
     return BEAGLE_SUCCESS;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::completeSlot(HierarchicalSlot<REALTYPE>& slot) {
+    if (slot.supportGeneration == 0)
+        return;
+    const std::shared_ptr<const HierarchicalBuildInputs> inputs = slot.inputs;
+    hierarchicalBuildBundle(*slot.ops, inputs->lambda.data(), kStateCount, inputs->piNode.data(),
+                            inputs->rates.data(), kCategoryCount, slot.edgeLength, gPrZ0Tmp.data(), kMayAggregate,
+                            slot);
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::completeSlots(const int* operations, int count, int numOps) {
+    for (int op = 0; op < count; op++) {
+        const int* operation = operations + op * numOps;
+        const int last = operation[5] == BEAGLE_OP_NONE ? 4 : 6;
+        for (int m = 4; m <= last; m += 2) {
+            HierarchicalSlot<REALTYPE>& slot = gSlots[operation[m]];
+            if (slot.supportGeneration == 0)
+                continue;
+            const int live = gAggregated ? liveSlotOf(slot.topologyId) : -1;
+            if (live < 0 || gSupport[live].generation != slot.supportGeneration)
+                completeSlot(slot);
+        }
+    }
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -711,6 +783,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::getTransitionMatrix(int matri
     if (matrixIndex < 0 || matrixIndex >= kMatrixCount ||
         matrixIndex >= (int) gSlots.size() || !gSlots[matrixIndex].set || gStateFrequencies[0] == NULL)
         return BEAGLE_ERROR_OUT_OF_RANGE;
+    completeSlot(gSlots[matrixIndex]);
     hierarchicalTransitionMatrices(gSlots[matrixIndex], gStateFrequencies[0], kStateCount, kCategoryCount, outMatrix);
     return BEAGLE_SUCCESS;
 }
@@ -766,6 +839,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* ope
     if (!slotsReady(operations, operationCount, BEAGLE_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareClasses(operations, operationCount, BEAGLE_OP_COUNT);
+    completeSlots(operations, operationCount, BEAGLE_OP_COUNT);
     if (!gAggregated)
         prepareTables(operations, operationCount, BEAGLE_OP_COUNT);
     preparePrZ0(operations, operationCount, BEAGLE_OP_COUNT);
@@ -790,6 +864,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(con
     if (!slotsReady(operations, operationCount, BEAGLE_PARTITION_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareClasses(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
+    completeSlots(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     if (!gAggregated)
         prepareTables(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     preparePrZ0(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
@@ -1133,6 +1208,8 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::invalidateClasses(bool expan
     gPatternOffset.clear();
     gRaggedSize = 0;
     std::fill(gLiveId.begin(), gLiveId.end(), -1);
+    for (auto& support : gSupport)
+        support.generation = 0;
     gClassGeneration++;
 }
 
@@ -1191,6 +1268,12 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::liveSlotOf(int topologyId) co
         if (gLiveId[s] == topologyId)
             return s;
     return -1;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildSupport(int live) {
+    hierarchicalSupport(gLiveOps[live], kStateCount, gClasses, live, gSupport[live]);
+    gSupport[live].generation = ++gSupportClock;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -1433,6 +1516,7 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildClasses(const Hierarchi
         gLiveFrequencyStamp[0] = gFrequencyStamp;
         gLiveUse[0] = ++gUseClock;
         gCurrentLive = 0;
+        buildSupport(0);
         std::vector<int> added(1, 0);
         allocated = layoutRagged(added);
     } else {
@@ -1562,6 +1646,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::addLiveTopology(const Hierarc
     const double* piNode = nodeFrequencies(0, ops);
     for (auto& c : gClasses)
         hierarchicalBuildReduced(ops, kStateCount, piNode, c.observed, c.reduced[live]);
+    buildSupport(live);
     return live;
 }
 

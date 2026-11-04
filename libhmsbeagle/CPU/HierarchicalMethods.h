@@ -111,6 +111,17 @@ struct HierarchicalModel {
     std::vector<double> lambda;
 };
 
+struct HierarchicalBuildInputs {
+    std::vector<double> lambda;
+    std::vector<double> piNode;
+    std::vector<double> rates;
+};
+
+struct HierarchicalSupport {
+    std::vector<int> ops;
+    unsigned long generation = 0;
+};
+
 template <typename REALTYPE>
 struct HierarchicalSlot {
     bool set = false;
@@ -126,6 +137,9 @@ struct HierarchicalSlot {
     std::vector<REALTYPE> prZ0Internal;
     unsigned long prZ0Stamp = 0;
     unsigned long prZ0FrequencyStamp = 0;
+    unsigned long supportGeneration = 0;
+    std::shared_ptr<const HierarchicalBuildInputs> inputs;
+    double edgeLength = 0.0;
 };
 
 template <typename REALTYPE>
@@ -183,6 +197,35 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
                              double* prZ0Tmp,
                              bool writeInternal,
                              HierarchicalSlot<REALTYPE>& slot);
+
+template <typename REALTYPE>
+void hierarchicalBuildBundle(const HierarchicalOps& ops,
+                             const double* lambda,
+                             int stateCount,
+                             const double* piNode,
+                             const double* categoryRates,
+                             int categoryCount,
+                             double edgeLength,
+                             double* prZ0Tmp,
+                             bool writeInternal,
+                             HierarchicalSlot<REALTYPE>& slot);
+
+template <typename REALTYPE>
+void hierarchicalBuildSupportBundle(const HierarchicalOps& ops,
+                                    const HierarchicalSupport& support,
+                                    int stateCount,
+                                    const std::shared_ptr<const HierarchicalBuildInputs>& inputs,
+                                    int categoryCount,
+                                    double edgeLength,
+                                    double* prZ0Tmp,
+                                    HierarchicalSlot<REALTYPE>& slot);
+
+template <typename REALTYPE>
+void hierarchicalSupport(const HierarchicalOps& full,
+                         int stateCount,
+                         const std::vector<HierarchicalClass<REALTYPE>>& classes,
+                         int live,
+                         HierarchicalSupport& support);
 
 template <typename REALTYPE>
 void hierarchicalRecoverInternalPrZ0(const HierarchicalOps& ops,

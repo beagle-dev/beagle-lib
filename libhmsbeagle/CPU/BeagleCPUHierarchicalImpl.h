@@ -104,6 +104,13 @@ namespace beagle {
             unsigned long gUseClock = 0;
             int gCurrentLive = 0;
             std::vector<int> gOpTopology;
+            bool kSupportBuild = true;
+            std::vector<HierarchicalSupport> gSupport = std::vector<HierarchicalSupport>(kHierarchicalLiveTopologies);
+            unsigned long gSupportClock = 0;
+            std::vector<unsigned long> gModelStamp;
+            std::vector<std::shared_ptr<const HierarchicalBuildInputs>> gBuildInputs;
+            std::vector<unsigned long> gBuildInputsModelStamp;
+            std::vector<unsigned long> gBuildInputsFrequencyStamp;
             std::vector<int> gProvenanceTmp;
             std::vector<REALTYPE*> gRagged;
             std::vector<size_t> gRaggedCapacity;
@@ -166,6 +173,10 @@ namespace beagle {
             void stampBuffers(const int* operations, int count, int numOps);
             void prepareClasses(const int* operations, int count, int numOps);
             int liveSlotOf(int topologyId) const;
+            void buildSupport(int live);
+            std::shared_ptr<const HierarchicalBuildInputs> buildInputs(int modelIndex, int categoryRatesIndex);
+            void completeSlot(HierarchicalSlot<REALTYPE>& slot);
+            void completeSlots(const int* operations, int count, int numOps);
             void refreshPiRed();
             REALTYPE* ensureRagged(int bufferIndex);
             REALTYPE* ensureTipRagged(int live, int tipIndex);

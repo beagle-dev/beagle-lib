@@ -63,6 +63,7 @@ struct Probe : public Hier {
     unsigned long classGeneration() const { return this->gClassGeneration; }
     int liveSlot(int id) const { return this->liveSlotOf(id); }
     int liveId(int s) const { return this->gLiveId[s]; }
+    size_t supportNodes(int s) const { return this->gSupport[s].ops.size() / 3; }
     const HierarchicalOps& classOps() const { return this->gLiveOps[this->gCurrentLive]; }
     Real denseValue(int b, int l, int k, int i) const { return this->gPartials[b][this->pIdx(l, k, i)]; }
 };
@@ -1069,6 +1070,132 @@ static void topologyEvictionCase(const char* label, int S, std::mt19937_64& rng)
            worst <= tol && a.rc == 0 && b.rc == 0, relDetail(worst));
 }
 
+
+template <typename Hier, typename Real>
+struct SupportRun {
+    Probe<Hier, Real> h;
+    int rc = 0;
+};
+
+template <typename Real, typename Hier>
+static void supportCase(const char* label, int S, int C, std::mt19937_64& rng) {
+    char tag[128];
+    snprintf(tag, sizeof(tag), "%s support build S=%d C=%d", label, S, C);
+    const std::string name(tag);
+    const int K = 3, tips = 8;
+    const bool dp = sizeof(Real) == 8;
+    const double tol = dp ? 1e-12 : 1e-5;
+    std::vector<std::vector<int>> states(tips, std::vector<int>(K));
+    for (int k = 0; k < K; ++k) {
+        const int pool[2] = { (int) (rng() % S), (int) (rng() % S) };
+        for (int t = 0; t < tips; ++t)
+            states[t][k] = pool[rng() % 2];
+    }
+    StateTree tree = makeRandomTree(S, rng, 0.7);
+    SupportRun<Hier, Real> a, b, c;
+    std::vector<double> rates(C), weights(C, 1.0 / C), patternWeights(K, 1.0);
+    for (int l = 0; l < C; ++l)
+        rates[l] = 0.4 + 1.2 * l;
+    double length[14];
+    for (int m = 0; m < 14; ++m)
+        length[m] = 0.05 + 0.03 * m;
+    int matrices[14];
+    for (int m = 0; m < 14; ++m)
+        matrices[m] = m;
+    auto setup = [&](SupportRun<Hier, Real>& run, const char* env, const char* support) {
+        setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
+        if (support)
+            setenv("BEAGLE_HRATE_SUPPORT", support, 1);
+        run.rc = run.h.createInstance(tips, 7, 8, S, K, 2, 14, C, 8, 0, 0,
+                                      BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG, 0);
+        unsetenv("BEAGLE_HRATE_AGGREGATE");
+        unsetenv("BEAGLE_HRATE_SUPPORT");
+        ModelArrays model = modelArrays(tree);
+        std::vector<double> pi = tipFrequencies(tree);
+        run.rc |= run.h.setStateFrequencies(0, pi.data()) | run.h.setCategoryRates(rates.data()) |
+                  run.h.setCategoryWeights(0, weights.data()) | run.h.setPatternWeights(patternWeights.data()) |
+                  run.h.setEigenDecomposition(0, model.vectors.data(), model.inverse.data(), model.values.data());
+        for (int t = 0; t < tips; ++t)
+            run.rc |= run.h.setTipStates(t, states[t].data());
+    };
+    setup(a, "0", NULL);
+    setup(b, "1", NULL);
+    setup(c, "1", "0");
+    auto evaluate = [&](SupportRun<Hier, Real>& run) {
+        run.rc |= run.h.updateTransitionMatrices(0, matrices, NULL, NULL, length, 14);
+        int ops[7 * 7];
+        for (int n = 0; n < 7; ++n) {
+            const int o[7] = { 8 + n, n, BEAGLE_OP_NONE, kEntryChildren[n][0], kEntryChildren[n][0],
+                               kEntryChildren[n][1], kEntryChildren[n][1] };
+            std::copy(o, o + 7, ops + 7 * n);
+        }
+        run.rc |= run.h.updatePartials(ops, 7, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+        const int scales[7] = { 0, 1, 2, 3, 4, 5, 6 }, cumulative = 7, root = 14, w = 0, f = 0;
+        run.rc |= run.h.resetScaleFactors(cumulative);
+        run.rc |= run.h.accumulate(scales, 7, cumulative);
+        double logL = 0.0;
+        run.rc |= run.h.calculateRootLogLikelihoods(&root, &w, &f, &cumulative, 1, &logL);
+        return logL;
+    };
+    double worst = 0.0;
+    bool bitwise = true;
+    auto step = [&]() {
+        const double la = evaluate(a), lb = evaluate(b), lc = evaluate(c);
+        worst = std::max(worst, std::fabs(lb - la) / std::fabs(la));
+        bitwise = bitwise && lb == lc;
+        return lb;
+    };
+    step();
+    for (int m = 0; m < 14; ++m)
+        length[m] *= 1.3;
+    step();
+    const bool restricted = b.h.slot(0).supportGeneration != 0 && c.h.slot(0).supportGeneration == 0 &&
+                            b.h.supportNodes(0) < (size_t) (S - 1);
+    report(name + " restricted after the first build", restricted && bitwise && worst <= tol,
+           std::to_string(b.h.supportNodes(0)) + " of " + std::to_string(S - 1) + " internal nodes, " +
+           relDetail(worst));
+    std::vector<double> pb((size_t) C * S * S), pc((size_t) C * S * S);
+    b.rc |= b.h.getTransitionMatrix(3, pb.data());
+    c.rc |= c.h.getTransitionMatrix(3, pc.data());
+    report(name + " getTransitionMatrix completes the slot", pb == pc && b.h.slot(3).supportGeneration == 0, "");
+    std::vector<double> pi = tipFrequencies(withFrequencies(tree, rng));
+    for (auto* run : { &a, &b, &c })
+        run->rc |= run->h.setStateFrequencies(0, pi.data());
+    step();
+    for (int l = 0; l < C; ++l)
+        rates[l] *= 1.1;
+    for (auto* run : { &a, &b, &c })
+        run->rc |= run->h.setCategoryRates(rates.data());
+    step();
+    ModelArrays scaled = modelArrays(withScaledLambda(tree, 1.4));
+    for (auto* run : { &a, &b, &c })
+        run->rc |= run->h.setEigenDecomposition(0, scaled.vectors.data(), scaled.inverse.data(), scaled.values.data());
+    step();
+    report(name + " frequency, rate and lambda changes", bitwise && worst <= tol, relDetail(worst));
+    for (int k = 0; k < K; ++k)
+        states[0][k] = (states[0][k] + S / 2) % S;
+    for (auto* run : { &a, &b, &c })
+        run->rc |= run->h.setTipStates(0, states[0].data());
+    int ops[7 * 7];
+    for (int n = 0; n < 7; ++n) {
+        const int o[7] = { 8 + n, n, BEAGLE_OP_NONE, kEntryChildren[n][0], kEntryChildren[n][0],
+                           kEntryChildren[n][1], kEntryChildren[n][1] };
+        std::copy(o, o + 7, ops + 7 * n);
+    }
+    double logL[3];
+    int i = 0;
+    for (auto* run : { &a, &b, &c }) {
+        run->rc |= run->h.updatePartials(ops, 7, BEAGLE_OP_NONE, BEAGLE_PARTIALS_BOTTOM);
+        const int scales[7] = { 0, 1, 2, 3, 4, 5, 6 }, cumulative = 7, root = 14, w = 0, f = 0;
+        run->rc |= run->h.resetScaleFactors(cumulative);
+        run->rc |= run->h.accumulate(scales, 7, cumulative);
+        run->rc |= run->h.calculateRootLogLikelihoods(&root, &w, &f, &cumulative, 1, &logL[i++]);
+    }
+    const double dt = std::fabs(logL[1] - logL[0]) / std::fabs(logL[0]);
+    report(name + " a tip change completes the stale slots", logL[1] == logL[2] && dt <= tol &&
+           b.h.slot(0).supportGeneration == 0 && a.rc == 0 && b.rc == 0 && c.rc == 0, relDetail(dt));
+}
+
 int main() {
     std::mt19937_64 rng(20261101);
     const int stateCounts[5] = { 4, 8, 9, 17, 61 };
@@ -1095,6 +1222,11 @@ int main() {
         }
     topologyEvictionCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 61, rng);
     topologyEvictionCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", 61, rng);
+    for (int S : { 61, 256 })
+        for (int C : { 1, 4 }) {
+            supportCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", S, C, rng);
+            supportCase<float, BeagleCPUHierarchicalImpl<float, 1, 0>>("single", S, C, rng);
+        }
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, NULL, NULL, false, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, NULL, true, rng);

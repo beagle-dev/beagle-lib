@@ -159,7 +159,9 @@ inline void hierarchicalNodeFrequencies(const HierarchicalModel& model,
 }
 
 template <typename REALTYPE>
-void hierarchicalBuildBundle(const HierarchicalModel& model,
+void hierarchicalBuildBundle(const HierarchicalOps& ops,
+                             const double* lambda,
+                             int stateCount,
                              const double* piNode,
                              const double* categoryRates,
                              int categoryCount,
@@ -167,11 +169,10 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
                              double* prZ0Tmp,
                              bool writeInternal,
                              HierarchicalSlot<REALTYPE>& slot) {
-    const int S = (int) model.lambda.size() + 1;
+    const int S = stateCount;
     const int n = S - 1;
     const int block = hierarchicalBlockLength(S);
-    const int* pre = model.ops.preOps.data();
-    const double* lambda = model.lambda.data();
+    const int* pre = ops.preOps.data();
     slot.values.resize((size_t) categoryCount * block);
     if (writeInternal)
         slot.prZ0Internal.resize((size_t) categoryCount * n);
@@ -196,13 +197,108 @@ void hierarchicalBuildBundle(const HierarchicalModel& model,
                 internal[m] = (REALTYPE) prZ0Tmp[S + m];
         }
     }
-    slot.ops = &model.ops;
+    slot.ops = &ops;
     slot.owned.reset();
-    slot.topologyId = model.ops.topologyId;
+    slot.topologyId = ops.topologyId;
     slot.set = true;
     slot.stamp++;
+    slot.supportGeneration = 0;
+    slot.inputs.reset();
     if (writeInternal)
         slot.prZ0Stamp = slot.stamp;
+}
+
+template <typename REALTYPE>
+void hierarchicalBuildBundle(const HierarchicalModel& model,
+                             const double* piNode,
+                             const double* categoryRates,
+                             int categoryCount,
+                             double edgeLength,
+                             double* prZ0Tmp,
+                             bool writeInternal,
+                             HierarchicalSlot<REALTYPE>& slot) {
+    hierarchicalBuildBundle(model.ops, model.lambda.data(), (int) model.lambda.size() + 1, piNode, categoryRates,
+                            categoryCount, edgeLength, prZ0Tmp, writeInternal, slot);
+}
+
+template <typename REALTYPE>
+void hierarchicalBuildSupportBundle(const HierarchicalOps& ops,
+                                    const HierarchicalSupport& support,
+                                    int stateCount,
+                                    const std::shared_ptr<const HierarchicalBuildInputs>& inputs,
+                                    int categoryCount,
+                                    double edgeLength,
+                                    double* prZ0Tmp,
+                                    HierarchicalSlot<REALTYPE>& slot) {
+    const int S = stateCount;
+    const int n = S - 1;
+    const int block = hierarchicalBlockLength(S);
+    const int count = (int) support.ops.size() / 3;
+    const int* sup = support.ops.data();
+    const double* lambda = inputs->lambda.data();
+    const double* piNode = inputs->piNode.data();
+    slot.values.resize((size_t) categoryCount * block);
+    slot.prZ0Internal.resize((size_t) categoryCount * n);
+    for (int l = 0; l < categoryCount && count > 0; l++) {
+        const double distance = edgeLength * inputs->rates[l];
+        REALTYPE* H = slot.values.data() + (size_t) l * block;
+        REALTYPE* prZ0 = H + n;
+        REALTYPE* internal = slot.prZ0Internal.data() + (size_t) l * n;
+        prZ0Tmp[sup[0]] = 1.0;
+        internal[sup[0] - S] = (REALTYPE) 1.0;
+        for (int t = 0; t < count; t++) {
+            const int p = sup[3 * t];
+            const double x = -lambda[p - S] * distance;
+            const double pass = prZ0Tmp[p] * std::exp(x);
+            H[p - S] = (REALTYPE) (prZ0Tmp[p] * -std::expm1(x) / piNode[p]);
+            for (int c = 1; c <= 2; c++) {
+                const int child = sup[3 * t + c];
+                if (child < 0)
+                    continue;
+                prZ0Tmp[child] = pass;
+                if (child < S)
+                    prZ0[child] = (REALTYPE) pass;
+                else
+                    internal[child - S] = (REALTYPE) pass;
+            }
+        }
+    }
+    slot.ops = &ops;
+    slot.owned.reset();
+    slot.topologyId = ops.topologyId;
+    slot.set = true;
+    slot.stamp++;
+    slot.prZ0Stamp = slot.stamp;
+    slot.supportGeneration = support.generation;
+    slot.inputs = inputs;
+    slot.edgeLength = edgeLength;
+}
+
+template <typename REALTYPE>
+void hierarchicalSupport(const HierarchicalOps& full,
+                         int stateCount,
+                         const std::vector<HierarchicalClass<REALTYPE>>& classes,
+                         int live,
+                         HierarchicalSupport& support) {
+    const int S = stateCount;
+    std::vector<char> kept(2 * S - 1, 0), marked(2 * S - 1, 0);
+    for (const auto& c : classes) {
+        const HierarchicalReduced<REALTYPE>& red = c.reduced[live];
+        for (int i = 0; i < 2 * red.stateCount - 1; i++)
+            kept[red.localToFull[i]] = 1;
+        for (int i = red.stateCount; i < 2 * red.stateCount - 1; i++)
+            marked[red.localToFull[i]] = 1;
+    }
+    support.ops.clear();
+    for (int t = 0; t < S - 1; t++) {
+        const int p = full.preOps[3 * t];
+        if (!marked[p])
+            continue;
+        const int a = full.preOps[3 * t + 1], b = full.preOps[3 * t + 2];
+        support.ops.push_back(p);
+        support.ops.push_back(kept[a] ? a : -1);
+        support.ops.push_back(kept[b] ? b : -1);
+    }
 }
 
 template <typename REALTYPE>
@@ -267,6 +363,8 @@ int unpackHierarchicalBundle(const double* bundle,
     hierarchicalParents(*ops, stateCount);
     slot.owned = ops;
     slot.ops = slot.owned.get();
+    slot.supportGeneration = 0;
+    slot.inputs.reset();
     slot.values.resize(categoryCount * blockLength);
     for (int i = 0; i < categoryCount * blockLength; i++)
         slot.values[i] = (REALTYPE) blocks[i];
