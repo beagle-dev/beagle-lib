@@ -7682,10 +7682,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::autoRescalePartials(REALTYPE* destP,
         scaleFactors[k] = expMax;
 
         if (expMax != 0) {
+            // the factor stays in double: in single precision 2^-expMax overflows a float when the site maximum is
+            // denormal (expMax <= -127)
+            const double factor = pow(2.0, -expMax);
             for (int l = 0; l < kCategoryCount; l++) {
                 int offset = l * kPaddedPatternCount * kPartialsPaddedStateCount + patternOffset;
-                for (int i = 0; i < kStateCount; i++)
-                    destP[offset++] *= static_cast<REALTYPE>(pow(2.0, -expMax));
+                for (int i = 0; i < kStateCount; i++, offset++)
+                    destP[offset] = static_cast<REALTYPE>(destP[offset] * factor);
             }
         }
     }

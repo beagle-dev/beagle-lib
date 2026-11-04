@@ -48,6 +48,7 @@ public enum BeagleFlag {
     PREORDER_TRANSPOSE_LOW_MEMORY(1L << 32, "Use low-memory automatic transposition of pre-order transition matrices"),
 
     SPECTRAL_REPRESENTATION(1L << 40, "Use spectral representation for transition probability calculations"),
+    HIERARCHICAL_REPRESENTATION(1L << 41, "Use hierarchical state-tree representation for transition probability calculations"),
 
     BEAGLE_FLAG_COMPUTATION_ACTION(1L << 42, "Action computation");
 

@@ -169,6 +169,18 @@ void beagleLoadPlugins(void) {
     }
 
     try{
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Loading hmsbeagle-cpu-hierarchical" << std::endl;
+#endif
+        beagle::plugin::Plugin* hierarchicalplug = pm.findPlugin("hmsbeagle-cpu-hierarchical");
+        plugins->push_back(hierarchicalplug);
+    }catch(beagle::plugin::SharedLibraryException sle) {
+#ifdef BEAGLE_DEBUG_LOAD
+        std::cerr << "Unable to load hmsbeagle-cpu-hierarchical: " << sle.getError() << std::endl;
+#endif
+    }
+
+    try{
         beagle::plugin::Plugin* cpuplug = pm.findPlugin("hmsbeagle-cpu");
         plugins->push_back(cpuplug);
     }catch(beagle::plugin::SharedLibraryException sle){
@@ -527,6 +539,8 @@ int rankResourceImplementationPairs(long long preferenceFlags,
     // preferred over the implementations that cannot do action
     const bool actionRequested =
             ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_COMPUTATION_ACTION) != 0;
+    const bool hierarchicalRequested =
+            ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION) != 0;
 
     // Score each resource-implementation pair given preferences
 
@@ -551,6 +565,7 @@ int rankResourceImplementationPairs(long long preferenceFlags,
                 && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
                 && (spectralRequested || !(factoryFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) // Spectral only if asked
                 && (actionRequested || !(factoryFlags & BEAGLE_FLAG_COMPUTATION_ACTION)) // Action only if asked
+                && (hierarchicalRequested || !(factoryFlags & BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION))
                 ) {
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                 // Penalize unrequested factory capabilities so a minimal

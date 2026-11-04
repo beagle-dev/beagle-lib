@@ -7,7 +7,7 @@ project(BEAGLE)
 
 set(BEAGLE_PACKAGE_NAME "libhmsbeagle")
 set(BEAGLE_VERSION_MAJOR "4")
-set(BEAGLE_VERSION_MINOR "2")
+set(BEAGLE_VERSION_MINOR "3")
 set(BEAGLE_VERSION_PATCH "0")
 
 set(GENERIC_API_VERSION "1")
@@ -46,6 +46,7 @@ option(BUILD_ACTION "Build beagle with action-based calculations" ON)
 option(BUILD_SSE "Build beagle with SSE library" ON)
 option(BUILD_SPECTRAL "Build beagle with spectral representation" ON)
 option(BUILD_FUSED "TEST fused post-order implementation (hmsbeagle-opencl-fused; fused kernel in TinyGPU modules)" OFF)
+option(BUILD_HIERARCHICAL "Build beagle with hierarchical representation" ON)
 option(BUILD_BIT "Build beagle with basta library" OFF)
 # MASCOT builds with clang, GCC and MSVC (MSVC: kernel A only)
 option(BUILD_MASCOT "Build the MASCOT structured-coalescent component" ON)
@@ -396,6 +397,10 @@ if(APPLE)
   	cpack_add_component(cpu_omp
   			DISPLAY_NAME "CPU-OMP plugin"
   			DESCRIPTION "CPU-OMP plugin")
+
+  	cpack_add_component(cpu_hierarchical
+  			DISPLAY_NAME "CPU-Hierarchical plugin"
+  			DESCRIPTION "CPU plugin for hierarchical state-tree substitution models")
 
   	cpack_add_component(jni
   			DISPLAY_NAME "JNI plugin"
