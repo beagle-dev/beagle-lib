@@ -487,7 +487,7 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
                                                               const int cumulativeScaleIndex,
                                                               double* branchMarginalLk) {
 
-    if (postScaleIndices != nullptr || preScaleIndices != nullptr || branchMarginalLk != nullptr) {
+    if (branchMarginalLk != nullptr) {
         Base::calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices,
                                             categoryRates, categoryWeights, perSiteLikelihoods, buffer,
                                             startNode, endNode, startPattern, endPattern, currentPartition,
@@ -495,6 +495,14 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
                                             branchMarginalLk);
         return;
     }
+
+    // As Base: a node whose post- or pre-order partials were rescaled divides by its own effective site
+    // likelihoods, Lk * exp(-(postCum + preCum - rootCum)), with the (LOG) cumulative scale buffers
+    const bool applyScaleCorrection = (postScaleIndices != nullptr) || (preScaleIndices != nullptr);
+    double* correctedLk = applyScaleCorrection ?
+            gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount : nullptr;
+    const double* rootScaleBuffer = (applyScaleCorrection && cumulativeScaleIndex != BEAGLE_OP_NONE) ?
+            gScaleBuffers[cumulativeScaleIndex] : nullptr;
 
     const int S = kStateCount;
     const int stride = kTransPaddedStateCount;
@@ -526,9 +534,33 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
                 std::fill(outer, outer + S * kAdjointStride, 0.0);
             }
 
+            const double* nodeLikelihoods = perSiteLikelihoods;
+            if (applyScaleCorrection) {
+                const int postIdx = postScaleIndices ? postScaleIndices[node] : BEAGLE_OP_NONE;
+                const int preIdx  = preScaleIndices  ? preScaleIndices[node]  : BEAGLE_OP_NONE;
+                if (postIdx != BEAGLE_OP_NONE || preIdx != BEAGLE_OP_NONE) {
+                    const double* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : nullptr;
+                    const double* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : nullptr;
+                    for (int k = startPattern; k < endPattern; ++k) {
+                        double logCorrection = 0.0;
+                        if (postScaleBuffer != nullptr) {
+                            logCorrection += postScaleBuffer[k];
+                        }
+                        if (preScaleBuffer != nullptr) {
+                            logCorrection += preScaleBuffer[k];
+                        }
+                        if (rootScaleBuffer != nullptr) {
+                            logCorrection -= rootScaleBuffer[k];
+                        }
+                        correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
+                    }
+                    nodeLikelihoods = correctedLk;
+                }
+            }
+
             for (int k = startPattern; k < endPattern; ++k) {
                 const int v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * k;
-                const V_Real scale = VEC_SPLAT(gPatternWeights[k] * categoryWeight / perSiteLikelihoods[k]);
+                const V_Real scale = VEC_SPLAT(gPatternWeights[k] * categoryWeight / nodeLikelihoods[k]);
 
                 // lhs = scale V^T pre, rhs = V^{-1} post
                 simd::axpy(transposeColumns, stride, pre + v, S, [lhs, scale](int i, V_Real value) {

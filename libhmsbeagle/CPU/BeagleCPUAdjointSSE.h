@@ -31,8 +31,8 @@ namespace cpu {
  * The adjoint gradient of the rate matrix in the eigen basis (calcAdjointCrossProductsRange) with SIMD across
  * states, double precision, for a CPU implementation Base whose eigen decomposition has the matrices of the
  * spectral representation: EigenDecompositionSpectral, or the adjoint storage of EigenDecompositionCube and
- * EigenDecompositionSquare, both with rows of stride kTransPaddedStateCount. With rescaled partials (scale
- * indices) Base's implementation is used.
+ * EigenDecompositionSquare, both with rows of stride kTransPaddedStateCount. Rescaled partials (scale indices)
+ * correct each node's site likelihoods as Base does; with USE_BRANCH_LIKELIHOOD Base's implementation is used.
  */
 template <typename Base>
 class BeagleCPUAdjointSSE : public Base {
@@ -50,6 +50,8 @@ protected:
     using Base::gPartials;
     using Base::gTipStates;
     using Base::gPatternWeights;
+    using Base::gScaleBuffers;
+    using Base::gAdjointScaleCorrectedLk;
     using typename Base::BranchEigenInfo;
     using Base::gBranchEigenInfo;
 
