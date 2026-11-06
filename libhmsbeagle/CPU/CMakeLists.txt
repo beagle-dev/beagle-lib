@@ -140,5 +140,5 @@ SET_TARGET_PROPERTIES(hmsbeagle-cpu-hierarchical
 	SUFFIX "${BEAGLE_PLUGIN_SUFFIX}"
     )
 
-target_compile_options(hmsbeagle-cpu-hierarchical PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+target_compile_options(hmsbeagle-cpu-hierarchical PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden -fno-strict-aliasing)
 endif(BUILD_HIERARCHICAL)

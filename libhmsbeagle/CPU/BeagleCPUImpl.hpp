@@ -496,6 +496,7 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
 
     kThreadingEnabled = false;
     kAutoPartitioningEnabled = false;
+    kAutoRootPartitioningEnabled = false;
     gThreadOperations = NULL;
     gThreadOpCounts = NULL;
     gAutoPartitionOperations = NULL;
