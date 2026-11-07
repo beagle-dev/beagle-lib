@@ -771,8 +771,8 @@ namespace beagle {
 
             auto destNumeratorDrivTmp = MapType(grandNumeratorDerivTmp + offset * kPatternCount , 1, kPatternCount);
             auto destDenominatorDrivTmp = MapType(grandDenominatorDerivTmp + offset * kPatternCount, 1, kPatternCount);
-            auto destFirstDerivTmp = MapType(firstDerivTmp + offset * kPatternCount * kStateCount, kStateCount, kPatternCount);
-            auto destSecondDerivTmp = MapType(secondDerivTmp + offset * kPatternCount * kStateCount, kStateCount, kPatternCount);
+            auto destFirstDerivTmp = MapType(firstDerivTmp + (size_t) offset * kPatternCount * kStateCount, kStateCount, kPatternCount);
+            auto destSecondDerivTmp = MapType(secondDerivTmp + (size_t) offset * kPatternCount * kStateCount, kStateCount, kPatternCount);
             SpMatrix differentialMatrix = gInstantaneousMatrices[firstDerivativeIndex];
 
 //            std::cerr<<"dQ = " << differentialMatrix << ", offset = "<< offset << std::endl;
