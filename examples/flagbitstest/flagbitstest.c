@@ -9,7 +9,8 @@
  *   - at compile time, each of them is 1LL << n and positive, no two flags share a bit, and every flag field of the
  *     API structs is 8 bytes;
  *   - at run time, the CPU resource's flags from bit 31 up are exactly PREORDER_TRANSPOSE_AUTO (bit 31), _MANUAL
- *     (bit 34) and SPECTRAL_REPRESENTATION (bit 40) (its lower bits depend on the build), with no undefined bit set
+ *     (bit 34), SPECTRAL_REPRESENTATION (bit 40) and SPECTRAL_CACHE (bit 41) (its lower bits depend on the build),
+ *     with no undefined bit set
  *     (no sign extension); a CPU instance that requires PREORDER_TRANSPOSE_MANUAL and SPECTRAL_REPRESENTATION
  *     (bit 40) is a spectral implementation (so both bits reached the selection; a CPU instance does not report
  *     them in its flags), with nothing above bit 46 and no undefined bit in its flags; and one that requires
@@ -41,6 +42,7 @@ HIGH_FLAG(PREORDER_TRANSPOSE_AUTO, 31)
 HIGH_FLAG(VECTOR_TENSOR, 33)
 HIGH_FLAG(PREORDER_TRANSPOSE_MANUAL, 34)
 HIGH_FLAG(SPECTRAL_REPRESENTATION, 40)
+HIGH_FLAG(SPECTRAL_CACHE, 41)
 HIGH_FLAG(FRAMEWORK_TINYGPU, 45)
 HIGH_FLAG(PARALLELOPS_FUSED, 46)
 
@@ -52,7 +54,8 @@ HIGH_FLAG(PARALLELOPS_FUSED, 46)
     X(VECTOR_NONE) X(THREADING_CPP) X(THREADING_OPENMP) X(THREADING_NONE) X(PROCESSOR_CPU) X(PROCESSOR_GPU) \
     X(PROCESSOR_FPGA) X(PROCESSOR_CELL) X(PROCESSOR_PHI) X(PROCESSOR_OTHER) X(FRAMEWORK_CUDA) \
     X(FRAMEWORK_OPENCL) X(FRAMEWORK_CPU) X(FRAMEWORK_TINYGPU) X(PARALLELOPS_STREAMS) X(PARALLELOPS_GRID) \
-    X(PARALLELOPS_FUSED) X(PREORDER_TRANSPOSE_MANUAL) X(PREORDER_TRANSPOSE_AUTO) X(SPECTRAL_REPRESENTATION)
+    X(PARALLELOPS_FUSED) X(PREORDER_TRANSPOSE_MANUAL) X(PREORDER_TRANSPOSE_AUTO) X(SPECTRAL_REPRESENTATION) \
+    X(SPECTRAL_CACHE)
 #define FLAG_OR(name) | (long long) BEAGLE_FLAG_##name
 #define FLAG_SUM(name) + (long long) BEAGLE_FLAG_##name
 #define FLAG_ONE_BIT(name) && BEAGLE_FLAG_##name > 0 && (BEAGLE_FLAG_##name & (BEAGLE_FLAG_##name - 1)) == 0
@@ -82,7 +85,7 @@ static void check(int ok, const char* what, long long flags) {
 
 int main(void) {
     const long long cpuHighFlags = BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO | BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL |
-                                   BEAGLE_FLAG_SPECTRAL_REPRESENTATION;
+                                   BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_SPECTRAL_CACHE;
     const long long fromBit31 = ~((1LL << 31) - 1);
     const long long required = BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
                                BEAGLE_FLAG_FRAMEWORK_CPU;
@@ -104,7 +107,8 @@ int main(void) {
     }
     printf("CPU resource %d: %s\n", cpu, resources->list[cpu].name);
     check((resources->list[cpu].supportFlags & fromBit31) == cpuHighFlags,
-          "CPU resource supportFlags from bit 31 up are PREORDER_TRANSPOSE_AUTO, _MANUAL and SPECTRAL_REPRESENTATION",
+          "CPU resource supportFlags from bit 31 up are PREORDER_TRANSPOSE_AUTO, _MANUAL, SPECTRAL_REPRESENTATION and "
+          "SPECTRAL_CACHE",
           resources->list[cpu].supportFlags);
     check((resources->list[cpu].supportFlags & ~DEFINED_FLAGS) == 0,
           "CPU resource supportFlags have no undefined bit", resources->list[cpu].supportFlags);

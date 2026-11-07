@@ -21,6 +21,7 @@
 #include "libhmsbeagle/config.h"
 #endif
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -76,6 +77,306 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                                               preferenceFlags, requirementFlags);
     kStateCountModFour = (kStateCount / 4) * 4;
 
+    kUseSpectralCache = ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_SPECTRAL_CACHE) != 0;
+    if (kUseSpectralCache) {
+        kFlags |= BEAGLE_FLAG_SPECTRAL_CACHE;
+    }
+    if (const char* verify = getenv("BEAGLE_SPECTRAL_CACHE_VERIFY")) {
+        kVerifySpectralCache = (atoi(verify) != 0);
+    }
+    if (const char* verbose = getenv("BEAGLE_SPECTRAL_CACHE_VERBOSE")) {
+        kVerboseSpectralCache = (atoi(verbose) != 0);
+    }
+    kCacheBufferCount = -1; // allocated by the first use
+
+    return returnCode;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Message and push-down caches (BEAGLE_FLAG_SPECTRAL_CACHE)
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::ensureCacheSizes() {
+    const int partitions = std::max(kPartitionCount, 1);
+    auto sizesMatch = [&]() {
+        return kCacheBufferCount.load(std::memory_order_acquire) == kBufferCount &&
+               kCacheMatrixCount == kMatrixCount && kCacheEigenCount == kEigenDecompCount &&
+               kCachePartitionCount == partitions;
+    };
+    if (sizesMatch()) {
+        return;
+    }
+    // threads of a partitioned update may arrive together
+    std::lock_guard<std::mutex> lock(gCacheMutex);
+    if (sizesMatch()) {
+        return;
+    }
+    kCacheMatrixCount = kMatrixCount;
+    kCacheEigenCount = kEigenDecompCount;
+    kCachePartitionCount = partitions;
+
+    const uint64_t generation = ++gCacheCounter;
+    gPartialsGeneration.assign(size_t(kBufferCount) * partitions, generation);
+    gMatrixGeneration.assign(kMatrixCount, generation);
+    gEigenGeneration.assign(kEigenDecompCount, generation);
+    resetSlots(gMessageCache, kBufferCount);
+    resetSlots(gPushDownCache, kBufferCount);
+    gMessageStamp.assign(size_t(kBufferCount) * partitions, CacheStamp());
+    gPushDownStamp.assign(size_t(kBufferCount) * partitions, CacheStamp());
+    gOpContext.assign(partitions, OpContext());
+    gCacheScratch.assign(size_t(partitions) * 3 * kPartialsPaddedStateCount, REALTYPE(0));
+    kCacheBufferCount.store(kBufferCount, std::memory_order_release); // last: publishes the sizes
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::bumpPartials(int buffer, int partition) {
+    if (!kUseSpectralCache || buffer < 0 || buffer >= kCacheBufferCount) {
+        return;
+    }
+    const uint64_t generation = ++gCacheCounter;
+    if (partition < 0) {
+        for (int p = 0; p < kCachePartitionCount; ++p) {
+            gPartialsGeneration[size_t(buffer) * kCachePartitionCount + p] = generation;
+        }
+    } else {
+        gPartialsGeneration[size_t(buffer) * kCachePartitionCount + partition] = generation;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setOpContext(int partition, const int* operation) {
+    OpContext& context = gOpContext[partition];
+    if (operation == nullptr) {
+        context = OpContext();
+    } else {
+        context.index1 = operation[3];
+        context.matrix1 = operation[4];
+        context.index2 = operation[5];
+        context.matrix2 = operation[6];
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+typename BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::CacheStamp
+BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::makeStamp(int buffer, int partition, int matrixIndex) const {
+    const int eigenIndex = gBranchEigenInfo[matrixIndex].eigenIndex;
+    CacheStamp stamp;
+    stamp.partials = gPartialsGeneration[size_t(buffer) * kCachePartitionCount + partition];
+    stamp.matrix = gMatrixGeneration[matrixIndex];
+    stamp.eigen = gEigenGeneration[eigenIndex];
+    stamp.matrixIndex = matrixIndex;
+    stamp.eigenIndex = eigenIndex;
+    return stamp;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::cacheValid(const CacheStamp& stamp, int buffer, int partition,
+                                                          int matrixIndex) const {
+    const int eigenIndex = gBranchEigenInfo[matrixIndex].eigenIndex;
+    return stamp.partials != 0 &&
+           stamp.partials == gPartialsGeneration[size_t(buffer) * kCachePartitionCount + partition] &&
+           stamp.matrixIndex == matrixIndex && stamp.matrix == gMatrixGeneration[matrixIndex] &&
+           stamp.eigenIndex == eigenIndex && stamp.eigen == gEigenGeneration[eigenIndex];
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::resetSlots(CacheSlots& cache, int bufferCount) {
+    cache.pointers.reset(new std::atomic<REALTYPE*>[bufferCount]);
+    for (int b = 0; b < bufferCount; ++b) {
+        cache.pointers[b].store(nullptr, std::memory_order_relaxed);
+    }
+    cache.storage.clear();
+    cache.storage.resize(bufferCount);
+}
+
+BEAGLE_CPU_TEMPLATE
+REALTYPE* BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::cacheSlot(CacheSlots& cache, int buffer) {
+    REALTYPE* slot = cache.pointers[buffer].load(std::memory_order_acquire);
+    if (slot == nullptr) {
+        std::lock_guard<std::mutex> lock(gCacheMutex);
+        slot = cache.pointers[buffer].load(std::memory_order_relaxed);
+        if (slot == nullptr) {
+            cache.storage[buffer].reset(new REALTYPE[kPartialsSize]());
+            slot = cache.storage[buffer].get();
+            cache.pointers[buffer].store(slot, std::memory_order_release);
+        }
+    }
+    return slot;
+}
+
+BEAGLE_CPU_TEMPLATE
+typename BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::PostOrderCache
+BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::beginPostOrderCache(int branchEigenIndex1, int branchEigenIndex2,
+                                                               int partition) {
+    PostOrderCache cache;
+    if (!kUseSpectralCache || branchEigenIndex2 < 0) {
+        return cache;
+    }
+    // the kernel's children may be the operation's in either order (a tip first): match them by matrix index
+    const OpContext& context = gOpContext[partition];
+    if (context.matrix1 == context.matrix2) {
+        return cache;
+    }
+    if (branchEigenIndex1 == context.matrix1 && branchEigenIndex2 == context.matrix2) {
+        cache.buffer1 = context.index1;
+        cache.buffer2 = context.index2;
+    } else if (branchEigenIndex1 == context.matrix2 && branchEigenIndex2 == context.matrix1) {
+        cache.buffer1 = context.index2;
+        cache.buffer2 = context.index1;
+    }
+    if (cache.buffer1 >= 0) {
+        cache.message1 = cacheSlot(gMessageCache, cache.buffer1);
+    }
+    if (cache.buffer2 >= 0) {
+        cache.message2 = cacheSlot(gMessageCache, cache.buffer2);
+    }
+    return cache;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::endPostOrderCache(const PostOrderCache& cache,
+                                                                  int branchEigenIndex1, int branchEigenIndex2,
+                                                                  int partition) {
+    if (cache.buffer1 >= 0) {
+        gMessageStamp[size_t(cache.buffer1) * kCachePartitionCount + partition] =
+                makeStamp(cache.buffer1, partition, branchEigenIndex1);
+    }
+    if (cache.buffer2 >= 0) {
+        gMessageStamp[size_t(cache.buffer2) * kCachePartitionCount + partition] =
+                makeStamp(cache.buffer2, partition, branchEigenIndex2);
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+typename BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::PreOrderCache
+BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::beginPreOrderCache(SpectralPreOrder type, bool hasSibling,
+                                                              int branchEigenIndex1, int branchEigenIndex2,
+                                                              int partition) {
+    PreOrderCache cache;
+    if (!kUseSpectralCache) {
+        return cache;
+    }
+    const OpContext& context = gOpContext[partition];
+
+    // the sibling's message, when this operation's sibling is known
+    if (hasSibling && context.index2 >= 0 && context.matrix2 == branchEigenIndex2) {
+        cache.siblingBuffer = context.index2;
+        cache.messageSlot = cacheSlot(gMessageCache, cache.siblingBuffer);
+        cache.messageHit = cacheValid(gMessageStamp[size_t(cache.siblingBuffer) * kCachePartitionCount + partition],
+                                      cache.siblingBuffer, partition, branchEigenIndex2);
+        if (cache.messageHit && !kVerifySpectralCache) {
+            cache.message = cache.messageSlot;
+        }
+    }
+
+    // the parent's push-down, for TOP partials with a sibling
+    if (type == SpectralPreOrder::Top && hasSibling && context.index1 >= 0 &&
+            context.matrix1 == branchEigenIndex1) {
+        cache.parentBuffer = context.index1;
+        cache.pushDownSlot = cacheSlot(gPushDownCache, cache.parentBuffer);
+        cache.pushDownHit = cacheValid(gPushDownStamp[size_t(cache.parentBuffer) * kCachePartitionCount + partition],
+                                       cache.parentBuffer, partition, branchEigenIndex1);
+        if (cache.pushDownHit && !kVerifySpectralCache) {
+            cache.pushDown = cache.pushDownSlot;
+        }
+    }
+    return cache;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::endPreOrderCache(const PreOrderCache& cache,
+                                                                 int branchEigenIndex1, int branchEigenIndex2,
+                                                                 int partition) {
+    if (cache.siblingBuffer >= 0) {
+        if (cache.messageHit) {
+            ++gMessageHits;
+        } else if (cache.messageStored) {
+            ++gMessageMisses;
+            gMessageStamp[size_t(cache.siblingBuffer) * kCachePartitionCount + partition] =
+                    makeStamp(cache.siblingBuffer, partition, branchEigenIndex2);
+        }
+    }
+    if (cache.parentBuffer >= 0) {
+        if (cache.pushDownHit) {
+            ++gPushDownHits;
+        } else if (cache.pushDownStored) {
+            ++gPushDownMisses;
+            gPushDownStamp[size_t(cache.parentBuffer) * kCachePartitionCount + partition] =
+                    makeStamp(cache.parentBuffer, partition, branchEigenIndex1);
+        }
+    }
+    if (cache.mismatches != 0) {
+        gCacheMismatches += cache.mismatches;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setTipStates(int tipIndex, const int* inStates) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTipStates(tipIndex, inStates);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        bumpPartials(tipIndex, -1);
+    }
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setTipPartials(int tipIndex, const double* inPartials) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setTipPartials(tipIndex, inPartials);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        bumpPartials(tipIndex, -1);
+    }
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setPartials(int bufferIndex, const double* inPartials) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPartials(bufferIndex, inPartials);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        bumpPartials(bufferIndex, -1);
+    }
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int* bufferIndices,
+                                                                 const int* stateFrequenciesIndices, int count) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(bufferIndices,
+                                                                                  stateFrequenciesIndices, count);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        for (int i = 0; i < count; ++i) {
+            bumpPartials(bufferIndices[i], -1);
+        }
+    }
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(int eigenIndex,
+                                                                    const double* inEigenVectors,
+                                                                    const double* inInverseEigenVectors,
+                                                                    const double* inEigenValues) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setEigenDecomposition(eigenIndex, inEigenVectors,
+                                                                                     inInverseEigenVectors,
+                                                                                     inEigenValues);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        if (eigenIndex >= 0 && eigenIndex < kCacheEigenCount) {
+            gEigenGeneration[eigenIndex] = ++gCacheCounter;
+        }
+    }
+    return returnCode;
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(int partitionCount,
+                                                                   const int* inPatternPartitions) {
+    const int returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::setPatternPartitions(partitionCount,
+                                                                                    inPatternPartitions);
+    kCacheBufferCount = -1; // the tips may have been reordered: empty the caches
     return returnCode;
 }
 
@@ -100,7 +401,17 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::updateTransitionMatrices(int eige
                                                                         const int* secondDerivativeIndices,
                                                                         const double* edgeLengths,
                                                                         int count) {
-    return this->updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
+    const int returnCode = this->updateBranchEigenInfo(eigenIndex, probabilityIndices, edgeLengths, count);
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+        for (int i = 0; i < count; ++i) {
+            const int matrix = probabilityIndices[i];
+            if (matrix >= 0 && matrix < kCacheMatrixCount) {
+                gMatrixGeneration[matrix] = ++gCacheCounter;
+            }
+        }
+    }
+    return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -177,6 +488,9 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
     if (cumulativeScaleIndex != BEAGLE_OP_NONE) {
         cumulativeScaleBuffer = gScaleBuffers[cumulativeScaleIndex];
     }
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+    }
 
     for (int op = 0; op < count; op++) {
 
@@ -211,6 +525,10 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
 
         // a second child of BEAGLE_OP_NONE makes this a degree-2 (single-child) node
         const bool singleChild = (child2Index == BEAGLE_OP_NONE);
+
+        if (kUseSpectralCache) {
+            setOpContext(currentPartition, operations + op * numOps);
+        }
 
         const REALTYPE* partials1 = gPartials[child1Index];
         const REALTYPE* partials2 = singleChild ? NULL : gPartials[child2Index];
@@ -378,6 +696,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
             }
         }
 
+        if (kUseSpectralCache) {
+            setOpContext(currentPartition, nullptr);
+            bumpPartials(parIndex, byPartition ? currentPartition : -1);
+        }
+
         if (DEBUGGING_OUTPUT) {
             if (scalingFactors != NULL && rescale == 0) {
                 for(int i=0; i<kPatternCount; i++)
@@ -413,6 +736,10 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
         const int* operations,
         int count,
         int cumulativeScaleIndex) {
+
+    if (kUseSpectralCache) {
+        ensureCacheSizes();
+    }
 
     for (int op = 0; op < count; op++) {
 
@@ -467,6 +794,11 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             type = (branchEigenIndex1 < 0) ? SpectralPreOrder::TopRoot : SpectralPreOrder::Top; // parent node is root
         }
 
+        if (kUseSpectralCache) {
+            // the parent's pre-order partials, its matrix, the sibling and its matrix
+            setOpContext(currentPartition, operations + op * numOps);
+        }
+
         if (singleChild) {
             calcDegree2PrePartials(destPartials, partials1, branchEigenIndex1,
                                    startPattern, endPattern, currentPartition);
@@ -477,6 +809,18 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::upPrePartialsImpl(
             spectralPrePartialsPartials(destPartials, type, partials1, branchEigenIndex1, partials2, branchEigenIndex2,
                                         startPattern, endPattern, currentPartition);
         }
+
+        if (kUseSpectralCache) {
+            setOpContext(currentPartition, nullptr);
+            bumpPartials(parIndex, byPartition ? currentPartition : -1);
+        }
+    }
+
+    if (kVerboseSpectralCache) {
+        fprintf(stderr, "spectral cache%s: messages %lld hit %lld miss, push-downs %lld hit %lld miss, "
+                        "verify mismatches %lld\n", kUseSpectralCache ? "" : " (off)",
+                gMessageHits.load(), gMessageMisses.load(), gPushDownHits.load(), gPushDownMisses.load(),
+                gCacheMismatches.load());
     }
 
     return BEAGLE_SUCCESS;
@@ -809,6 +1153,62 @@ inline REALTYPE nonNegative(const REALTYPE x) {
     return x < REALTYPE(0) ? REALTYPE(0) : x;
 }
 
+BEAGLE_CPU_TEMPLATE template <typename Sibling>
+void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::prePartialsTopCached(REALTYPE* dest, ptrdiff_t offset,
+        const REALTYPE* parentPartials, const BranchEigenInfo& info1,
+        const REALTYPE* inverseEigenVectors1, const REALTYPE* eigenVectors1,
+        const REALTYPE* siblingPartials, int siblingState, const BranchEigenInfo& info2,
+        const REALTYPE* inverseEigenVectors2, const REALTYPE* eigenVectors2,
+        int matrixIncr, int catOffset, PreOrderCache& cache, int partition) {
+
+    REALTYPE* input = gCacheScratch.data() + size_t(partition) * 3 * kPartialsPaddedStateCount;
+    REALTYPE* message = input + kPartialsPaddedStateCount;
+    REALTYPE* pushDown = message + kPartialsPaddedStateCount;
+
+    // the sibling's max(P x, 0): the second half of expScaledMatrixVectorMultiple2 and matVecDual
+    const REALTYPE* m = (cache.message != nullptr) ? cache.message + offset : nullptr;
+    if (m == nullptr) {
+        expScaledMatrixVectorMultiple2<None, Sibling, Backward>(
+            nullptr, input,
+            nullptr, 0, info1, nullptr,
+            siblingPartials, siblingState, info2, inverseEigenVectors2,
+            matrixIncr, catOffset);
+        this->template matVecDual<None, Partials>(
+            nullptr, nullptr, 0,
+            eigenVectors2, input, 0,
+            matrixIncr,
+            [&](int i, REALTYPE, REALTYPE sum2) {
+                message[i] = nonNegative(sum2);
+            });
+        cache.computedMessage(offset, message, kStateCount);
+        m = message;
+    }
+
+    // the parent's max(P^T top, 0): the first half
+    const REALTYPE* b = (cache.pushDown != nullptr) ? cache.pushDown + offset : nullptr;
+    if (b == nullptr) {
+        expScaledMatrixVectorMultiple2<Partials, None, Backward>(
+            input, nullptr,
+            parentPartials, 0, info1, inverseEigenVectors1,
+            nullptr, 0, info2, nullptr,
+            matrixIncr, catOffset);
+        this->template matVecDual<Partials, None>(
+            eigenVectors1, input, 0,
+            nullptr, nullptr, 0,
+            matrixIncr,
+            [&](int i, REALTYPE sum1, REALTYPE) {
+                pushDown[i] = nonNegative(sum1);
+            });
+        cache.computedPushDown(offset, pushDown, kStateCount);
+        b = pushDown;
+    }
+
+    for (int i = 0; i < kStateCount; ++i) {
+        dest[i] = b[i] * m[i];
+    }
+}
+
+
 template <typename REALTYPE>
 inline REALTYPE branchLikelihoodInEigenBasis(
         const REALTYPE* lhs,
@@ -859,6 +1259,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
 
+    // each child's message max(P x, 0) for the cache
+    const PostOrderCache cache = beginPostOrderCache(branchEigenIndex1, branchEigenIndex2, currentPartition);
+
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
 
@@ -886,30 +1289,34 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPartialsPartials(
                 partials2Ptr, 0, info_2, inverseEigenVectors2,
                 matrixIncr, l * kPartialsPaddedStateCount);
 
-            if constexpr (T::useScaleFactors) {
-                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2) * oneOverScaleFactor;
-                    });
-            } else {
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2);
-                    });
-            }
+            // x * 1 is exact, so the unscaled product is the same arithmetic
+            const REALTYPE oneOverScaleFactor = T::useScaleFactors ? REALTYPE(1.0) / scaleFactors[k] : REALTYPE(1.0);
+            const ptrdiff_t offset = destPtr - destPartials;
+            REALTYPE* message1 = (cache.message1 != nullptr) ? cache.message1 + offset : nullptr;
+            REALTYPE* message2 = (cache.message2 != nullptr) ? cache.message2 + offset : nullptr;
+            this->template matVecDual<Partials, Partials>(
+                eigenVectors1, tmp1, 0,
+                eigenVectors2, tmp2, 0,
+                matrixIncr,
+                [&](int i, REALTYPE sum1, REALTYPE sum2) {
+                    const REALTYPE m1 = nonNegative(sum1);
+                    const REALTYPE m2 = nonNegative(sum2);
+                    if (message1 != nullptr) {
+                        message1[i] = m1;
+                    }
+                    if (message2 != nullptr) {
+                        message2[i] = m2;
+                    }
+                    destPtr[i] = m1 * m2 * oneOverScaleFactor;
+                });
 
             destPtr += kPartialsPaddedStateCount;
             partials1Ptr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
+
+    endPostOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 BEAGLE_CPU_TEMPLATE template <typename T>
@@ -928,6 +1335,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
          eigenValuesReal, eigenValuesImag,
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
+
+    // each child's message max(P x, 0) for the cache
+    const PostOrderCache cache = beginPostOrderCache(branchEigenIndex1, branchEigenIndex2, currentPartition);
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
@@ -957,29 +1367,33 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesPartials(
                 partials2Ptr, 0, info_2, inverseEigenVectors2,
                 matrixIncr, l * kPartialsPaddedStateCount);
 
-            if constexpr (T::useScaleFactors) {
-                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2) * oneOverScaleFactor;
-                    });
-            } else {
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2);
-                    });
-            }
+            // x * 1 is exact, so the unscaled product is the same arithmetic
+            const REALTYPE oneOverScaleFactor = T::useScaleFactors ? REALTYPE(1.0) / scaleFactors[k] : REALTYPE(1.0);
+            const ptrdiff_t offset = destPtr - destPartials;
+            REALTYPE* message1 = (cache.message1 != nullptr) ? cache.message1 + offset : nullptr;
+            REALTYPE* message2 = (cache.message2 != nullptr) ? cache.message2 + offset : nullptr;
+            this->template matVecDual<Partials, Partials>(
+                eigenVectors1, tmp1, 0,
+                eigenVectors2, tmp2, 0,
+                matrixIncr,
+                [&](int i, REALTYPE sum1, REALTYPE sum2) {
+                    const REALTYPE m1 = nonNegative(sum1);
+                    const REALTYPE m2 = nonNegative(sum2);
+                    if (message1 != nullptr) {
+                        message1[i] = m1;
+                    }
+                    if (message2 != nullptr) {
+                        message2[i] = m2;
+                    }
+                    destPtr[i] = m1 * m2 * oneOverScaleFactor;
+                });
 
             destPtr += kPartialsPaddedStateCount;
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
+
+    endPostOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 
@@ -999,6 +1413,9 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
          eigenValuesReal, eigenValuesImag,
          eigenVectors, inverseEigenVectors,
          branchLength, categoryRate);
+
+    // each child's message max(P x, 0) for the cache
+    const PostOrderCache cache = beginPostOrderCache(branchEigenIndex1, branchEigenIndex2, currentPartition);
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1028,28 +1445,32 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcStatesStates(
                 nullptr, state2, info_2, inverseEigenVectors2,
                 matrixIncr, l * kPartialsPaddedStateCount);
 
-            if constexpr (T::useScaleFactors) {
-                const REALTYPE oneOverScaleFactor = REALTYPE(1.0) / scaleFactors[k];
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2) * oneOverScaleFactor;
-                    });
-            } else {
-                this->template matVecDual<Partials, Partials>(
-                    eigenVectors1, tmp1, 0,
-                    eigenVectors2, tmp2, 0,
-                    matrixIncr,
-                    [&](int i, REALTYPE sum1, REALTYPE sum2) {
-                        destPtr[i] = nonNegative(sum1) * nonNegative(sum2);
-                    });
-            }
+            // x * 1 is exact, so the unscaled product is the same arithmetic
+            const REALTYPE oneOverScaleFactor = T::useScaleFactors ? REALTYPE(1.0) / scaleFactors[k] : REALTYPE(1.0);
+            const ptrdiff_t offset = destPtr - destPartials;
+            REALTYPE* message1 = (cache.message1 != nullptr) ? cache.message1 + offset : nullptr;
+            REALTYPE* message2 = (cache.message2 != nullptr) ? cache.message2 + offset : nullptr;
+            this->template matVecDual<Partials, Partials>(
+                eigenVectors1, tmp1, 0,
+                eigenVectors2, tmp2, 0,
+                matrixIncr,
+                [&](int i, REALTYPE sum1, REALTYPE sum2) {
+                    const REALTYPE m1 = nonNegative(sum1);
+                    const REALTYPE m2 = nonNegative(sum2);
+                    if (message1 != nullptr) {
+                        message1[i] = m1;
+                    }
+                    if (message2 != nullptr) {
+                        message2[i] = m2;
+                    }
+                    destPtr[i] = m1 * m2 * oneOverScaleFactor;
+                });
 
             destPtr += kPartialsPaddedStateCount;
         }
     }
+
+    endPostOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 BEAGLE_CPU_TEMPLATE template <typename T, typename V>
@@ -1067,6 +1488,11 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
         eigenValuesReal, eigenValuesImag,
         eigenVectors, inverseEigenVectors,
         branchLength, categoryRate);
+
+    // the sibling's message and the parent's push-down from the caches (TOP below a non-root parent)
+    constexpr SpectralPreOrder cacheType = std::is_same_v<T, Bottom> ? SpectralPreOrder::Bottom :
+            (std::is_same_v<V, Root> ? SpectralPreOrder::TopRoot : SpectralPreOrder::Top);
+    PreOrderCache cache = beginPreOrderCache(cacheType, true, branchEigenIndex1, branchEigenIndex2, currentPartition);
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1123,6 +1549,13 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
                     MATRIX_VECTOR_SINGLE(destPtr[i] = nonNegative(sum2) * partials1Ptr[i], // fused Hadamard product
                         eigenVectors2, intermediate, sum2)
 
+                } else if (cache.messageSlot != nullptr && cache.pushDownSlot != nullptr) {
+
+                    prePartialsTopCached<Partials>(destPtr, destPtr - destPartials,
+                        partials1Ptr, info_1, inverseEigenVectors1, eigenVectors1,
+                        partials2Ptr, 0, info_2, inverseEigenVectors2, eigenVectors2,
+                        matrixIncr, l * kPartialsPaddedStateCount, cache, currentPartition);
+
                 } else {
 
                 //   printVector("", 0, eigenValuesReal1, 2 * kStateCount);
@@ -1152,6 +1585,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsPartials(
             partials2Ptr += kPartialsPaddedStateCount;
         }
     }
+
+    endPreOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 BEAGLE_CPU_TEMPLATE template <typename T, typename V>
@@ -1169,6 +1604,11 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
         eigenValuesReal, eigenValuesImag,
         eigenVectors, inverseEigenVectors,
         branchLength, categoryRate);
+
+    // the sibling's message and the parent's push-down from the caches (TOP below a non-root parent)
+    constexpr SpectralPreOrder cacheType = std::is_same_v<T, Bottom> ? SpectralPreOrder::Bottom :
+            (std::is_same_v<V, Root> ? SpectralPreOrder::TopRoot : SpectralPreOrder::Top);
+    PreOrderCache cache = beginPreOrderCache(cacheType, true, branchEigenIndex1, branchEigenIndex2, currentPartition);
 
     const int matrixIncr = kStateCount + T_PAD;
     const int stateCountModFour = (kStateCount / 4) * 4;
@@ -1226,6 +1666,13 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
                     MATRIX_VECTOR_SINGLE(destPtr[i] = nonNegative(sum2) * partials1Ptr[i], // fused Hadamard product
                         eigenVectors2, intermediate, sum2)
 
+                } else if (cache.messageSlot != nullptr && cache.pushDownSlot != nullptr) {
+
+                    prePartialsTopCached<States>(destPtr, destPtr - destPartials,
+                        partials1Ptr, info_1, inverseEigenVectors1, eigenVectors1,
+                        nullptr, state2, info_2, inverseEigenVectors2, eigenVectors2,
+                        matrixIncr, l * kPartialsPaddedStateCount, cache, currentPartition);
+
                 } else {
 
                     expScaledMatrixVectorMultiple2<Partials,States,Backward>(
@@ -1252,6 +1699,8 @@ void BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::calcPrePartialsStates(
             partials1Ptr += kPartialsPaddedStateCount;
         }
     }
+
+    endPreOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 BEAGLE_CPU_TEMPLATE template <typename First, typename T>
@@ -1433,7 +1882,7 @@ const long long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFla
                   BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
                   BEAGLE_FLAG_INVEVEC_STANDARD |
                   BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-                  BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
+                  BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_SPECTRAL_CACHE |
                   BEAGLE_FLAG_FRAMEWORK_CPU;
 
     if (DOUBLE_PRECISION)

@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <limits>
 #include <utility>
 
@@ -100,19 +99,6 @@ int BeagleCPUAdjointSSE<Base>::createInstance(int tipCount,
     gAdjointPlans.assign(kEigenDecompCount, AdjointPlan());
     gAdjointPlanStale.assign(kEigenDecompCount, false);
     resizeAdjointTmp();
-
-    if (const char* batched = getenv("BEAGLE_ADJOINT_BATCHED")) {
-        kUseBatchedAdjoint = (atoi(batched) != 0);
-    }
-    if (const char* verbose = getenv("BEAGLE_ADJOINT_BATCHED_VERBOSE")) {
-        kBatchedAdjointVerbose = (atoi(verbose) != 0);
-    }
-    if (const char* check = getenv("BEAGLE_ADJOINT_BATCHED_CHECK")) {
-        kBatchedAdjointCheck = (atoi(check) != 0);
-    }
-    if (const char* delta = getenv("BEAGLE_ADJOINT_BATCHED_DELTA")) {
-        kBatchedAdjointDelta = atof(delta);
-    }
 
     return returnCode;
 }
@@ -510,21 +496,13 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
         return;
     }
 
-    if (kUseBatchedAdjoint &&
+    if (useBatchedAdjoint() &&
             calcAdjointCrossProductsBatched(postBufferIndices, preBufferIndices, branchEigenIndices,
                                             categoryRates, categoryWeights, perSiteLikelihoods, buffer,
                                             startNode, endNode, startPattern, endPattern, currentPartition,
                                             postScaleIndices, preScaleIndices, cumulativeScaleIndex)) {
         return;
     }
-
-    // As Base: a node whose post- or pre-order partials were rescaled divides by its own effective site
-    // likelihoods, Lk * exp(-(postCum + preCum - rootCum)), with the (LOG) cumulative scale buffers
-    const bool applyScaleCorrection = (postScaleIndices != nullptr) || (preScaleIndices != nullptr);
-    double* correctedLk = applyScaleCorrection ?
-            gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount : nullptr;
-    const double* rootScaleBuffer = (applyScaleCorrection && cumulativeScaleIndex != BEAGLE_OP_NONE) ?
-            gScaleBuffers[cumulativeScaleIndex] : nullptr;
 
     const int S = kStateCount;
     const int stride = kTransPaddedStateCount;
@@ -556,29 +534,8 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
                 std::fill(outer, outer + S * kAdjointStride, 0.0);
             }
 
-            const double* nodeLikelihoods = perSiteLikelihoods;
-            if (applyScaleCorrection) {
-                const int postIdx = postScaleIndices ? postScaleIndices[node] : BEAGLE_OP_NONE;
-                const int preIdx  = preScaleIndices  ? preScaleIndices[node]  : BEAGLE_OP_NONE;
-                if (postIdx != BEAGLE_OP_NONE || preIdx != BEAGLE_OP_NONE) {
-                    const double* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : nullptr;
-                    const double* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : nullptr;
-                    for (int k = startPattern; k < endPattern; ++k) {
-                        double logCorrection = 0.0;
-                        if (postScaleBuffer != nullptr) {
-                            logCorrection += postScaleBuffer[k];
-                        }
-                        if (preScaleBuffer != nullptr) {
-                            logCorrection += preScaleBuffer[k];
-                        }
-                        if (rootScaleBuffer != nullptr) {
-                            logCorrection -= rootScaleBuffer[k];
-                        }
-                        correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
-                    }
-                    nodeLikelihoods = correctedLk;
-                }
-            }
+            const double* nodeLikelihoods = adjointNodeLikelihoods(node, perSiteLikelihoods, postScaleIndices,
+                    preScaleIndices, cumulativeScaleIndex, startPattern, endPattern, currentPartition);
 
             for (int k = startPattern; k < endPattern; ++k) {
                 const int v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * k;

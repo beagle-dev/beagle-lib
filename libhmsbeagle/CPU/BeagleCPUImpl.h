@@ -163,6 +163,54 @@ protected:
     // calcAdjointBranchMarginalLikelihoods and calcAdjointCrossProductsRange.
     std::vector<REALTYPE> gAdjointBranchLikelihoodTmp;
 
+    // The site likelihoods that a node's adjoint term divides by: perSiteLikelihoods, or, when the node's post- or
+    // pre-order partials were rescaled, Lk * exp(-(postCum + preCum - rootCum)) from the (LOG) cumulative scale
+    // buffers, written to this partition's gAdjointScaleCorrectedLk
+    const REALTYPE* adjointNodeLikelihoods(int node,
+                                           const REALTYPE* perSiteLikelihoods,
+                                           const int* postScaleIndices,
+                                           const int* preScaleIndices,
+                                           int cumulativeScaleIndex,
+                                           int startPattern,
+                                           int endPattern,
+                                           int currentPartition);
+
+    // PROTOTYPE (BEAGLE_ADJOINT_BATCHED=1): the adjoint over all branches, patterns and categories at once, as
+    // GEMMs plus a Sylvester solve (BeagleCPUAdjointBatched.hpp), for double precision. Returns false, leaving
+    // buffer untouched, when it does not apply (single precision, several eigen decompositions, or a degenerate
+    // block it does not handle); the caller then uses its per-branch kernel.
+    bool kUseBatchedAdjoint = false;
+    // true on a thread while the batched adjoint's check runs the per-branch kernel (not a member: partition
+    // threads check concurrently)
+    static bool& batchedAdjointCheckActive() {
+        static thread_local bool active = false;
+        return active;
+    }
+    bool useBatchedAdjoint() const { return kUseBatchedAdjoint && !batchedAdjointCheckActive(); }
+    bool kBatchedAdjointVerbose = false;
+    bool kBatchedAdjointCheck = false; // also run the per-branch kernel and report the difference
+    double kBatchedAdjointDelta = 1e-4;
+    // used only for patterns * ratio <= states: the per-branch kernel's cost per branch is what the batches remove,
+    // and it dominates only with few patterns per state (M1 Max with Accelerate: faster up to about S / 6 patterns)
+    double kBatchedAdjointRatio = 6.0;
+    std::vector<std::vector<double>> gBatchedPanels; // per partition
+
+    bool calcAdjointCrossProductsBatched(const int* postBufferIndices,
+                                         const int* preBufferIndices,
+                                         const int* branchEigenIndices,
+                                         const double* categoryRates,
+                                         const REALTYPE* categoryWeights,
+                                         const REALTYPE* perSiteLikelihoods,
+                                         REALTYPE* buffer,
+                                         int startNode,
+                                         int endNode,
+                                         int startPattern,
+                                         int endPattern,
+                                         int currentPartition,
+                                         const int* postScaleIndices,
+                                         const int* preScaleIndices,
+                                         const int cumulativeScaleIndex);
+
     struct BranchEigenInfo {
         REALTYPE branchLength;
 

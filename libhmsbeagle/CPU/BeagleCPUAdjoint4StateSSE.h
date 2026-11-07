@@ -28,7 +28,7 @@ namespace cpu {
 /*
  * The adjoint gradient of the rate matrix for 4 states and real eigenvalues, double precision, SSE2 / NEON: the
  * 4 x 4 gradient and each branch's outer product stay in vector registers. BaseImpl is a BeagleCPUAdjointSSE (or
- * derives from one), whose adjoint gradient is used for complex eigenvalues and rescaled partials.
+ * derives from one), whose adjoint gradient is used for complex eigenvalues.
  */
 template <typename BaseImpl>
 class BeagleCPUAdjoint4StateSSE : public BaseImpl {
@@ -48,6 +48,9 @@ protected:
     using Base::gPartials;
     using Base::gTipStates;
     using Base::gPatternWeights;
+    using Base::useBatchedAdjoint;
+    using Base::calcAdjointCrossProductsBatched;
+    using Base::adjointNodeLikelihoods;
     using typename Base::BranchEigenInfo;
     using Base::gBranchEigenInfo;
 

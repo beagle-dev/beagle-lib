@@ -180,6 +180,7 @@ enum BeagleFlags {
     /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31), defined after this enum */
 
     /*  BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40), defined after this enum */
+    /*  BEAGLE_FLAG_SPECTRAL_CACHE            (1LL << 41), defined after this enum */
 };
 
 /*
@@ -210,6 +211,14 @@ enum BeagleFlags {
  * and BEAGLE_FLAG_SCALING_DYNAMIC is not available.
  */
 #define BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40)
+
+/**
+ * With BEAGLE_FLAG_SPECTRAL_REPRESENTATION on CPU: cache the post-order message P x of each child and the TOP
+ * pre-order push-down P^T top of each parent where they are computed, and reuse them in the pre-order traversal
+ * instead of recomputing them (about 7N to 2N matrix-vector products for N tips). Results are bitwise identical;
+ * the cost is up to two extra partials buffers per node. Ignored by other implementations.
+ */
+#define BEAGLE_FLAG_SPECTRAL_CACHE            (1LL << 41)
 
 #define BEAGLE_FLAG_FRAMEWORK_TINYGPU         (1LL << 45) /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
 #define BEAGLE_FLAG_PARALLELOPS_FUSED         (1LL << 46) /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */

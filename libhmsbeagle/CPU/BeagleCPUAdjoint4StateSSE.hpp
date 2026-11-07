@@ -137,7 +137,7 @@ void BeagleCPUAdjoint4StateSSE<BaseImpl>::calcAdjointCrossProductsRange(const in
         const int cumulativeScaleIndex,
         double* branchMarginalLk) {
 
-    bool allReal = (postScaleIndices == nullptr && preScaleIndices == nullptr && branchMarginalLk == nullptr);
+    bool allReal = (branchMarginalLk == nullptr);
     for (int node = startNode; allReal && node < endNode; ++node) {
         allReal = gAdjoint4[gBranchEigenInfo[branchEigenIndices[node]].eigenIndex].allReal;
     }
@@ -147,6 +147,14 @@ void BeagleCPUAdjoint4StateSSE<BaseImpl>::calcAdjointCrossProductsRange(const in
                                             startNode, endNode, startPattern, endPattern, currentPartition,
                                             postScaleIndices, preScaleIndices, cumulativeScaleIndex,
                                             branchMarginalLk);
+        return;
+    }
+
+    if (useBatchedAdjoint() &&
+            calcAdjointCrossProductsBatched(postBufferIndices, preBufferIndices, branchEigenIndices, categoryRates,
+                                            categoryWeights, perSiteLikelihoods, buffer, startNode, endNode,
+                                            startPattern, endPattern, currentPartition, postScaleIndices,
+                                            preScaleIndices, cumulativeScaleIndex)) {
         return;
     }
 
@@ -171,6 +179,8 @@ void BeagleCPUAdjoint4StateSSE<BaseImpl>::calcAdjointCrossProductsRange(const in
             const double* pre = gPartials[preBufferIndices[node]];
             const int* tipStates = gTipStates[postBufferIndices[node]];
             const double* post = (tipStates != nullptr) ? nullptr : gPartials[postBufferIndices[node]];
+            const double* nodeLikelihoods = adjointNodeLikelihoods(node, perSiteLikelihoods, postScaleIndices,
+                    preScaleIndices, cumulativeScaleIndex, startPattern, endPattern, currentPartition);
 
             V_Real outer[8];
             for (int i = 0; i < 8; ++i) {
@@ -178,7 +188,7 @@ void BeagleCPUAdjoint4StateSSE<BaseImpl>::calcAdjointCrossProductsRange(const in
             }
             for (int k = startPattern; k < endPattern; ++k) {
                 const int v = category * kPartialsPaddedStateCount * kPatternCount + kPartialsPaddedStateCount * k;
-                const V_Real scale = VEC_SPLAT(gPatternWeights[k] * categoryWeight / perSiteLikelihoods[k]);
+                const V_Real scale = VEC_SPLAT(gPatternWeights[k] * categoryWeight / nodeLikelihoods[k]);
                 V_Real lo, hi; // scale V^T pre
                 simd::product4(m.transposeColumns, VEC_LOADU(pre + v), VEC_LOADU(pre + v + 2), lo, hi);
                 lo = VEC_MULT(lo, scale);

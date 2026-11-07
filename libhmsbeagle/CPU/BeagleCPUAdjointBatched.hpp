@@ -11,7 +11,9 @@
  * https://opensource.org/licenses/MIT.
  *
  * PROTOTYPE: the adjoint gradient of the rate matrix in the eigen basis over every branch, pattern and category at
- * once (BEAGLE_ADJOINT_BATCHED=1).
+ * once (BEAGLE_ADJOINT_BATCHED=1), for every double-precision CPU implementation (BeagleCPUImpl, used by the
+ * generic, SSE and 4-state SSE adjoints). It is used only with few patterns per state (patterns * ratio <= states,
+ * BEAGLE_ADJOINT_BATCHED_RATIO, default 6), where the per-branch kernel's own cost dominates.
  *
  * Per column m (a branch, pattern and category) with u = w V^T pre, v = V^{-1} post and time t, the eigen-basis
  * gradient is G = sum_m int_0^t e^{A s} u v^T e^{A (t - s)} ds with A = D^T (D the real block-diagonal eigenvalue
@@ -22,8 +24,9 @@
  * where the rows of U, X are the u, v of each column and Ue, Xe the same rows times e^{A t}, e^{A^T t}. U and X
  * are two GEMMs (the rotations), R two more; the Sylvester equation is solved block by block (1x1 real, 2x2
  * complex pair). Blocks whose eigenvalues (nearly) coincide make it singular; those entries are summed directly
- * over the columns: equal or close real eigenvalues, and the diagonal block of each complex pair. Other
- * degenerate blocks make the function return false, and the caller uses the per-branch kernel.
+ * over the columns: clusters of close real eigenvalues by a Taylor series around the cluster mean (a few small
+ * GEMMs), and the diagonal block of each complex pair in closed form. Other degenerate blocks make the function
+ * return false, and the caller uses the per-branch kernel.
  *
  * @author Marc Suchard
  */
@@ -37,6 +40,7 @@
 #include <complex>
 #include <cstdio>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #if defined(__APPLE__) && defined(BEAGLE_HAVE_ACCELERATE)
@@ -179,22 +183,25 @@ inline void expRotate(double* y, const double* x, const double* expat, const dou
 
 } // namespace adjoint_batched
 
-template <typename Base>
-bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postBufferIndices,
-                                                                const int* preBufferIndices,
-                                                                const int* branchEigenIndices,
-                                                                const double* categoryRates,
-                                                                const double* categoryWeights,
-                                                                const double* perSiteLikelihoods,
-                                                                double* buffer,
-                                                                int startNode,
-                                                                int endNode,
-                                                                int startPattern,
-                                                                int endPattern,
-                                                                int currentPartition,
-                                                                const int* postScaleIndices,
-                                                                const int* preScaleIndices,
-                                                                const int cumulativeScaleIndex) {
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsBatched(const int* postBufferIndices,
+                                                                   const int* preBufferIndices,
+                                                                   const int* branchEigenIndices,
+                                                                   const double* categoryRates,
+                                                                   const REALTYPE* categoryWeights,
+                                                                   const REALTYPE* perSiteLikelihoods,
+                                                                   REALTYPE* buffer,
+                                                                   int startNode,
+                                                                   int endNode,
+                                                                   int startPattern,
+                                                                   int endPattern,
+                                                                   int currentPartition,
+                                                                   const int* postScaleIndices,
+                                                                   const int* preScaleIndices,
+                                                                   const int cumulativeScaleIndex) {
+    if constexpr (!std::is_same_v<REALTYPE, double>) {
+        return false; // double precision only
+    } else {
     using namespace adjoint_batched;
     using Clock = std::chrono::steady_clock;
     const auto t0 = Clock::now();
@@ -233,6 +240,9 @@ bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postB
             ++patternsUsed;
         }
     }
+    if (patternsUsed * kBatchedAdjointRatio > S) {
+        return false; // the per-branch kernel is faster
+    }
     const int M = kCategoryCount * (endNode - startNode) * patternsUsed;
     if (M == 0) {
         return true;
@@ -254,12 +264,6 @@ bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postB
     std::vector<const BranchEigenInfo*> columnInfo(M);
     std::vector<int> columnOffset(M);
 
-    const bool applyScaleCorrection = (postScaleIndices != nullptr) || (preScaleIndices != nullptr);
-    double* correctedLk = applyScaleCorrection ?
-            gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount : nullptr;
-    const double* rootScaleBuffer = (applyScaleCorrection && cumulativeScaleIndex != BEAGLE_OP_NONE) ?
-            gScaleBuffers[cumulativeScaleIndex] : nullptr;
-
     int m = 0;
     double maxTime = 0.0;
     for (int category = 0; category < kCategoryCount; ++category) {
@@ -276,29 +280,8 @@ bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postB
             const int* tipStates = gTipStates[postBufferIndices[node]];
             const double* postPartials = (tipStates != nullptr) ? nullptr : gPartials[postBufferIndices[node]];
 
-            const double* nodeLikelihoods = perSiteLikelihoods;
-            if (applyScaleCorrection) {
-                const int postIdx = postScaleIndices ? postScaleIndices[node] : BEAGLE_OP_NONE;
-                const int preIdx  = preScaleIndices  ? preScaleIndices[node]  : BEAGLE_OP_NONE;
-                if (postIdx != BEAGLE_OP_NONE || preIdx != BEAGLE_OP_NONE) {
-                    const double* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : nullptr;
-                    const double* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : nullptr;
-                    for (int k = startPattern; k < endPattern; ++k) {
-                        double logCorrection = 0.0;
-                        if (postScaleBuffer != nullptr) {
-                            logCorrection += postScaleBuffer[k];
-                        }
-                        if (preScaleBuffer != nullptr) {
-                            logCorrection += preScaleBuffer[k];
-                        }
-                        if (rootScaleBuffer != nullptr) {
-                            logCorrection -= rootScaleBuffer[k];
-                        }
-                        correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
-                    }
-                    nodeLikelihoods = correctedLk;
-                }
-            }
+            const double* nodeLikelihoods = adjointNodeLikelihoods(node, perSiteLikelihoods, postScaleIndices,
+                    preScaleIndices, cumulativeScaleIndex, startPattern, endPattern, currentPartition);
 
             for (int k = startPattern; k < endPattern; ++k) {
                 if (gPatternWeights[k] == 0.0) {
@@ -547,12 +530,12 @@ bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postB
 
     if (kBatchedAdjointCheck) {
         std::vector<double> reference(size_t(S) * S, 0.0);
-        kUseBatchedAdjoint = false;
+        batchedAdjointCheckActive() = true;
         calcAdjointCrossProductsRange(postBufferIndices, preBufferIndices, branchEigenIndices, categoryRates,
                                       categoryWeights, perSiteLikelihoods, reference.data(), startNode, endNode,
                                       startPattern, endPattern, currentPartition, postScaleIndices,
                                       preScaleIndices, cumulativeScaleIndex, nullptr);
-        kUseBatchedAdjoint = true;
+        batchedAdjointCheckActive() = false;
         double maxReference = 0.0, maxDifference = 0.0;
         int worst = 0;
         for (int e = 0; e < S * S; ++e) {
@@ -588,6 +571,7 @@ bool BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsBatched(const int* postB
     }
 
     return true;
+    }
 }
 
 } // namespace cpu
