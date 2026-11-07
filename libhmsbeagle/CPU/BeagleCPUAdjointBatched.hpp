@@ -11,7 +11,7 @@
  * https://opensource.org/licenses/MIT.
  *
  * PROTOTYPE: the adjoint gradient of the rate matrix in the eigen basis over every branch, pattern and category at
- * once (BEAGLE_ADJOINT_BATCHED=1), for every double-precision CPU implementation (BeagleCPUImpl, used by the
+ * once (BEAGLE_FLAG_ADJOINT_BATCHED), for every double-precision CPU implementation (BeagleCPUImpl, used by the
  * generic, SSE and 4-state SSE adjoints). It is used only with few patterns per state (patterns * ratio <= states,
  * BEAGLE_ADJOINT_BATCHED_RATIO, default 6), where the per-branch kernel's own cost dominates.
  *

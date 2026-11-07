@@ -175,7 +175,7 @@ protected:
                                            int endPattern,
                                            int currentPartition);
 
-    // PROTOTYPE (BEAGLE_ADJOINT_BATCHED=1): the adjoint over all branches, patterns and categories at once, as
+    // PROTOTYPE (BEAGLE_FLAG_ADJOINT_BATCHED): the adjoint over all branches, patterns and categories at once, as
     // GEMMs plus a Sylvester solve (BeagleCPUAdjointBatched.hpp), for double precision. Returns false, leaving
     // buffer untouched, when it does not apply (single precision, several eigen decompositions, or a degenerate
     // block it does not handle); the caller then uses its per-branch kernel.

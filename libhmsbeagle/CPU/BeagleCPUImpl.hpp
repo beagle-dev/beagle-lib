@@ -600,8 +600,9 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kEigenInfoChunkSize = chunkLength * sizeof(REALTYPE);
     gEigenInfoChunks.assign((kMatrixCount + chunkMatrices - 1) >> kEigenInfoChunkShift, NULL);
 
-    if (const char* batched = getenv("BEAGLE_ADJOINT_BATCHED")) {
-        kUseBatchedAdjoint = (atoi(batched) != 0);
+    kUseBatchedAdjoint = DOUBLE_PRECISION && ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_ADJOINT_BATCHED) != 0;
+    if (kUseBatchedAdjoint) {
+        kFlags |= BEAGLE_FLAG_ADJOINT_BATCHED;
     }
     if (const char* verbose = getenv("BEAGLE_ADJOINT_BATCHED_VERBOSE")) {
         kBatchedAdjointVerbose = (atoi(verbose) != 0);
@@ -8752,7 +8753,7 @@ const long long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
     flags |= BEAGLE_FLAG_THREADING_OPENMP;
 #endif
     if (DOUBLE_PRECISION)
-        flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+        flags |= BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_ADJOINT_BATCHED;
     else
         flags |= BEAGLE_FLAG_PRECISION_SINGLE;
     return flags;

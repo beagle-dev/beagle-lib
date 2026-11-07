@@ -1886,7 +1886,7 @@ const long long BeagleCPUSpectralImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFla
                   BEAGLE_FLAG_FRAMEWORK_CPU;
 
     if (DOUBLE_PRECISION)
-    	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+    	flags |= BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_ADJOINT_BATCHED;
     else
     	flags |= BEAGLE_FLAG_PRECISION_SINGLE;
     return flags;

@@ -532,7 +532,10 @@ int rankResourceImplementationPairs(long long preferenceFlags,
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                 // Penalize unrequested factory capabilities so a minimal
                 // factory beats a more-capable one when they otherwise tie.
-                long long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags);
+                // Optional behaviors a factory offers are not counted, so listing one changes no choice
+                // unless it is asked for.
+                const long long optionalBehaviors = BEAGLE_FLAG_SPECTRAL_CACHE | BEAGLE_FLAG_ADJOINT_BATCHED;
+                long long unneeded = factoryFlags & ~(preferenceFlags | requirementFlags) & ~optionalBehaviors;
                 int penalty = 0;
                 for (long long f = unneeded; f; f &= (f - 1)) penalty++;
                 int totalScore = 2 * resourceScore + implementationScore + penalty / 2;
