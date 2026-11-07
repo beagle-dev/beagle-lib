@@ -1,3 +1,12 @@
+# PROTOTYPE batched adjoint (BeagleCPUAdjointBatched.hpp, in every CPU implementation): GEMMs from Accelerate on
+# macOS, otherwise a plain loop
+function(beagle_cpu_blas target)
+	if(APPLE)
+		target_link_libraries(${target} "-framework Accelerate")
+		target_compile_definitions(${target} PRIVATE BEAGLE_HAVE_ACCELERATE)
+	endif(APPLE)
+endfunction()
+
 add_library(hmsbeagle-cpu SHARED
         BeagleCPU4StateImpl.h
         BeagleCPU4StateImpl.hpp
@@ -12,7 +21,9 @@ add_library(hmsbeagle-cpu SHARED
         EigenDecompositionSquare.hpp
         Precision.h
         SSEDefinitions.h
+        BeagleCPUAdjointBatched.hpp
         )
+beagle_cpu_blas(hmsbeagle-cpu)
 
 install(TARGETS hmsbeagle-cpu
     DESTINATION ${BEAGLE_INSTALL_DIR}
@@ -51,9 +62,12 @@ add_library(hmsbeagle-cpu-sse SHARED
         SSEKernels.h
         BeagleCPUAdjointSSE.h
         BeagleCPUAdjointSSE.hpp
+        BeagleCPUAdjointBatched.hpp
         BeagleCPUAdjoint4StateSSE.h
         BeagleCPUAdjoint4StateSSE.hpp
         )
+
+beagle_cpu_blas(hmsbeagle-cpu-sse)
 
 install(TARGETS hmsbeagle-cpu-sse
 	DESTINATION ${BEAGLE_INSTALL_DIR}
@@ -92,8 +106,11 @@ add_library(hmsbeagle-cpu-spectral SHARED
         EigenDecompositionSpectral.hpp
         AdjointMethods.h
         AdjointMethods.hpp
+        BeagleCPUAdjointBatched.hpp
         Precision.h
         )
+
+beagle_cpu_blas(hmsbeagle-cpu-spectral)
         
 # target_compile_options(hmsbeagle-cpu-spectral PRIVATE
 #     -fno-math-errno      # safe: no errno for math funcs

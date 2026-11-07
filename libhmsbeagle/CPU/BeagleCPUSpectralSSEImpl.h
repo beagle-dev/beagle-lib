@@ -47,6 +47,13 @@ protected:
     using Base::kPaddedPatternCount;
     using Base::kPartialsPaddedStateCount;
     using Base::kPartitionCount;
+    using Base::kUseSpectralCache;
+    using typename Base::PostOrderCache;
+    using typename Base::PreOrderCache;
+    using Base::beginPostOrderCache;
+    using Base::endPostOrderCache;
+    using Base::beginPreOrderCache;
+    using Base::endPreOrderCache;
     using Base::gPartials;
     using typename Base::BranchEigenInfo;
     using Base::gBranchEigenInfo;

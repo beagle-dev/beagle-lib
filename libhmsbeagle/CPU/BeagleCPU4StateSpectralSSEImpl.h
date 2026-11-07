@@ -128,12 +128,12 @@ private:
     void postOrder(double* destP,
                    const int* states1, const double* partials1, const int branchEigenIndex1,
                    const int* states2, const double* partials2, const int branchEigenIndex2,
-                   const double* scaleFactors, int startPattern, int endPattern);
+                   const double* scaleFactors, int startPattern, int endPattern, int currentPartition);
 
     void preOrder(double* destP, SpectralPreOrder type,
                   const double* partials1, const int branchEigenIndex1,
                   const int* states2, const double* partials2, const int branchEigenIndex2,
-                  int startPattern, int endPattern);
+                  int startPattern, int endPattern, int currentPartition);
 };
 
 class BeagleCPU4StateSpectralSSEImplFactory : public BeagleImplFactory {

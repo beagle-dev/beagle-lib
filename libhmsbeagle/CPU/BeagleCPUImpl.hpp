@@ -602,6 +602,23 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kEigenInfoChunkSize = chunkLength * sizeof(REALTYPE);
     gEigenInfoChunks.assign((kMatrixCount + chunkMatrices - 1) >> kEigenInfoChunkShift, NULL);
 
+    kUseBatchedAdjoint = DOUBLE_PRECISION && ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_ADJOINT_BATCHED) != 0;
+    if (kUseBatchedAdjoint) {
+        kFlags |= BEAGLE_FLAG_ADJOINT_BATCHED;
+    }
+    if (const char* verbose = getenv("BEAGLE_ADJOINT_BATCHED_VERBOSE")) {
+        kBatchedAdjointVerbose = (atoi(verbose) != 0);
+    }
+    if (const char* check = getenv("BEAGLE_ADJOINT_BATCHED_CHECK")) {
+        kBatchedAdjointCheck = (atoi(check) != 0);
+    }
+    if (const char* delta = getenv("BEAGLE_ADJOINT_BATCHED_DELTA")) {
+        kBatchedAdjointDelta = atof(delta);
+    }
+    if (const char* ratio = getenv("BEAGLE_ADJOINT_BATCHED_RATIO")) {
+        kBatchedAdjointRatio = atof(ratio);
+    }
+
     return BEAGLE_SUCCESS;
 }
 
@@ -3971,6 +3988,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
     if (static_cast<int>(gOuterProductTmp.size()) < outerProductSize) {
         gOuterProductTmp.resize(outerProductSize);
     }
+    // here, not in the partition threads: resizing it there frees storage another thread is writing
+    if (static_cast<int>(gBatchedPanels.size()) < kPartitionCount) {
+        gBatchedPanels.resize(kPartitionCount);
+    }
 
     // Per-partition scratch for the (possibly branch-specific, rescaling-corrected)
     // per-site likelihoods; sized generously so calcAdjointCrossProductsRange's
@@ -4168,6 +4189,66 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsByPartitionAsync(
 }
 
 BEAGLE_CPU_TEMPLATE
+const REALTYPE* BeagleCPUImpl<BEAGLE_CPU_GENERIC>::adjointNodeLikelihoods(int node,
+                                                                    const REALTYPE* perSiteLikelihoods,
+                                                                    const int* postScaleIndices,
+                                                                    const int* preScaleIndices,
+                                                                    int cumulativeScaleIndex,
+                                                                    int startPattern,
+                                                                    int endPattern,
+                                                                    int currentPartition) {
+    // If a branch's post-order and/or pre-order partials were independently
+    // rescaled (see beagleCalculateAdjointCrossProductDerivative doc), the
+    // "scale = categoryWeight / Lk" term of the adjoint implicitly assumes UNSCALED
+    // post/pre partials -- using the raw (scaled) Lk without compensation
+    // would leave each branch's contribution off by that branch's own
+    // (post-order-scale * pre-order-cumulative-scale / root-cumulative-scale)
+    // factor. Correct for this by building a per-node "effective Lk" =
+    // Lk_measured * rootCumulativeScale / (nodeOwnPostScale * nodePreCumulativeScale),
+    // and using THAT (instead of the raw shared perSiteLikelihoods) for any
+    // node with a non-NONE scale index. postScaleIndices[node]/preScaleIndices[node]
+    // hold buffer indices exactly as populated by the caller's post-order pass
+    // and pre-order cumulative-scale bookkeeping; cumulativeScaleIndex is the same
+    // root cumulative-scale buffer already used for the ordinary log-likelihood.
+    // (Under USE_BRANCH_LIKELIHOOD this is moot: branchMarginalLk is recomputed
+    // directly from each branch's own -- already rescaled -- partials; see
+    // calcAdjointBranchMarginalLikelihoods.)
+    const int postIdx = postScaleIndices ? postScaleIndices[node] : BEAGLE_OP_NONE;
+    const int preIdx  = preScaleIndices  ? preScaleIndices[node]  : BEAGLE_OP_NONE;
+    if (postIdx == BEAGLE_OP_NONE && preIdx == BEAGLE_OP_NONE) {
+        // Neither this branch's post-order nor pre-order partial was independently
+        // rescaled (e.g. a tip feeding straight off the root): no correction needed.
+        return perSiteLikelihoods;
+    }
+    // postScaleBuffer/preScaleBuffer/rootScaleBuffer are all CUMULATIVE (always LOG,
+    // built by beagleAccumulateScaleFactors) buffers -- NOT plain individual
+    // scale-write buffers, whose RAW/LOG format instead follows kFlags. A node's own
+    // post-order buffer generally carries more than just its own scale-write: it
+    // inherits every rescaled descendant's scale factor too, so postScaleIndices[node]
+    // must be built the same way as preScaleIndices (accumulateScaleFactors over
+    // every rescaled node at-or-below it), not passed as a single individual buffer index.
+    const REALTYPE* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : NULL;
+    const REALTYPE* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : NULL;
+    const REALTYPE* rootScaleBuffer = (cumulativeScaleIndex != BEAGLE_OP_NONE) ? gScaleBuffers[cumulativeScaleIndex] : NULL;
+    REALTYPE* correctedLk = gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount;
+    for (int k = startPattern; k < endPattern; ++k) {
+        REALTYPE logCorrection = REALTYPE(0);
+        if (postScaleBuffer != NULL) {
+            logCorrection += postScaleBuffer[k];
+        }
+        if (preScaleBuffer != NULL) {
+            logCorrection += preScaleBuffer[k];
+        }
+        if (rootScaleBuffer != NULL) {
+            logCorrection -= rootScaleBuffer[k];
+        }
+        // TODO Simplify scale-factors here
+        correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
+    }
+    return correctedLk;
+}
+
+BEAGLE_CPU_TEMPLATE
 void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
         const int *postBufferIndices,
         const int *preBufferIndices,
@@ -4187,29 +4268,13 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
         REALTYPE *branchMarginalLk) {
 
 #ifndef USE_BRANCH_LIKELIHOOD
-    // If a branch's post-order and/or pre-order partials were independently
-    // rescaled (see beagleCalculateAdjointCrossProductDerivative doc), the
-    // "scale = categoryWeight / Lk" term below implicitly assumes UNSCALED
-    // post/pre partials -- using the raw (scaled) Lk without compensation
-    // would leave each branch's contribution off by that branch's own
-    // (post-order-scale * pre-order-cumulative-scale / root-cumulative-scale)
-    // factor. Correct for this by building a per-node "effective Lk" =
-    // Lk_measured * rootCumulativeScale / (nodeOwnPostScale * nodePreCumulativeScale),
-    // and using THAT (instead of the raw shared perSiteLikelihoods) for any
-    // node with a non-NONE scale index. postScaleIndices[node]/preScaleIndices[node]
-    // hold RAW/LOG-format buffer indices exactly as populated by the caller's
-    // post-order pass (postScaleIndices, one factor per node) and pre-order
-    // cumulative-scale bookkeeping (preScaleIndices, already log-summed via
-    // beagleAccumulateScaleFactors); cumulativeScaleIndex is the same root
-    // cumulative-scale buffer already used for the ordinary log-likelihood.
-    // (Under USE_BRANCH_LIKELIHOOD this is moot: branchMarginalLk is recomputed
-    // directly from each branch's own -- already rescaled -- partials, so it
-    // self-corrects for rescaling with no separate bookkeeping needed; see
-    // calcAdjointBranchMarginalLikelihoods.)
-    const bool applyScaleCorrection = (postScaleIndices != NULL) || (preScaleIndices != NULL);
-    REALTYPE* correctedLk = applyScaleCorrection
-            ? gAdjointScaleCorrectedLk.data() + currentPartition * kPatternCount
-            : NULL;
+    if (useBatchedAdjoint() &&
+            calcAdjointCrossProductsBatched(postBufferIndices, preBufferIndices, branchEigenIndices, categoryRates,
+                                            categoryWeights, perSiteLikelihoods, buffer, startNode, endNode,
+                                            startPattern, endPattern, currentPartition, postScaleIndices,
+                                            preScaleIndices, cumulativeScaleIndex)) {
+        return;
+    }
 #endif
 
     const double prop = proportionRepeated(branchEigenIndices, startNode, endNode);
@@ -4254,47 +4319,10 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsRange(
 #ifdef USE_BRANCH_LIKELIHOOD
                 const REALTYPE *nodeLikelihoods = branchMarginalLk + nodeNum * kPatternCount;
 #else
-                const REALTYPE *nodeLikelihoods = perSiteLikelihoods;
-                if (applyScaleCorrection) {
-                    const int postIdx = postScaleIndices ? postScaleIndices[nodeNum] : BEAGLE_OP_NONE;
-                    const int preIdx  = preScaleIndices  ? preScaleIndices[nodeNum]  : BEAGLE_OP_NONE;
-                    if (postIdx == BEAGLE_OP_NONE && preIdx == BEAGLE_OP_NONE) {
-                        // Neither this branch's post-order nor pre-order partial was
-                        // independently rescaled (e.g. a tip feeding straight off the
-                        // root): no correction needed for this node.
-                        nodeLikelihoods = perSiteLikelihoods;
-                    } else {
-                        const REALTYPE* postScaleBuffer = (postIdx != BEAGLE_OP_NONE) ? gScaleBuffers[postIdx] : NULL;
-                        const REALTYPE* preScaleBuffer  = (preIdx  != BEAGLE_OP_NONE) ? gScaleBuffers[preIdx]  : NULL;
-                        const REALTYPE* rootScaleBuffer = (cumulativeScaleIndex != BEAGLE_OP_NONE) ? gScaleBuffers[cumulativeScaleIndex] : NULL;
-                        for (int k = startPattern; k < endPattern; ++k) {
-                            // postScaleBuffer/preScaleBuffer/rootScaleBuffer are all
-                            // CUMULATIVE (always LOG, built by
-                            // beagleAccumulateScaleFactors) buffers -- NOT plain
-                            // individual scale-write buffers, whose RAW/LOG format
-                            // instead follows kFlags. A node's own post-order buffer
-                            // generally carries more than just its own scale-write:
-                            // it inherits every rescaled descendant's scale factor
-                            // too, so postScaleIndices[node] must be built the same
-                            // way as preScaleIndices (accumulateScaleFactors over
-                            // every rescaled node at-or-below it), not passed as a
-                            // single individual buffer index.
-                            REALTYPE logCorrection = REALTYPE(0);
-                            if (postScaleBuffer != NULL) {
-                                logCorrection += postScaleBuffer[k];
-                            }
-                            if (preScaleBuffer != NULL) {
-                                logCorrection += preScaleBuffer[k];
-                            }
-                            if (rootScaleBuffer != NULL) {
-                                logCorrection -= rootScaleBuffer[k];
-                            }
-                            // TODO Simplify scale-factors here
-                            correctedLk[k] = perSiteLikelihoods[k] * std::exp(-logCorrection);
-                        }
-                        nodeLikelihoods = correctedLk;
-                    }
-                }
+                // rescaled partials: see adjointNodeLikelihoods
+                const REALTYPE *nodeLikelihoods = adjointNodeLikelihoods(nodeNum, perSiteLikelihoods,
+                        postScaleIndices, preScaleIndices, cumulativeScaleIndex, startPattern, endPattern,
+                        currentPartition);
 #endif
 
                 if (tipStates != nullptr) {
@@ -4521,7 +4549,7 @@ void BeagleCPUImpl<BEAGLE_CPU_GENERIC>::matVecDual(
         const REALTYPE* BEAGLE_RESTRICT row1 = mat1 + i * matrixIncr;
         const REALTYPE* BEAGLE_RESTRICT row2 = mat2 + i * matrixIncr;
 
-        REALTYPE sum1A, sum1B, sum2A, sum2B;
+        REALTYPE sum1A = REALTYPE(0), sum1B = REALTYPE(0), sum2A = REALTYPE(0), sum2B = REALTYPE(0); // None: 0
         if constexpr (std::is_same_v<First, States>) {
             sum1A = row1[state1];
             sum1B = REALTYPE(0);
@@ -9022,7 +9050,7 @@ const long long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
     flags |= BEAGLE_FLAG_THREADING_OPENMP;
 #endif
     if (DOUBLE_PRECISION)
-        flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+        flags |= BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_ADJOINT_BATCHED;
     else
         flags |= BEAGLE_FLAG_PRECISION_SINGLE;
     return flags;
@@ -9030,6 +9058,8 @@ const long long BeagleCPUImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags() {
 
 }   // namespace cpu
 }   // namespace beagle
+
+#include "libhmsbeagle/CPU/BeagleCPUAdjointBatched.hpp"
 
 #endif // BEAGLE_CPU_IMPL_GENERAL_HPP
 

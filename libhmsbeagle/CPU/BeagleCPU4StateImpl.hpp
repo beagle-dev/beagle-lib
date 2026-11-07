@@ -1642,7 +1642,7 @@ const long long BeagleCPU4StateImplFactory<BEAGLE_CPU_FACTORY_GENERIC>::getFlags
     flags |= BEAGLE_FLAG_THREADING_OPENMP;
 #endif
     if (DOUBLE_PRECISION)
-    	flags |= BEAGLE_FLAG_PRECISION_DOUBLE;
+    	flags |= BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_ADJOINT_BATCHED;
     else
     	flags |= BEAGLE_FLAG_PRECISION_SINGLE;
     return flags;

@@ -22,6 +22,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 #include "libhmsbeagle/beagle.h"
@@ -183,6 +186,8 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, SpectralPre
     double* w = y + kSimdTmpStride;
 
     const V_Real zero = VEC_SETZERO();
+    PreOrderCache cache = beginPreOrderCache(type, hasSibling, branchEigenIndex1, branchEigenIndex2,
+                                             currentPartition);
 
     for (int l = 0; l < kCategoryCount; l++) {
         const int catOffset = l * kPartialsPaddedStateCount;
@@ -192,46 +197,60 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, SpectralPre
             double* dest = destP + v;
             const double* parent = partials1 + v;
 
-            if (hasSibling) { // y for the sibling's P x
-                forwardEigenBasis(y, u, partials2 ? partials2 + v : nullptr, states2 ? states2[k] : 0,
-                                  *info2, catOffset);
+            if (hasSibling) { // w = max(P x, 0) for the sibling
+                if (cache.message != nullptr) {
+                    std::memcpy(w, cache.message + v, S * sizeof(double));
+                } else {
+                    forwardEigenBasis(y, u, partials2 ? partials2 + v : nullptr, states2 ? states2[k] : 0,
+                                      *info2, catOffset);
+                    simd::axpy(columns2, stride, y, S, [w, zero](int i, V_Real value) {
+                        VEC_STOREU(w + i, VEC_MAX(zero, value));
+                    });
+                    cache.computedMessage(v, w, S);
+                }
             }
 
             if (type == SpectralPreOrder::TopRoot) { // dest = max(P x, 0) * root prior
-                simd::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
-                    simd::storeVector(dest, i, S,
-                            VEC_MULT(VEC_MAX(zero, value), simd::loadVector(parent, i, S)));
-                });
+                for (int i = 0; i < S; i += 2) {
+                    simd::storeVector(dest, i, S, VEC_MULT(VEC_LOADU(w + i), simd::loadVector(parent, i, S)));
+                }
                 continue;
             }
 
             const double* x = parent;
-            if (hasSibling) {
-                if (type == SpectralPreOrder::Bottom) { // P^T (max(P x, 0) * parent)
-                    simd::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
-                        VEC_STOREU(w + i, VEC_MULT(VEC_MAX(zero, value), simd::loadVector(parent, i, S)));
-                    });
-                    x = w;
-                } else { // max(P^T parent, 0) * max(P x, 0)
-                    simd::axpy(columns2, stride, y, S, [w, zero](int i, V_Real value) {
-                        VEC_STOREU(w + i, VEC_MAX(zero, value));
-                    });
+            if (hasSibling && type == SpectralPreOrder::Bottom) { // P^T (max(P x, 0) * parent)
+                for (int i = 0; i < S; i += 2) {
+                    VEC_STOREU(w + i, VEC_MULT(VEC_LOADU(w + i), simd::loadVector(parent, i, S)));
                 }
+                x = w;
             }
 
-            backwardEigenBasis(y, u, x, *info1, catOffset);
-
-            if (hasSibling && type == SpectralPreOrder::Top) {
-                simd::axpy(transposeColumns1, stride, y, S, [&](int i, V_Real value) {
-                    simd::storeVector(dest, i, S, VEC_MULT(VEC_MAX(zero, value), VEC_LOADU(w + i)));
-                });
+            if (hasSibling && type == SpectralPreOrder::Top) { // max(P^T parent, 0) * max(P x, 0)
+                if (cache.pushDown != nullptr) {
+                    const double* pushDown = cache.pushDown + v;
+                    for (int i = 0; i < S; i += 2) {
+                        simd::storeVector(dest, i, S, VEC_MULT(simd::loadVector(pushDown, i, S), VEC_LOADU(w + i)));
+                    }
+                } else {
+                    backwardEigenBasis(y, u, x, *info1, catOffset);
+                    // the push-down goes to u, free once y is formed, for the cache
+                    simd::axpy(transposeColumns1, stride, y, S, [&](int i, V_Real value) {
+                        const V_Real pushDown = VEC_MAX(zero, value);
+                        simd::storeVector(u, i, S, pushDown);
+                        simd::storeVector(dest, i, S, VEC_MULT(pushDown, VEC_LOADU(w + i)));
+                    });
+                    cache.computedPushDown(v, u, S);
+                }
             } else {
+                backwardEigenBasis(y, u, x, *info1, catOffset);
                 simd::axpy(transposeColumns1, stride, y, S, [&](int i, V_Real value) {
                     simd::storeVector(dest, i, S, VEC_MAX(zero, value));
                 });
             }
         }
     }
+
+    endPreOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -290,6 +309,10 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
 
     const V_Real zero = VEC_SETZERO();
 
+    // each child's message max(0, P x) for the cache
+    const PostOrderCache cache = beginPostOrderCache(branchEigenIndex1, singleChild ? -1 : branchEigenIndex2,
+                                                     currentPartition);
+
     for (int l = 0; l < kCategoryCount; l++) {
         const int catOffset = l * kPartialsPaddedStateCount;
 
@@ -316,22 +339,36 @@ void BeagleCPUSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
             simd::axpy(columns1, stride, y, S, [z1, zero](int i, V_Real value) {
                 VEC_STOREU(z1 + i, VEC_MAX(zero, value));
             });
+            if (cache.message1 != nullptr) {
+                std::memcpy(cache.message1 + v, z1, S * sizeof(double));
+            }
 
             forwardEigenBasis(y, u, partials2 ? partials2 + v : nullptr, states2 ? states2[k] : 0, info2, catOffset);
 
+            double* m2 = (cache.message2 != nullptr) ? cache.message2 + v : nullptr;
             if (scaleFactors != nullptr) {
                 const V_Real oneOverScaleFactor = VEC_SPLAT(1.0 / scaleFactors[k]);
                 simd::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
+                    const V_Real message = VEC_MAX(zero, value);
+                    if (m2 != nullptr) {
+                        simd::storeVector(m2, i, S, message);
+                    }
                     simd::storeVector(dest, i, S,
-                            VEC_MULT(VEC_MULT(VEC_LOADU(z1 + i), VEC_MAX(zero, value)), oneOverScaleFactor));
+                            VEC_MULT(VEC_MULT(VEC_LOADU(z1 + i), message), oneOverScaleFactor));
                 });
             } else {
                 simd::axpy(columns2, stride, y, S, [&](int i, V_Real value) {
-                    simd::storeVector(dest, i, S, VEC_MULT(VEC_LOADU(z1 + i), VEC_MAX(zero, value)));
+                    const V_Real message = VEC_MAX(zero, value);
+                    if (m2 != nullptr) {
+                        simd::storeVector(m2, i, S, message);
+                    }
+                    simd::storeVector(dest, i, S, VEC_MULT(VEC_LOADU(z1 + i), message));
                 });
             }
         }
     }
+
+    endPostOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -428,12 +465,12 @@ inline const long long BeagleCPUSpectralSSEImplFactory::getFlags() {
            BEAGLE_FLAG_THREADING_NONE | BEAGLE_FLAG_THREADING_CPP |
            BEAGLE_FLAG_PROCESSOR_CPU |
            BEAGLE_FLAG_VECTOR_SSE |
-           BEAGLE_FLAG_PRECISION_DOUBLE |
+           BEAGLE_FLAG_PRECISION_DOUBLE | BEAGLE_FLAG_ADJOINT_BATCHED |
            BEAGLE_FLAG_SCALERS_LOG | BEAGLE_FLAG_SCALERS_RAW |
            BEAGLE_FLAG_EIGEN_COMPLEX | BEAGLE_FLAG_EIGEN_REAL |
            BEAGLE_FLAG_INVEVEC_STANDARD |
            BEAGLE_FLAG_PREORDER_TRANSPOSE_MANUAL | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
-           BEAGLE_FLAG_SPECTRAL_REPRESENTATION |
+           BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_SPECTRAL_CACHE |
            BEAGLE_FLAG_FRAMEWORK_CPU;
 }
 

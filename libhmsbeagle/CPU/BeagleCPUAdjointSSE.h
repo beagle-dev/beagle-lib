@@ -50,8 +50,9 @@ protected:
     using Base::gPartials;
     using Base::gTipStates;
     using Base::gPatternWeights;
-    using Base::gScaleBuffers;
-    using Base::gAdjointScaleCorrectedLk;
+    using Base::useBatchedAdjoint;
+    using Base::calcAdjointCrossProductsBatched;
+    using Base::adjointNodeLikelihoods;
     using typename Base::BranchEigenInfo;
     using Base::gBranchEigenInfo;
 

@@ -22,8 +22,13 @@
 
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 
-#include <vector>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 #define TEST_EB
 
@@ -42,6 +47,7 @@ namespace beagle {
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kFlags;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kTipCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kMatrixCount;
+            using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::kBufferCount;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gPartials;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::integrationTmp;
             using BeagleCPUImpl<BEAGLE_CPU_GENERIC>::gTransitionMatrices;
@@ -109,6 +115,151 @@ namespace beagle {
                               long long requirementFlags) override;
 
             // int setCPUThreadCount(int threadCount) override;
+
+            // Writes that invalidate the message and push-down caches (BEAGLE_FLAG_SPECTRAL_CACHE)
+            int setTipStates(int tipIndex, const int* inStates) override;
+
+            int setTipPartials(int tipIndex, const double* inPartials) override;
+
+            int setPartials(int bufferIndex, const double* inPartials) override;
+
+            int setRootPrePartials(const int* bufferIndices, const int* stateFrequenciesIndices, int count) override;
+
+            int setEigenDecomposition(int eigenIndex,
+                                      const double* inEigenVectors,
+                                      const double* inInverseEigenVectors,
+                                      const double* inEigenValues) override;
+
+            int setPatternPartitions(int partitionCount, const int* inPatternPartitions) override;
+
+        protected:
+            // BEAGLE_FLAG_SPECTRAL_CACHE: two caches keyed by partials buffer index, filled where the value is
+            // computed anyway, for every spectral kernel family.
+            // - message: max(0, P_c x_c) of a child c, written by the post-order operation of its parent (and by a
+            //   pre-order miss), read by the pre-order operation of its sibling;
+            // - push-down: max(0, P_p^T top_p) of a parent p, written by the first TOP pre-order operation under p,
+            //   read by the second.
+            // An entry is used only while its stamp matches: the write generation of the source partials (per
+            // pattern partition), the matrix index and its generation, and the eigen index and its generation. The
+            // kernels compute the cached values with the same arithmetic, so results are bitwise identical.
+            // BEAGLE_SPECTRAL_CACHE_VERIFY=1 recomputes every hit and counts mismatches;
+            // BEAGLE_SPECTRAL_CACHE_VERBOSE=1 reports the counts after each pre-order update.
+            struct CacheStamp {
+                uint64_t partials = 0; // 0: empty
+                uint64_t matrix = 0;
+                uint64_t eigen = 0;
+                int matrixIndex = -1;
+                int eigenIndex = -1;
+            };
+            // The current operation of a pattern partition: post-order (child1, matrix1, child2, matrix2) or
+            // pre-order (parent's pre-order buffer, parent's matrix, sibling, sibling's matrix)
+            struct OpContext {
+                int index1 = -1;
+                int matrix1 = -1;
+                int index2 = -1;
+                int matrix2 = -1;
+            };
+            // [buffer], kPartialsSize each, allocated on first use under gCacheMutex (partition threads share one)
+            struct CacheSlots {
+                std::unique_ptr<std::atomic<REALTYPE*>[]> pointers;
+                std::vector<std::unique_ptr<REALTYPE[]>> storage;
+            };
+            // One post-order kernel call: each child's message goes to message1 / message2 + v (null: not cached)
+            struct PostOrderCache {
+                REALTYPE* message1 = nullptr;
+                REALTYPE* message2 = nullptr;
+                int buffer1 = -1;
+                int buffer2 = -1;
+            };
+            // One pre-order kernel call: message / pushDown, when not null, is a valid entry to use; otherwise the
+            // kernel computes the vector and passes it to computedMessage / computedPushDown, which store it (or,
+            // verifying a hit, compare it with the entry)
+            struct PreOrderCache {
+                const REALTYPE* message = nullptr;
+                const REALTYPE* pushDown = nullptr;
+                REALTYPE* messageSlot = nullptr;
+                REALTYPE* pushDownSlot = nullptr;
+                int siblingBuffer = -1;
+                int parentBuffer = -1;
+                bool messageHit = false;
+                bool pushDownHit = false;
+                bool messageStored = false;  // a kernel that does not record a vector leaves its entry unstamped
+                bool pushDownStored = false;
+                long long mismatches = 0;
+
+                void computedMessage(int v, const REALTYPE* values, int n) {
+                    record(messageSlot, messageHit, messageStored, v, values, n);
+                }
+                void computedPushDown(int v, const REALTYPE* values, int n) {
+                    record(pushDownSlot, pushDownHit, pushDownStored, v, values, n);
+                }
+
+            private:
+                void record(REALTYPE* slot, bool hit, bool& stored, int v, const REALTYPE* values, int n) {
+                    if (slot == nullptr) {
+                        return;
+                    }
+                    if (hit) { // verifying
+                        mismatches += (std::memcmp(slot + v, values, n * sizeof(REALTYPE)) != 0);
+                    } else {
+                        std::memcpy(slot + v, values, n * sizeof(REALTYPE));
+                        stored = true;
+                    }
+                }
+            };
+
+            bool kUseSpectralCache = false;
+            bool kVerifySpectralCache = false;
+            bool kVerboseSpectralCache = false;
+
+            PostOrderCache beginPostOrderCache(int branchEigenIndex1, int branchEigenIndex2, int partition);
+            void endPostOrderCache(const PostOrderCache& cache, int branchEigenIndex1, int branchEigenIndex2,
+                                   int partition);
+            PreOrderCache beginPreOrderCache(SpectralPreOrder type, bool hasSibling, int branchEigenIndex1,
+                                             int branchEigenIndex2, int partition);
+            void endPreOrderCache(const PreOrderCache& cache, int branchEigenIndex1, int branchEigenIndex2,
+                                  int partition);
+
+            // TOP pre-order partials of one pattern and category from the caches: max(P_p^T top, 0) * max(P_s x, 0),
+            // each factor from its cache entry or computed alone, by the arithmetic of the pair it replaces
+            template <typename Sibling>
+            void prePartialsTopCached(REALTYPE* dest, ptrdiff_t offset,
+                                      const REALTYPE* parentPartials, const BranchEigenInfo& info1,
+                                      const REALTYPE* inverseEigenVectors1, const REALTYPE* eigenVectors1,
+                                      const REALTYPE* siblingPartials, int siblingState,
+                                      const BranchEigenInfo& info2,
+                                      const REALTYPE* inverseEigenVectors2, const REALTYPE* eigenVectors2,
+                                      int matrixIncr, int catOffset, PreOrderCache& cache, int partition);
+
+        private:
+            std::atomic<uint64_t> gCacheCounter{0};
+            std::atomic<int> kCacheBufferCount{-1}; // -1: not allocated, or emptied
+            int kCacheMatrixCount = 0;
+            int kCacheEigenCount = 0;
+            int kCachePartitionCount = 0;
+            std::mutex gCacheMutex;
+            std::vector<uint64_t> gPartialsGeneration; // [buffer * partitions + partition]
+            std::vector<uint64_t> gMatrixGeneration;   // [matrix]
+            std::vector<uint64_t> gEigenGeneration;    // [eigen]
+            CacheSlots gMessageCache;
+            CacheSlots gPushDownCache;
+            std::vector<CacheStamp> gMessageStamp;  // [buffer * partitions + partition]
+            std::vector<CacheStamp> gPushDownStamp; // [buffer * partitions + partition]
+            std::vector<OpContext> gOpContext;      // [partition]
+            std::vector<REALTYPE> gCacheScratch;     // [partition], three vectors for prePartialsTopCached
+            std::atomic<long long> gMessageHits{0}, gMessageMisses{0}, gPushDownHits{0}, gPushDownMisses{0};
+            std::atomic<long long> gCacheMismatches{0};
+
+            // (Re)allocates the bookkeeping when buffer, matrix, eigen or partition counts change, emptying the caches
+            void ensureCacheSizes();
+            // A new write generation for a buffer: one pattern partition, or all of them (partition < 0)
+            void bumpPartials(int buffer, int partition);
+            // Records an operation's buffers and matrices for its partition's kernels, or clears them (operation null)
+            void setOpContext(int partition, const int* operation);
+            CacheStamp makeStamp(int buffer, int partition, int matrixIndex) const;
+            bool cacheValid(const CacheStamp& stamp, int buffer, int partition, int matrixIndex) const;
+            REALTYPE* cacheSlot(CacheSlots& cache, int buffer);
+            void resetSlots(CacheSlots& cache, int bufferCount);
 
         protected:
             EigenDecomposition<BEAGLE_CPU_EIGEN_GENERIC>* createEigenDecomposition(

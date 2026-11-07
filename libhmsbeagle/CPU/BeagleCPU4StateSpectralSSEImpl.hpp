@@ -147,7 +147,8 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
                                                             const int* states2, const double* partials2,
                                                             const int branchEigenIndex2,
                                                             const double* scaleFactors,
-                                                            int startPattern, int endPattern) {
+                                                            int startPattern, int endPattern,
+                                                            int currentPartition) {
     const bool singleChild = (states2 == nullptr && partials2 == nullptr);
     const BranchEigenInfo& info1 = gBranchEigenInfo[branchEigenIndex1];
     const BranchEigenInfo& info2 = gBranchEigenInfo[singleChild ? branchEigenIndex1 : branchEigenIndex2];
@@ -171,6 +172,10 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
         hi = VEC_MAX(zero, hi);
     };
 
+    // each child's message max(P x, 0) for the cache
+    const typename Base::PostOrderCache cache =
+            this->beginPostOrderCache(branchEigenIndex1, singleChild ? -1 : branchEigenIndex2, currentPartition);
+
     for (int l = 0; l < kCategoryCount; l++) {
         const int catOffset = l * 4;
         const double* A1 = info1.expatcosbt + catOffset;
@@ -187,6 +192,14 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
             if (!singleChild) {
                 V_Real lo2, hi2;
                 propagate(m2, A2, B2, partials2 ? partials2 + v : nullptr, states2 ? states2[k] : 0, lo2, hi2);
+                if (cache.message1 != nullptr) {
+                    VEC_STOREU(cache.message1 + v, lo);
+                    VEC_STOREU(cache.message1 + v + 2, hi);
+                }
+                if (cache.message2 != nullptr) {
+                    VEC_STOREU(cache.message2 + v, lo2);
+                    VEC_STOREU(cache.message2 + v + 2, hi2);
+                }
                 lo = VEC_MULT(lo, lo2);
                 hi = VEC_MULT(hi, hi2);
             }
@@ -199,6 +212,8 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::postOrder(double* destP,
             VEC_STOREU(dest + 2, hi);
         }
     }
+
+    this->endPostOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -206,7 +221,8 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
                                                            const double* partials1, const int branchEigenIndex1,
                                                            const int* states2, const double* partials2,
                                                            const int branchEigenIndex2,
-                                                           int startPattern, int endPattern) {
+                                                           int startPattern, int endPattern,
+                                                           int currentPartition) {
     const bool hasSibling = (states2 != nullptr || partials2 != nullptr);
     const bool hasBranch = (type != SpectralPreOrder::TopRoot);
     const BranchEigenInfo* info1 = hasBranch ? &gBranchEigenInfo[branchEigenIndex1] : nullptr;
@@ -214,6 +230,9 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
     const Matrices4* m1 = hasBranch ? &gMatrices4[info1->eigenIndex] : nullptr;
     const Matrices4* m2 = hasSibling ? &gMatrices4[info2->eigenIndex] : nullptr;
     const V_Real zero = VEC_SETZERO();
+    typename Base::PreOrderCache cache =
+            this->beginPreOrderCache(type, hasSibling, branchEigenIndex1, branchEigenIndex2, currentPartition);
+    alignas(16) double computed[4];
 
     for (int l = 0; l < kCategoryCount; l++) {
         const int catOffset = l * 4;
@@ -225,7 +244,10 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
             const V_Real parentHi = VEC_LOADU(partials1 + v + 2);
 
             V_Real siblingLo, siblingHi; // max(P x, 0) of the sibling
-            if (hasSibling) {
+            if (hasSibling && cache.message != nullptr) {
+                siblingLo = VEC_LOADU(cache.message + v);
+                siblingHi = VEC_LOADU(cache.message + v + 2);
+            } else if (hasSibling) {
                 const double* x = partials2 ? partials2 + v : nullptr;
                 V_Real ulo, uhi;
                 if (x != nullptr) {
@@ -239,6 +261,9 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
                 simd::product4(m2->columns, ulo, uhi, siblingLo, siblingHi);
                 siblingLo = VEC_MAX(zero, siblingLo);
                 siblingHi = VEC_MAX(zero, siblingHi);
+                VEC_STORE(computed, siblingLo);
+                VEC_STORE(computed + 2, siblingHi);
+                cache.computedMessage(v, computed, 4);
             }
 
             if (type == SpectralPreOrder::TopRoot) { // max(P x, 0) * root prior
@@ -254,14 +279,22 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
                 xlo = VEC_MULT(siblingLo, parentLo);
                 xhi = VEC_MULT(siblingHi, parentHi);
             }
-            V_Real ulo, uhi;
-            simd::product4(m1->transposeColumns, xlo, xhi, ulo, uhi);
-            spectral_sse4::exponential<true>(m1->pairs, info1->expatcosbt + catOffset,
-                                             info1->expatsinbt + catOffset, ulo, uhi);
             V_Real lo, hi;
-            simd::product4(m1->inverseTransposeColumns, ulo, uhi, lo, hi);
-            lo = VEC_MAX(zero, lo);
-            hi = VEC_MAX(zero, hi);
+            if (cache.pushDown != nullptr) { // TOP with a sibling
+                lo = VEC_LOADU(cache.pushDown + v);
+                hi = VEC_LOADU(cache.pushDown + v + 2);
+            } else {
+                V_Real ulo, uhi;
+                simd::product4(m1->transposeColumns, xlo, xhi, ulo, uhi);
+                spectral_sse4::exponential<true>(m1->pairs, info1->expatcosbt + catOffset,
+                                                 info1->expatsinbt + catOffset, ulo, uhi);
+                simd::product4(m1->inverseTransposeColumns, ulo, uhi, lo, hi);
+                lo = VEC_MAX(zero, lo);
+                hi = VEC_MAX(zero, hi);
+                VEC_STORE(computed, lo);
+                VEC_STORE(computed + 2, hi);
+                cache.computedPushDown(v, computed, 4);
+            }
             if (hasSibling && type == SpectralPreOrder::Top) {
                 lo = VEC_MULT(lo, siblingLo);
                 hi = VEC_MULT(hi, siblingHi);
@@ -270,6 +303,8 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::preOrder(double* destP, Spect
             VEC_STOREU(dest + 2, hi);
         }
     }
+
+    this->endPreOrderCache(cache, branchEigenIndex1, branchEigenIndex2, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -279,7 +314,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralPartialsPartials(doub
         const double* scaleFactors,
         int startPattern, int endPattern, int currentPartition) {
     postOrder(destP, nullptr, partials1, branchEigenIndex1, nullptr, partials2, branchEigenIndex2,
-              scaleFactors, startPattern, endPattern);
+              scaleFactors, startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -289,7 +324,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralStatesPartials(double
         const double* scaleFactors,
         int startPattern, int endPattern, int currentPartition) {
     postOrder(destP, states1, nullptr, branchEigenIndex1, nullptr, partials2, branchEigenIndex2,
-              scaleFactors, startPattern, endPattern);
+              scaleFactors, startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -299,7 +334,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralStatesStates(double* 
         const double* scaleFactors,
         int startPattern, int endPattern, int currentPartition) {
     postOrder(destP, states1, nullptr, branchEigenIndex1, states2, nullptr, branchEigenIndex2,
-              scaleFactors, startPattern, endPattern);
+              scaleFactors, startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -309,7 +344,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralDegree2Partials(doubl
         const double* scaleFactors,
         int startPattern, int endPattern, int currentPartition) {
     postOrder(destP, states1, states1 ? nullptr : partials1, branchEigenIndex1, nullptr, nullptr, -1,
-              scaleFactors, startPattern, endPattern);
+              scaleFactors, startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -319,7 +354,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralPrePartialsPartials(d
         const double* partials2, const int branchEigenIndex2,
         int startPattern, int endPattern, int currentPartition) {
     preOrder(destP, type, partials1, branchEigenIndex1, nullptr, partials2, branchEigenIndex2,
-             startPattern, endPattern);
+             startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -329,7 +364,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::spectralPrePartialsStates(dou
         const int* states2, const int branchEigenIndex2,
         int startPattern, int endPattern, int currentPartition) {
     preOrder(destP, type, partials1, branchEigenIndex1, states2, nullptr, branchEigenIndex2,
-             startPattern, endPattern);
+             startPattern, endPattern, currentPartition);
 }
 
 template <int T_PAD, int P_PAD>
@@ -343,7 +378,7 @@ void BeagleCPU4StateSpectralSSEImpl<T_PAD, P_PAD>::calcDegree2PrePartials(double
     }
     // the same for bottom and top partials: P^T of the parent's pre-order partials through branchEigenIndex1
     preOrder(destP, SpectralPreOrder::Bottom, partials1, branchEigenIndex1, nullptr, nullptr, -1,
-             startPattern, endPattern);
+             startPattern, endPattern, currentPartition);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
