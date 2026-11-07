@@ -248,9 +248,7 @@ bool BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProductsBatched(const in
         return true;
     }
 
-    if (static_cast<int>(gBatchedPanels.size()) < kPartitionCount) {
-        gBatchedPanels.resize(kPartitionCount);
-    }
+    // one entry per partition, sized by calcAdjointCrossProducts before the partition threads start
     std::vector<double>& panels = gBatchedPanels[currentPartition];
     if (panels.size() < static_cast<size_t>(4) * M * S) {
         panels.resize(static_cast<size_t>(4) * M * S);

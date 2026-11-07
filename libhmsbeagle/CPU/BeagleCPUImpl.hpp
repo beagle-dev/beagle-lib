@@ -3690,6 +3690,10 @@ int BeagleCPUImpl<BEAGLE_CPU_GENERIC>::calcAdjointCrossProducts(const int *postB
     if (static_cast<int>(gOuterProductTmp.size()) < outerProductSize) {
         gOuterProductTmp.resize(outerProductSize);
     }
+    // here, not in the partition threads: resizing it there frees storage another thread is writing
+    if (static_cast<int>(gBatchedPanels.size()) < kPartitionCount) {
+        gBatchedPanels.resize(kPartitionCount);
+    }
 
     // Per-partition scratch for the (possibly branch-specific, rescaling-corrected)
     // per-site likelihoods; sized generously so calcAdjointCrossProductsRange's
