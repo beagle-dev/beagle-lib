@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <utility>
 
@@ -99,6 +100,19 @@ int BeagleCPUAdjointSSE<Base>::createInstance(int tipCount,
     gAdjointPlans.assign(kEigenDecompCount, AdjointPlan());
     gAdjointPlanStale.assign(kEigenDecompCount, false);
     resizeAdjointTmp();
+
+    if (const char* batched = getenv("BEAGLE_ADJOINT_BATCHED")) {
+        kUseBatchedAdjoint = (atoi(batched) != 0);
+    }
+    if (const char* verbose = getenv("BEAGLE_ADJOINT_BATCHED_VERBOSE")) {
+        kBatchedAdjointVerbose = (atoi(verbose) != 0);
+    }
+    if (const char* check = getenv("BEAGLE_ADJOINT_BATCHED_CHECK")) {
+        kBatchedAdjointCheck = (atoi(check) != 0);
+    }
+    if (const char* delta = getenv("BEAGLE_ADJOINT_BATCHED_DELTA")) {
+        kBatchedAdjointDelta = atof(delta);
+    }
 
     return returnCode;
 }
@@ -493,6 +507,14 @@ void BeagleCPUAdjointSSE<Base>::calcAdjointCrossProductsRange(const int* postBuf
                                             startNode, endNode, startPattern, endPattern, currentPartition,
                                             postScaleIndices, preScaleIndices, cumulativeScaleIndex,
                                             branchMarginalLk);
+        return;
+    }
+
+    if (kUseBatchedAdjoint &&
+            calcAdjointCrossProductsBatched(postBufferIndices, preBufferIndices, branchEigenIndices,
+                                            categoryRates, categoryWeights, perSiteLikelihoods, buffer,
+                                            startNode, endNode, startPattern, endPattern, currentPartition,
+                                            postScaleIndices, preScaleIndices, cumulativeScaleIndex)) {
         return;
     }
 

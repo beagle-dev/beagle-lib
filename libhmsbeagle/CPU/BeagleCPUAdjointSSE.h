@@ -142,6 +142,31 @@ private:
     template <typename View>
     void adjointKernel(double* gradient, const View& view, const AdjointPlan& plan, const double* eval,
                        const BranchEigenInfo& info, int infoOffset, double time, double* pairTmp);
+
+    // PROTOTYPE (BEAGLE_ADJOINT_BATCHED=1): the adjoint over all branches, patterns and categories at once, as
+    // GEMMs plus a Sylvester solve (BeagleCPUAdjointBatched.hpp). Returns false, leaving buffer untouched, when
+    // it does not apply (several eigen decompositions, or a degenerate block it does not handle).
+    bool kUseBatchedAdjoint = false;
+    bool kBatchedAdjointVerbose = false;
+    bool kBatchedAdjointCheck = false; // also run the per-branch kernel and report the difference
+    double kBatchedAdjointDelta = 1e-4;
+    std::vector<std::vector<double>> gBatchedPanels; // per partition
+
+    bool calcAdjointCrossProductsBatched(const int* postBufferIndices,
+                                         const int* preBufferIndices,
+                                         const int* branchEigenIndices,
+                                         const double* categoryRates,
+                                         const double* categoryWeights,
+                                         const double* perSiteLikelihoods,
+                                         double* buffer,
+                                         int startNode,
+                                         int endNode,
+                                         int startPattern,
+                                         int endPattern,
+                                         int currentPartition,
+                                         const int* postScaleIndices,
+                                         const int* preScaleIndices,
+                                         const int cumulativeScaleIndex);
 };
 
 } // namespace cpu
@@ -149,5 +174,6 @@ private:
 
 // now include the file containing template function implementations
 #include "libhmsbeagle/CPU/BeagleCPUAdjointSSE.hpp"
+#include "libhmsbeagle/CPU/BeagleCPUAdjointBatched.hpp"
 
 #endif // __BeagleCPUAdjointSSE__

@@ -51,9 +51,16 @@ add_library(hmsbeagle-cpu-sse SHARED
         SSEKernels.h
         BeagleCPUAdjointSSE.h
         BeagleCPUAdjointSSE.hpp
+        BeagleCPUAdjointBatched.hpp
         BeagleCPUAdjoint4StateSSE.h
         BeagleCPUAdjoint4StateSSE.hpp
         )
+
+if(APPLE)
+	# PROTOTYPE batched adjoint (BeagleCPUAdjointBatched.hpp): GEMMs from Accelerate
+	target_link_libraries(hmsbeagle-cpu-sse "-framework Accelerate")
+	target_compile_definitions(hmsbeagle-cpu-sse PRIVATE BEAGLE_HAVE_ACCELERATE)
+endif(APPLE)
 
 install(TARGETS hmsbeagle-cpu-sse
 	DESTINATION ${BEAGLE_INSTALL_DIR}
@@ -92,8 +99,15 @@ add_library(hmsbeagle-cpu-spectral SHARED
         EigenDecompositionSpectral.hpp
         AdjointMethods.h
         AdjointMethods.hpp
+        BeagleCPUAdjointBatched.hpp
         Precision.h
         )
+
+if(APPLE)
+	# PROTOTYPE batched adjoint (BeagleCPUAdjointBatched.hpp): GEMMs from Accelerate
+	target_link_libraries(hmsbeagle-cpu-spectral "-framework Accelerate")
+	target_compile_definitions(hmsbeagle-cpu-spectral PRIVATE BEAGLE_HAVE_ACCELERATE)
+endif(APPLE)
         
 # target_compile_options(hmsbeagle-cpu-spectral PRIVATE
 #     -fno-math-errno      # safe: no errno for math funcs
