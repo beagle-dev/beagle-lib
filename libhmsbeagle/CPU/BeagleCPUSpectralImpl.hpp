@@ -76,6 +76,7 @@ int BeagleCPUSpectralImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
                                                               resourceNumber, pluginResourceNumber,
                                                               preferenceFlags, requirementFlags);
     kStateCountModFour = (kStateCount / 4) * 4;
+    kFlags |= BEAGLE_FLAG_SPECTRAL_REPRESENTATION; // reported by getInstanceDetails, as on the GPU
 
     kUseSpectralCache = ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_SPECTRAL_CACHE) != 0;
     if (kUseSpectralCache) {

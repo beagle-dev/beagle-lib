@@ -18,12 +18,16 @@ public enum BeagleFlag {
     SCALING_MANUAL(1 << 6, "manual scaling"),
     SCALING_AUTO(1 << 7, "auto-scaling on"),
     SCALING_ALWAYS(1 << 8, "scale at every update"),
-    SCALING_DYNAMIC(1 << 19, "manual scaling with dynamic checking"),
+    SCALING_DYNAMIC(1 << 25, "manual scaling with dynamic checking"),
 
     SCALERS_RAW(1 << 9, "save raw scalers"),
     SCALERS_LOG(1 << 10, "save log scalers"),
 
+    INVEVEC_STANDARD(1 << 20, "inverse eigen vectors passed to BEAGLE have not been transposed"),
+    INVEVEC_TRANSPOSED(1 << 21, "inverse eigen vectors passed to BEAGLE have been transposed"),
+
     VECTOR_SSE(1 << 11, "SSE vector computation"),
+    VECTOR_AVX(1 << 24, "AVX vector computation"),
     VECTOR_NONE(1 << 12, "no vector computation"),
     VECTOR_TENSOR(1L << 33, "Tensor cores"),
 
@@ -35,13 +39,17 @@ public enum BeagleFlag {
     PROCESSOR_GPU(1 << 16, "use GPU as main processor"),
     PROCESSOR_FPGA(1 << 17, "use FPGA as main processor"),
     PROCESSOR_CELL(1 << 18, "use CELL as main processor"),
+    PROCESSOR_PHI(1 << 19, "use Intel Phi as main processor"),
+    PROCESSOR_OTHER(1 << 26, "use other type of processor"),
 
     FRAMEWORK_CUDA(1 << 22, "use CUDA implementation with GPU resources"),
     FRAMEWORK_OPENCL(1 << 23, "use OpenCL implementation with CPU or GPU resources"),
     FRAMEWORK_CPU(1 << 27, "use CPU implementation"),
+    FRAMEWORK_TINYGPU(1L << 45, "use TinyGPU USB4/Thunderbolt eGPU implementation"),
 
     PARALLELOPS_STREAMS(1 << 28, "Operations in updatePartials may be assigned to separate device streams"),
     PARALLELOPS_GRID(1 << 29, "Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites)"),
+    PARALLELOPS_FUSED(1L << 46, "updatePartials makes one kernel launch, with the operation loop inside the kernel"),
 
     PREORDER_TRANSPOSE_MANUAL(1L << 34, "Pre-order transition matrices passed to BEAGLE have been transposed"),
     PREORDER_TRANSPOSE_AUTO(1L << 31, "Automatically transpose pre-order transition matrices"),
@@ -68,12 +76,20 @@ public enum BeagleFlag {
         return (flags & mask) != 0;
     }
 
+    /**
+     * Names the set flags, and a set bit that no flag here names as BIT_n, so that none is left out.
+     */
     public static String toString(long flags) {
         StringBuilder sb = new StringBuilder();
+        long named = 0;
         for (BeagleFlag flag : BeagleFlag.values()) {
             if (flag.isSet(flags)) {
                 sb.append(" ").append(flag.name());
             }
+            named |= flag.getMask();
+        }
+        for (long rest = flags & ~named; rest != 0; rest &= rest - 1) {
+            sb.append(" BIT_").append(Long.numberOfTrailingZeros(rest));
         }
         return sb.toString();
     }
