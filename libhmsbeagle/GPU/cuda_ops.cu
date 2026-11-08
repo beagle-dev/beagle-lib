@@ -281,6 +281,145 @@ void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const
     cuda_taylor_horner_terms_impl(nRows, nCols, rowOffsets, columns, values, batch, stream);
 }
 
+// Whole actions: block blockIdx.x does columns [col0, col0 + TILE) of action blockIdx.x / tilesPerAction.  The
+// tile of b, and two work matrices, are (nRows, TILE) row-major in shared memory; a term
+//   next = scale * (b + alpha * A * x)
+// gives thread idx row idx / TILE and column idx % TILE, so the TILE threads of a row share each (column, value)
+// load of A.  The three buffers rotate: a step's last term becomes the next step's b.
+template <typename T, int TILE>
+__global__ void whole_action_kernel(int nRows, int nCols, int ld, int tilesPerAction, const WholeActionBatch<T> batch)
+{
+    extern __shared__ unsigned char wholeActionShared[];
+    T* buffers = reinterpret_cast<T*>(wholeActionShared);
+    const WholeAction<T>& a = batch.actions[blockIdx.x / tilesPerAction];
+    const int col0 = (blockIdx.x % tilesPerAction) * TILE;
+    const int cols = min(TILE, nCols - col0);
+    const int n = nRows * TILE;
+
+    int bIdx = 0;
+    for (int idx = threadIdx.x; idx < n; idx += blockDim.x)
+    {
+        const int r = idx / TILE, t = idx % TILE;
+        buffers[idx] = (t < cols) ? a.in[(size_t)r * ld + col0 + t] : T(0);
+    }
+    __syncthreads();
+
+    if (a.m > 0)
+    {
+        const int* __restrict__ rowOffsets = a.rowOffsets;
+        const int* __restrict__ columns = a.columns;
+        const T* __restrict__ values = a.values;
+        for (int step = 0; step < a.s; step++)
+        {
+            const T* b = buffers + bIdx * n;
+            int xIdx = bIdx;
+            int outIdx = (bIdx + 1) % 3;
+            for (int j = a.m; j >= 1; j--)
+            {
+                const T alpha = a.multiplier / (T(a.s) * j);
+                const T scale = (j == 1) ? a.eta : T(1);
+                const T* x = buffers + xIdx * n;
+                T* out = buffers + outIdx * n;
+                for (int idx = threadIdx.x; idx < n; idx += blockDim.x)
+                {
+                    const int r = idx / TILE, t = idx % TILE;
+                    T acc = 0;
+                    for (int k = __ldg(rowOffsets + r); k < __ldg(rowOffsets + r + 1); k++)
+                        acc += __ldg(values + k) * x[__ldg(columns + k) * TILE + t];
+                    out[idx] = scale * (b[idx] + alpha * acc);
+                }
+                __syncthreads();
+                // the next term reads this output; it writes the buffer that is neither b nor this output
+                xIdx = outIdx;
+                outIdx = 3 - bIdx - outIdx;
+            }
+            bIdx = xIdx;
+        }
+    }
+
+    const T* b = buffers + bIdx * n;
+    for (int idx = threadIdx.x; idx < n; idx += blockDim.x)
+    {
+        const int r = idx / TILE, t = idx % TILE;
+        if (t < cols)
+            a.out[(size_t)r * ld + col0 + t] = b[idx];
+    }
+}
+
+static int deviceAttribute(cudaDeviceAttr attribute)
+{
+    int device = 0, value = 0;
+    cudaGetDevice(&device);
+    cudaDeviceGetAttribute(&value, attribute, device);
+    return value;
+}
+
+bool cuda_whole_action_fits(int nRows, size_t realSize, int tile)
+{
+    return 3 * (size_t)nRows * tile * realSize <= (size_t)deviceAttribute(cudaDevAttrMaxSharedMemoryPerBlockOptin);
+}
+
+template <typename T, int TILE>
+static void launch_whole_actions(int nRows, int nCols, int ld, const WholeActionBatch<T>& batch, cudaStream_t stream)
+{
+    const size_t shared = 3 * (size_t)nRows * TILE * sizeof(T);
+    // per instantiation and device: the largest dynamic shared memory allowed so far
+    static size_t configured[64] = {};
+    int device = 0;
+    cudaGetDevice(&device);
+    if (device < 0 or device >= 64 or shared > configured[device])
+    {
+        cudaFuncSetAttribute(whole_action_kernel<T, TILE>, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)shared);
+        if (device >= 0 and device < 64)
+            configured[device] = shared;
+    }
+    const int tilesPerAction = (nCols + TILE - 1) / TILE;
+    const int n = nRows * TILE;
+    // 1024 threads: up to 1.2x faster than 512 once a tile has >= 1024 entries (A100)
+    const int threads = n >= 1024 ? 1024 : ((n + 31) / 32) * 32;
+    whole_action_kernel<T, TILE><<<batch.count * tilesPerAction, threads, shared, stream>>>(nRows, nCols, ld, tilesPerAction, batch);
+}
+
+// The widest tile (up to 8 columns) that still gives about two blocks per SM and fits in shared memory.
+// BEAGLE_ACTION_WHOLE_TILE (1, 2, 4 or 8) overrides it for tuning.
+template <typename T>
+static int wholeActionTile(int nRows, int nCols, int count)
+{
+    static const int forced = getenv("BEAGLE_ACTION_WHOLE_TILE") ? atoi(getenv("BEAGLE_ACTION_WHOLE_TILE")) : 0;
+    const size_t limit = (size_t)deviceAttribute(cudaDevAttrMaxSharedMemoryPerBlockOptin);
+    const int sms = deviceAttribute(cudaDevAttrMultiProcessorCount);
+    int tile = (forced == 1 or forced == 2 or forced == 4 or forced == 8) ? forced : 8;
+    if (not forced)
+        while (tile > 1 and (size_t)count * ((nCols + tile - 1) / tile) < 2 * (size_t)sms)
+            tile /= 2;
+    while (tile > 1 and 3 * (size_t)nRows * tile * sizeof(T) > limit)
+        tile /= 2;
+    return tile;
+}
+
+template <typename T>
+static void cuda_whole_actions_impl(int nRows, int nCols, int ld, const WholeActionBatch<T>& batch, cudaStream_t stream, int tile)
+{
+    if (batch.count == 0) return;
+    switch (tile ? tile : wholeActionTile<T>(nRows, nCols, batch.count))
+    {
+        case 8:  launch_whole_actions<T, 8>(nRows, nCols, ld, batch, stream); break;
+        case 4:  launch_whole_actions<T, 4>(nRows, nCols, ld, batch, stream); break;
+        case 2:  launch_whole_actions<T, 2>(nRows, nCols, ld, batch, stream); break;
+        default: launch_whole_actions<T, 1>(nRows, nCols, ld, batch, stream); break;
+    }
+}
+
+void cuda_whole_actions(int nRows, int nCols, int ld, const WholeActionBatch<float>& batch, cudaStream_t stream, int tile)
+{
+    cuda_whole_actions_impl(nRows, nCols, ld, batch, stream, tile);
+}
+
+void cuda_whole_actions(int nRows, int nCols, int ld, const WholeActionBatch<double>& batch, cudaStream_t stream, int tile)
+{
+    cuda_whole_actions_impl(nRows, nCols, ld, batch, stream, tile);
+}
+
 // The per-pattern reductions over the rows of an (nRows, nPatterns) row-major matrix use blocks of
 // patternsPerBlock x (256 / patternsPerBlock) threads, and split the rows into chunks so that there are
 // enough blocks.  Each chunk writes one partial result per pattern; a second kernel combines them.
@@ -1018,3 +1157,4 @@ void cuda_combine_norm_estimates(const double* sums1, const double* sums2, int t
 {
     cuda_combine_norm_estimates_impl(sums1, sums2, t, pTop, norms, stream);
 }
+

@@ -144,6 +144,39 @@ void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const
 void cuda_taylor_horner_terms(int nRows, int nCols, const int* rowOffsets, const int* columns, const double* values,
                               const TaylorTermBatch<double>& batch, cudaStream_t stream);
 
+// A whole action out = exp(multiplier * B) in = eta^s T_m(A/s)^s in (see BeagleGPUActionImpl::computeActions( ))
+// in one launch: each block keeps a tile of columns of one action in shared memory and runs all s steps of m
+// Horner terms there.  in and out are (nRows, nCols) row-major with row stride ld; B is (nRows, nRows) in CSR.
+// m == 0 copies in to out.
+template <typename T>
+struct WholeAction
+{
+    const int* rowOffsets;
+    const int* columns;
+    const T* values;
+    const T* in;
+    T* out;
+    T multiplier;
+    T eta;
+    int m;
+    int s;
+};
+
+constexpr int kMaxWholeActions = 32;
+
+template <typename T>
+struct WholeActionBatch
+{
+    int count = 0;
+    WholeAction<T> actions[kMaxWholeActions];
+};
+
+// Whether a tile of `tile` columns (1, 2, 4 or 8) of nRows rows fits in shared memory on this device.
+bool cuda_whole_action_fits(int nRows, size_t realSize, int tile = 1);
+// tile = 0 picks the tile width (see wholeActionTile( ) in cuda_ops.cu).
+void cuda_whole_actions(int nRows, int nCols, int ld, const WholeActionBatch<float>& batch, cudaStream_t stream, int tile = 0);
+void cuda_whole_actions(int nRows, int nCols, int ld, const WholeActionBatch<double>& batch, cudaStream_t stream, int tile = 0);
+
 // The product and root kernels need a scratch buffer of cuda_row_chunk_count(nRows, nPatterns) * nPatterns values
 // (per product, for the products).
 int cuda_row_chunk_count(int nRows, int nPatterns);

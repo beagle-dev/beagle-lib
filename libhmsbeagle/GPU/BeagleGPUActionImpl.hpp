@@ -351,6 +351,13 @@ BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUActionImpl()
     cudaSetDevice(gpu->GetCudaDeviceOrdinal());
     cudaStreamSynchronize(stream);
 
+    for (auto& timing: actionTimings)
+        actionEvents.push_back({timing.start, timing.stop});
+    for (auto& [start, stop]: actionEvents) {
+        cudaEventDestroy(start);
+        cudaEventDestroy(stop);
+    }
+
     cudaFree(dActionResults);
     cudaFree(dActionScratch);
     cudaFree(dReductionScratch);
@@ -1333,6 +1340,163 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::calcPrePartials(const std::vector<
 BEAGLE_GPU_TEMPLATE
 void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<ActionGroup>& groups)
 {
+    // (m, s) of every group; their sum of m * s is the work that the strategies are compared on
+    std::vector<std::pair<int,int>> ms(groups.size());
+    long long terms = 0;
+    for (size_t i = 0; i < groups.size(); i++) {
+        auto [m, s] = getStatistics2(1.0, kPaddedPatternCount, groups[i].multiplier, groups[i].eigenIndex, groups[i].transpose);
+        ms[i] = {m, s};
+        terms += (long long) m * s;
+    }
+
+    const ActionChoice choice = chooseActionStrategy(groups.size());
+    const bool timed = choice.timed and terms > 0;
+    cudaEvent_t start = nullptr, stop = nullptr;
+    if (timed) {
+        if (actionEvents.empty()) {
+            cudaEventCreate(&start);
+            cudaEventCreate(&stop);
+        } else {
+            std::tie(start, stop) = actionEvents.back();
+            actionEvents.pop_back();
+        }
+        cudaEventRecord(start, stream);
+    }
+
+    if (choice.tile == 0)
+        computeTermActions(groups, ms);
+    else
+        computeWholeActions(groups, ms, choice.tile > 0 ? choice.tile : 0);
+
+    if (timed) {
+        cudaEventRecord(stop, stream);
+        actionTimings.push_back({start, stop, groups.size(), choice.candidate, terms});
+        actionTuning[groups.size()].issued[choice.candidate]++;
+    }
+}
+
+BEAGLE_GPU_TEMPLATE
+bool BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::actionCandidateFeasible(int candidate) const
+{
+    if (candidate == 0)
+        return true;
+    return kPaddedStateCount <= kMaxWholeActionStates
+        and cuda_whole_action_fits(kPaddedStateCount, sizeof(Real), kActionTiles[candidate - 1]);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::harvestActionTimings()
+{
+    // Read the timings that have finished (without waiting); each candidate's first call is a warm-up.
+    static const bool report = getenv("BEAGLE_ACTION_TUNE_REPORT") != nullptr;
+    std::vector<ActionTiming> pending;
+    for (auto& timing: actionTimings) {
+        if (cudaEventQuery(timing.stop) != cudaSuccess) {
+            pending.push_back(timing);
+            continue;
+        }
+        float milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, timing.start, timing.stop);
+        actionEvents.push_back({timing.start, timing.stop});
+
+        ActionTuning& tuning = actionTuning[timing.key];
+        if (tuning.best >= 0)
+            continue;
+        if (tuning.samples[timing.candidate]++ > 0) {
+            tuning.milliseconds[timing.candidate] += milliseconds;
+            tuning.terms[timing.candidate] += timing.terms;
+        }
+
+        bool complete = true;
+        for (int c = 0; c < kActionCandidates; c++)
+            if (actionCandidateFeasible(c) and tuning.samples[c] < kActionTuneSamples + 1)
+                complete = false;
+        if (not complete)
+            continue;
+        double bestCost = 0;
+        for (int c = 0; c < kActionCandidates; c++) {
+            if (not actionCandidateFeasible(c))
+                continue;
+            const double cost = tuning.milliseconds[c] / tuning.terms[c];
+            if (tuning.best < 0 or cost < bestCost) {
+                tuning.best = c;
+                bestCost = cost;
+            }
+        }
+        if (report) {
+            std::cerr << "BEAGLE action tuning: S = " << kPaddedStateCount << ", " << kPaddedPatternCount
+                      << " patterns, " << timing.key << " groups: us per Taylor term";
+            for (int c = 0; c < kActionCandidates; c++)
+                if (actionCandidateFeasible(c))
+                    std::cerr << (c == 0 ? "  per term " : "  whole/") << (c == 0 ? "" : std::to_string(kActionTiles[c - 1]) + " ")
+                              << 1000 * tuning.milliseconds[c] / tuning.terms[c];
+            std::cerr << "  -> " << (tuning.best == 0 ? std::string("per term") : "whole/" + std::to_string(kActionTiles[tuning.best - 1])) << std::endl;
+        }
+    }
+    actionTimings.swap(pending);
+}
+
+BEAGLE_GPU_TEMPLATE
+typename BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::ActionChoice
+BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::chooseActionStrategy(size_t nGroups)
+{
+    static const char* whole = getenv("BEAGLE_ACTION_WHOLE");
+    static const char* tune = getenv("BEAGLE_ACTION_TUNE");
+    if (whole and whole[0] == '0')
+        return {-1, 0, false};
+    if (whole and whole[0] == '1')
+        return {-1, actionCandidateFeasible(1) ? -1 : 0, false};
+    if (tune and tune[0] == '0') {
+        // The fixed rule (A100, 32 taxa): whole for S <= 512, and up to S = 1024 with <= 16 patterns.
+        const int S = kPaddedStateCount, L = kPaddedPatternCount;
+        const bool useWhole = actionCandidateFeasible(1) and (S <= 512 or (S <= 1024 and L <= 16));
+        return {-1, useWhole ? -1 : 0, false};
+    }
+
+    harvestActionTimings();
+    ActionTuning& tuning = actionTuning[nGroups];
+    if (tuning.best >= 0)
+        return {tuning.best, tuning.best == 0 ? 0 : kActionTiles[tuning.best - 1], false};
+    // Still tuning: the feasible candidate issued least often.
+    int candidate = 0;
+    for (int c = 1; c < kActionCandidates; c++)
+        if (actionCandidateFeasible(c) and tuning.issued[c] < tuning.issued[candidate])
+            candidate = c;
+    return {candidate, candidate == 0 ? 0 : kActionTiles[candidate - 1], true};
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeWholeActions(const std::vector<ActionGroup>& groups,
+                                                                  const std::vector<std::pair<int,int>>& ms, int tile)
+{
+    // One launch for all the groups: each block runs whole actions in shared memory (cuda_whole_actions).
+    WholeActionBatch<Real> batch;
+    for (size_t i = 0; i < groups.size(); i++) {
+        const ActionGroup& group = groups[i];
+        const auto [m, s] = ms[i];
+        const auto& B = dBs[group.eigenIndex];
+        auto& action = batch.actions[batch.count++];
+        action.rowOffsets = group.transpose ? dBtOffsets[group.eigenIndex] : B.offsets;
+        action.columns = group.transpose ? dBtColumns[group.eigenIndex] : B.inner;
+        action.values = group.transpose ? dBtValues[group.eigenIndex] : B.values;
+        action.in = group.in;
+        action.out = group.out;
+        action.multiplier = group.multiplier;
+        action.eta = (m == 0) ? 1 : exp(hMuBs[group.eigenIndex] * group.multiplier / s);
+        action.m = m;
+        action.s = s;
+        if (batch.count == kMaxWholeActions) {
+            cuda_whole_actions(kPaddedStateCount, kPaddedPatternCount, kPaddedPatternCount, batch, stream, tile);
+            batch.count = 0;
+        }
+    }
+    cuda_whole_actions(kPaddedStateCount, kPaddedPatternCount, kPaddedPatternCount, batch, stream, tile);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeTermActions(const std::vector<ActionGroup>& groups,
+                                                                 const std::vector<std::pair<int,int>>& ms)
+{
     const size_t matrixSize = (size_t) kPaddedStateCount * kPaddedPatternCount;
 
     // exp(A) b = eta^s T_m(A/s)^s b, with A = multiplier * B (B = Q - mu I) and eta = exp(multiplier * mu / s).
@@ -1395,6 +1559,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<A
         }
     };
 
+
     std::vector<bool> done(groups.size(), false);
     for (size_t first = 0; first < groups.size(); first++) {
         if (done[first])
@@ -1413,7 +1578,7 @@ void BeagleGPUActionImpl<BEAGLE_GPU_GENERIC>::computeActions(const std::vector<A
                 continue;
             done[i] = true;
             const ActionGroup& group = groups[i];
-            auto [m, s] = getStatistics2(1.0, kPaddedPatternCount, group.multiplier, eigenIndex, transpose);
+            const auto [m, s] = ms[i];
             if (m == 0) {
                 auto status = cudaMemcpyAsync(group.out, group.in, matrixSize * sizeof(Real), cudaMemcpyDeviceToDevice, stream);
                 if (status != cudaSuccess)

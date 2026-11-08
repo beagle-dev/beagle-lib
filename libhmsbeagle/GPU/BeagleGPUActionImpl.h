@@ -1263,8 +1263,55 @@ private:
     // With fewer than 32 patterns, the Horner work blocks are interleaved (see calcPartialsPartials( )).
     bool interleavedScratch() const { return kPaddedPatternCount < 32; }
 
-    // Computes all the actions, batching the Taylor terms of the groups that share Q into one launch each.
+    // computeActions( ) runs the actions in one of two ways, with bitwise identical results:
+    // - per term (computeTermActions): one launch per Taylor term for all the groups that share a matrix, each
+    //   spread over the whole GPU;
+    // - whole (computeWholeActions): one launch for all the groups, each block running whole actions on a tile
+    //   of 1, 2, 4 or 8 columns in shared memory.
+    // Which is faster depends on S, the pattern count, the number of groups and the GPU (A100: whole is up to
+    // ~2x faster for S <= 256 and loses 1.5-2.5x for S >= 2000; at S = 488 the best tile varies 1-8 and per term
+    // wins at 512 patterns with 6 taxa but not with 32).  So by default each instance times every candidate a few
+    // times per number of groups (the first calls of an analysis) and keeps the fastest, per Taylor term.
+    // BEAGLE_ACTION_WHOLE = 0 or 1 forces per term or whole (tile: BEAGLE_ACTION_WHOLE_TILE); BEAGLE_ACTION_TUNE = 0
+    // uses a fixed rule instead of timing; BEAGLE_ACTION_TUNE_REPORT prints each choice.
+    static constexpr int kActionTiles[4] = {1, 2, 4, 8};
+    static constexpr int kActionCandidates = 5;    // per term, then whole with each tile
+    static constexpr int kActionTuneSamples = 3;   // timed calls per candidate, after one warm-up call
+    static constexpr int kMaxWholeActionStates = 2048;
+    struct ActionChoice
+    {
+        int candidate;  // -1 when not tuning
+        int tile;       // 0: per term; -1: whole with cuda_whole_actions' own tile; otherwise whole with this tile
+        bool timed;
+    };
+    struct ActionTuning
+    {
+        int issued[kActionCandidates] = {};
+        int samples[kActionCandidates] = {};
+        double milliseconds[kActionCandidates] = {};
+        long long terms[kActionCandidates] = {};
+        int best = -1;
+    };
+    struct ActionTiming
+    {
+        cudaEvent_t start;
+        cudaEvent_t stop;
+        size_t key;
+        int candidate;
+        long long terms;
+    };
+    std::map<size_t, ActionTuning> actionTuning;           // by number of groups
+    std::vector<ActionTiming> actionTimings;               // recorded, not yet read
+    std::vector<std::pair<cudaEvent_t, cudaEvent_t>> actionEvents;  // free event pairs
+
+    bool actionCandidateFeasible(int candidate) const;
+    ActionChoice chooseActionStrategy(size_t nGroups);
+    void harvestActionTimings();
+
+    // Computes all the actions (see above).
     void computeActions(const std::vector<ActionGroup>& groups);
+    void computeTermActions(const std::vector<ActionGroup>& groups, const std::vector<std::pair<int,int>>& ms);
+    void computeWholeActions(const std::vector<ActionGroup>& groups, const std::vector<std::pair<int,int>>& ms, int tile);
 
     std::tuple<int,int> getStatistics2(double t, int nCol, double edgeMultiplier,
                                        int eigenIndex, bool transpose = false) const;
