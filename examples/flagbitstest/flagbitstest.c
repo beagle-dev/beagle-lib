@@ -9,8 +9,8 @@
  *   - at compile time, each of them is 1LL << n and positive, no two flags share a bit, and every flag field of the
  *     API structs is 8 bytes;
  *   - at run time, the CPU resource's flags from bit 31 up are exactly PREORDER_TRANSPOSE_AUTO (bit 31), _MANUAL
- *     (bit 34) and SPECTRAL_REPRESENTATION (bit 40), plus HIERARCHICAL_REPRESENTATION (bit 41) and COMPUTATION_ACTION
- *     (bit 42) when those plugins are built (its lower bits depend on the build), with no undefined bit set
+ *     (bit 34) and SPECTRAL_REPRESENTATION (bit 40), plus HIERARCHICAL_REPRESENTATION (bit 48) and COMPUTATION_ACTION
+ *     (bit 47) when those plugins are built (its lower bits depend on the build), with no undefined bit set
  *     (no sign extension); a CPU instance that requires PREORDER_TRANSPOSE_MANUAL and SPECTRAL_REPRESENTATION
  *     (bit 40) is a spectral implementation (so both bits reached the selection; a CPU instance does not report
  *     them in its flags), with nothing above bit 46 and no undefined bit in its flags; and one that requires
@@ -42,8 +42,8 @@ HIGH_FLAG(PREORDER_TRANSPOSE_AUTO, 31)
 HIGH_FLAG(VECTOR_TENSOR, 33)
 HIGH_FLAG(PREORDER_TRANSPOSE_MANUAL, 34)
 HIGH_FLAG(SPECTRAL_REPRESENTATION, 40)
-HIGH_FLAG(HIERARCHICAL_REPRESENTATION, 41)
-HIGH_FLAG(COMPUTATION_ACTION, 42)
+HIGH_FLAG(HIERARCHICAL_REPRESENTATION, 48)
+HIGH_FLAG(COMPUTATION_ACTION, 47)
 HIGH_FLAG(FRAMEWORK_TINYGPU, 45)
 HIGH_FLAG(PARALLELOPS_FUSED, 46)
 

@@ -180,8 +180,8 @@ enum BeagleFlags {
     /*  BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO   (1LL << 31), defined after this enum */
 
     /*  BEAGLE_FLAG_SPECTRAL_REPRESENTATION   (1LL << 40), defined after this enum */
-    /*  BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 41), defined after this enum */
-    /*  BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 42), defined after this enum */
+    /*  BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 48), defined after this enum */
+    /*  BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 47), defined after this enum */
 };
 
 /*
@@ -247,13 +247,13 @@ enum BeagleFlags {
  * not applied to the bundle, which is already per category; beagleSetCategoryWeights is still required for the
  * root likelihood.
  */
-#define BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 41)
+#define BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION (1LL << 48)
 
 /**
  * Action-based likelihood: a matrix buffer holds a sparse rate matrix (beagleSetSparseMatrix) and partials are
  * propagated by the action of its exponential, without dense transition matrices.
  */
-#define BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 42)
+#define BEAGLE_FLAG_COMPUTATION_ACTION        (1LL << 47)
 
 #define BEAGLE_FLAG_FRAMEWORK_TINYGPU         (1LL << 45) /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
 #define BEAGLE_FLAG_PARALLELOPS_FUSED         (1LL << 46) /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
