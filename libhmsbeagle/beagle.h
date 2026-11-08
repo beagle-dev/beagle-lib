@@ -258,17 +258,17 @@ enum BeagleFlags {
      * leaves the flags in charge. The instance flags report the setting in effect after the override (ON, OFF, or
      * neither for automatic). BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
      */
-    BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 41,
+    BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 48,
 
     /**
      * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION, always aggregate unobserved states (see that flag).
      */
-    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON  = 1L << 42,
+    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON  = 1L << 49,
 
     /**
      * With BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION, never aggregate unobserved states (see that flag).
      */
-    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF = 1L << 43
+    BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF = 1L << 50
 };
 
 
