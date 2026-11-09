@@ -1,0 +1,82 @@
+name: CUDA tests (simulated H100)
+
+# Optional, non-required check. The hosted runners have no GPU, so this builds
+# the CUDA plugins and runs the GPU tests on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing, so it complements real-GPU testing and
+# does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "libhmsbeagle/**"
+      - "examples/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cuda-sim:
+    name: CUDA 13.0, simulated H100
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@ca87fe3143b29166822b923d6050945c5179408c # v0.1.5
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      # The CUDA plugins embed the kernels as PTX (nvcc -ptx, built by
+      # make_cuda_kernels.sh) and load them through the driver API, so no
+      # architecture flag or shared cudart is needed. OpenCL and JNI are off.
+      - name: Configure project
+        run: |
+          cmake -B build -S . \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCUDAToolkit_ROOT=/usr/local/cuda-13.0 \
+                -DBUILD_CUDA=ON -DBUILD_OPENCL=OFF -DBUILD_JNI=OFF \
+                -DBEAGLE_OPTIMIZE_FOR_NATIVE_ARCH=OFF
+
+      - name: Build project
+        run: cmake --build build -j3
+
+      # The plugins are loaded by file name, so put the build-tree plugin
+      # directories on the library path. The GPU tests set their own
+      # LD_LIBRARY_PATH in ctest, which would hide the simulator's libraries,
+      # so --preload is needed. The last line fails if a GPU test skipped
+      # itself because it found no GPU.
+      # Left out: buffergrowthtest-gpu, gpuspectraltest and gpuspectraldensetest.
+      - name: Run tests
+        working-directory: build
+        run: |
+          export LD_LIBRARY_PATH=$PWD/libhmsbeagle/CPU:$PWD/libhmsbeagle/GPU/CMake_CUDA:$PWD/libhmsbeagle/GPU/CMake_CUDASpectral${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          set -o pipefail
+          vgpu run --preload ctest --output-on-failure -E 'buffergrowthtest-gpu|gpuspectraltest|gpuspectraldensetest' | tee ctest.log
+          ! grep -E 'Test +#[0-9]+: (bastav5test-gpu|adjointtest4-gpu) .*Skipped' ctest.log
+
+      - name: Compare GPU and CPU log likelihoods
+        working-directory: build
+        run: |
+          export LD_LIBRARY_PATH=$PWD/libhmsbeagle/CPU:$PWD/libhmsbeagle/GPU/CMake_CUDA:$PWD/libhmsbeagle/GPU/CMake_CUDASpectral${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          args="--states 4 --taxa 14 --sites 1240 --rates 4 --reps 2 --compacttips 7 --seed 1 --manualscale --rescalefrequency 2 --doubleprecision"
+          vgpu run ./examples/synthetictest --rsrc 0 $args | tee cpu.txt
+          vgpu run ./examples/synthetictest --rsrc 1 $args | tee gpu.txt
+          grep -q "FRAMEWORK_CUDA" gpu.txt
+          cpu=$(sed -n 's/^logL = \(-[0-9.]*\).*/\1/p' cpu.txt)
+          gpu=$(sed -n 's/^logL = \(-[0-9.]*\).*/\1/p' gpu.txt)
+          echo "CPU logL $cpu, GPU logL $gpu"
+          awk -v a="$cpu" -v b="$gpu" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 1e-6 * (a < 0 ? -a : a)) }'
