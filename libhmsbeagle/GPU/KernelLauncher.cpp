@@ -638,6 +638,11 @@ void KernelLauncher::LoadKernels() {
 
         fSumSites1Partition = gpu->GetFunction("kernelSumSites1Partition");
     }
+#ifdef FW_TINYGPU
+    // resetScaleFactors and copyScaleFactors as launches at every state count (BeagleGPUImpl)
+    fResetFactorsDynamicScalingByPartition = gpu->GetFunction("kernelResetFactorsByPartition");
+    fCopyFactors = gpu->GetFunction("kernelCopyFactors");
+#endif
 #endif // !FW_OPENCL_TESTING
 }
 
@@ -2746,6 +2751,19 @@ void KernelLauncher::ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactor
 #endif
 
 }
+
+#ifdef FW_TINYGPU
+void KernelLauncher::CopyFactors(GPUPtr dScalingFactorsDest,
+                                 GPUPtr dScalingFactorsSource,
+                                 unsigned int count) {
+    Dim3Int grid((count + kPatternBlockSize - 1) / kPatternBlockSize);
+    gpu->LaunchKernel(fCopyFactors,
+                      bgAccumulateBlock, grid,
+                      2, 3,
+                      dScalingFactorsDest, dScalingFactorsSource,
+                      count);
+}
+#endif
 
 void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr scalingFactors,

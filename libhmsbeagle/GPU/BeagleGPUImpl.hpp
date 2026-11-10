@@ -92,6 +92,9 @@ namespace gpu {
 
     dPtrQueue = (GPUPtr)NULL;
     kPtrQueueLength = 0;
+#ifdef FW_TINYGPU
+    dZeroWord = (GPUPtr)NULL;
+#endif
 
     dDerivativeQueue = (GPUPtr)NULL;
 
@@ -660,6 +663,9 @@ BeagleGPUImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUImpl() {
         gpu->FreeMemory(dDistanceQueue);
 
         gpu->FreeMemory(dPtrQueue);
+#ifdef FW_TINYGPU
+        gpu->FreeMemory(dZeroWord);
+#endif
 
         gpu->FreeMemory(dDerivativeQueue);
 
@@ -1351,6 +1357,11 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::createInstance(int tipCount,
     hPtrQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * ptrQueueLength);
     checkHostMemory(hPtrQueue);
     kPtrQueueLength = ptrQueueLength;
+#ifdef FW_TINYGPU
+    dZeroWord = gpu->AllocateMemory(sizeof(unsigned int));
+    const unsigned int zeroWord = 0;
+    gpu->MemcpyHostToDevice(dZeroWord, &zeroWord, sizeof(unsigned int));
+#endif
 
     dDerivativeQueue = gpu->AllocateMemory(sizeof(unsigned int) * kBufferCount * 3);
     hDerivativeQueue = (unsigned int*) gpu->MallocHost(sizeof(unsigned int) * kBufferCount * 3);
@@ -6865,6 +6876,10 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::accumulateScaleFactors(const int* scaling
 
         kernels->AccumulateFactorsAutoScaling(scalingFactorsOrigin(), dPtrQueue, dAccumulatedScalingFactors, activeCount, kPaddedPatternCount, kScaleBufferStride);
 
+#ifdef FW_TINYGPU
+    } else if (count == 1) { // as removeScaleFactors: the buffer as the origin, no upload
+        kernels->AccumulateFactorsDynamicScaling(dScalingFactors[scalingIndices[0]], dZeroWord, dScalingFactors[cumulativeScalingIndex], 1, kPaddedPatternCount);
+#endif
     } else {
         for(int n = 0; n < count; n++) {
             hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
@@ -6953,13 +6968,23 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::removeScaleFactors(const int* scalingIndi
         }
     }
 
-    for(int n = 0; n < count; n++)
-        hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
-    gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
+#ifdef FW_TINYGPU
+    if (count == 1 && !(kFlags & BEAGLE_FLAG_SCALING_AUTO)) {
+        // the buffer itself as the origin with the index 0, the same address as its index into the pool: no upload,
+        // which on TinyGPU is a copy-engine frame between the launches (BEAST removes one buffer per node)
+        kernels->RemoveFactorsDynamicScaling(dScalingFactors[scalingIndices[0]], dZeroWord,
+                                             dScalingFactors[cumulativeScalingIndex], 1, kPaddedPatternCount);
+    } else
+#endif
+    {
+        for(int n = 0; n < count; n++)
+            hPtrQueue[n] = scalingIndices[n] * kScaleBufferSize;
+        gpu->MemcpyHostToDevice(dPtrQueue, hPtrQueue, sizeof(unsigned int) * count);
 
-    // Compute scaling factors at the root
-    kernels->RemoveFactorsDynamicScaling(scalingFactorsOrigin(), dPtrQueue, dScalingFactors[cumulativeScalingIndex],
-                                         count, kPaddedPatternCount);
+        // Compute scaling factors at the root
+        kernels->RemoveFactorsDynamicScaling(scalingFactorsOrigin(), dPtrQueue, dScalingFactors[cumulativeScalingIndex],
+                                             count, kPaddedPatternCount);
+    }
 
 #ifdef BEAGLE_DEBUG_SYNCH
     gpu->SynchronizeHost();
@@ -7029,13 +7054,22 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::resetScaleFactors(int cumulativeScalingIn
         }
     }
 
-    Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedPatternCount);
+#ifdef FW_TINYGPU
+    // a launch, not an upload of zeroes, which would be a copy-engine frame between the launches (BEAST resets per node);
+    // not with AUTO's byte-strided buffers, where the kernel's Real stores could be misaligned
+    if (!(kFlags & BEAGLE_FLAG_SCALING_AUTO)) {
+        kernels->ResetFactorsDynamicScalingByPartition(dScalingFactors[cumulativeScalingIndex], 0, kPaddedPatternCount);
+    } else
+#endif
+    {
+        Real* zeroes = (Real*) gpu->CallocHost(sizeof(Real), kPaddedPatternCount);
 
-    // Fill with zeroes
-    gpu->MemcpyHostToDevice(dScalingFactors[cumulativeScalingIndex], zeroes,
-                            sizeof(Real) * kPaddedPatternCount);
+        // Fill with zeroes
+        gpu->MemcpyHostToDevice(dScalingFactors[cumulativeScalingIndex], zeroes,
+                                sizeof(Real) * kPaddedPatternCount);
 
-    gpu->FreeHostMemory(zeroes);
+        gpu->FreeHostMemory(zeroes);
+    }
 
 #ifdef BEAGLE_DEBUG_SYNCH
     gpu->SynchronizeHost();
@@ -7125,7 +7159,12 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::copyScaleFactors(int destScalingIndex,
     if (kFlags & BEAGLE_FLAG_SCALING_DYNAMIC) {
         dScalingFactors[destScalingIndex] = dScalingFactors[srcScalingIndex];
     } else {
-        gpu->MemcpyDeviceToDevice(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], sizeof(Real)*kScaleBufferSize);
+#ifdef FW_TINYGPU   // a launch, not a copy-engine frame between the launches (BEAST copies one buffer per node); not with AUTO,
+        if (!(kFlags & BEAGLE_FLAG_SCALING_AUTO))   // as resetScaleFactors
+            kernels->CopyFactors(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], kScaleBufferSize);
+        else
+#endif
+            gpu->MemcpyDeviceToDevice(dScalingFactors[destScalingIndex], dScalingFactors[srcScalingIndex], sizeof(Real)*kScaleBufferSize);
     }
 #ifdef BEAGLE_DEBUG_SYNCH
     gpu->SynchronizeHost();

@@ -113,6 +113,9 @@ private:
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fRemoveFactorsDynamicScalingByPartition;
     GPUFunction fResetFactorsDynamicScalingByPartition;
+#ifdef FW_TINYGPU
+    GPUFunction fCopyFactors;
+#endif
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingByPartition;
     GPUFunction fPartialsDynamicScalingAccumulate;
@@ -772,6 +775,12 @@ public:
     void ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
                                                int startPattern,
                                                int endPattern);
+
+#ifdef FW_TINYGPU
+    void CopyFactors(GPUPtr dScalingFactorsDest,
+                     GPUPtr dScalingFactorsSource,
+                     unsigned int count);
+#endif
 
     void RescalePartials(GPUPtr partials3,
                          GPUPtr scalingFactors,

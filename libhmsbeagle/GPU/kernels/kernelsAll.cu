@@ -1844,6 +1844,19 @@ KW_GLOBAL_KERNEL void kernelResetFactorsByPartition(KW_GLOBAL_VAR REAL* dScaling
     }
 }
 
+#if defined(FW_TINYGPU) || defined(FW_TINYGPU_AMD)
+/* TinyGPU's copyScaleFactors: queued with the launches around it, where a device-to-device copy is a copy-engine frame */
+KW_GLOBAL_KERNEL void kernelCopyFactors(KW_GLOBAL_VAR REAL* dScalingFactorsDest,
+                                        KW_GLOBAL_VAR REAL* dScalingFactorsSource,
+                                        int count) {
+    int i = KW_LOCAL_ID_0 + KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE;
+
+    if (i < count) {
+        dScalingFactorsDest[i] = dScalingFactorsSource[i];
+    }
+}
+#endif
+
 
 KW_GLOBAL_KERNEL void kernelPartialsDynamicScalingSlow(KW_GLOBAL_VAR REAL* allPartials,
                                                  KW_GLOBAL_VAR REAL* scalingFactors,

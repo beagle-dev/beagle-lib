@@ -117,6 +117,9 @@ private:
     int kDistanceQueueLength; // Reals in dDistanceQueue and hDistanceQueue
 
     GPUPtr dPtrQueue;
+#ifdef FW_TINYGPU
+    GPUPtr dZeroWord; // one unsigned int 0: a one-index queue for a scale buffer passed as the kernel's origin
+#endif
     int kPtrQueueLength;      // entries in dPtrQueue and hPtrQueue
 
 	GPUPtr dDerivativeQueue;
