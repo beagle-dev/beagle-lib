@@ -92,6 +92,7 @@ namespace beagle {
             bool gAggregateOn = false;
             std::vector<HierarchicalClass<REALTYPE>> gClasses;
             std::vector<int> gClassOfPattern;
+            std::vector<std::vector<int>> gTipRow;
             std::vector<int> gPatternCapacity;
             std::vector<size_t> gPatternOffset;
             size_t gRaggedSize = 0;
@@ -164,6 +165,7 @@ namespace beagle {
             void invalidateClasses(bool expand);
             void expandRagged(int topologyId);
             void observedSets(std::vector<int>& offsets, std::vector<int>& values);
+            void buildTipRows();
             void opTopologies(const int* operations, int count, int numOps);
             bool buildClasses(const HierarchicalOps& ops);
             bool aggregateCall(const int* operations, int count, int numOps, const char*& reason);

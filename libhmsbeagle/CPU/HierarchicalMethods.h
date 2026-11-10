@@ -301,6 +301,7 @@ void hierarchicalLaneChild(const HierarchicalSlot<REALTYPE>& slot,
                            int stateCount,
                            int categoryCount,
                            int state,
+                           int row,
                            const REALTYPE* childRows,
                            REALTYPE* dest,
                            REALTYPE* U);

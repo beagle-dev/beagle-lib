@@ -692,6 +692,7 @@ void hierarchicalLaneChild(const HierarchicalSlot<REALTYPE>& slot,
                            int stateCount,
                            int categoryCount,
                            int state,
+                           int row,
                            const REALTYPE* childRows,
                            REALTYPE* dest,
                            REALTYPE* U) {
@@ -705,7 +706,6 @@ void hierarchicalLaneChild(const HierarchicalSlot<REALTYPE>& slot,
                                                                                  -1, (const REALTYPE*) NULL, dest, U);
         return;
     }
-    const int row = hierarchicalLaneRow(red, state);
     if (row >= 0 && !red.laneDepth.empty())
         hierarchicalLanePath<Multiply, FixedCategories>(slot, red, stateCount, categoryCount, row, dest, U);
     else

@@ -20,6 +20,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <new>
 #include <cstring>
 #include <iostream>
 
@@ -310,6 +311,10 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::aggregatedPartials(int parIn
                                                                         : gRagged[child1Index]);
     const REALTYPE* ragged2 = singleChild || states2 ? NULL : (child2Index < kTipCount ? gTipRagged[live][child2Index]
                                                                                        : gRagged[child2Index]);
+    const int* tipRow1 = states1 && (size_t) child1Index < gTipRow.size() && !gTipRow[child1Index].empty()
+                         ? gTipRow[child1Index].data() : NULL;
+    const int* tipRow2 = states2 && (size_t) child2Index < gTipRow.size() && !gTipRow[child2Index].empty()
+                         ? gTipRow[child2Index].data() : NULL;
     for (int k = startPattern; k < endPattern; k++) {
         const HierarchicalReduced<REALTYPE>& red = gClasses[gClassOfPattern[k]].reduced[live];
         const int Sc = red.stateCount;
@@ -319,19 +324,21 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::aggregatedPartials(int parIn
         const REALTYPE* rows2 = ragged2 ? ragged2 + off : NULL;
         const int s1 = states1 ? states1[k] : -1;
         const int s2 = states2 ? states2[k] : -1;
+        const int row1 = s1 < 0 || s1 >= kStateCount ? -1 : (tipRow1 ? tipRow1[k] : hierarchicalLaneRow(red, s1));
+        const int row2 = s2 < 0 || s2 >= kStateCount ? -1 : (tipRow2 ? tipRow2[k] : hierarchicalLaneRow(red, s2));
         if (Sc == 1) {
             for (int l = 0; l < kCategoryCount; l++)
                 dest[l] = (rows1 ? rows1[l] : REALTYPE(1)) * (rows2 ? rows2[l] : REALTYPE(1));
         } else {
             REALTYPE* U = gRaggedW + 2 * off;
             if (kCategoryCount == 1) {
-                hierarchicalLaneChild<false, 1>(slot1, red, kStateCount, 1, s1, rows1, dest, U);
+                hierarchicalLaneChild<false, 1>(slot1, red, kStateCount, 1, s1, row1, rows1, dest, U);
                 if (!singleChild)
-                    hierarchicalLaneChild<true, 1>(*slot2, red, kStateCount, 1, s2, rows2, dest, U);
+                    hierarchicalLaneChild<true, 1>(*slot2, red, kStateCount, 1, s2, row2, rows2, dest, U);
             } else {
-                hierarchicalLaneChild<false, 0>(slot1, red, kStateCount, kCategoryCount, s1, rows1, dest, U);
+                hierarchicalLaneChild<false, 0>(slot1, red, kStateCount, kCategoryCount, s1, row1, rows1, dest, U);
                 if (!singleChild)
-                    hierarchicalLaneChild<true, 0>(*slot2, red, kStateCount, kCategoryCount, s2, rows2, dest, U);
+                    hierarchicalLaneChild<true, 0>(*slot2, red, kStateCount, kCategoryCount, s2, row2, rows2, dest, U);
             }
         }
         finishPattern(dest, Sc * kCategoryCount, rescale, fixedScaleFactors, scaleFactors, cumulativeScaleFactors, k);
@@ -1224,6 +1231,7 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::invalidateClasses(bool expan
     gAggregated = false;
     gClasses.clear();
     gClassOfPattern.clear();
+    gTipRow.clear();
     gPatternCapacity.clear();
     gPatternOffset.clear();
     gRaggedSize = 0;
@@ -1277,6 +1285,21 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::observedSets(std::vector<int
             mark[values[i]] = 0;
         std::sort(values.begin() + start, values.end());
         offsets[k + 1] = (int) values.size();
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildTipRows() {
+    gTipRow.assign(kTipCount, std::vector<int>());
+    for (int t = 0; t < kTipCount; t++) {
+        const int* states = gTipStates[t];
+        if (states == NULL)
+            continue;
+        std::vector<int>& rows = gTipRow[t];
+        rows.resize(kPatternCount);
+        for (int k = 0; k < kPatternCount; k++)
+            rows[k] = states[k] < kStateCount
+                      ? hierarchicalLaneRow(gClasses[gClassOfPattern[k]].reduced[0], states[k]) : -1;
     }
 }
 
@@ -1535,8 +1558,13 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::buildClasses(const Hierarchi
         gLiveUse[0] = ++gUseClock;
         gCurrentLive = 0;
         buildSupport(0);
-        std::vector<int> added(1, 0);
-        allocated = layoutRagged(added);
+        try {
+            buildTipRows();
+            std::vector<int> added(1, 0);
+            allocated = layoutRagged(added);
+        } catch (const std::bad_alloc&) {
+            allocated = false;
+        }
     } else {
         gClasses.clear();
         gClassOfPattern.clear();
