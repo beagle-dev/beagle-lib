@@ -735,6 +735,9 @@ enum BeagleDeviceImplementationCodes {
 // never has FW_OPENCL_AMDGPU; KernelLauncher picks the same width from the device's implementation code.
 #define ADJOINT_BLOCK_SP_N_DEFAULT  128
 #define ADJOINT_BLOCK_SP_N_AMDGPU    64
+// The most patterns kernelAdjointLowRankN sums (its shared memory holds two vectors per pattern); KernelLauncher sends
+// more to kernelAdjointMergedN
+#define ADJOINT_LOWRANK_MAX_PATTERNS  4
 
 #define SUM_SITES_BLOCK_SIZE    GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
 #define MULTI_NODE_SUM_BLOCK_SIZE    GET2_VALUE(MULTI_NODE_SUM_BLOCK_SIZE, PREC)

@@ -384,6 +384,7 @@ void KernelLauncher::LoadKernels() {
             fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
+            fAdjointLowRankN = gpu->GetFunction("kernelAdjointLowRankN");
         }
         fAdjointScaledSiteLogLk = gpu->GetFunction("kernelAdjointScaledSiteLogLk");
     }
@@ -1417,6 +1418,16 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
                                                          unsigned int categoryCount,
                                                          int branchCount) {
     Dim3Int block(kAdjointBlockSizeN);
+    if (kUnpaddedPatternCount <= ADJOINT_LOWRANK_MAX_PATTERNS) { // a block per branch and category
+        Dim3Int grid(branchCount, categoryCount);
+        gpu->LaunchKernel(fAdjointLowRankN, block, grid, 11, 13,
+            partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+            distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+            gradientOrigin, adjointQueue,
+            (int)patternCount, (int)kUnpaddedPatternCount);
+        SYNCHRONIZE_FOR_ORDER();
+        return;
+    }
     Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
     gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 13,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,

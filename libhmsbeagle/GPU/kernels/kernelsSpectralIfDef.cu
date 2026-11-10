@@ -1420,6 +1420,162 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Adjoint cross-product kernel — generic N-state, few patterns
+ *
+ * kernelAdjointMergedN's quantity when at most ADJOINT_LOWRANK_MAX_PATTERNS
+ * patterns are summed (KernelLauncher chooses). Its row ls of the rotated
+ * cross product,
+ *     Op[ls,r] = sum_rs (sum_k A_k[ls] p_k[rs]) ievc[rs*S+r],
+ * with A_k[ls] = w_k sum_j evecT[j*S+ls] pre_k[j] and p_k the post-order
+ * vector (partials, a tip's state, or all ones for a missing state), is
+ *     Op[ls,r] = sum_k A_k[ls] C_k[r],   C_k[r] = sum_rs p_k[rs] ievc[rs*S+r].
+ * So one block per (branch, category), grid = (branchCount, categoryCount),
+ * computes A and C once, O(K S^2), where kernelAdjointMergedN rotates every
+ * row, O(S^3) per branch with a block per row. It then builds each row of Op
+ * in shared memory, as kernelAdjointMergedN's reduction does, and applies the
+ * same transform helpers, each thread taking the columns it owns. The rows
+ * start at an offset that moves with the branch, so that the blocks running
+ * together add into different rows of the gradient.
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+KW_GLOBAL_KERNEL void kernelAdjointLowRankN(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        int totalPatterns,
+        int patternCount) { /* as kernelAdjointMergedN's; patternCount <= ADJOINT_LOWRANK_MAX_PATTERNS */
+
+    const int tid    = KW_LOCAL_ID_0;
+    const int branch = KW_GROUP_ID_0;
+    const int cat    = KW_GROUP_ID_1;
+    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
+
+    const bool isStates  = (rec[2] != 0u);
+    const bool isAllReal = (rec[8] != 0u);
+
+    KW_GLOBAL_VAR REAL* perSiteLikelihoods = siteLogLkOrigin + rec[9];
+
+    KW_GLOBAL_VAR REAL* prePartials  = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* postPartials = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  tipStates    = statesOrigin    + rec[1];
+    KW_GLOBAL_VAR REAL* evecT        = evecTOrigin     + rec[3];
+    KW_GLOBAL_VAR REAL* ievc         = ievcOrigin      + rec[4];
+    KW_GLOBAL_VAR REAL* eigenValues  = evalOrigin      + rec[5];
+    KW_GLOBAL_VAR REAL* distances    = distOrigin      + rec[6];
+    KW_GLOBAL_VAR REAL* dGradient    = gradientOrigin  + rec[7];
+
+    KW_LOCAL_MEM REAL sEvalR  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sEvalI  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpat  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sCosbt  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sSinbt  [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatC [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sExpatS [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sA      [ADJOINT_LOWRANK_MAX_PATTERNS * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sC      [ADJOINT_LOWRANK_MAX_PATTERNS * PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sOpRow0 [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM REAL sOpRow1 [PADDED_STATE_COUNT];
+    KW_LOCAL_MEM int  sColStep[PADDED_STATE_COUNT];   /* 1 a real column, 2 a complex pair's first, 0 its second */
+
+    const REAL t = distances[cat];
+    const REAL catW = categoryWeights[cat];
+    const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
+
+    for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N) {
+        sEvalR[i] = eigenValues[i];
+        sEvalI[i] = isAllReal ? (REAL)0 : eigenValues[PADDED_STATE_COUNT + i];
+        const REAL e = exp(sEvalR[i] * t);
+        sExpat[i] = e;
+        if (!isAllReal) {
+            REAL sv, cv;
+            SPECTRAL_SINCOS(sEvalI[i] * t, sv, cv);
+            sCosbt[i] = cv; sSinbt[i] = sv;
+            sExpatC[i] = e * cv; sExpatS[i] = e * sv;
+        }
+        for (int k = 0; k < patternCount; k++) {
+            REAL lhs = (REAL)0;
+            KW_NO_UNROLL   /* comgr would unroll and spill these state loops (GPUImplDefs.h) */
+            for (int j = 0; j < PADDED_STATE_COUNT; j++)
+                SPECTRAL_FMA(evecT[j * PADDED_STATE_COUNT + i], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhs);
+            sA[k * PADDED_STATE_COUNT + i] = lhs * (patternWeights[k] * catW / exp(perSiteLikelihoods[k]));
+            REAL rhs = (REAL)0;
+            if (isStates) {
+                const int st = tipStates[k];
+                if (st >= PADDED_STATE_COUNT) {
+                    KW_NO_UNROLL
+                    for (int rs = 0; rs < PADDED_STATE_COUNT; rs++) rhs += ievc[rs * PADDED_STATE_COUNT + i];
+                } else {
+                    rhs = ievc[st * PADDED_STATE_COUNT + i];
+                }
+            } else {
+                KW_NO_UNROLL
+                for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
+                    SPECTRAL_FMA(postPartials[catOff + k*PADDED_STATE_COUNT + rs], ievc[rs * PADDED_STATE_COUNT + i], rhs);
+            }
+            sC[k * PADDED_STATE_COUNT + i] = rhs;
+        }
+    }
+    KW_LOCAL_FENCE;
+    if (tid == 0) {   /* the columns as the transform helpers' loops step through them */
+        for (int rs = 0; rs < PADDED_STATE_COUNT; ) {
+            if (sEvalI[rs] == (REAL)0) { sColStep[rs] = 1; rs++; }
+            else { sColStep[rs] = 2; if (rs + 1 < PADDED_STATE_COUNT) sColStep[rs + 1] = 0; rs += 2; }
+        }
+    }
+    KW_LOCAL_FENCE;
+
+    const int start = branch % PADDED_STATE_COUNT;
+    KW_NO_UNROLL
+    for (int i = 0; i < PADDED_STATE_COUNT; i++) {
+        const int ls = (start + i) % PADDED_STATE_COUNT;
+        /* rows: pairs by position (eigenValues[2S + ls]), as kernelAdjointMergedN's blocks */
+        const int pairPosition = isAllReal ? 0 : (int) eigenValues[2 * PADDED_STATE_COUNT + ls];
+        if (pairPosition < 0) continue;   /* the pair's second row, done with its first */
+        const bool isPairLeader = (pairPosition > 0);
+        for (int c = tid; c < PADDED_STATE_COUNT; c += ADJOINT_BLOCK_SP_N) {
+            REAL op0 = (REAL)0, op1 = (REAL)0;
+            for (int k = 0; k < patternCount; k++) {
+                SPECTRAL_FMA(sA[k * PADDED_STATE_COUNT + ls], sC[k * PADDED_STATE_COUNT + c], op0);
+                if (isPairLeader) SPECTRAL_FMA(sA[k * PADDED_STATE_COUNT + ls + 1], sC[k * PADDED_STATE_COUNT + c], op1);
+            }
+            sOpRow0[c] = op0;
+            if (isPairLeader) sOpRow1[c] = op1;
+        }
+        KW_LOCAL_FENCE;
+        for (int c = tid; c < PADDED_STATE_COUNT; c += ADJOINT_BLOCK_SP_N) {
+            const int step = sColStep[c];
+            if (step == 0) continue;
+            if (!isPairLeader) {
+                if (step == 1)
+                    adjointSingletonRealStep(dGradient, PADDED_STATE_COUNT, ls, c, t, sExpat[ls], sEvalR[ls],
+                                             sEvalR, sExpat, sOpRow0);
+                else
+                    adjointSingletonComplexStep(dGradient, PADDED_STATE_COUNT, ls, c, t, sExpat[ls], sEvalR[ls], sEvalI[c],
+                                                sEvalR, sExpat, sCosbt, sSinbt, sOpRow0);
+            } else {
+                if (step == 1)
+                    adjointPairleaderRealStep(dGradient, PADDED_STATE_COUNT, ls, c, t,
+                                              sEvalR[ls], sEvalI[ls], sExpatC[ls], sExpatS[ls], sCosbt[ls], sSinbt[ls], sExpat[ls],
+                                              sEvalR, sExpat, sOpRow0, sOpRow1);
+                else
+                    adjointPairleaderComplexStep(dGradient, PADDED_STATE_COUNT, ls, c, t,
+                                                 sEvalR[ls], sEvalI[ls], sExpatC[ls], sExpatS[ls], sCosbt[ls], sSinbt[ls], sExpat[ls],
+                                                 sEvalI[c], sEvalR, sExpat, sCosbt, sSinbt, sOpRow0, sOpRow1);
+            }
+        }
+        KW_LOCAL_FENCE;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Rescaled site log likelihoods for the adjoint (beagle.h,
  * beagleCalculateAdjointCrossProductDerivative; BeagleCPUImpl::adjointNodeLikelihoods).
  * One block per adjoint-queue branch. A branch with a post- or pre-order scale

@@ -80,6 +80,7 @@ private:
      * (see STATUS.md/TODO.md — supersedes earlier two-phase, fused, and
      * bucketed designs, all verified and benchmarked before removal) */
     GPUFunction fAdjointMergedN;
+    GPUFunction fAdjointLowRankN;
     /* Adjoint cross-product kernel — 4-state, merged single launch */
     GPUFunction fAdjointMerged4;
     /* the rescaled branches' site log likelihoods for either merged adjoint kernel */
