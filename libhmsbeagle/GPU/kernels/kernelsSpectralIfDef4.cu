@@ -1276,7 +1276,8 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
  * `ADJOINT4_ALLREAL_SMEM()`, so declaring it unconditionally covers both
  * cases. ═══════════════════════════════════════════════════════════════*/
 
-#define ADJOINT_QUEUE_STRIDE 9
+/* fields 9-12: the branch's row of site log likelihoods and its scale buffers (kernelAdjointScaledSiteLogLk) */
+#define ADJOINT_QUEUE_STRIDE 13
 
 KW_GLOBAL_KERNEL void
 #ifdef FW_TINYGPU_AMD
@@ -1293,7 +1294,7 @@ kernelAdjointMerged4(
         KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT perSiteLikelihoods,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
         KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
         int totalPatterns,
@@ -1306,6 +1307,8 @@ kernelAdjointMerged4(
 
     const bool isStates  = (rec[2] != 0u);
     const bool isAllReal = (rec[8] != 0u);
+
+    KW_GLOBAL_VAR REAL* perSiteLikelihoods = siteLogLkOrigin + rec[9];   // this branch's row (rescaled or not)
 
     KW_GLOBAL_VAR REAL* prePartials  = partialsOrigin + rec[0];
     KW_GLOBAL_VAR REAL* postPartials = partialsOrigin + rec[1];
@@ -1335,4 +1338,29 @@ kernelAdjointMerged4(
         ADJOINT4_REDUCE()
         ADJOINT4_APPLY_COMPLEX(dGradient)
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Rescaled site log likelihoods for the adjoint (beagle.h,
+ * beagleCalculateAdjointCrossProductDerivative; BeagleCPUImpl::adjointNodeLikelihoods).
+ * One block per adjoint-queue branch. A branch with a post- or pre-order scale
+ * index has its own row (field 9, its offset in siteLogLk; 0 means row 0, the
+ * root's site log likelihoods, and nothing to do):
+ *   siteLogLk[row + k] = siteLogLk[k] - (post[k] + pre[k] - root[k]),
+ * from the cumulative (log) scale buffers at offsets 10, 11 and 12 of the scale
+ * pool (its buffer of zeros for an index that is NONE). Identical in
+ * kernelsSpectralIfDef.cu and kernelsSpectralIfDef4.cu.
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+KW_GLOBAL_KERNEL void kernelAdjointScaledSiteLogLk(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLk,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scaleOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        int patternCount) {
+    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + KW_GROUP_ID_0 * ADJOINT_QUEUE_STRIDE;
+    const unsigned int row = rec[9];
+    if (row == 0u) return;
+    for (int k = KW_LOCAL_ID_0; k < patternCount; k += KW_LOCAL_SIZE_0)
+        siteLogLk[row + k] = siteLogLk[k] -
+            (scaleOrigin[rec[10] + k] + scaleOrigin[rec[11] + k] - scaleOrigin[rec[12] + k]);
 }

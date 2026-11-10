@@ -6,6 +6,8 @@
  * adjoint gradient also runs with padded patterns of zero site likelihood, and must not change the site log likelihoods.
  * Each tested partials buffer is filled with NaN before its operation, and a call that fails counts as an infinite
  * error. For the first model the whole post-order also runs under ALWAYS and AUTO scaling, each in one call.
+ * The adjoint gradient also runs from rescaled post-order partials, on the CPU and the GPU, corrected by scale indices
+ * as BEAST passes them and as beagle.h's whole contract, against the unscaled gradient.
  * The tree has two degree-2 nodes (one child, BEAGLE_OP_NONE as child 2 or sibling), which also run as a whole tree, one
  * call per pass, against the same tree encoded with a ones buffer through a zero-length branch (no degree-2 operation).
  *
@@ -338,7 +340,8 @@ int main(int argc, char** argv) {
         for (const BeagleOperation& op : postOnes) internalOnes.push_back(op.destinationPartials);
 
         for (const Model& model : models) {
-            auto create = [&](bool gpu, std::string& name, long long scaling = BEAGLE_FLAG_SCALING_MANUAL) -> int {
+            auto create = [&](bool gpu, std::string& name, long long scaling = BEAGLE_FLAG_SCALING_MANUAL,
+                              long long scalers = BEAGLE_FLAG_SCALERS_RAW) -> int {
                 const long long flags = (model.complex ? BEAGLE_FLAG_EIGEN_COMPLEX : BEAGLE_FLAG_EIGEN_REAL) |
                                    BEAGLE_FLAG_SPECTRAL_REPRESENTATION | BEAGLE_FLAG_PREORDER_TRANSPOSE_AUTO |
                                    (gpu ? BEAGLE_FLAG_PROCESSOR_GPU : BEAGLE_FLAG_PROCESSOR_CPU) |
@@ -346,7 +349,7 @@ int main(int argc, char** argv) {
                 int resource = gpu ? gpuResource : 0;
                 BeagleInstanceDetails details;
                 const int instance = beagleCreateInstance(N, 6 * M + 2, N, S, C, 1, M + 1, K, 6 * M + 2 - N, &resource, 1,
-                                                          BEAGLE_FLAG_SCALERS_RAW | scaling, flags, &details);
+                                                          scalers | scaling, flags, &details);
                 if (instance < 0) return instance;
                 if (scaling != BEAGLE_FLAG_SCALING_MANUAL && !(details.flags & scaling)) {   // not the scaling asked for
                     beagleFinalizeInstance(instance);
@@ -598,6 +601,127 @@ int main(int argc, char** argv) {
                            rc == BEAGLE_SUCCESS ? logError(gpuSites, cpuSites) : INFINITY);
                     if (scaled >= 0) beagleFinalizeInstance(scaled);
                 }
+
+            // the adjoint gradient from rescaled partials (beagle.h, beagleCalculateAdjointCrossProductDerivative), on
+            // the CPU and on the GPU: every internal node n writes its factors (scale buffer n - N) in the post-order,
+            // the TOP pre-order is not rescaled (as BEAST's), and the gradient corrected two ways must be the unscaled
+            // CPU gradient: BEAST's (only preScaleIndices, each branch's ancestors' factors negated, built top-down as
+            // AbstractBeagleGradientDelegate.buildNegAncestorCumulativeScaleBuffer: buffers M + n) and the whole
+            // contract (post: the branch's subtree, 2M + n; pre: the rest but its ancestors, 3M + n; the root, 4M).
+            // Uncorrected (no scale arrays) it must miss; an all-NONE array is the same as none. First a call on half
+            // the branches (GPU against CPU), so the GPU's rows of site log likelihoods grow twice. Raw scalers, and
+            // for the first model also log ones.
+            for (const long long scalers : {BEAGLE_FLAG_SCALERS_RAW, BEAGLE_FLAG_SCALERS_LOG}) {
+                if (scalers == BEAGLE_FLAG_SCALERS_LOG && &model != &models.front()) continue;
+                const int count = (int) branches.size(), half = count / 2, rootCumulative = 4 * M;
+                auto parentOf = [&](int c) {
+                    for (int n = N; n < M; n++)
+                        for (int x : tree.children[n]) if (x == c) return n;
+                    return -1;
+                };
+                auto below = [&](int x, int c) { // x is c or a descendant of c
+                    for (; x >= 0; x = parentOf(x)) if (x == c) return true;
+                    return false;
+                };
+                std::vector<int> postBuffers, preBuffers, matrixIndices, nonePre(count, BEAGLE_OP_NONE);
+                for (const BeagleBranchOperation& b : branches) {
+                    postBuffers.push_back(b.postOrderPartials);
+                    preBuffers.push_back(b.preOrderPartials);
+                    matrixIndices.push_back(b.branchTransitionMatrix);
+                }
+                std::vector<double> cpuHalf(S * S, NAN);
+                for (const bool onGpu : {false, true}) {
+                    std::string name;
+                    const int inst = create(onGpu, name, BEAGLE_FLAG_SCALING_MANUAL, scalers);
+                    int rc = inst < 0 ? inst : BEAGLE_SUCCESS;
+                    std::vector<BeagleOperation> scaledPost = post;
+                    for (BeagleOperation& op : scaledPost) op.destinationScaleWrite = op.destinationPartials - N;
+                    if (rc == BEAGLE_SUCCESS)
+                        rc = beagleUpdatePartials(inst, scaledPost.data(), (int) scaledPost.size(), BEAGLE_OP_NONE);
+                    if (rc == BEAGLE_SUCCESS) rc = beagleSetPartials(inst, 2 * M + root, prior.data());
+                    if (rc == BEAGLE_SUCCESS)
+                        rc = beagleUpdatePrePartials_v5(inst, top.data(), (int) top.size(), BEAGLE_OP_NONE,
+                                                        BEAGLE_PARTIALS_TOP);
+                    // BEAST's: each child's buffer is its parent's (none at the root) less the parent's factors
+                    std::vector<int> negAncestors(M, BEAGLE_OP_NONE);
+                    for (const BeagleOperation& op : top) {
+                        const int c = op.destinationPartials - 2 * M, n = op.child1Partials - 2 * M, parentScale = n - N;
+                        if (rc == BEAGLE_SUCCESS)
+                            rc = negAncestors[n] != BEAGLE_OP_NONE ? beagleCopyScaleFactors(inst, M + c, negAncestors[n])
+                                                                   : beagleResetScaleFactors(inst, M + c);
+                        if (rc == BEAGLE_SUCCESS) rc = beagleRemoveScaleFactors(inst, &parentScale, 1, M + c);
+                        negAncestors[c] = M + c;
+                    }
+                    // the whole contract: accumulated from the individual buffers, NONE where nothing is
+                    auto accumulate = [&](const std::vector<int>& nodes, int buffer) -> int {
+                        if (nodes.empty()) return BEAGLE_OP_NONE;
+                        std::vector<int> scales;
+                        for (int x : nodes) scales.push_back(x - N);
+                        if (rc == BEAGLE_SUCCESS) rc = beagleResetScaleFactors(inst, buffer);
+                        if (rc == BEAGLE_SUCCESS)
+                            rc = beagleAccumulateScaleFactors(inst, scales.data(), (int) scales.size(), buffer);
+                        return buffer;
+                    };
+                    std::vector<int> internalNodes;
+                    for (int x = N; x < M; x++) internalNodes.push_back(x);
+                    accumulate(internalNodes, rootCumulative);
+                    std::vector<int> beastPre, wholePost, wholePre;
+                    for (int c : postBuffers) {
+                        std::vector<int> subtree, rest;
+                        for (int x = N; x < M; x++) {
+                            if (below(x, c)) subtree.push_back(x);
+                            else if (!below(c, x)) rest.push_back(x);
+                        }
+                        beastPre.push_back(negAncestors[c]);
+                        wholePost.push_back(accumulate(subtree, 2 * M + c));
+                        wholePre.push_back(accumulate(rest, 3 * M + c));
+                    }
+                    auto adjoint = [&](int n, const int* postScale, const int* preScale, int cumulative) {
+                        std::vector<double> g(S * S, NAN);
+                        if (rc == BEAGLE_SUCCESS)
+                            rc = beagleCalculateAdjointCrossProductDerivative(inst, postBuffers.data(), preBuffers.data(),
+                                    matrixIndices.data(), &zero, &zero, root, 0, n, g.data(), NULL,
+                                    postScale, preScale, cumulative);
+                        return g;
+                    };
+                    const std::vector<double> uncorrected = adjoint(count, NULL, NULL, BEAGLE_OP_NONE);
+                    const std::vector<double> allNone = adjoint(count, NULL, nonePre.data(), BEAGLE_OP_NONE);
+                    const std::vector<double> halfBeast = adjoint(half, NULL, beastPre.data(), BEAGLE_OP_NONE);
+                    const std::vector<double> beast = adjoint(count, NULL, beastPre.data(), BEAGLE_OP_NONE);
+                    const std::vector<double> whole = adjoint(count, wholePost.data(), wholePre.data(), rootCumulative);
+                    const std::string prefix = std::string("rescaled adjoint") + (onGpu ? "" : " (CPU)") +
+                                               (scalers == BEAGLE_FLAG_SCALERS_LOG ? ", log scalers" : "") + ": ";
+                    const bool computed = rc == BEAGLE_SUCCESS;
+                    record(prefix + "BEAST's", computed ? relativeError(beast, cpuGradient, 0) : INFINITY);
+                    record(prefix + "post, pre and root", computed ? relativeError(whole, cpuGradient, 0) : INFINITY);
+                    record(prefix + "uncorrected misses",
+                           computed && relativeError(uncorrected, cpuGradient, 0) > 0.1 ? 0.0 : INFINITY);
+                    record(prefix + "all NONE as none", computed ? relativeError(allNone, uncorrected, 0) : INFINITY);
+                    if (!onGpu) cpuHalf = halfBeast;
+                    else record(prefix + "half the branches", computed ? relativeError(halfBeast, cpuHalf, 0) : INFINITY);
+                    // the GPU refuses a real index under AUTO (char exponents) and one past its scale buffers
+                    if (onGpu && scalers == BEAGLE_FLAG_SCALERS_RAW && &model == &models.front()) {
+                        std::vector<int> pastEnd(count, BEAGLE_OP_NONE);
+                        pastEnd[0] = 6 * M + 2 - N;
+                        std::vector<double> g(S * S);
+                        const int rcRange = rc != BEAGLE_SUCCESS ? rc :
+                            beagleCalculateAdjointCrossProductDerivative(inst, postBuffers.data(), preBuffers.data(),
+                                    matrixIndices.data(), &zero, &zero, root, 0, count, g.data(), NULL,
+                                    NULL, pastEnd.data(), BEAGLE_OP_NONE);
+                        std::string autoName;
+                        const int automatic = create(true, autoName, BEAGLE_FLAG_SCALING_AUTO);
+                        const int rcAuto = automatic < 0 ? automatic :
+                            beagleCalculateAdjointCrossProductDerivative(automatic, postBuffers.data(), preBuffers.data(),
+                                    matrixIndices.data(), &zero, &zero, root, 0, count, g.data(), NULL,
+                                    NULL, beastPre.data(), BEAGLE_OP_NONE);
+                        if (automatic >= 0) beagleFinalizeInstance(automatic);
+                        record("rescaled adjoint: refused past the buffers, and under AUTO",
+                               rcRange == BEAGLE_ERROR_OUT_OF_RANGE && rcAuto == BEAGLE_ERROR_NO_IMPLEMENTATION ?
+                               0.0 : INFINITY);
+                    }
+                    if (inst >= 0) beagleFinalizeInstance(inst);
+                }
+            }
 
             printf("%d states, %s, branch scale %g: %s against %s\n", S, model.name.c_str(), scale,
                    gpuName.c_str(), cpuName.c_str());

@@ -39,6 +39,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
       hEigenIndexForMatrix(NULL), hSpectralDistances(NULL), hSpectralDistancesDirty(false),
       dEvecTOrigin(0), dEvecT(NULL), dIevcTOrigin(0), dIevcT(NULL),
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL), dAdjointSiteLogLk(0),
+      kAdjointSiteLogLkRows(0), kAdjointSiteLogLkStride(0),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
       kSpectralEigenDecompCount(0) {
 }
@@ -129,7 +130,10 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::createInstance(
 
     hEigenDecompIsAllReal = (bool*) calloc(eigenDecompositionCount, sizeof(bool));
 
-    dAdjointSiteLogLk = gpuIf->AllocateMemory((this->kPaddedPatternCount + this->kResultPaddedPatterns) * sizeof(Real));
+    kAdjointSiteLogLkStride = (unsigned int)(gpuIf->AlignMemOffset(
+        (this->kPaddedPatternCount + this->kResultPaddedPatterns) * sizeof(Real)) / sizeof(Real));
+    kAdjointSiteLogLkRows = 1;
+    dAdjointSiteLogLk = gpuIf->AllocateMemory(kAdjointSiteLogLkStride * sizeof(Real));
 
     gpuIf->ReportMemory("create spectral"); // BEAGLE_DEBUG_MEMORY only
 
@@ -733,19 +737,33 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         const int* preScaleIndices,
         const int  cumulativeScaleIndex) {
 
-    if (postScaleIndices != NULL || preScaleIndices != NULL) {
-        // Rescaling-corrected adjoint cross-products (see the CPU
-        // implementation, BeagleCPUImpl::calcAdjointCrossProductsRange) are
-        // not yet implemented for the GPU merged-kernel path -- fail
-        // explicitly rather than silently return an uncorrected (wrong when
-        // partials were independently rescaled) gradient.
-        return BEAGLE_ERROR_NO_IMPLEMENTATION;
+    /* Rescaled partials (beagle.h): as BeagleCPUImpl::adjointNodeLikelihoods, a branch with a post- or pre-order
+     * scale index divides by its own site likelihoods, the root's times exp(-(post + pre - root)) from those
+     * cumulative (log) buffers; a branch with neither uses the root's, whatever cumulativeScaleIndex is. */
+    int scaledCount = 0;
+    for (int i = 0; i < count; i++) {
+        const int post = postScaleIndices ? postScaleIndices[i] : BEAGLE_OP_NONE;
+        const int pre  = preScaleIndices  ? preScaleIndices[i]  : BEAGLE_OP_NONE;
+        if (post == BEAGLE_OP_NONE && pre == BEAGLE_OP_NONE)
+            continue;
+        if (this->kFlags & BEAGLE_FLAG_SCALING_AUTO) // its scale buffers hold char exponents, not log factors
+            return BEAGLE_ERROR_NO_IMPLEMENTATION;
+        for (const int s : {post, pre, cumulativeScaleIndex})
+            if (s != BEAGLE_OP_NONE && (s < 0 || s >= this->getScaleBufferCount()))
+                return BEAGLE_ERROR_OUT_OF_RANGE;
+        scaledCount++;
     }
 
     GPUInterface* gpuIf = this->gpu;
     const int S  = this->kPaddedStateCount;
     const int SS = S * S;
     const int cwIdx = categoryWeightsIndices[0];
+
+    if (1 + scaledCount > kAdjointSiteLogLkRows) { // row 0 is written below, so nothing is copied over
+        gpuIf->FreeMemory(dAdjointSiteLogLk);
+        kAdjointSiteLogLkRows = 1 + scaledCount;
+        dAdjointSiteLogLk = gpuIf->AllocateMemory((size_t)kAdjointSiteLogLkRows * kAdjointSiteLogLkStride * sizeof(Real));
+    }
 
     flushSpectralDistances();
 
@@ -797,6 +815,13 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 sizeof(unsigned int), kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
         }
 
+        // a rescaled branch's scale buffer that is NONE reads the pool's buffer of zeros (index getScaleBufferCount())
+        const unsigned int scaleStride = this->getScaleBufferSizeElements();
+        auto scaleOffset = [&](int s) {
+            return (unsigned int)(s == BEAGLE_OP_NONE ? this->getScaleBufferCount() : s) * scaleStride;
+        };
+        int scaledRow = 0;
+
         for (int i = 0; i < count; i++) {
             const int postIdx = postBufferIndices[i];
             const int preIdx  = preBufferIndices[i];
@@ -816,10 +841,25 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             rec[6] = (unsigned int)matIdx * kSpectralDistanceStrideElements;
             rec[7] = (unsigned int)ei * matStrideElements;
             rec[8] = isAllReal ? 1u : 0u;
+
+            const int postScale = postScaleIndices ? postScaleIndices[i] : BEAGLE_OP_NONE;
+            const int preScale  = preScaleIndices  ? preScaleIndices[i]  : BEAGLE_OP_NONE;
+            if (postScale == BEAGLE_OP_NONE && preScale == BEAGLE_OP_NONE) {
+                rec[9] = rec[10] = rec[11] = rec[12] = 0u;   // row 0, the root's
+            } else {
+                rec[9]  = (unsigned int)(++scaledRow) * kAdjointSiteLogLkStride;
+                rec[10] = scaleOffset(postScale);
+                rec[11] = scaleOffset(preScale);
+                rec[12] = scaleOffset(cumulativeScaleIndex);
+            }
         }
 
         gpuIf->MemcpyHostToDevice(dAdjointQueue, hAdjointQueue,
             sizeof(unsigned int) * count * kAdjointQueueFieldsPerBranch);
+
+        if (scaledCount > 0)
+            this->kernels->AdjointScaledSiteLogLkSpectral(dAdjointSiteLogLk, this->getScalingFactorsOriginRaw(),
+                                                          dAdjointQueue, count);
 
         if (S == 4) {
             this->kernels->AdjointCrossProductMergedSpectral4(

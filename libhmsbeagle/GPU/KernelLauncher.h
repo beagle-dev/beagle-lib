@@ -82,6 +82,8 @@ private:
     GPUFunction fAdjointMergedN;
     /* Adjoint cross-product kernel — 4-state, merged single launch */
     GPUFunction fAdjointMerged4;
+    /* the rescaled branches' site log likelihoods for either merged adjoint kernel */
+    GPUFunction fAdjointScaledSiteLogLk;
     GPUFunction fStatesPartialsByPatternBlockCoherentMulti;
     GPUFunction fStatesPartialsByPatternBlockCoherentPartition;
     GPUFunction fStatesPartialsByPatternBlockCoherent;
@@ -566,6 +568,13 @@ public:
                                             unsigned int patternCount,
                                             unsigned int categoryCount,
                                             int branchCount);
+
+    /* Before either merged launch: each queued branch with a row (field 9) gets its site log likelihoods there,
+     * row 0's less its scale buffers' (fields 10-12) post + pre - root. */
+    void AdjointScaledSiteLogLkSpectral(GPUPtr siteLogLkOrigin,
+                                        GPUPtr scaleOrigin,
+                                        GPUPtr adjointQueue,
+                                        int branchCount);
 
 	void PartialsStatesEdgeFirstDerivatives(GPUPtr out,
 											  GPUPtr states0,

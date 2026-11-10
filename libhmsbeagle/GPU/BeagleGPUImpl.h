@@ -567,6 +567,8 @@ protected:
     unsigned int getMatrixStrideElements() const { return kIndexOffsetMat; }
     GPUPtr getScalingFactorsOriginRaw() const { return dScalingFactorsOrigin; }
     unsigned int getScaleBufferSizeElements() const { return (unsigned int) kScaleBufferSize; }
+    // BeagleGPUSpectralImpl's adjoint: the valid scale indices, and the pool's buffer of zeros (raw scalers) after them
+    int getScaleBufferCount() const { return kScaleBufferCount; }
 
     virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                                   int c1MatIdx, int c2MatIdx,
