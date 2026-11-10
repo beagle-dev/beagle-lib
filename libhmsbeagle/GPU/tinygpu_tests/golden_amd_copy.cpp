@@ -1,5 +1,6 @@
 // Runs golden_amd_copy_ops.txt with TinyGPUAMDDispatch.h alone (see golden_amd_copy.py): copyin/copyout through the
-// staging slots on the timeline, and queues of their own, each submitted with amd_sdma_ring_write and signal_doorbell.
+// staging slots on the timeline, transfers on the GPU, and queues of their own, each submitted with amd_sdma_ring_write
+// and signal_doorbell.
 #include "libhmsbeagle/GPU/TinyGPUAMDDispatch.h"
 #include <cstdio>
 #include <fstream>
@@ -53,6 +54,9 @@ int main(int, char** argv) {
             std::vector<uint8_t> out(n);
             if (!amd_copyout(c, s, out.data(), from, n)) return 1;
             outs.insert(outs.end(), out.begin(), out.end());
+        } else if (tag == "TR") {
+            uint64_t dest, from, n; in >> dest >> from >> n;
+            if (!amd_transfer(c, dest, from, n)) return 1;
         } else if (tag == "R") {
             uint64_t m, vw, dest, from, n, vs; in >> m >> vw >> dest >> from >> n >> vs;
             AMDCopyQueue q;

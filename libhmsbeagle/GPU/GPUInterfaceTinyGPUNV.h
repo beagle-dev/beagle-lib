@@ -34,6 +34,7 @@ void       NvReportOutOfMemory(size_t sz);   // NvAllocateMemory's out-of-memory
 void       NvFreeMemory(GPUInterface* self, GPUPtr p);   // TODO.md plan step C14
 void       NvMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
 void       NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
+void       NvMemcpyDeviceToDevice(GPUInterface* self, GPUPtr dst, GPUPtr src, size_t sz);   // on the copy engine, no host wait
 size_t     NvGetAvailableMemory();
 void       NvFini(GPUInterface* self);   // called from the destructor: releases self's instance
 // TODO.md plan step C12: true once self's setup or an allocation failed or the GPU is lost; its calls then do nothing, and

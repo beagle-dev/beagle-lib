@@ -465,27 +465,14 @@ int BeagleGPUImpl<BEAGLE_GPU_GENERIC>::growPool(GPUPtr& origin,
     gpu->SynchronizeHost(); // queued work on the old block has finished
     GPUPtr newOrigin = tryAllocate(newBytes);
     if (newOrigin != (GPUPtr)NULL) {
-        bool copied = true;
-        if (usedBytes > 0) {
-#ifdef FW_TINYGPU
-            try { // TinyGPU copies through a host buffer of usedBytes
-                gpu->MemcpyDeviceToDevice(newOrigin, oldOrigin, usedBytes);
-            } catch (const std::bad_alloc&) {
-                copied = false;
-            }
-#else
+        if (usedBytes > 0)
             gpu->MemcpyDeviceToDevice(newOrigin, oldOrigin, usedBytes);
-#endif
-        }
-        if (copied) {
-            gpu->SynchronizeHost(); // the copy has finished before the old block and its sub-buffers go
-            freeWithSubPointers(oldOrigin);
-            origin = newOrigin;
-            capacity = newCapacity;
-            BEAGLE_GPU_RETURN_IF_LOST();
-            return BEAGLE_SUCCESS;
-        }
-        gpu->FreeMemory(newOrigin);
+        gpu->SynchronizeHost(); // the copy has finished before the old block and its sub-buffers go
+        freeWithSubPointers(oldOrigin);
+        origin = newOrigin;
+        capacity = newCapacity;
+        BEAGLE_GPU_RETURN_IF_LOST();
+        return BEAGLE_SUCCESS;
     }
     BEAGLE_GPU_RETURN_IF_LOST(); // a lost instance stages, frees and reports nothing: it keeps the old block
 

@@ -134,6 +134,7 @@ private:
     friend void AmdSynchronizeHost(GPUInterface*);
     friend void AmdMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
     friend void AmdMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void AmdMemcpyDeviceToDevice(GPUInterface*, GPUPtr, GPUPtr, size_t);
     friend void AmdFini(GPUInterface*);
     friend GPUPtr AmdAllocateMemory(GPUInterface*, size_t);
     friend GPUPtr AmdTryAllocateMemory(GPUInterface*, size_t);
@@ -150,6 +151,7 @@ private:
     friend void NvSynchronizeHost(GPUInterface*);
     friend void NvMemcpyHostToDevice(GPUInterface*, GPUPtr, const void*, size_t);
     friend void NvMemcpyDeviceToHost(GPUInterface*, void*, const GPUPtr, size_t);
+    friend void NvMemcpyDeviceToDevice(GPUInterface*, GPUPtr, GPUPtr, size_t);
     friend void NvFini(GPUInterface*);
     friend GPUPtr NvAllocateMemory(GPUInterface*, size_t);
     friend GPUPtr NvTryAllocateMemory(GPUInterface*, size_t);

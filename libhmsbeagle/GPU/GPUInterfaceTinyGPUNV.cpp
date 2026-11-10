@@ -497,6 +497,21 @@ static void nvdCopyOut(void* dst, uint64_t src, size_t sz) {
     nv_profile_end("d2h", t0);
 }
 
+// HCQAllocator._transfer with src_dev == dest_dev: the copy engine waits for everything before it (src_dev's timeline, then
+// dest_dev's, the same one here), copies on the GPU and signals the timeline. The host waits for nothing.
+static void nvdCopyDevice(uint64_t dst, uint64_t src, size_t sz) {
+    auto t0 = nv_profile_start();
+    NVDHandoff& h = g_nvd->h;
+    uint64_t value = g_nvd->timeline++;
+    std::vector<uint32_t> pb;
+    nvd_push_wait(pb, h, h.signal.va, value - 1);
+    nvd_push_wait(pb, h, h.signal.va, value - 1);
+    nvd_push_copy(pb, h, dst, src, sz);
+    nvd_push_dma_signal(pb, h, h.signal.va, value);
+    nvd_submit(h.copy, pb);
+    nv_profile_end("d2d", t0);
+}
+
 static void nvd_unmap(NVDispatchState* d) {
     for (int i = 0; i < 4; ++i)
         if (d->maps[i]) { munmap(d->maps[i], d->map_sizes[i]); d->maps[i] = nullptr; }
@@ -1293,6 +1308,18 @@ void NvMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_
     } catch (const NVGpuLost& e) {
         nv_gpu_lost(e.hung);
         memset(dst, 0xff, sz);
+    }
+}
+
+void NvMemcpyDeviceToDevice(GPUInterface* self, GPUPtr dst, GPUPtr src, size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(nv_mutex());
+    NVInstance* in = (NVInstance*)self->nvGspState;
+    if (!in || nv_failed(*in) || !sz) return;
+    try {
+        nvFlushLaunchQueue(*in);  // preserve ordering: queued launches must be submitted before this copy
+        nvdCopyDevice(dst, src, sz);
+    } catch (const NVGpuLost& e) {   // plan step C12
+        nv_gpu_lost(e.hung);
     }
 }
 

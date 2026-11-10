@@ -284,6 +284,18 @@ inline bool amd_copyout(Ctx& c, AMDStaging& s, uint8_t* dst, uint64_t src, uint6
     return true;
 }
 
+// HCQAllocator._transfer (hcq.py:606-620) with src_dev == dest_dev: the SDMA queue waits for src_dev's timeline, then
+// dest_dev's (the same one here), copies on the GPU and signals; the host waits for nothing. False when the submit failed.
+template <class Ctx>
+inline bool amd_transfer(Ctx& c, uint64_t dest, uint64_t src, uint64_t n) {
+    AMDCopyQueue q;
+    q.wait(c.signal_va, (uint32_t)(c.timeline_value - 1));
+    q.wait(c.signal_va, (uint32_t)(c.timeline_value - 1));
+    q.copy(dest, src, n);
+    q.signal(c.signal_va, c.next_timeline());
+    return c.submit(q);
+}
+
 }  // namespace tinygpu_device
 
 #endif  // LIBHMSBEAGLE_GPU_TINYGPUAMDDISPATCH_H

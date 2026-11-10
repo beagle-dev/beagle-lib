@@ -31,6 +31,7 @@ void       AmdReportOutOfMemory(size_t sz);   // AmdAllocateMemory's out-of-memo
 void       AmdFreeMemory(GPUInterface* self, GPUPtr p);   // TODO.md plan step C14
 void       AmdMemcpyHostToDevice(GPUInterface* self, GPUPtr dst, const void* src, size_t sz);
 void       AmdMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size_t sz);
+void       AmdMemcpyDeviceToDevice(GPUInterface* self, GPUPtr dst, GPUPtr src, size_t sz);   // on the SDMA queue, no host wait
 size_t     AmdGetAvailableMemory();
 bool       AmdDeviceLost(GPUInterface* self);   // TODO.md plan step A3: this instance's setup failed or its GPU is lost (GPUInterface::GetDeviceLost)
 bool       AmdOutOfMemory(GPUInterface* self);   // TODO.md plan step M1: ... for lack of GPU memory

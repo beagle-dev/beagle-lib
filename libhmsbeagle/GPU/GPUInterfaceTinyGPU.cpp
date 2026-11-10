@@ -341,10 +341,8 @@ void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
 }
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dst, GPUPtr src, size_t sz) {
-    if (!sz) return;
-    std::vector<uint8_t> tmp(sz);
-    MemcpyDeviceToHost(tmp.data(), src, sz);
-    MemcpyHostToDevice(dst, tmp.data(), sz);
+    if (!isNVIDIA) { AmdMemcpyDeviceToDevice(this, dst, src, sz); return; }
+    NvMemcpyDeviceToDevice(this, dst, src, sz);
 }
 
 void GPUInterface::MemsetShort(GPUPtr dst, unsigned short val, size_t count) {
