@@ -202,7 +202,11 @@
 /* A = V^{-1} (FORWARD) or V^T (BACKWARD) of child N, through sBufN.
  * X: sP1, sP2, or another child's sQ holding an intermediate vector.
  * q[k] = Σ_j A[j*S + k] X[j]. Scoped in {} so q_loc does not collide across
- * consecutive invocations. */
+ * consecutive invocations. Here and in the other peel loops, a block's rows
+ * past the last pattern skip the FMAs (with one pattern, all but the first of
+ * the PATTERN_BLOCK_SIZE rows): they still load their part of the matrix
+ * blocks and reach every fence, and only their own rows of sQ (zeros) are
+ * written; no other row reads them, and they write no global memory. */
 #define SPECTRAL_TO_EIGEN_GPU(DIRECTION, N, X) \
     { \
         REAL q_loc = (REAL)0; \
@@ -211,8 +215,9 @@
             if (patIdx < BLOCK_PEELING_SIZE) \
                 sBuf##N[patIdx][state] = SPECTRAL_TO_EIGEN_MATRIX_##DIRECTION(N)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
             KW_LOCAL_FENCE; \
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) \
-                SPECTRAL_FMA(sBuf##N[j][state], X[patIdx][i + j], q_loc); \
+            if (pattern < totalPatterns) \
+                for (int j = 0; j < BLOCK_PEELING_SIZE; j++) \
+                    SPECTRAL_FMA(sBuf##N[j][state], X[patIdx][i + j], q_loc); \
             KW_LOCAL_FENCE; \
         } \
         sQ##N[patIdx][state] = q_loc; \
@@ -250,10 +255,11 @@
                 sBuf2[patIdx][state] = SPECTRAL_TO_EIGEN_MATRIX_##DIRECTION2(2)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
             } \
             KW_LOCAL_FENCE; \
-            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
-                SPECTRAL_FMA(sBuf1[j][state], X1[patIdx][i + j], q_loc1); \
-                SPECTRAL_FMA(sBuf2[j][state], X2[patIdx][i + j], q_loc2); \
-            } \
+            if (pattern < totalPatterns) \
+                for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
+                    SPECTRAL_FMA(sBuf1[j][state], X1[patIdx][i + j], q_loc1); \
+                    SPECTRAL_FMA(sBuf2[j][state], X2[patIdx][i + j], q_loc2); \
+                } \
             KW_LOCAL_FENCE; \
         } \
         sQ1[patIdx][state] = q_loc1; \
@@ -297,8 +303,9 @@
         if (patIdx < BLOCK_PEELING_SIZE) \
             sBuf##N[patIdx][state] = SPECTRAL_FROM_EIGEN_MATRIX_##DIRECTION(N)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
         KW_LOCAL_FENCE; \
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) \
-            SPECTRAL_FMA(sBuf##N[j][state], sQ##N[patIdx][i + j], SUM); \
+        if (pattern < totalPatterns) \
+            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) \
+                SPECTRAL_FMA(sBuf##N[j][state], sQ##N[patIdx][i + j], SUM); \
         KW_LOCAL_FENCE; \
     }
 
@@ -313,10 +320,11 @@
             sBuf2[patIdx][state] = SPECTRAL_FROM_EIGEN_MATRIX_##DIRECTION2(2)[(i + patIdx) * PADDED_STATE_COUNT + state]; \
         } \
         KW_LOCAL_FENCE; \
-        for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
-            SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][i + j], sum1); \
-            SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][i + j], sum2); \
-        } \
+        if (pattern < totalPatterns) \
+            for (int j = 0; j < BLOCK_PEELING_SIZE; j++) { \
+                SPECTRAL_FMA(sBuf1[j][state], sQ1[patIdx][i + j], sum1); \
+                SPECTRAL_FMA(sBuf2[j][state], sQ2[patIdx][i + j], sum2); \
+            } \
         KW_LOCAL_FENCE; \
     }
 
