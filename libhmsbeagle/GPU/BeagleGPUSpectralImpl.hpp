@@ -482,35 +482,8 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setLevelBuffers(const int* operat
 
 BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::scheduleLevels(int count) {
-    hLevelLastWrite.assign(this->getBufferCount(), -1);   // the level of the last operation that wrote the buffer
-    hLevelLastRead.assign(this->getBufferCount(), -1);    // the highest level of the operations that read it
-    hLevelOf.resize(count);
-    int levelCount = 0;
-    for (int op = 0; op < count; op++) {
-        const int* reads = &hLevelReads[2 * (size_t) op];
-        const int write  = hLevelWrites[op];
-        int level = std::max(hLevelLastWrite[write], hLevelLastRead[write]) + 1;
-        for (int i = 0; i < 2; i++)
-            if (reads[i] != BEAGLE_OP_NONE)
-                level = std::max(level, hLevelLastWrite[reads[i]] + 1);
-        for (int i = 0; i < 2; i++)
-            if (reads[i] != BEAGLE_OP_NONE)
-                hLevelLastRead[reads[i]] = std::max(hLevelLastRead[reads[i]], level);
-        hLevelLastWrite[write] = level;
-        hLevelOf[op] = level;
-        levelCount = std::max(levelCount, level + 1);
-    }
-    // a counting sort by level, each level's operations in call order
-    hLevelStart.assign(levelCount + 1, 0);
-    for (int op = 0; op < count; op++)
-        hLevelStart[hLevelOf[op] + 1]++;
-    for (int level = 0; level < levelCount; level++)
-        hLevelStart[level + 1] += hLevelStart[level];
-    std::vector<int> next(hLevelStart.begin(), hLevelStart.end() - 1);
-    hLevelOrder.resize(count);
-    for (int op = 0; op < count; op++)
-        hLevelOrder[next[hLevelOf[op]]++] = op;
-    return levelCount;
+    return BeagleGPUImpl<Real>::scheduleLevels(count, 2, hLevelReads.data(), hLevelWrites.data(), this->getBufferCount(),
+                                               hLevelOf, hLevelStart, hLevelOrder, hLevelLastWrite, hLevelLastRead);
 }
 
 BEAGLE_GPU_TEMPLATE

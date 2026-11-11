@@ -646,6 +646,8 @@ void KernelLauncher::LoadKernels() {
     // resetScaleFactors and copyScaleFactors as launches at every state count (BeagleGPUImpl)
     fResetFactorsDynamicScalingByPartition = gpu->GetFunction("kernelResetFactorsByPartition");
     fCopyFactors = gpu->GetFunction("kernelCopyFactors");
+    fLevelScaleFactors = gpu->GetFunction((kFlags & BEAGLE_FLAG_SCALERS_LOG) ? "kernelLevelScaleFactorsScalersLog" :
+                                                                               "kernelLevelScaleFactors");
 #endif
 #endif // !FW_OPENCL_TESTING
 }
@@ -2813,6 +2815,20 @@ void KernelLauncher::CopyFactors(GPUPtr dScalingFactorsDest,
                       2, 3,
                       dScalingFactorsDest, dScalingFactorsSource,
                       count);
+}
+
+void KernelLauncher::LevelScaleFactors(GPUPtr scaleOrigin,
+                                       GPUPtr scaleOpQueue,
+                                       int queueStart,
+                                       int opCount,
+                                       unsigned int copyCount,
+                                       unsigned int patternCount) {
+    Dim3Int grid(opCount);
+    gpu->LaunchKernel(fLevelScaleFactors,
+                      bgAccumulateBlock, grid,
+                      2, 5,
+                      scaleOrigin, scaleOpQueue,
+                      queueStart, copyCount, patternCount);
 }
 #endif
 

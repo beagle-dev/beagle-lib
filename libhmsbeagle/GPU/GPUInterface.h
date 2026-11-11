@@ -171,6 +171,13 @@ private:
 
     void LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                           int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints);
+
+    // SetPreOperationHook's: called first by each of this instance's calls that sends the GPU work (a launch or a copy),
+    // frees GPU memory or waits for the GPU, but not from within itself
+    void (*preOperationHook)(void*) = nullptr;
+    void* preOperationOwner = nullptr;
+    bool inPreOperationHook = false;
+    void RunPreOperationHook();
 #endif
 #ifdef BEAGLE_DEBUG_MEMORY
     std::map<GPUPtr, size_t> debugBuffers;   // live allocations and their sizes
@@ -251,6 +258,9 @@ public:
                                    bool mapped);
 
 #ifdef FW_TINYGPU
+    // BeagleGPUImpl's deferred scale-factor operations: hook(owner) runs before anything else this instance sends the GPU,
+    // so that the operations it issues come first; NULL removes it
+    void SetPreOperationHook(void (*hook)(void*), void* owner) { preOperationHook = hook; preOperationOwner = owner; }
     // TODO.md plan step C12: true once this instance's GPU work cannot be trusted (its setup or an allocation failed, or the
     // GPU hung or its connection broke): its calls then do nothing, instead of exiting the host, and BeagleGPUImpl returns
     // errors from createInstance and from the calls that copy results back

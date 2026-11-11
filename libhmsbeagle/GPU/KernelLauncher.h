@@ -120,6 +120,7 @@ private:
     GPUFunction fResetFactorsDynamicScalingByPartition;
 #ifdef FW_TINYGPU
     GPUFunction fCopyFactors;
+    GPUFunction fLevelScaleFactors;   // RAW or LOG scalers, as fRemoveFactorsDynamicScaling
 #endif
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingByPartition;
@@ -812,6 +813,15 @@ public:
     void CopyFactors(GPUPtr dScalingFactorsDest,
                      GPUPtr dScalingFactorsSource,
                      unsigned int count);
+
+    // BeagleGPUImpl's deferred scale-factor operations: records queueStart to queueStart + opCount - 1 of scaleOpQueue
+    // (SCALE_OP_QUEUE_STRIDE, GPUImplDefs.h), offsets from scaleOrigin, a block each
+    void LevelScaleFactors(GPUPtr scaleOrigin,
+                           GPUPtr scaleOpQueue,
+                           int queueStart,
+                           int opCount,
+                           unsigned int copyCount,
+                           unsigned int patternCount);
 #endif
 
     void RescalePartials(GPUPtr partials3,

@@ -1855,6 +1855,61 @@ KW_GLOBAL_KERNEL void kernelCopyFactors(KW_GLOBAL_VAR REAL* dScalingFactorsDest,
         dScalingFactorsDest[i] = dScalingFactorsSource[i];
     }
 }
+
+/* TinyGPU's deferred scale-factor operations (BeagleGPUImpl::flushScaleOps): one dependency level of records
+ * (SCALE_OP_QUEUE_STRIDE, GPUImplDefs.h), a block each. A record does what its calls did one launch at a time, with their
+ * kernels' statements: a copy (kernelCopyFactors, over copyCount) or a reset (kernelResetFactorsByPartition, over
+ * patternCount) of the destination, then a one-index remove (kernelRemoveFactors or kernelRemoveFactorsScalersLog, over
+ * patternCount) that reads the factor buffer once the copy or reset is done (the host fuses no remove of the destination
+ * itself). The remove's subtraction is kept from contracting into a fused multiply-add, as the loop around it there keeps
+ * it: the same results. */
+#if defined(CUDA)
+    #ifdef DOUBLE_PRECISION
+        #define SCALE_OP_SUBTRACT(a, b) __dsub_rn((a), (b))
+    #else
+        #define SCALE_OP_SUBTRACT(a, b) __fsub_rn((a), (b))
+    #endif
+    #define SCALE_OP_NO_CONTRACT
+#else
+    #define SCALE_OP_SUBTRACT(a, b) ((a) - (b))
+    #define SCALE_OP_NO_CONTRACT    _Pragma("clang fp contract(off)")
+#endif
+
+#define LEVEL_SCALE_FACTORS_KERNEL(NAME, ADD_FACTOR) \
+KW_GLOBAL_KERNEL void NAME(KW_GLOBAL_VAR REAL* scaleOrigin, \
+                           KW_GLOBAL_VAR unsigned int* scaleOpQueue, \
+                           int queueStart, \
+                           int copyCount, \
+                           int patternCount) { \
+    SCALE_OP_NO_CONTRACT \
+    KW_GLOBAL_VAR const unsigned int* rec = scaleOpQueue + (queueStart + KW_GROUP_ID_0) * SCALE_OP_QUEUE_STRIDE; \
+    const unsigned int kind = rec[0]; \
+    KW_GLOBAL_VAR REAL* dest   = scaleOrigin + rec[1]; \
+    KW_GLOBAL_VAR REAL* source = scaleOrigin + rec[2]; \
+    KW_GLOBAL_VAR REAL* nodeScales = scaleOrigin + rec[3]; \
+    const int count = (kind & SCALE_OP_COPY) ? copyCount : patternCount; \
+    /* the launch's block (KernelLauncher's bgAccumulateBlock), as the kernels above assume: not the block size the \
+     * GPU reports, which TinyGPU NV writes only with its launch-dims fill on */ \
+    for (int pattern = KW_LOCAL_ID_0; pattern < count; pattern += PATTERN_BLOCK_SIZE) { \
+        REAL value; \
+        if (kind & SCALE_OP_COPY) \
+            value = source[pattern]; \
+        else if (kind & SCALE_OP_RESET) \
+            value = 0.0; \
+        else \
+            value = dest[pattern]; \
+        if ((kind & SCALE_OP_SUB) && pattern < patternCount) { \
+            REAL total = 0; \
+            REAL factor = nodeScales[pattern]; \
+            ADD_FACTOR \
+            value = SCALE_OP_SUBTRACT(value, total); \
+        } \
+        dest[pattern] = value; \
+    } \
+}
+
+LEVEL_SCALE_FACTORS_KERNEL(kernelLevelScaleFactors, if (factor != 1.0) { total += log(factor); })
+LEVEL_SCALE_FACTORS_KERNEL(kernelLevelScaleFactorsScalersLog, total += factor;)
 #endif
 
 

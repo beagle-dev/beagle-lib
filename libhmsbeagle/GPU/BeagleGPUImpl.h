@@ -119,6 +119,20 @@ private:
     GPUPtr dPtrQueue;
 #ifdef FW_TINYGPU
     GPUPtr dZeroWord; // one unsigned int 0: a one-index queue for a scale buffer passed as the kernel's origin
+#ifdef FW_TINYGPU
+    // Deferred scale-factor operations (TinyGPU, MANUAL scaling; BEAST builds its pre-order scale buffers with a
+    // copyScaleFactors or resetScaleFactors and a one-index removeScaleFactors per node, ~6.5 us each as launches):
+    // those calls append records to hScaleOps (a remove fused into the copy or reset of its destination just before it,
+    // unless it removes that destination itself), and flushScaleOps runs them, one launch per dependency level, before
+    // anything else this instance sends the GPU (GPUInterface::SetPreOperationHook), or when kScaleOpCapacity are pending
+    struct ScaleOp { unsigned int kind; int dest, source, factor; };   // SCALE_OP_* (GPUImplDefs.h); scale buffer indices
+    std::vector<ScaleOp> hScaleOps;
+    int kScaleOpCapacity;                // records dScaleOpQueue holds; 0: nothing is deferred
+    GPUPtr dScaleOpQueue;
+    unsigned int* hScaleOpQueue;
+    std::vector<int> hScaleOpReads, hScaleOpWrites, hScaleOpLevelOf, hScaleOpLevelStart, hScaleOpOrder,
+                     hScaleOpLastWrite, hScaleOpLastRead;   // scheduleLevels' arrays
+#endif
 #endif
     int kPtrQueueLength;      // entries in dPtrQueue and hPtrQueue
 
@@ -576,6 +590,15 @@ protected:
     int getBufferCount() const { return kBufferCount; }
     GPUPtr getScalingFactors(int index) const { return dScalingFactors[index]; }
 
+    // Gives each of count operations a level from 0: one past every earlier operation that writes a buffer it reads or
+    // writes, or reads the buffer it writes, so that a level's operations may run together after the levels before it.
+    // An operation reads readsPerOperation buffers (reads, BEAGLE_OP_NONE for none) and writes one (writes), all in
+    // [0, bufferCount). Fills levelOf, levelStart (a level's first position in order, levels + 1 entries) and order (the
+    // operations by level, each level in call order), with lastWrite and lastRead as scratch; returns the number of levels.
+    static int scheduleLevels(int count, int readsPerOperation, const int* reads, const int* writes, int bufferCount,
+                              std::vector<int>& levelOf, std::vector<int>& levelStart, std::vector<int>& order,
+                              std::vector<int>& lastWrite, std::vector<int>& lastRead);
+
     virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                                   int c1MatIdx, int c2MatIdx,
                                   GPUPtr scalingFactors, GPUPtr cumulativeScaling,
@@ -1010,6 +1033,14 @@ public:
                                        double* out);
 
 private:
+
+#ifdef FW_TINYGPU
+    // appends a record (or fuses a remove into the last one) when deferral is on and the indices are valid pool slots;
+    // false otherwise, and the caller launches as before
+    bool deferScaleOp(unsigned int kind, int dest, int source, int factor);
+    void flushScaleOps();
+    static void flushScaleOpsHook(void* impl) { static_cast<BeagleGPUImpl*>(impl)->flushScaleOps(); }
+#endif
 
     // the _v5 functions' checks and, once they pass, the row buffers; then the sizes (half 0) or integrals (half 1) of
     // the current population-size buffer, a row per intervalNumber, into rows

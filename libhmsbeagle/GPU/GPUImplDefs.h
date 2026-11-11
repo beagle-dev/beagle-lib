@@ -746,6 +746,13 @@ enum BeagleDeviceImplementationCodes {
 #define SPECTRAL_LEVEL_CHILD1_STATES    1u   // post-order: child 1 is a tip's states
 #define SPECTRAL_LEVEL_CHILD2_STATES    2u   // child 2, or the pre-order sibling, is a tip's states
 #define SPECTRAL_LEVEL_FIXED_SCALE      4u   // post-order: divide by the scale buffer (field 10)
+// TinyGPU's deferred scale-factor operations (BeagleGPUImpl::flushScaleOps, kernelLevelScaleFactors): one record per
+// operation, {kind, destination, source, factor buffer} as offsets into the scale pool. The kind is a copy or a reset of
+// the destination, a one-index remove (SUB) of the factor buffer from it, or a copy or reset then that remove.
+#define SCALE_OP_QUEUE_STRIDE  4
+#define SCALE_OP_COPY          1u
+#define SCALE_OP_RESET         2u
+#define SCALE_OP_SUB           4u
 
 #define SUM_SITES_BLOCK_SIZE    GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
 #define MULTI_NODE_SUM_BLOCK_SIZE    GET2_VALUE(MULTI_NODE_SUM_BLOCK_SIZE, PREC)
