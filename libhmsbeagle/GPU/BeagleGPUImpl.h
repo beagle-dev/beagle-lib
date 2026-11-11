@@ -589,6 +589,8 @@ protected:
     // BeagleGPUSpectralImpl's level-batched traversals: the valid buffer indices, and a scale buffer's handle
     int getBufferCount() const { return kBufferCount; }
     GPUPtr getScalingFactors(int index) const { return dScalingFactors[index]; }
+    // BeagleGPUSpectralImpl's adjoint: the patterns summed (unpadded), which choose the low-rank kernels
+    int getPatternCount() const { return kPatternCount; }
 
     // Gives each of count operations a level from 0: one past every earlier operation that writes a buffer it reads or
     // writes, or reads the buffer it writes, so that a level's operations may run together after the levels before it.

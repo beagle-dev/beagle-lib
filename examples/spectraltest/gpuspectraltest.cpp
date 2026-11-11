@@ -16,7 +16,8 @@
  * pair's first imaginary part reversed (with the matching eigenvectors) and under a diagonal similarity, so that
  * P^T x differs from P x.
  *
- * usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t] [--single]
+ * usage: gpuspectraltest [--states S ...] [--patterns P] [--scale x] [--resource r] [--tolerance t] [--single]
+ * --patterns: P site patterns (default 37); at most 4 runs the GPU's low-rank adjoint (ADJOINT_LOWRANK_MAX_PATTERNS).
  * --single: single precision on a resource that offers double. Prints SKIP and exits 77 when no GPU resource offers the
  * spectral representation (or --resource names one that does not); a failed GPU instance on such a resource is a FAIL.
  */
@@ -232,15 +233,16 @@ double belowZero(const std::vector<double>& x) {
 int main(int argc, char** argv) {
     std::vector<int> stateCounts;
     double scale = 10.0, tolerance = -1.0;
-    int gpuResource = -1;
+    int gpuResource = -1, patterns = 37;
     bool single = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--states")) { while (i + 1 < argc && argv[i + 1][0] != '-') stateCounts.push_back(atoi(argv[++i])); }
+        else if (!strcmp(argv[i], "--patterns") && i + 1 < argc) patterns = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--scale") && i + 1 < argc) scale = atof(argv[++i]);
         else if (!strcmp(argv[i], "--resource") && i + 1 < argc) gpuResource = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--tolerance") && i + 1 < argc) tolerance = atof(argv[++i]);
         else if (!strcmp(argv[i], "--single")) single = true;
-        else { fprintf(stderr, "usage: gpuspectraltest [--states S ...] [--scale x] [--resource r] [--tolerance t] [--single]\n"); return 2; }
+        else { fprintf(stderr, "usage: gpuspectraltest [--states S ...] [--patterns P] [--scale x] [--resource r] [--tolerance t] [--single]\n"); return 2; }
     }
     // padded 4, 16, 64, 80, 192 and 256: the last two above the adjoint kernel's 128 threads
     if (stateCounts.empty()) stateCounts = {4, 17, 61, 70, 150, 256};
@@ -258,7 +260,7 @@ int main(int argc, char** argv) {
     const bool gpuDouble = !single && (resources->list[gpuResource].supportFlags & BEAGLE_FLAG_PRECISION_DOUBLE);
     if (tolerance < 0.0) tolerance = gpuDouble ? 1e-9 : 1e-3;
 
-    const int N = 8, C = 37, K = 2;
+    const int N = 8, C = patterns, K = 2;
     const double rates[K] = {0.5, 1.5}, weights[K] = {0.5, 0.5};
     bool ok = true;
 
@@ -283,8 +285,8 @@ int main(int argc, char** argv) {
         Tree tree = randomLengths(rng, scale);
         const int M = tree.nodes, root = tree.root;
         std::vector<std::vector<int>> states(N, std::vector<int>(C));
-        for (auto& tip : states) for (int k = 0; k < C; k++) // every 11th pattern missing
-            tip[k] = (k % 11 == 5) ? S : std::uniform_int_distribution<int>(0, S - 1)(rng);
+        for (auto& tip : states) for (int k = 0; k < C; k++) // every 11th pattern missing, or the last of 2 to 5
+            tip[k] = (k % 11 == 5 || (C > 1 && C < 6 && k == C - 1)) ? S : std::uniform_int_distribution<int>(0, S - 1)(rng);
         std::vector<double> prior((size_t) K * C * S); // an arbitrary root prior, so no pre-order partials are uniform
         for (auto& x : prior) x = std::uniform_real_distribution<double>(0.5, 1.5)(rng);
 

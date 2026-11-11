@@ -384,7 +384,9 @@ void KernelLauncher::LoadKernels() {
             fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
-            fAdjointLowRankN = gpu->GetFunction("kernelAdjointLowRankN");
+            fAdjointLowRankPrepN   = gpu->GetFunction("kernelAdjointLowRankPrepN");
+            fAdjointLowRankSlabN   = gpu->GetFunction("kernelAdjointLowRankSlabN");
+            fAdjointLowRankReduceN = gpu->GetFunction("kernelAdjointLowRankReduceN");
             fPruningLevel        = gpu->GetFunction("kernelPruningLevel");
             fGrowingLevel        = gpu->GetFunction("kernelGrowingLevel");
             fGrowingTopLevel     = gpu->GetFunction("kernelGrowingTopLevel");
@@ -1476,22 +1478,52 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
                                                          unsigned int categoryCount,
                                                          int branchCount) {
     Dim3Int block(kAdjointBlockSizeN);
-    if (kUnpaddedPatternCount <= ADJOINT_LOWRANK_MAX_PATTERNS) { // a block per branch and category
-        Dim3Int grid(branchCount, categoryCount);
-        gpu->LaunchKernel(fAdjointLowRankN, block, grid, 11, 13,
-            partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
-            distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
-            gradientOrigin, adjointQueue,
-            (int)patternCount, (int)kUnpaddedPatternCount);
-        SYNCHRONIZE_FOR_ORDER();
-        return;
-    }
     Dim3Int grid(kPaddedStateCount, categoryCount, branchCount);
     gpu->LaunchKernel(fAdjointMergedN, block, grid, 11, 13,
         partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
         (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::AdjointCrossProductLowRankSpectralN(GPUPtr partialsOrigin,
+                                                          GPUPtr statesOrigin,
+                                                          GPUPtr evecTOrigin,
+                                                          GPUPtr ievcOrigin,
+                                                          GPUPtr evalOrigin,
+                                                          GPUPtr distOrigin,
+                                                          GPUPtr patternWeights,
+                                                          GPUPtr categoryWeights,
+                                                          GPUPtr perSiteLikelihoods,
+                                                          GPUPtr gradientOrigin,
+                                                          GPUPtr adjointQueue,
+                                                          GPUPtr scratch,
+                                                          unsigned int patternCount,
+                                                          unsigned int categoryCount,
+                                                          int firstSlot,
+                                                          int slotCount,
+                                                          int slabSlots,
+                                                          unsigned int evalOffset,
+                                                          unsigned int gradOffset,
+                                                          unsigned int planeOffset,
+                                                          int stateCount) {
+    const int B = kAdjointBlockSizeN;   // the kernels' ADJOINT_BLOCK_SP_N
+    const int units = stateCount * stateCount;   // at least the kernels' (nr + np)^2, from Prep's unit lists
+    const int slabCount = (slotCount + slabSlots - 1) / slabSlots;
+    Dim3Int block(B);
+    gpu->LaunchKernel(fAdjointLowRankPrepN, block, Dim3Int(slotCount), 11, 16,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        scratch, adjointQueue,
+        (int)patternCount, (int)kUnpaddedPatternCount, (int)categoryCount, stateCount, firstSlot); // the row stride, the patterns summed
+    // Slab's four regions in tiles of B units: at most one tile more each than the units fill
+    gpu->LaunchKernel(fAdjointLowRankSlabN, block, Dim3Int((units + B - 1) / B + 4, slabCount), 2, 7,
+        scratch, evalOrigin,
+        (int)kUnpaddedPatternCount, slotCount, slabSlots, evalOffset, planeOffset);
+    gpu->LaunchKernel(fAdjointLowRankReduceN, block, Dim3Int((units + B - 1) / B), 3, 7,
+        scratch, evalOrigin, gradientOrigin,
+        slabCount, evalOffset, gradOffset, planeOffset);
     SYNCHRONIZE_FOR_ORDER();
 }
 

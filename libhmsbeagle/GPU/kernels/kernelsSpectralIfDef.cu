@@ -1660,25 +1660,76 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Adjoint cross-product kernel — generic N-state, few patterns
+ * Adjoint cross-product kernels — generic N-state, few patterns
  *
  * kernelAdjointMergedN's quantity when at most ADJOINT_LOWRANK_MAX_PATTERNS
- * patterns are summed (KernelLauncher chooses). Its row ls of the rotated
- * cross product,
+ * patterns are summed (BeagleGPUSpectralImpl chooses), with no atomics and a
+ * fixed order of summation: the gradient's bits do not depend on scheduling.
+ *
+ * For one (branch, category) "slot", row ls of the rotated cross product,
  *     Op[ls,r] = sum_rs (sum_k A_k[ls] p_k[rs]) ievc[rs*S+r],
  * with A_k[ls] = w_k sum_j evecT[j*S+ls] pre_k[j] and p_k the post-order
  * vector (partials, a tip's state, or all ones for a missing state), is
  *     Op[ls,r] = sum_k A_k[ls] C_k[r],   C_k[r] = sum_rs p_k[rs] ievc[rs*S+r].
- * So one block per (branch, category), grid = (branchCount, categoryCount),
- * computes A and C once, O(K S^2), where kernelAdjointMergedN rotates every
- * row, O(S^3) per branch with a block per row. It then builds each row of Op
- * in shared memory, as kernelAdjointMergedN's reduction does, and applies the
- * same transform helpers, each thread taking the columns it owns. The rows
- * start at an offset that moves with the branch, so that the blocks running
- * together add into different rows of the gradient.
+ * The four transform helpers above multiply Op by a divided difference of the
+ * slot's exponentials. Written as in BeagleCPUAdjointSSE.hpp, each is the
+ * slot's numerator (a difference of exponentials, or t e for a degenerate
+ * pair) over a denominator that depends on the eigenvalues only, so a cell's
+ * sum over the slots is the sum of the numerators over one denominator.
+ * Per chunk of one eigen decomposition's slots, in the in-order queue:
+ *   kernelAdjointLowRankPrepN: a block per slot writes A_k, C_k, the
+ *     exponentials X (e at a real index, e cos and e sin at a pair's two
+ *     positions) and t to the slot's record in the scratch;
+ *   kernelAdjointLowRankSlabN: a thread per gradient unit (a real or pair row
+ *     by a real or pair column: 1, 2 or 4 cells) sums the numerators over a
+ *     slab of slots, in slot order, into the slab's plane;
+ *   kernelAdjointLowRankReduceN: a thread per unit sums the planes in slab
+ *     order, divides once by the unit's denominator and adds into the
+ *     gradient.
+ * Prep's first block also writes the unit lists to the head of the scratch:
+ * the real indices and the pair leaders below the state count, by their
+ * positions (eigenValues[2S + i]: 0 real, +1 a pair's first, -1 its second),
+ * as {nr, np, R[nr], P[np]} in Reals.
  * ═══════════════════════════════════════════════════════════════════════════*/
 
-KW_GLOBAL_KERNEL void kernelAdjointLowRankN(
+#define ADJOINT_LOWRANK_PP 0   /* pair row (l, l+1) by pair column (r, r+1): 4 cells */
+#define ADJOINT_LOWRANK_PR 1   /* pair row by real column: (l, r), (l+1, r) */
+#define ADJOINT_LOWRANK_RP 2   /* real row by pair column: (l, r), (l, r+1) */
+#define ADJOINT_LOWRANK_RR 3   /* real row by real column: (l, r) */
+
+/* A unit's degeneracy, which does not depend on t: the helpers' own tests
+ * (adjointSingletonComplexStep's dn, adjointPairleaderRealStep's dn,
+ * adjointPairleaderComplexStep's d1 and d2). RR: 1 if the two eigenvalues are
+ * equal, so that t |dl| < 1e-12 holds for every t. RP, PR: 1 if dn < 1e-12.
+ * PP: bit 0 if d1 < 1e-12, bit 1 if d2 < 1e-12. One out-of-line function for
+ * Slab and Reduce, so that the two cannot classify a unit differently. */
+KW_DEVICE_FUNC KW_NOINLINE int adjointLowRankUnitClass(
+        KW_GLOBAL_VAR REAL* eigenValues, int region, int l, int r) {
+    const REAL sr = eigenValues[r] - eigenValues[l];
+    if (region == ADJOINT_LOWRANK_RR) return (sr == (REAL)0) ? 1 : 0;
+    if (region != ADJOINT_LOWRANK_PP) {
+        const REAL b = eigenValues[PADDED_STATE_COUNT + (region == ADJOINT_LOWRANK_RP ? r : l)];
+        return (sr*sr + b*b < (REAL)1e-12) ? 1 : 0;
+    }
+    const REAL li = eigenValues[PADDED_STATE_COUNT + l], ri = eigenValues[PADDED_STATE_COUNT + r];
+    const REAL si1 = li + ri, si2 = ri - li, sr2 = sr*sr;
+    return ((sr2 + si1*si1 < (REAL)1e-12) ? 1 : 0) | ((sr2 + si2*si2 < (REAL)1e-12) ? 2 : 0);
+}
+
+/* Unit u of a region: its row l and column r (a pair's leader), from the unit
+ * lists U = {nr, np, R[nr], P[np]}. Rows are the slow index. */
+KW_DEVICE_FUNC void adjointLowRankUnitCell(
+        KW_GLOBAL_VAR REAL* U, int region, int u, int* l, int* r) {
+    const int nr = (int)U[0], np = (int)U[1];
+    KW_GLOBAL_VAR REAL* R = U + 2;
+    KW_GLOBAL_VAR REAL* P = R + nr;
+    if (region == ADJOINT_LOWRANK_PP)      { *l = (int)P[u / np]; *r = (int)P[u % np]; }
+    else if (region == ADJOINT_LOWRANK_PR) { *l = (int)P[u / nr]; *r = (int)R[u % nr]; }
+    else if (region == ADJOINT_LOWRANK_RP) { *l = (int)R[u / np]; *r = (int)P[u % np]; }
+    else                                   { *l = (int)R[u / nr]; *r = (int)R[u % nr]; }
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointLowRankPrepN(
         KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
         KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
@@ -1688,15 +1739,19 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankN(
         KW_GLOBAL_VAR REAL* KW_RESTRICT patternWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
-        KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scratch,
         KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
-        int totalPatterns,
-        int patternCount) { /* as kernelAdjointMergedN's; patternCount <= ADJOINT_LOWRANK_MAX_PATTERNS */
+        int totalPatterns,   /* the padded rows' stride */
+        int patternCount,    /* K, the patterns summed: at most ADJOINT_LOWRANK_MAX_PATTERNS */
+        int categoryCount,
+        int stateCount,      /* the unit lists' bound */
+        int firstSlot) {     /* the chunk's first slot (branch-major); block j writes record j */
 
-    const int tid    = KW_LOCAL_ID_0;
-    const int branch = KW_GROUP_ID_0;
-    const int cat    = KW_GROUP_ID_1;
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
+    const int tid  = KW_LOCAL_ID_0;
+    const int slot = firstSlot + KW_GROUP_ID_0;
+    const int q    = slot / categoryCount;   /* the branch's record in the queue */
+    const int cat  = slot - q * categoryCount;
+    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + q * ADJOINT_QUEUE_STRIDE;
 
     const bool isStates  = (rec[2] != 0u);
     const bool isAllReal = (rec[8] != 0u);
@@ -1710,42 +1765,51 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankN(
     KW_GLOBAL_VAR REAL* ievc         = ievcOrigin      + rec[4];
     KW_GLOBAL_VAR REAL* eigenValues  = evalOrigin      + rec[5];
     KW_GLOBAL_VAR REAL* distances    = distOrigin      + rec[6];
-    KW_GLOBAL_VAR REAL* dGradient    = gradientOrigin  + rec[7];
 
-    KW_LOCAL_MEM REAL sEvalR  [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sEvalI  [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpat  [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sCosbt  [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sSinbt  [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpatC [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sExpatS [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sA      [ADJOINT_LOWRANK_MAX_PATTERNS * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sC      [ADJOINT_LOWRANK_MAX_PATTERNS * PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sOpRow0 [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM REAL sOpRow1 [PADDED_STATE_COUNT];
-    KW_LOCAL_MEM int  sColStep[PADDED_STATE_COUNT];   /* 1 a real column, 2 a complex pair's first, 0 its second */
+    const int S = PADDED_STATE_COUNT;
+    KW_GLOBAL_VAR REAL* out = scratch + ADJOINT_LOWRANK_UNITS_REALS(PADDED_STATE_COUNT)
+                                      + KW_GROUP_ID_0 * ADJOINT_LOWRANK_RECORD_REALS(patternCount, PADDED_STATE_COUNT);
+    KW_GLOBAL_VAR REAL* X   = out + 2 * patternCount * S;
+
+    KW_LOCAL_MEM int sPos[PADDED_STATE_COUNT];
+    if (KW_GROUP_ID_0 == 0) {   /* the chunk's unit lists (one eigen decomposition), from its first block */
+        for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N)
+            sPos[i] = isAllReal ? 0 : (int) eigenValues[2 * PADDED_STATE_COUNT + i];
+        KW_LOCAL_FENCE;   /* the same branch for the whole block */
+        if (tid == 0) {
+            int nr = 0, np = 0;
+            KW_NO_UNROLL
+            for (int i = 0; i < stateCount; i++) if (sPos[i] == 0) scratch[2 + nr++] = (REAL) i;
+            KW_NO_UNROLL
+            for (int i = 0; i < stateCount; i++) if (sPos[i] > 0)  scratch[2 + nr + np++] = (REAL) i;
+            scratch[0] = (REAL) nr; scratch[1] = (REAL) np;
+        }
+    }
 
     const REAL t = distances[cat];
     const REAL catW = categoryWeights[cat];
     const int catOff = cat * totalPatterns * PADDED_STATE_COUNT;
 
     for (int i = tid; i < PADDED_STATE_COUNT; i += ADJOINT_BLOCK_SP_N) {
-        sEvalR[i] = eigenValues[i];
-        sEvalI[i] = isAllReal ? (REAL)0 : eigenValues[PADDED_STATE_COUNT + i];
-        const REAL e = exp(sEvalR[i] * t);
-        sExpat[i] = e;
-        if (!isAllReal) {
-            REAL sv, cv;
-            SPECTRAL_SINCOS(sEvalI[i] * t, sv, cv);
-            sCosbt[i] = cv; sSinbt[i] = sv;
-            sExpatC[i] = e * cv; sExpatS[i] = e * sv;
+        /* a pair's leader writes both of its positions: e cos, e sin (its
+         * second writes nothing); a real index e */
+        const int pairPosition = isAllReal ? 0 : (int) eigenValues[2 * PADDED_STATE_COUNT + i];
+        if (pairPosition >= 0) {
+            const REAL e = exp(eigenValues[i] * t);
+            if (pairPosition == 0) {
+                X[i] = e;
+            } else {
+                REAL sv, cv;
+                SPECTRAL_SINCOS(eigenValues[PADDED_STATE_COUNT + i] * t, sv, cv);
+                X[i] = e * cv; X[i + 1] = e * sv;
+            }
         }
         for (int k = 0; k < patternCount; k++) {
             REAL lhs = (REAL)0;
             KW_NO_UNROLL   /* comgr would unroll and spill these state loops (GPUImplDefs.h) */
             for (int j = 0; j < PADDED_STATE_COUNT; j++)
                 SPECTRAL_FMA(evecT[j * PADDED_STATE_COUNT + i], prePartials[catOff + k*PADDED_STATE_COUNT + j], lhs);
-            sA[k * PADDED_STATE_COUNT + i] = lhs * (patternWeights[k] * catW / exp(perSiteLikelihoods[k]));
+            out[k * S + i] = lhs * (patternWeights[k] * catW / exp(perSiteLikelihoods[k]));
             REAL rhs = (REAL)0;
             if (isStates) {
                 const int st = tipStates[k];
@@ -1760,59 +1824,228 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankN(
                 for (int rs = 0; rs < PADDED_STATE_COUNT; rs++)
                     SPECTRAL_FMA(postPartials[catOff + k*PADDED_STATE_COUNT + rs], ievc[rs * PADDED_STATE_COUNT + i], rhs);
             }
-            sC[k * PADDED_STATE_COUNT + i] = rhs;
+            out[(patternCount + k) * S + i] = rhs;
         }
     }
-    KW_LOCAL_FENCE;
-    if (tid == 0) {   /* the columns as the transform helpers' loops step through them */
-        for (int rs = 0; rs < PADDED_STATE_COUNT; ) {
-            if (sEvalI[rs] == (REAL)0) { sColStep[rs] = 1; rs++; }
-            else { sColStep[rs] = 2; if (rs + 1 < PADDED_STATE_COUNT) sColStep[rs + 1] = 0; rs += 2; }
-        }
-    }
-    KW_LOCAL_FENCE;
+    if (tid == 0) X[S] = t;
+}
 
-    const int start = branch % PADDED_STATE_COUNT;
+/* A slab's sums, one function per region, each over the slab's nSlots records
+ * (from rec, RS Reals apart) in order. op(i, j) is sum_k A_k[i] C_k[j], one
+ * FMA chain in k order as kernelAdjointMergedN's rows. Each writes its unit's
+ * cells of the slab's plane: no other thread writes them. */
+
+KW_DEVICE_FUNC KW_NOINLINE void adjointLowRankSlabRR(
+        KW_GLOBAL_VAR REAL* rec, int RS, int nSlots, int K, int cls, REAL dl, int l, int r,
+        KW_GLOBAL_VAR REAL* plane) {
+    const int S = PADDED_STATE_COUNT;
+    REAL acc = (REAL)0;
     KW_NO_UNROLL
-    for (int i = 0; i < PADDED_STATE_COUNT; i++) {
-        const int ls = (start + i) % PADDED_STATE_COUNT;
-        /* rows: pairs by position (eigenValues[2S + ls]), as kernelAdjointMergedN's blocks */
-        const int pairPosition = isAllReal ? 0 : (int) eigenValues[2 * PADDED_STATE_COUNT + ls];
-        if (pairPosition < 0) continue;   /* the pair's second row, done with its first */
-        const bool isPairLeader = (pairPosition > 0);
-        for (int c = tid; c < PADDED_STATE_COUNT; c += ADJOINT_BLOCK_SP_N) {
-            REAL op0 = (REAL)0, op1 = (REAL)0;
-            for (int k = 0; k < patternCount; k++) {
-                SPECTRAL_FMA(sA[k * PADDED_STATE_COUNT + ls], sC[k * PADDED_STATE_COUNT + c], op0);
-                if (isPairLeader) SPECTRAL_FMA(sA[k * PADDED_STATE_COUNT + ls + 1], sC[k * PADDED_STATE_COUNT + c], op1);
-            }
-            sOpRow0[c] = op0;
-            if (isPairLeader) sOpRow1[c] = op1;
-        }
-        KW_LOCAL_FENCE;
-        for (int c = tid; c < PADDED_STATE_COUNT; c += ADJOINT_BLOCK_SP_N) {
-            const int step = sColStep[c];
-            if (step == 0) continue;
-            if (!isPairLeader) {
-                if (step == 1)
-                    adjointSingletonRealStep(dGradient, PADDED_STATE_COUNT, ls, c, t, sExpat[ls], sEvalR[ls],
-                                             sEvalR, sExpat, sOpRow0);
-                else
-                    adjointSingletonComplexStep(dGradient, PADDED_STATE_COUNT, ls, c, t, sExpat[ls], sEvalR[ls], sEvalI[c],
-                                                sEvalR, sExpat, sCosbt, sSinbt, sOpRow0);
-            } else {
-                if (step == 1)
-                    adjointPairleaderRealStep(dGradient, PADDED_STATE_COUNT, ls, c, t,
-                                              sEvalR[ls], sEvalI[ls], sExpatC[ls], sExpatS[ls], sCosbt[ls], sSinbt[ls], sExpat[ls],
-                                              sEvalR, sExpat, sOpRow0, sOpRow1);
-                else
-                    adjointPairleaderComplexStep(dGradient, PADDED_STATE_COUNT, ls, c, t,
-                                                 sEvalR[ls], sEvalI[ls], sExpatC[ls], sExpatS[ls], sCosbt[ls], sSinbt[ls], sExpat[ls],
-                                                 sEvalI[c], sEvalR, sExpat, sCosbt, sSinbt, sOpRow0, sOpRow1);
-            }
-        }
-        KW_LOCAL_FENCE;
+    for (int s = 0; s < nSlots; s++, rec += RS) {
+        REAL op = (REAL)0;
+        KW_NO_UNROLL
+        for (int k = 0; k < K; k++) SPECTRAL_FMA(rec[k * S + l], rec[(K + k) * S + r], op);
+        KW_GLOBAL_VAR REAL* X = rec + 2 * K * S;
+        const REAL t = X[S];
+        REAL c;   /* adjointSingletonRealStep's co times dl, divided by dl in Reduce */
+        if (cls)                                c = t * X[l];          /* equal eigenvalues: no division */
+        else if (t * fabs(dl) < (REAL)1e-12)    c = (t * X[l]) * dl;   /* degenerate in this slot */
+        else                                    c = X[l] - X[r];
+        SPECTRAL_FMA(op, c, acc);
     }
+    plane[l * S + r] = acc;
+}
+
+KW_DEVICE_FUNC KW_NOINLINE void adjointLowRankSlabRP(
+        KW_GLOBAL_VAR REAL* rec, int RS, int nSlots, int K, int cls, int l, int r,
+        KW_GLOBAL_VAR REAL* plane) {
+    const int S = PADDED_STATE_COUNT;
+    REAL aR = (REAL)0, aI = (REAL)0;   /* sum of w (n0 + i n1) */
+    KW_NO_UNROLL
+    for (int s = 0; s < nSlots; s++, rec += RS) {
+        REAL n0 = (REAL)0, n1 = (REAL)0;
+        KW_NO_UNROLL
+        for (int k = 0; k < K; k++) {
+            SPECTRAL_FMA(rec[k * S + l], rec[(K + k) * S + r],     n0);
+            SPECTRAL_FMA(rec[k * S + l], rec[(K + k) * S + r + 1], n1);
+        }
+        KW_GLOBAL_VAR REAL* X = rec + 2 * K * S;
+        REAL wr, wi;   /* w = wr - i wi */
+        if (cls) { const REAL te = X[S] * X[l]; wr = te; wi = (REAL)0; }   /* t e_l */
+        else     { wr = X[r] - X[l]; wi = X[r + 1]; }                      /* conj(E_r) - e_l */
+        SPECTRAL_FMA(wr, n0, aR); SPECTRAL_FMA(wi, n1, aR);
+        SPECTRAL_FMA(wr, n1, aI); SPECTRAL_FMA(-wi, n0, aI);
+    }
+    plane[l * S + r] = aR; plane[l * S + r + 1] = aI;
+}
+
+KW_DEVICE_FUNC KW_NOINLINE void adjointLowRankSlabPR(
+        KW_GLOBAL_VAR REAL* rec, int RS, int nSlots, int K, int cls, int l, int r,
+        KW_GLOBAL_VAR REAL* plane) {
+    const int S = PADDED_STATE_COUNT;
+    REAL aR = (REAL)0, aI = (REAL)0;   /* sum of w (n0 + i n1) */
+    KW_NO_UNROLL
+    for (int s = 0; s < nSlots; s++, rec += RS) {
+        REAL n0 = (REAL)0, n1 = (REAL)0;
+        KW_NO_UNROLL
+        for (int k = 0; k < K; k++) {
+            SPECTRAL_FMA(rec[k * S + l],     rec[(K + k) * S + r], n0);
+            SPECTRAL_FMA(rec[k * S + l + 1], rec[(K + k) * S + r], n1);
+        }
+        KW_GLOBAL_VAR REAL* X = rec + 2 * K * S;
+        REAL wr, wi;   /* w = wr - i wi */
+        if (cls) { const REAL t = X[S]; wr = t * X[l]; wi = -(t * X[l + 1]); }   /* t E_l */
+        else     { wr = X[r] - X[l]; wi = X[l + 1]; }                            /* e_r - E_l */
+        SPECTRAL_FMA(wr, n0, aR); SPECTRAL_FMA(wi, n1, aR);
+        SPECTRAL_FMA(wr, n1, aI); SPECTRAL_FMA(-wi, n0, aI);
+    }
+    plane[l * S + r] = aR; plane[(l + 1) * S + r] = aI;
+}
+
+KW_DEVICE_FUNC KW_NOINLINE void adjointLowRankSlabPP(
+        KW_GLOBAL_VAR REAL* rec, int RS, int nSlots, int K, int cls, int l, int r,
+        KW_GLOBAL_VAR REAL* plane) {
+    const int S = PADDED_STATE_COUNT;
+    REAL s1r = (REAL)0, s1i = (REAL)0, s2r = (REAL)0, s2i = (REAL)0;   /* S1 = sum w1 P, S2 = sum w2 Q */
+    KW_NO_UNROLL
+    for (int s = 0; s < nSlots; s++, rec += RS) {
+        REAL n00 = (REAL)0, n01 = (REAL)0, n10 = (REAL)0, n11 = (REAL)0;
+        KW_NO_UNROLL
+        for (int k = 0; k < K; k++) {
+            const REAL a0 = rec[k * S + l], a1 = rec[k * S + l + 1];
+            const REAL c0 = rec[(K + k) * S + r], c1 = rec[(K + k) * S + r + 1];
+            SPECTRAL_FMA(a0, c0, n00); SPECTRAL_FMA(a0, c1, n01);
+            SPECTRAL_FMA(a1, c0, n10); SPECTRAL_FMA(a1, c1, n11);
+        }
+        const REAL pr = n00 - n11, pu = n01 + n10;   /* P = pr - i pu */
+        const REAL qr = n00 + n11, qu = n01 - n10;   /* Q = qr - i qu */
+        KW_GLOBAL_VAR REAL* X = rec + 2 * K * S;
+        const REAL t = X[S];
+        const REAL dr = X[r] - X[l];
+        REAL w1r, w1i, w2r, w2i;   /* w = wr + i wi */
+        if (cls & 1) { w1r = t * X[l]; w1i = -(t * X[l + 1]); }   /* t conj(E_l) */
+        else         { w1r = dr;       w1i = X[r + 1] + X[l + 1]; }   /* E_r - conj(E_l) */
+        if (cls & 2) { w2r = t * X[l]; w2i = t * X[l + 1]; }      /* t E_l */
+        else         { w2r = dr;       w2i = X[r + 1] - X[l + 1]; }   /* E_r - E_l */
+        SPECTRAL_FMA(w1r, pr, s1r); SPECTRAL_FMA(w1i, pu, s1r);
+        SPECTRAL_FMA(w1i, pr, s1i); SPECTRAL_FMA(-w1r, pu, s1i);
+        SPECTRAL_FMA(w2r, qr, s2r); SPECTRAL_FMA(w2i, qu, s2r);
+        SPECTRAL_FMA(w2i, qr, s2i); SPECTRAL_FMA(-w2r, qu, s2i);
+    }
+    plane[l * S + r]           = s1r; plane[l * S + r + 1]       = s1i;
+    plane[(l + 1) * S + r]     = s2r; plane[(l + 1) * S + r + 1] = s2i;
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointLowRankSlabN(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scratch,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        int patternCount,
+        int slotCount,     /* the chunk's */
+        int slabSlots,     /* slab y holds the chunk's slots [y slabSlots, (y+1) slabSlots) */
+        int evalOffset,
+        int planeOffset) { /* plane y at scratch + planeOffset + y S^2 */
+    const int B = ADJOINT_BLOCK_SP_N, tid = KW_LOCAL_ID_0;
+    const int nr = (int)scratch[0], np = (int)scratch[1];
+    /* the regions in tiles of B units, the most expensive first: PP, PR, RP, RR (the grid may have more) */
+    const int tPP = (np*np + B - 1) / B, tPR = (np*nr + B - 1) / B, tRR = (nr*nr + B - 1) / B;
+    int x = KW_GROUP_ID_0, region, n;
+    if (x < tPP)               { region = ADJOINT_LOWRANK_PP; n = np*np; }
+    else if ((x -= tPP) < tPR) { region = ADJOINT_LOWRANK_PR; n = np*nr; }
+    else if ((x -= tPR) < tPR) { region = ADJOINT_LOWRANK_RP; n = np*nr; }
+    else if ((x -= tPR) < tRR) { region = ADJOINT_LOWRANK_RR; n = nr*nr; }
+    else return;   /* no barriers in this kernel: returning early is safe */
+    const int u = x * B + tid;
+    if (u >= n) return;
+    int l, r;
+    adjointLowRankUnitCell(scratch, region, u, &l, &r);
+    KW_GLOBAL_VAR REAL* eigenValues = evalOrigin + evalOffset;
+    const int cls = adjointLowRankUnitClass(eigenValues, region, l, r);
+    const int RS = ADJOINT_LOWRANK_RECORD_REALS(patternCount, PADDED_STATE_COUNT);
+    const int y = KW_GROUP_ID_1, first = y * slabSlots;
+    const int nSlots = (slotCount - first < slabSlots) ? slotCount - first : slabSlots;
+    KW_GLOBAL_VAR REAL* rec   = scratch + ADJOINT_LOWRANK_UNITS_REALS(PADDED_STATE_COUNT) + first * RS;
+    KW_GLOBAL_VAR REAL* plane = scratch + planeOffset + y * PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    if (region == ADJOINT_LOWRANK_PP)      adjointLowRankSlabPP(rec, RS, nSlots, patternCount, cls, l, r, plane);
+    else if (region == ADJOINT_LOWRANK_PR) adjointLowRankSlabPR(rec, RS, nSlots, patternCount, cls, l, r, plane);
+    else if (region == ADJOINT_LOWRANK_RP) adjointLowRankSlabRP(rec, RS, nSlots, patternCount, cls, l, r, plane);
+    else adjointLowRankSlabRR(rec, RS, nSlots, patternCount, cls, eigenValues[l] - eigenValues[r], l, r, plane);
+}
+
+/* A unit's sums over the planes, times its denominator's reciprocal (one
+ * division), added into the gradient: the helpers' outputs summed over the
+ * slots. RR: acc / dl. RP, PR: acc (sr + i b) / dn, into (l, r) and (l, r+1),
+ * or (l, r) and (l+1, r). PP: Z1 = S1 (sr - i si1) / (2 d1), Z2 = S2 (sr -
+ * i si2) / (2 d2), into the 2 x 2 block as adjointPairleaderComplexStep's
+ * A, B, C, D. A degenerate unit or part has no denominator. */
+KW_DEVICE_FUNC KW_NOINLINE void adjointLowRankFinish(
+        KW_GLOBAL_VAR REAL* eigenValues, int region, int cls, int l, int r,
+        REAL s0, REAL s1, REAL s2, REAL s3, KW_GLOBAL_VAR REAL* dGradient) {
+    const int S = PADDED_STATE_COUNT, c0 = l * S + r;
+    const REAL sr = eigenValues[r] - eigenValues[l];
+    if (region == ADJOINT_LOWRANK_RR) {
+        dGradient[c0] += cls ? s0 : s0 / (eigenValues[l] - eigenValues[r]);
+        return;
+    }
+    if (region != ADJOINT_LOWRANK_PP) {
+        const int c1 = (region == ADJOINT_LOWRANK_RP) ? c0 + 1 : c0 + S;
+        REAL g0 = s0, g1 = s1;
+        if (!cls) {
+            const REAL b = eigenValues[S + (region == ADJOINT_LOWRANK_RP ? r : l)];
+            const REAL dn = sr*sr + b*b;
+            g0 = (s0*sr - s1*b) / dn; g1 = (s0*b + s1*sr) / dn;
+        }
+        dGradient[c0] += g0; dGradient[c1] += g1;
+        return;
+    }
+    const REAL li = eigenValues[S + l], ri = eigenValues[S + r];
+    const REAL si1 = li + ri, si2 = ri - li, sr2 = sr*sr;
+    REAL z1r = (REAL)0.5 * s0, z1i = (REAL)0.5 * s1, z2r = (REAL)0.5 * s2, z2i = (REAL)0.5 * s3;
+    if (!(cls & 1)) {
+        const REAL d1 = sr2 + si1*si1;
+        z1r = (REAL)0.5 * ((s0*sr + s1*si1) / d1); z1i = (REAL)0.5 * ((s1*sr - s0*si1) / d1);
+    }
+    if (!(cls & 2)) {
+        const REAL d2 = sr2 + si2*si2;
+        z2r = (REAL)0.5 * ((s2*sr + s3*si2) / d2); z2i = (REAL)0.5 * ((s3*sr - s2*si2) / d2);
+    }
+    dGradient[c0]         += z1r + z2r;
+    dGradient[c0 + 1]     += -z1i - z2i;
+    dGradient[c0 + S]     += z2i - z1i;
+    dGradient[c0 + S + 1] += z2r - z1r;
+}
+
+KW_GLOBAL_KERNEL void kernelAdjointLowRankReduceN(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scratch,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
+        int slabCount,
+        int evalOffset,
+        int gradOffset,
+        int planeOffset) {
+    const int S = PADDED_STATE_COUNT, SS = PADDED_STATE_COUNT * PADDED_STATE_COUNT;
+    const int nr = (int)scratch[0], np = (int)scratch[1];
+    /* the same four regions, packed (the grid may have more threads) */
+    int v = KW_GROUP_ID_0 * ADJOINT_BLOCK_SP_N + KW_LOCAL_ID_0, region;
+    if (v < np*np)               region = ADJOINT_LOWRANK_PP;
+    else if ((v -= np*np) < np*nr) region = ADJOINT_LOWRANK_PR;
+    else if ((v -= np*nr) < np*nr) region = ADJOINT_LOWRANK_RP;
+    else if ((v -= np*nr) < nr*nr) region = ADJOINT_LOWRANK_RR;
+    else return;
+    int l, r;
+    adjointLowRankUnitCell(scratch, region, v, &l, &r);
+    KW_GLOBAL_VAR REAL* eigenValues = evalOrigin + evalOffset;
+    const int cls = adjointLowRankUnitClass(eigenValues, region, l, r);
+    const int c0 = l * S + r;
+    const int c1 = (region == ADJOINT_LOWRANK_PR) ? c0 + S : c0 + 1;
+    KW_GLOBAL_VAR REAL* plane = scratch + planeOffset;
+    REAL s0 = (REAL)0, s1 = (REAL)0, s2 = (REAL)0, s3 = (REAL)0;
+    KW_NO_UNROLL
+    for (int y = 0; y < slabCount; y++, plane += SS) {   /* slab order */
+        s0 += plane[c0];
+        if (region != ADJOINT_LOWRANK_RR) s1 += plane[c1];
+        if (region == ADJOINT_LOWRANK_PP) { s2 += plane[c0 + S]; s3 += plane[c0 + S + 1]; }
+    }
+    adjointLowRankFinish(eigenValues, region, cls, l, r, s0, s1, s2, s3, gradientOrigin + gradOffset);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

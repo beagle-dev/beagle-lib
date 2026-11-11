@@ -735,9 +735,17 @@ enum BeagleDeviceImplementationCodes {
 // never has FW_OPENCL_AMDGPU; KernelLauncher picks the same width from the device's implementation code.
 #define ADJOINT_BLOCK_SP_N_DEFAULT  128
 #define ADJOINT_BLOCK_SP_N_AMDGPU    64
-// The most patterns kernelAdjointLowRankN sums (its shared memory holds two vectors per pattern); KernelLauncher sends
-// more to kernelAdjointMergedN
+// The most patterns the low-rank adjoint (kernelAdjointLowRank{Prep,Slab,Reduce}N) sums: each gradient cell costs it
+// 1-4 FMAs per pattern per (branch, category) slot. BeagleGPUSpectralImpl sends more to kernelAdjointMergedN
 #define ADJOINT_LOWRANK_MAX_PATTERNS  4
+// Its scratch: the unit lists {nr, np, R[nr], P[np]}, then a record per slot, in Reals: A_0..A_{K-1}, C_0..C_{K-1} and
+// the exponentials (S each), then t and padding
+#define ADJOINT_LOWRANK_UNITS_REALS(S)      ((S) + 16)
+#define ADJOINT_LOWRANK_RECORD_REALS(K, S)  ((2 * (K) + 1) * (S) + 16)
+// Host only: slots per slab (one S x S plane of sums each) and the scratch per chunk of slots. Fixed, so the gradient's
+// bits do not depend on the device (test-only overrides: BEAGLE_GPU_ADJOINT_LOWRANK_SLAB, ..._BUDGET in bytes)
+#define ADJOINT_LOWRANK_SLAB_SLOTS    128
+#define ADJOINT_LOWRANK_BUDGET_BYTES  (64u << 20)
 // One record per operation of a level-batched spectral traversal (BeagleGPUSpectralImpl, the *Level kernels of
 // kernelsSpectralIfDef.cu), in elements from the pools' origins: 0 child 1 (post-order) or the parent's pre-order
 // partials, 1 child 2 or the sibling, 2 the destination, 3-5 branch 1's eigenvectors, eigenvalues and distances, 6-8

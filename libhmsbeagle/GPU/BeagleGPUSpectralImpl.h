@@ -103,6 +103,14 @@ private:
     unsigned int* hAdjointQueue;
     int           kAdjointQueueCapacity;
 
+    /* The low-rank adjoint (more than 4 states, at most ADJOINT_LOWRANK_MAX_PATTERNS patterns:
+     * kernelAdjointLowRank{Prep,Slab,Reduce}N), all set up in calculateAdjointCrossProducts. hAdjointQueuePos: a call's
+     * branches' records, stably sorted by eigen decomposition. dAdjointLowRankScratch: a chunk's slot records, then one
+     * S x S plane per slab; grown only. */
+    std::vector<int> hAdjointQueuePos;
+    GPUPtr           dAdjointLowRankScratch;
+    size_t           kAdjointLowRankScratchReals;
+
     /* BeagleGPUImpl::kEigenDecompCount is private to the base class; kept
      * here too so calculateAdjointCrossProducts can size a "seen ei" set
      * for the dGradient zero-fill without re-deriving it. */

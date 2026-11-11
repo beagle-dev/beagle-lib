@@ -41,6 +41,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL), dAdjointSiteLogLk(0),
       kAdjointSiteLogLkRows(0), kAdjointSiteLogLkStride(0),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
+      dAdjointLowRankScratch(0), kAdjointLowRankScratchReals(0),
       kSpectralEigenDecompCount(0),
       dLevelQueue(0), hLevelQueue(NULL), kLevelQueueCapacity(0) {
 }
@@ -57,6 +58,7 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
         if (dAdjointSiteLogLk)        gpuIf->FreeMemory(dAdjointSiteLogLk);
         if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
         if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
+        if (dAdjointLowRankScratch)   gpuIf->FreeMemory(dAdjointLowRankScratch);
         if (dLevelQueue)              gpuIf->FreeMemory(dLevelQueue);
         if (hLevelQueue)              gpuIf->FreeHostMemory(hLevelQueue);
         if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
@@ -1017,6 +1019,19 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         };
         int scaledRow = 0;
 
+        // The low-rank adjoint (more than 4 states, few patterns) takes each eigen decomposition's branches as one run
+        // of records: a stable sort by eigen decomposition, its runs from eiStart[ei]
+        const bool lowRank = (S != 4 && this->getPatternCount() <= ADJOINT_LOWRANK_MAX_PATTERNS);
+        std::vector<int> eiStart;
+        if (lowRank) {
+            eiStart.assign(kSpectralEigenDecompCount + 1, 0);
+            for (int i = 0; i < count; i++) eiStart[hEigenIndexForMatrix[eigenIndices[i]] + 1]++;
+            for (int e = 0; e < kSpectralEigenDecompCount; e++) eiStart[e + 1] += eiStart[e];
+            std::vector<int> next(eiStart.begin(), eiStart.end() - 1);
+            hAdjointQueuePos.resize(count);
+            for (int i = 0; i < count; i++) hAdjointQueuePos[i] = next[hEigenIndexForMatrix[eigenIndices[i]]]++;
+        }
+
         for (int i = 0; i < count; i++) {
             const int postIdx = postBufferIndices[i];
             const int preIdx  = preBufferIndices[i];
@@ -1024,7 +1039,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             const int ei      = hEigenIndexForMatrix[matIdx];
             const bool isStates  = (this->dStates[postIdx] != 0);
             const bool isAllReal = hEigenDecompIsAllReal[ei];
-            unsigned int* rec = hAdjointQueue + (size_t)i * kAdjointQueueFieldsPerBranch;
+            unsigned int* rec = hAdjointQueue + (size_t)(lowRank ? hAdjointQueuePos[i] : i) * kAdjointQueueFieldsPerBranch;
 
             rec[0] = this->getPartialsOffsetElements(preIdx);
             rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
@@ -1063,6 +1078,42 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
                 dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
+        } else if (lowRank) {
+            /* Per eigen decomposition, its (branch, category) slots, branch-major, in chunks whose scratch (the unit
+             * lists, a record per slot, a plane per slab of slabSlots slots) fits the budget. Fixed sizes, so the
+             * order of summation, and the gradient's bits, depend on the call only. */
+            static const int slabSlots = getenv("BEAGLE_GPU_ADJOINT_LOWRANK_SLAB")   // test only, as the budget
+                ? std::max(1, atoi(getenv("BEAGLE_GPU_ADJOINT_LOWRANK_SLAB"))) : ADJOINT_LOWRANK_SLAB_SLOTS;
+            static const size_t budget = getenv("BEAGLE_GPU_ADJOINT_LOWRANK_BUDGET")
+                ? std::min((size_t)1 << 30, (size_t)std::max(1LL, atoll(getenv("BEAGLE_GPU_ADJOINT_LOWRANK_BUDGET"))))
+                : (size_t)ADJOINT_LOWRANK_BUDGET_BYTES;
+            const int C = this->kCategoryCount;
+            const size_t RS = ADJOINT_LOWRANK_RECORD_REALS(this->getPatternCount(), S);
+            const size_t chunkSlots = slabSlots * std::max((size_t)1, std::min((size_t)65535,
+                budget / ((slabSlots * RS + (size_t)SS) * sizeof(Real))));
+            size_t maxSlots = 0;
+            for (int e = 0; e < kSpectralEigenDecompCount; e++)
+                maxSlots = std::max(maxSlots, std::min(chunkSlots, (size_t)(eiStart[e + 1] - eiStart[e]) * C));
+            const size_t planeOffset = ADJOINT_LOWRANK_UNITS_REALS(S) + maxSlots * RS;
+            const size_t need = planeOffset + (maxSlots + slabSlots - 1) / slabSlots * SS;
+            if (need > kAdjointLowRankScratchReals) {
+                if (dAdjointLowRankScratch) gpuIf->FreeMemory(dAdjointLowRankScratch);
+                kAdjointLowRankScratchReals = need;
+                dAdjointLowRankScratch = gpuIf->AllocateMemory(need * sizeof(Real));
+            }
+            for (int e = 0; e < kSpectralEigenDecompCount; e++) {
+                const size_t slots = (size_t)(eiStart[e + 1] - eiStart[e]) * C;
+                for (size_t first = 0; first < slots; first += chunkSlots)
+                    this->kernels->AdjointCrossProductLowRankSpectralN(
+                        this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                        this->dIevcOrigin, this->dEigenValuesOrigin,
+                        dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                        dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue, dAdjointLowRankScratch,
+                        this->kPaddedPatternCount, C,
+                        (int)((size_t)eiStart[e] * C + first), (int)std::min(chunkSlots, slots - first), slabSlots,
+                        (unsigned int)e * this->getEvalStrideElements(), (unsigned int)e * matStrideElements,
+                        (unsigned int)planeOffset, this->kStateCount);
+            }
         } else {
             this->kernels->AdjointCrossProductMergedSpectralN(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
