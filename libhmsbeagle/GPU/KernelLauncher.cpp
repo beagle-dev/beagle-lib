@@ -385,6 +385,7 @@ void KernelLauncher::LoadKernels() {
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
         }
+        fAdjointScaledSiteLogLk = gpu->GetFunction("kernelAdjointScaledSiteLogLk");
     }
 
     fPartialsPartialsEdgeFirstDerivatives = gpu->GetFunction(
@@ -1422,6 +1423,18 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
         (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::AdjointScaledSiteLogLkSpectral(GPUPtr siteLogLkOrigin,
+                                                    GPUPtr scaleOrigin,
+                                                    GPUPtr adjointQueue,
+                                                    int branchCount) {
+    Dim3Int block(kAdjointBlockSizeN); // a width every adjoint device takes; the kernel strides by its block
+    Dim3Int grid(branchCount);
+    gpu->LaunchKernel(fAdjointScaledSiteLogLk, block, grid, 3, 4,
+        siteLogLkOrigin, scaleOrigin, adjointQueue,
+        (int)kUnpaddedPatternCount); // the merged kernels read no more
     SYNCHRONIZE_FOR_ORDER();
 }
 

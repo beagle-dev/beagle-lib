@@ -81,16 +81,24 @@ private:
 
     /* The adjoint's per-site log likelihoods (unscaled), sized like
      * dIntegrationTmp but apart from it: getSiteLogLikelihoods reads
-     * dIntegrationTmp, the last likelihood calculation's (scaled) values. */
+     * dIntegrationTmp, the last likelihood calculation's (scaled) values.
+     * Row 0 is the root's; rows 1.. (kAdjointSiteLogLkRows in all, each
+     * kAdjointSiteLogLkStride Reals) hold the rescaled branches' own
+     * (kernelAdjointScaledSiteLogLk), grown with the most branches rescaled
+     * in one call. */
     GPUPtr  dAdjointSiteLogLk;
+    int          kAdjointSiteLogLkRows;
+    unsigned int kAdjointSiteLogLkStride;
 
-    /* Offset-queue for the batched adjoint kernel: one 9-unsigned-int record
-     * per branch (see STATUS.md for the field layout), addressed via
+    /* Offset-queue for the batched adjoint kernel: one 13-unsigned-int record
+     * per branch (see STATUS.md for fields 0-8; 9-12 are the branch's row in
+     * dAdjointSiteLogLk, 0 if not rescaled, and its post, pre and root scale
+     * buffers' offsets in the scale pool), addressed via
      * integer offsets into the pooled partials/states/evec/ievc/eigenvalue/
      * distance/gradient origins — never per-branch device pointers. Grown
      * lazily since branch count varies per calculateAdjointCrossProducts
      * call and isn't known at createInstance time. */
-    static const int kAdjointQueueFieldsPerBranch = 9;
+    static const int kAdjointQueueFieldsPerBranch = 13;
     GPUPtr        dAdjointQueue;
     unsigned int* hAdjointQueue;
     int           kAdjointQueueCapacity;
