@@ -108,6 +108,19 @@ private:
      * for the dGradient zero-fill without re-deriving it. */
     int kSpectralEigenDecompCount;
 
+    /* Level-batched traversals (more than 4 states): updatePartials and updatePrePartials group a call's operations
+     * into levels (scheduleLevels) and launch each level's operations of one kind as one kernel, from one upload per
+     * call of their records (SPECTRAL_LEVEL_QUEUE_STRIDE, GPUImplDefs.h), at the pools' offsets as the adjoint queue.
+     * Every upload is ordered after the launches before it, so one queue serves both traversals. */
+    GPUPtr        dLevelQueue;
+    unsigned int* hLevelQueue;
+    int           kLevelQueueCapacity;   // records
+    // scheduleLevels' input (per operation: the two buffers it reads, child 2 BEAGLE_OP_NONE in degree 2, and the one
+    // it writes) and
+    // its output (hLevelOrder: the operations by level, each level in call order from hLevelStart[level])
+    std::vector<int> hLevelReads, hLevelWrites, hLevelOf, hLevelStart, hLevelOrder;
+    std::vector<int> hLevelLastWrite, hLevelLastRead;   // per buffer index
+
 public:
     BeagleGPUSpectralImpl();
     ~BeagleGPUSpectralImpl() override;
@@ -142,6 +155,13 @@ public:
                           int operationCount,
                           int cumulativeScaleIndex,
                           BeaglePartialsType partialsType) override;
+
+    // level-batched with more than 4 states, MANUAL scaling (or none) and no operation writing scale factors; else
+    // BeagleGPUImpl's, one launch per operation
+    int updatePartials(const int* operations,
+                       int operationCount,
+                       int cumulativeScalingIndex,
+                       BeaglePartialsType partialsType) override;
 
     int updatePrePartialsByPartition(const int* operations,
                                      int operationCount,
@@ -266,6 +286,25 @@ private:
                                   GPUPtr partials1, GPUPtr c2, bool sibIsStates,
                                   GPUPtr partials3,
                                   int c1MatIdx, int c2MatIdx);
+
+    // one pre-order operation (7 ints), with its own launch or copy
+    void dispatchPrePartialsOperation(const int* operation, bool isTop);
+
+    // Gives each of count operations (hLevelReads and hLevelWrites, buffer indices checked by the caller) a level from
+    // 0: one past every earlier operation of the call that writes a buffer it reads or writes, or reads the buffer it
+    // writes. So a level's operations may run together, after the levels before it. Fills hLevelOf, hLevelStart and
+    // hLevelOrder; returns the number of levels.
+    int scheduleLevels(int count);
+
+    // hLevelReads (child 1, child 2) and hLevelWrites (the destination) of count operations (7 ints, post- or
+    // pre-order alike); BEAGLE_ERROR_OUT_OF_RANGE for a buffer index that is not one
+    int setLevelBuffers(const int* operations, int count);
+
+    // room for count records in hLevelQueue and dLevelQueue
+    void ensureLevelQueue(int count);
+
+    // the queue's offsets of a branch through matrix index matIndex: eigenvectors, eigenvalues, distances
+    void fillLevelBranch(unsigned int* fields, int matIndex);
 };
 
 BEAGLE_GPU_TEMPLATE

@@ -75,6 +75,11 @@ private:
     GPUFunction fStatesDegree2NoScaleSpectral;
     GPUFunction fStatesDegree2FixedScaleSpectral;
     GPUFunction fPartialsDegree2GrowingSpectral;
+    /* level-batched traversals, more than 4 states: post-order, and pre-order BOTTOM, TOP and TOP at the root */
+    GPUFunction fPruningLevel;
+    GPUFunction fGrowingLevel;
+    GPUFunction fGrowingTopLevel;
+    GPUFunction fGrowingTopRootLevel;
 
     /* Adjoint cross-product kernel — generic N-state, merged single launch
      * (see STATUS.md/TODO.md — supersedes earlier two-phase, fused, and
@@ -537,6 +542,33 @@ public:
                                         GPUPtr eigenValues1, GPUPtr distances1,
                                         unsigned int patternCount,
                                         unsigned int categoryCount);
+
+    /* Level-batched traversals (more than 4 states): records queueStart to queueStart + opCount - 1 of levelQueue
+     * (SPECTRAL_LEVEL_QUEUE_STRIDE, GPUImplDefs.h), one operation each, as one grid. Post-order, NoScale or
+     * FixedScale by record; pre-order BOTTOM, TOP, or TOP at the root (isRoot). A missing states or scale pool may be
+     * any buffer: the records that would read it do not exist. More than kLevelMaxGridZ operations (CUDA's largest
+     * grid.z) go as several launches. */
+    static const int kLevelMaxGridZ = 65535;
+    void PruningLevelSpectral(GPUPtr partialsOrigin,
+                              GPUPtr statesOrigin,
+                              GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                              GPUPtr evalOrigin, GPUPtr distOrigin,
+                              GPUPtr scaleOrigin,
+                              GPUPtr levelQueue,
+                              int queueStart,
+                              int opCount,
+                              unsigned int patternCount);
+
+    void GrowingLevelSpectral(bool isTop, bool isRoot,
+                              GPUPtr partialsOrigin,
+                              GPUPtr statesOrigin,
+                              GPUPtr evecTOrigin, GPUPtr ievcTOrigin,
+                              GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                              GPUPtr evalOrigin, GPUPtr distOrigin,
+                              GPUPtr levelQueue,
+                              int queueStart,
+                              int opCount,
+                              unsigned int patternCount);
 
     /* Adjoint cross-product launchers — merged single launch covers every
      * branch in a call at once (grid spans branchCount), isStates/isAllReal

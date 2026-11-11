@@ -965,6 +965,238 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Level-batched traversals (BeagleGPUSpectralImpl::updatePartials and
+ * updatePrePartials)
+ *
+ * The host groups a traversal's operations into levels, none of whose
+ * operations reads or writes a buffer another of them writes, and launches a
+ * level's operations of one kind as one grid, grid.z = its operations: the
+ * blocks at KW_GROUP_ID_2 take record queueStart + KW_GROUP_ID_2 of levelQueue
+ * (SPECTRAL_LEVEL_QUEUE_STRIDE, GPUImplDefs.h), offsets from the pools'
+ * origins. Each kernel takes, block by block, the steps of the per-operation
+ * kernels named above it, chosen by the record's flags (the same in a block):
+ * so it computes what they compute, in the same order.
+ * ═══════════════════════════════════════════════════════════════════════════*/
+
+#define SPECTRAL_LEVEL_RECORD_GPU() \
+    KW_GLOBAL_VAR const unsigned int* rec = levelQueue + (queueStart + KW_GROUP_ID_2) * SPECTRAL_LEVEL_QUEUE_STRIDE; \
+    const unsigned int flags = rec[9];
+
+/* sPN as SPECTRAL_LOAD_PARTIALSN_GPU, loaded only when LOAD (a child's states leave it unused) */
+#define SPECTRAL_LOAD_PARTIALS_IF_GPU(N, LOAD) \
+    KW_LOCAL_MEM REAL sP##N[PATTERN_BLOCK_SIZE][PADDED_STATE_COUNT]; \
+    if (LOAD) { \
+        if (pattern < totalPatterns) \
+            sP##N[patIdx][state] = partials##N[y + state]; \
+        else \
+            sP##N[patIdx][state] = (REAL)0; \
+    }
+
+/* Post-order, as kernel{PartialsPartials,StatesPartials,StatesStates}{NoScale,FixedScale}Spectral: either child may be
+ * a tip's states (those kernels put it first; the product of the two sums is the same) */
+KW_GLOBAL_KERNEL void kernelPruningLevel(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT scaleOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        int queueStart,
+        int totalPatterns) {
+    SPECTRAL_LEVEL_RECORD_GPU()
+    const bool child1States = (flags & SPECTRAL_LEVEL_CHILD1_STATES) != 0u;
+    const bool child2States = (flags & SPECTRAL_LEVEL_CHILD2_STATES) != 0u;
+    const bool fixedScale   = (flags & SPECTRAL_LEVEL_FIXED_SCALE) != 0u;
+    KW_GLOBAL_VAR REAL* partials1      = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR int*  states1        = statesOrigin   + rec[0];
+    KW_GLOBAL_VAR REAL* partials2      = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  states2        = statesOrigin   + rec[1];
+    KW_GLOBAL_VAR REAL* partials3      = partialsOrigin + rec[2];
+    KW_GLOBAL_VAR REAL* ievc1          = ievcOrigin     + rec[3];
+    KW_GLOBAL_VAR REAL* evec1          = evecOrigin     + rec[3];
+    KW_GLOBAL_VAR REAL* eigenValues1   = evalOrigin     + rec[4];
+    KW_GLOBAL_VAR REAL* distances1     = distOrigin     + rec[5];
+    KW_GLOBAL_VAR REAL* ievc2          = ievcOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* evec2          = evecOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* eigenValues2   = evalOrigin     + rec[7];
+    KW_GLOBAL_VAR REAL* distances2     = distOrigin     + rec[8];
+    KW_GLOBAL_VAR REAL* scalingFactors = scaleOrigin    + rec[10];
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS_IF_GPU(1, !child1States)
+    SPECTRAL_LOAD_PARTIALS_IF_GPU(2, !child2States)
+    KW_LOCAL_MEM REAL sScale[PATTERN_BLOCK_SIZE];   /* SPECTRAL_LOAD_SCALE_GPU's, for FixedScale */
+    if (fixedScale && patIdx == 0 && state < PATTERN_BLOCK_SIZE)
+        sScale[state] = scalingFactors[KW_GROUP_ID_0 * PATTERN_BLOCK_SIZE + state];
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_EXP_TERMS_GPU(2)
+    if (!child1States && !child2States) {
+        SPECTRAL_TO_EIGEN_BOTH_GPU(FORWARD, sP1, FORWARD, sP2)
+    } else {
+        if (child1States) {
+            SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 1, states1)
+        } else {
+            SPECTRAL_TO_EIGEN_GPU(FORWARD, 1, sP1)
+        }
+        if (child2States) {
+            SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 2, states2)
+        } else {
+            SPECTRAL_TO_EIGEN_GPU(FORWARD, 2, sP2)
+        }
+    }
+    SPECTRAL_EXP_BOTH_GPU(FORWARD, FORWARD)
+    SPECTRAL_FROM_EIGEN_BOTH_GPU(FORWARD, FORWARD)
+    if (fixedScale) {
+        SPECTRAL_WRITE_FIXED_SCALE_GPU()
+    } else {
+        SPECTRAL_WRITE_NO_SCALE_GPU()
+    }
+}
+
+/* Pre-order, BOTTOM, as kernelPartials{Partials,States}GrowingSpectral. The three pre-order kernels take the same
+ * arguments; branch 1 is the parent's (backward), branch 2 the sibling's (forward). */
+KW_GLOBAL_KERNEL void kernelGrowingLevel(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        int queueStart,
+        int totalPatterns) {
+    SPECTRAL_LEVEL_RECORD_GPU()
+    const bool siblingStates = (flags & SPECTRAL_LEVEL_CHILD2_STATES) != 0u;
+    KW_GLOBAL_VAR REAL* partials1    = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* partials2    = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  states2      = statesOrigin   + rec[1];
+    KW_GLOBAL_VAR REAL* partials3    = partialsOrigin + rec[2];
+    KW_GLOBAL_VAR REAL* evecT1       = evecTOrigin    + rec[3];
+    KW_GLOBAL_VAR REAL* ievcT1       = ievcTOrigin    + rec[3];
+    KW_GLOBAL_VAR REAL* eigenValues1 = evalOrigin     + rec[4];
+    KW_GLOBAL_VAR REAL* distances1   = distOrigin     + rec[5];
+    KW_GLOBAL_VAR REAL* ievc2        = ievcOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* evec2        = evecOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* eigenValues2 = evalOrigin     + rec[7];
+    KW_GLOBAL_VAR REAL* distances2   = distOrigin     + rec[8];
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
+    SPECTRAL_LOAD_PARTIALS_IF_GPU(2, !siblingStates)
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_EXP_TERMS_GPU(2)
+    if (siblingStates) {
+        SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 2, states2)
+    } else {
+        SPECTRAL_TO_EIGEN_GPU(FORWARD, 2, sP2)
+    }
+    SPECTRAL_EXP_GPU(FORWARD, 2)
+    {
+        REAL sibling = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 2, sibling)
+        sQ2[patIdx][state] = sibling * sP1[patIdx][state];   /* p_par ⊙ P_2 x_sib */
+    }
+    SPECTRAL_TO_EIGEN_GPU(BACKWARD, 1, sQ2)
+    SPECTRAL_EXP_GPU(BACKWARD, 1)
+    {
+        REAL sum = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(BACKWARD, 1, sum)
+        if (pattern < totalPatterns)
+            partials3[u] = sum;
+    }
+}
+
+/* Pre-order, TOP, as kernelPartials{Partials,States}GrowingTopSpectral */
+KW_GLOBAL_KERNEL void kernelGrowingTopLevel(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        int queueStart,
+        int totalPatterns) {
+    SPECTRAL_LEVEL_RECORD_GPU()
+    const bool siblingStates = (flags & SPECTRAL_LEVEL_CHILD2_STATES) != 0u;
+    KW_GLOBAL_VAR REAL* partials1    = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* partials2    = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  states2      = statesOrigin   + rec[1];
+    KW_GLOBAL_VAR REAL* partials3    = partialsOrigin + rec[2];
+    KW_GLOBAL_VAR REAL* evecT1       = evecTOrigin    + rec[3];
+    KW_GLOBAL_VAR REAL* ievcT1       = ievcTOrigin    + rec[3];
+    KW_GLOBAL_VAR REAL* eigenValues1 = evalOrigin     + rec[4];
+    KW_GLOBAL_VAR REAL* distances1   = distOrigin     + rec[5];
+    KW_GLOBAL_VAR REAL* ievc2        = ievcOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* evec2        = evecOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* eigenValues2 = evalOrigin     + rec[7];
+    KW_GLOBAL_VAR REAL* distances2   = distOrigin     + rec[8];
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = parent pre-order */
+    SPECTRAL_LOAD_PARTIALS_IF_GPU(2, !siblingStates)
+    SPECTRAL_EXP_TERMS_GPU(1)
+    SPECTRAL_EXP_TERMS_GPU(2)
+    if (siblingStates) {
+        SPECTRAL_TO_EIGEN_GPU(BACKWARD, 1, sP1)
+        SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 2, states2)
+    } else {
+        SPECTRAL_TO_EIGEN_BOTH_GPU(BACKWARD, sP1, FORWARD, sP2)
+    }
+    SPECTRAL_EXP_BOTH_GPU(BACKWARD, FORWARD)
+    SPECTRAL_FROM_EIGEN_BOTH_GPU(BACKWARD, FORWARD)
+    SPECTRAL_WRITE_NO_SCALE_GPU()           /* (P_1^T p_par) ⊙ (P_2 x_sib) */
+}
+
+/* Pre-order, TOP at the root (no branch 1), as kernelPartials{Partials,States}GrowingTopRootSpectral */
+KW_GLOBAL_KERNEL void kernelGrowingTopRootLevel(
+        KW_GLOBAL_VAR REAL* KW_RESTRICT partialsOrigin,
+        KW_GLOBAL_VAR int*  KW_RESTRICT statesOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcTOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT ievcOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
+        KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
+        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        int queueStart,
+        int totalPatterns) {
+    SPECTRAL_LEVEL_RECORD_GPU()
+    const bool siblingStates = (flags & SPECTRAL_LEVEL_CHILD2_STATES) != 0u;
+    KW_GLOBAL_VAR REAL* partials1    = partialsOrigin + rec[0];
+    KW_GLOBAL_VAR REAL* partials2    = partialsOrigin + rec[1];
+    KW_GLOBAL_VAR int*  states2      = statesOrigin   + rec[1];
+    KW_GLOBAL_VAR REAL* partials3    = partialsOrigin + rec[2];
+    KW_GLOBAL_VAR REAL* ievc2        = ievcOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* evec2        = evecOrigin     + rec[6];
+    KW_GLOBAL_VAR REAL* eigenValues2 = evalOrigin     + rec[7];
+    KW_GLOBAL_VAR REAL* distances2   = distOrigin     + rec[8];
+    SPECTRAL_INDICES_GPU()
+    SPECTRAL_COMMON_SMEM_GPU()
+    SPECTRAL_LOAD_PARTIALS1_GPU()           /* sP1 = root pre-order (Hadamard factor) */
+    SPECTRAL_LOAD_PARTIALS_IF_GPU(2, !siblingStates)
+    SPECTRAL_EXP_TERMS_GPU(2)
+    if (siblingStates) {
+        SPECTRAL_TO_EIGEN_STATES_GPU(FORWARD, 2, states2)
+    } else {
+        SPECTRAL_TO_EIGEN_GPU(FORWARD, 2, sP2)
+    }
+    SPECTRAL_EXP_GPU(FORWARD, 2)
+    {
+        REAL sibling = (REAL)0;
+        SPECTRAL_FROM_EIGEN_GPU(FORWARD, 2, sibling)
+        if (pattern < totalPatterns)
+            partials3[u] = sibling * sP1[patIdx][state];
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Adjoint cross-product kernel — generic N-state (OpenCL-compatible)
  *
  * Single launch, all branches at once (see kernelAdjointMergedN below):

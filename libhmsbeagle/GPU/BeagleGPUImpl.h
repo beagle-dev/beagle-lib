@@ -572,6 +572,9 @@ protected:
     unsigned int getScaleBufferSizeElements() const { return (unsigned int) kScaleBufferSize; }
     // BeagleGPUSpectralImpl's adjoint: the valid scale indices, and the pool's buffer of zeros (raw scalers) after them
     int getScaleBufferCount() const { return kScaleBufferCount; }
+    // BeagleGPUSpectralImpl's level-batched traversals: the valid buffer indices, and a scale buffer's handle
+    int getBufferCount() const { return kBufferCount; }
+    GPUPtr getScalingFactors(int index) const { return dScalingFactors[index]; }
 
     virtual void dispatchPrunePP(GPUPtr p1, GPUPtr p2, GPUPtr p3,
                                   int c1MatIdx, int c2MatIdx,

@@ -385,6 +385,10 @@ void KernelLauncher::LoadKernels() {
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
             fAdjointLowRankN = gpu->GetFunction("kernelAdjointLowRankN");
+            fPruningLevel        = gpu->GetFunction("kernelPruningLevel");
+            fGrowingLevel        = gpu->GetFunction("kernelGrowingLevel");
+            fGrowingTopLevel     = gpu->GetFunction("kernelGrowingTopLevel");
+            fGrowingTopRootLevel = gpu->GetFunction("kernelGrowingTopRootLevel");
         }
         fAdjointScaledSiteLogLk = gpu->GetFunction("kernelAdjointScaledSiteLogLk");
     }
@@ -1380,6 +1384,53 @@ void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
                       partials1, partials3,
                       evecT1, ievcT1, eigenValues1, distances1,
                       patternCount);
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::PruningLevelSpectral(GPUPtr partialsOrigin,
+                                          GPUPtr statesOrigin,
+                                          GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                                          GPUPtr evalOrigin, GPUPtr distOrigin,
+                                          GPUPtr scaleOrigin,
+                                          GPUPtr levelQueue,
+                                          int queueStart,
+                                          int opCount,
+                                          unsigned int patternCount) {
+    for (int first = 0; first < opCount; first += kLevelMaxGridZ) {
+        const int ops = (opCount - first < kLevelMaxGridZ) ? opCount - first : kLevelMaxGridZ;
+        Dim3Int grid(bgSpectralPeelingGrid.x, bgSpectralPeelingGrid.y, ops);
+        gpu->LaunchKernel(fPruningLevel,
+                          bgSpectralPeelingBlock, grid,
+                          8, 10,
+                          partialsOrigin, statesOrigin,
+                          ievcOrigin, evecOrigin, evalOrigin, distOrigin,
+                          scaleOrigin, levelQueue,
+                          queueStart + first, patternCount);
+    }
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::GrowingLevelSpectral(bool isTop, bool isRoot,
+                                          GPUPtr partialsOrigin,
+                                          GPUPtr statesOrigin,
+                                          GPUPtr evecTOrigin, GPUPtr ievcTOrigin,
+                                          GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                                          GPUPtr evalOrigin, GPUPtr distOrigin,
+                                          GPUPtr levelQueue,
+                                          int queueStart,
+                                          int opCount,
+                                          unsigned int patternCount) {
+    for (int first = 0; first < opCount; first += kLevelMaxGridZ) {
+        const int ops = (opCount - first < kLevelMaxGridZ) ? opCount - first : kLevelMaxGridZ;
+        Dim3Int grid(bgSpectralPeelingGrid.x, bgSpectralPeelingGrid.y, ops);
+        gpu->LaunchKernel(!isTop ? fGrowingLevel : (isRoot ? fGrowingTopRootLevel : fGrowingTopLevel),
+                          bgSpectralPeelingBlock, grid,
+                          9, 11,
+                          partialsOrigin, statesOrigin,
+                          evecTOrigin, ievcTOrigin, ievcOrigin, evecOrigin, evalOrigin, distOrigin,
+                          levelQueue,
+                          queueStart + first, patternCount);
+    }
     SYNCHRONIZE_FOR_ORDER();
 }
 

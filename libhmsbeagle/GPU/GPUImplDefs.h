@@ -738,6 +738,14 @@ enum BeagleDeviceImplementationCodes {
 // The most patterns kernelAdjointLowRankN sums (its shared memory holds two vectors per pattern); KernelLauncher sends
 // more to kernelAdjointMergedN
 #define ADJOINT_LOWRANK_MAX_PATTERNS  4
+// One record per operation of a level-batched spectral traversal (BeagleGPUSpectralImpl, the *Level kernels of
+// kernelsSpectralIfDef.cu), in elements from the pools' origins: 0 child 1 (post-order) or the parent's pre-order
+// partials, 1 child 2 or the sibling, 2 the destination, 3-5 branch 1's eigenvectors, eigenvalues and distances, 6-8
+// branch 2's, 9 the flags below, 10 the scale buffer read
+#define SPECTRAL_LEVEL_QUEUE_STRIDE     11
+#define SPECTRAL_LEVEL_CHILD1_STATES    1u   // post-order: child 1 is a tip's states
+#define SPECTRAL_LEVEL_CHILD2_STATES    2u   // child 2, or the pre-order sibling, is a tip's states
+#define SPECTRAL_LEVEL_FIXED_SCALE      4u   // post-order: divide by the scale buffer (field 10)
 
 #define SUM_SITES_BLOCK_SIZE    GET2_VALUE(SUM_SITES_BLOCK_SIZE, PREC)
 #define MULTI_NODE_SUM_BLOCK_SIZE    GET2_VALUE(MULTI_NODE_SUM_BLOCK_SIZE, PREC)
