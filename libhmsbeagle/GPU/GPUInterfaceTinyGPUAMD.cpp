@@ -744,6 +744,18 @@ void AmdMemcpyDeviceToHost(GPUInterface* self, void* dst, const GPUPtr src, size
     amd_profile_end("d2h (C++)", t0);
 }
 
+void AmdMemcpyDeviceToDevice(GPUInterface* self, GPUPtr dst, GPUPtr src, size_t sz) {
+    std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
+    AMDInstance* in = (AMDInstance*)self->amdInstance;
+    if (!in || amd_failed(*in) || !sz) return;
+    amdFlushLaunchQueue(*in);  // preserve ordering: queued launches must be submitted before this copy
+    auto t0 = amd_profile_start();
+    if (!amd_transfer(*g_amd->rt, (uint64_t)dst, (uint64_t)src, sz))
+        fprintf(stderr, "TinyGPU/AMD: d2d(dst=0x%llx, src=0x%llx, sz=%zu) failed: %s\n", (unsigned long long)dst,
+                (unsigned long long)src, sz, g_amd->rt->error_msg.c_str());
+    amd_profile_end("d2d (C++)", t0);
+}
+
 size_t AmdGetAvailableMemory() {
     std::lock_guard<std::recursive_timed_mutex> lk(amd_mutex());
     return g_amd ? (size_t)g_amd->rt->available() : 0;   // the C++ runtime's VRAM pool

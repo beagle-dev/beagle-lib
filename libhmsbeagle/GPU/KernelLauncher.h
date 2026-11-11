@@ -75,11 +75,19 @@ private:
     GPUFunction fStatesDegree2NoScaleSpectral;
     GPUFunction fStatesDegree2FixedScaleSpectral;
     GPUFunction fPartialsDegree2GrowingSpectral;
+    /* level-batched traversals, more than 4 states: post-order, and pre-order BOTTOM, TOP and TOP at the root */
+    GPUFunction fPruningLevel;
+    GPUFunction fGrowingLevel;
+    GPUFunction fGrowingTopLevel;
+    GPUFunction fGrowingTopRootLevel;
 
     /* Adjoint cross-product kernel — generic N-state, merged single launch
      * (see STATUS.md/TODO.md — supersedes earlier two-phase, fused, and
      * bucketed designs, all verified and benchmarked before removal) */
     GPUFunction fAdjointMergedN;
+    GPUFunction fAdjointLowRankPrepN;
+    GPUFunction fAdjointLowRankSlabN;
+    GPUFunction fAdjointLowRankReduceN;
     /* Adjoint cross-product kernel — 4-state, merged single launch */
     GPUFunction fAdjointMerged4;
     /* the rescaled branches' site log likelihoods for either merged adjoint kernel */
@@ -112,6 +120,10 @@ private:
     GPUFunction fRemoveFactorsDynamicScaling;
     GPUFunction fRemoveFactorsDynamicScalingByPartition;
     GPUFunction fResetFactorsDynamicScalingByPartition;
+#ifdef FW_TINYGPU
+    GPUFunction fCopyFactors;
+    GPUFunction fLevelScaleFactors;   // RAW or LOG scalers, as fRemoveFactorsDynamicScaling
+#endif
     GPUFunction fPartialsDynamicScaling;
     GPUFunction fPartialsDynamicScalingByPartition;
     GPUFunction fPartialsDynamicScalingAccumulate;
@@ -534,6 +546,33 @@ public:
                                         unsigned int patternCount,
                                         unsigned int categoryCount);
 
+    /* Level-batched traversals (more than 4 states): records queueStart to queueStart + opCount - 1 of levelQueue
+     * (SPECTRAL_LEVEL_QUEUE_STRIDE, GPUImplDefs.h), one operation each, as one grid. Post-order, NoScale or
+     * FixedScale by record; pre-order BOTTOM, TOP, or TOP at the root (isRoot). A missing states or scale pool may be
+     * any buffer: the records that would read it do not exist. More than kLevelMaxGridZ operations (CUDA's largest
+     * grid.z) go as several launches. */
+    static const int kLevelMaxGridZ = 65535;
+    void PruningLevelSpectral(GPUPtr partialsOrigin,
+                              GPUPtr statesOrigin,
+                              GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                              GPUPtr evalOrigin, GPUPtr distOrigin,
+                              GPUPtr scaleOrigin,
+                              GPUPtr levelQueue,
+                              int queueStart,
+                              int opCount,
+                              unsigned int patternCount);
+
+    void GrowingLevelSpectral(bool isTop, bool isRoot,
+                              GPUPtr partialsOrigin,
+                              GPUPtr statesOrigin,
+                              GPUPtr evecTOrigin, GPUPtr ievcTOrigin,
+                              GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                              GPUPtr evalOrigin, GPUPtr distOrigin,
+                              GPUPtr levelQueue,
+                              int queueStart,
+                              int opCount,
+                              unsigned int patternCount);
+
     /* Adjoint cross-product launchers — merged single launch covers every
      * branch in a call at once (grid spans branchCount), isStates/isAllReal
      * read per-block from a device offset-queue rather than selecting among
@@ -568,6 +607,33 @@ public:
                                             unsigned int patternCount,
                                             unsigned int categoryCount,
                                             int branchCount);
+
+    /* The low-rank adjoint (more than 4 states, at most ADJOINT_LOWRANK_MAX_PATTERNS patterns) of one chunk of one
+     * eigen decomposition's slots (branch-major (branch, category) pairs of the queue's records, sorted by eigen
+     * decomposition): kernelAdjointLowRankPrepN writes the unit lists and the chunk's records to the scratch,
+     * kernelAdjointLowRankSlabN sums each slab of slabSlots slots into a plane after them (at planeOffset), and
+     * kernelAdjointLowRankReduceN adds the planes into the gradient at gradOffset. */
+    void AdjointCrossProductLowRankSpectralN(GPUPtr partialsOrigin,
+                                             GPUPtr statesOrigin,
+                                             GPUPtr evecTOrigin,
+                                             GPUPtr ievcOrigin,
+                                             GPUPtr evalOrigin,
+                                             GPUPtr distOrigin,
+                                             GPUPtr patternWeights,
+                                             GPUPtr categoryWeights,
+                                             GPUPtr perSiteLikelihoods,
+                                             GPUPtr gradientOrigin,
+                                             GPUPtr adjointQueue,
+                                             GPUPtr scratch,
+                                             unsigned int patternCount,
+                                             unsigned int categoryCount,
+                                             int firstSlot,
+                                             int slotCount,
+                                             int slabSlots,
+                                             unsigned int evalOffset,
+                                             unsigned int gradOffset,
+                                             unsigned int planeOffset,
+                                             int stateCount);
 
     /* Before either merged launch: each queued branch with a row (field 9) gets its site log likelihoods there,
      * row 0's less its scale buffers' (fields 10-12) post + pre - root. */
@@ -771,6 +837,21 @@ public:
     void ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactors,
                                                int startPattern,
                                                int endPattern);
+
+#ifdef FW_TINYGPU
+    void CopyFactors(GPUPtr dScalingFactorsDest,
+                     GPUPtr dScalingFactorsSource,
+                     unsigned int count);
+
+    // BeagleGPUImpl's deferred scale-factor operations: records queueStart to queueStart + opCount - 1 of scaleOpQueue
+    // (SCALE_OP_QUEUE_STRIDE, GPUImplDefs.h), offsets from scaleOrigin, a block each
+    void LevelScaleFactors(GPUPtr scaleOrigin,
+                           GPUPtr scaleOpQueue,
+                           int queueStart,
+                           int opCount,
+                           unsigned int copyCount,
+                           unsigned int patternCount);
+#endif
 
     void RescalePartials(GPUPtr partials3,
                          GPUPtr scalingFactors,

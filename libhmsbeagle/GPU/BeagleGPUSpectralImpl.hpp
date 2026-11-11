@@ -41,7 +41,9 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::BeagleGPUSpectralImpl()
       dGradientOrigin(0), dGradient(NULL), hEigenDecompIsAllReal(NULL), dAdjointSiteLogLk(0),
       kAdjointSiteLogLkRows(0), kAdjointSiteLogLkStride(0),
       dAdjointQueue(0), hAdjointQueue(NULL), kAdjointQueueCapacity(0),
-      kSpectralEigenDecompCount(0) {
+      dAdjointLowRankScratch(0), kAdjointLowRankScratchReals(0),
+      kSpectralEigenDecompCount(0),
+      dLevelQueue(0), hLevelQueue(NULL), kLevelQueueCapacity(0) {
 }
 
 BEAGLE_GPU_TEMPLATE
@@ -56,6 +58,9 @@ BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUSpectralImpl() {
         if (dAdjointSiteLogLk)        gpuIf->FreeMemory(dAdjointSiteLogLk);
         if (dAdjointQueue)            gpuIf->FreeMemory(dAdjointQueue);
         if (hAdjointQueue)            gpuIf->FreeHostMemory(hAdjointQueue);
+        if (dAdjointLowRankScratch)   gpuIf->FreeMemory(dAdjointLowRankScratch);
+        if (dLevelQueue)              gpuIf->FreeMemory(dLevelQueue);
+        if (hLevelQueue)              gpuIf->FreeHostMemory(hLevelQueue);
         if (hSpectralDistances)       gpuIf->FreeHostMemory(hSpectralDistances);
     }
     free(dSpectralDistances);
@@ -425,43 +430,235 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchGrowingSpectral(
 }
 
 BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::dispatchPrePartialsOperation(const int* operation, bool isTop) {
+    const int parIndex          = operation[0];
+    const int child1Index       = operation[3];
+    const int child1TransMatIdx = operation[4];
+    const int child2Index       = operation[5];
+    const int child2TransMatIdx = operation[6];
+
+    if (child2Index == BEAGLE_OP_NONE) {   // degree 2, TOP and BOTTOM alike, as calcDegree2PrePartials
+        GPUPtr partials1 = this->dPartials[child1Index];
+        GPUPtr partials3 = this->dPartials[parIndex];
+        if (child1TransMatIdx < 0) {   // no branch to propagate through: a copy, as growPool copies
+            this->gpu->MemcpyDeviceToDevice(partials3, partials1, sizeof(Real) * this->kPaddedPatternCount *
+                                                                  this->kPaddedStateCount * this->kCategoryCount);
+        } else {
+            flushSpectralDistances();
+            const int ei1 = hEigenIndexForMatrix[child1TransMatIdx];   // backward, as dispatchGrowingSpectral
+            this->kernels->PartialsDegree2GrowingSpectral(partials1, partials3,
+                dEvecT[ei1], dIevcT[ei1], this->dEigenValues[ei1], dSpectralDistances[child1TransMatIdx],
+                this->kPaddedPatternCount, this->kCategoryCount);
+        }
+        return;
+    }
+
+    bool isRoot     = isTop && (child1TransMatIdx < 0);
+    bool sibIsStates = (this->dStates[child2Index] != 0);
+    GPUPtr partials1 = this->dPartials[child1Index];
+    GPUPtr c2        = sibIsStates ? this->dStates[child2Index] : this->dPartials[child2Index];
+    GPUPtr partials3 = this->dPartials[parIndex];
+
+    dispatchGrowingSpectral(isTop, isRoot,
+                            partials1, c2, sibIsStates,
+                            partials3,
+                            child1TransMatIdx, child2TransMatIdx);
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::setLevelBuffers(const int* operations, int count) {
+    const int buffers = this->getBufferCount();
+    hLevelReads.resize(2 * (size_t) count);
+    hLevelWrites.resize(count);
+    for (int op = 0; op < count; op++) {
+        const int* o = operations + op * BEAGLE_OP_COUNT;
+        if (o[0] < 0 || o[0] >= buffers || o[3] < 0 || o[3] >= buffers ||
+            (o[5] != BEAGLE_OP_NONE && (o[5] < 0 || o[5] >= buffers)))
+            return BEAGLE_ERROR_OUT_OF_RANGE;
+        hLevelReads[2 * op]     = o[3];
+        hLevelReads[2 * op + 1] = o[5];
+        hLevelWrites[op]        = o[0];
+    }
+    return BEAGLE_SUCCESS;
+}
+
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::scheduleLevels(int count) {
+    return BeagleGPUImpl<Real>::scheduleLevels(count, 2, hLevelReads.data(), hLevelWrites.data(), this->getBufferCount(),
+                                               hLevelOf, hLevelStart, hLevelOrder, hLevelLastWrite, hLevelLastRead);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::ensureLevelQueue(int count) {
+    if (count <= kLevelQueueCapacity)
+        return;
+    GPUInterface* gpuIf = this->gpu;
+    if (dLevelQueue) {
+        gpuIf->SynchronizeHost();   // the launches reading it have completed
+        gpuIf->FreeMemory(dLevelQueue);
+    }
+    if (hLevelQueue)
+        gpuIf->FreeHostMemory(hLevelQueue);
+    kLevelQueueCapacity = std::max(count, 2 * kLevelQueueCapacity);
+    const size_t words = (size_t) kLevelQueueCapacity * SPECTRAL_LEVEL_QUEUE_STRIDE;
+    dLevelQueue = gpuIf->AllocateMemory(sizeof(unsigned int) * words);
+    hLevelQueue = (unsigned int*) gpuIf->CallocHost(sizeof(unsigned int), words);
+}
+
+BEAGLE_GPU_TEMPLATE
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::fillLevelBranch(unsigned int* fields, int matIndex) {
+    const int ei = hEigenIndexForMatrix[matIndex];
+    fields[0] = (unsigned int) ei * this->getEvecStrideElements();   // dEvecT and dIevcT have dEvec's stride
+    fields[1] = (unsigned int) ei * this->getEvalStrideElements();
+    fields[2] = (unsigned int) matIndex * kSpectralDistanceStrideElements;
+}
+
+BEAGLE_GPU_TEMPLATE
 int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
         const int* operations, int operationCount,
         int cumulativeScaleIndex, BeaglePartialsType partialsType) {
-    bool isTop = (partialsType == BEAGLE_PARTIALS_TOP);
-    for (int op = 0; op < operationCount; op++) {
-        const int parIndex          = operations[op * 7 + 0];
-        const int child1Index       = operations[op * 7 + 3];
-        const int child1TransMatIdx = operations[op * 7 + 4];
-        const int child2Index       = operations[op * 7 + 5];
-        const int child2TransMatIdx = operations[op * 7 + 6];
+    const bool isTop = (partialsType == BEAGLE_PARTIALS_TOP);
+    if (this->kPaddedStateCount == 4) {   // kernelsSpectralIfDef4.cu has no level kernels
+        for (int op = 0; op < operationCount; op++)
+            dispatchPrePartialsOperation(operations + op * BEAGLE_OP_COUNT, isTop);
+        return BEAGLE_SUCCESS;
+    }
+    if (operationCount <= 0)
+        return BEAGLE_SUCCESS;
 
-        if (child2Index == BEAGLE_OP_NONE) {   // degree 2, TOP and BOTTOM alike, as calcDegree2PrePartials
-            GPUPtr partials1 = this->dPartials[child1Index];
-            GPUPtr partials3 = this->dPartials[parIndex];
-            if (child1TransMatIdx < 0) {   // no branch to propagate through: a copy, as growPool copies
-                this->gpu->MemcpyDeviceToDevice(partials3, partials1, sizeof(Real) * this->kPaddedPatternCount *
-                                                                      this->kPaddedStateCount * this->kCategoryCount);
-            } else {
-                flushSpectralDistances();
-                const int ei1 = hEigenIndexForMatrix[child1TransMatIdx];   // backward, as dispatchGrowingSpectral
-                this->kernels->PartialsDegree2GrowingSpectral(partials1, partials3,
-                    dEvecT[ei1], dIevcT[ei1], this->dEigenValues[ei1], dSpectralDistances[child1TransMatIdx],
-                    this->kPaddedPatternCount, this->kCategoryCount);
+    // an operation reads its parent's pre-order partials (child 1) and its sibling (child 2)
+    const int rc = setLevelBuffers(operations, operationCount);
+    if (rc != BEAGLE_SUCCESS)
+        return rc;
+    const int levelCount = scheduleLevels(operationCount);
+    ensureLevelQueue(operationCount);
+
+    // each level's records: TOP's root operations (no branch 1), then the others; a degree-2 operation has its own
+    // launch or copy, in its level. segment[2 * level + root ? 0 : 1] = { first record, records }
+    std::vector<int> segment(4 * (size_t) levelCount, 0);
+    int records = 0;
+    for (int level = 0; level < levelCount; level++) {
+        for (int pass = 0; pass < 2; pass++) {
+            segment[4 * level + 2 * pass] = records;
+            for (int i = hLevelStart[level]; i < hLevelStart[level + 1]; i++) {
+                const int* o = operations + hLevelOrder[i] * BEAGLE_OP_COUNT;
+                const bool isRoot = isTop && o[4] < 0;
+                if (o[5] == BEAGLE_OP_NONE || isRoot != (pass == 0))
+                    continue;
+                const bool siblingStates = (this->dStates[o[5]] != 0);
+                unsigned int* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
+                rec[0] = this->getPartialsOffsetElements(o[3]);
+                rec[1] = siblingStates ? this->getStatesOffsetElements(o[5]) : this->getPartialsOffsetElements(o[5]);
+                rec[2] = this->getPartialsOffsetElements(o[0]);
+                if (isRoot)
+                    rec[3] = rec[4] = rec[5] = 0u;
+                else
+                    fillLevelBranch(rec + 3, o[4]);
+                fillLevelBranch(rec + 6, o[6]);
+                rec[9]  = siblingStates ? SPECTRAL_LEVEL_CHILD2_STATES : 0u;
+                rec[10] = 0u;
             }
-            continue;
+            segment[4 * level + 2 * pass + 1] = records - segment[4 * level + 2 * pass];
         }
+    }
 
-        bool isRoot     = isTop && (child1TransMatIdx < 0);
-        bool sibIsStates = (this->dStates[child2Index] != 0);
-        GPUPtr partials1 = this->dPartials[child1Index];
-        GPUPtr c2        = sibIsStates ? this->dStates[child2Index] : this->dPartials[child2Index];
-        GPUPtr partials3 = this->dPartials[parIndex];
+    flushSpectralDistances();
+    if (records > 0)
+        this->gpu->MemcpyHostToDevice(dLevelQueue, hLevelQueue,
+                                      sizeof(unsigned int) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
+    GPUPtr partialsOrigin = this->getPartialsOrigin();
+    GPUPtr statesOrigin   = this->getStatesOrigin() ? this->getStatesOrigin() : partialsOrigin;
+    for (int level = 0; level < levelCount; level++) {
+        for (int pass = 0; pass < 2; pass++) {
+            const int count = segment[4 * level + 2 * pass + 1];
+            if (count > 0)
+                this->kernels->GrowingLevelSpectral(isTop, pass == 0, partialsOrigin, statesOrigin,
+                    dEvecTOrigin, dIevcTOrigin, this->dIevcOrigin, this->dEvecOrigin,
+                    this->dEigenValuesOrigin, dSpectralDistancesOrigin,
+                    dLevelQueue, segment[4 * level + 2 * pass], count, this->kPaddedPatternCount);
+        }
+        for (int i = hLevelStart[level]; i < hLevelStart[level + 1]; i++) {
+            const int* o = operations + hLevelOrder[i] * BEAGLE_OP_COUNT;
+            if (o[5] == BEAGLE_OP_NONE)
+                dispatchPrePartialsOperation(o, isTop);
+        }
+    }
+    return BEAGLE_SUCCESS;
+}
 
-        dispatchGrowingSpectral(isTop, isRoot,
-                                partials1, c2, sibIsStates,
-                                partials3,
-                                child1TransMatIdx, child2TransMatIdx);
+BEAGLE_GPU_TEMPLATE
+int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartials(
+        const int* operations, int operationCount,
+        int cumulativeScalingIndex, BeaglePartialsType partialsType) {
+    // As BeagleGPUImpl::upPartials, MANUAL scaling divides by an operation's read scale buffer (FixedScale) unless it
+    // has a write index; then, and under AUTO and ALWAYS, operations write scale factors, one launch each, there
+    const bool manual = (this->kFlags & BEAGLE_FLAG_SCALING_MANUAL) != 0;
+    bool levels = this->kPaddedStateCount != 4 &&   // kernelsSpectralIfDef4.cu has no level kernels
+                  !(this->kFlags & (BEAGLE_FLAG_SCALING_AUTO | BEAGLE_FLAG_SCALING_ALWAYS | BEAGLE_FLAG_SCALING_DYNAMIC));
+    for (int op = 0; levels && op < operationCount; op++)
+        if (manual && operations[op * BEAGLE_OP_COUNT + 1] >= 0)
+            levels = false;
+    if (!levels || operationCount <= 0)
+        return BeagleGPUImpl<Real>::updatePartials(operations, operationCount, cumulativeScalingIndex, partialsType);
+
+    // an operation reads its children; no operation here writes scale factors
+    const int rc = setLevelBuffers(operations, operationCount);
+    if (rc != BEAGLE_SUCCESS)
+        return rc;
+    const int levelCount = scheduleLevels(operationCount);
+    ensureLevelQueue(operationCount);
+
+    // each level's records; a degree-2 operation has its own launch, in its level. segment[2 * level] = { first
+    // record, records }
+    const unsigned int scaleSize = this->getScaleBufferSizeElements();
+    std::vector<int> segment(2 * (size_t) levelCount, 0);
+    int records = 0;
+    for (int level = 0; level < levelCount; level++) {
+        segment[2 * level] = records;
+        for (int i = hLevelStart[level]; i < hLevelStart[level + 1]; i++) {
+            const int* o = operations + hLevelOrder[i] * BEAGLE_OP_COUNT;
+            if (o[5] == BEAGLE_OP_NONE)
+                continue;
+            const bool child1States = (this->dStates[o[3]] != 0);
+            const bool child2States = (this->dStates[o[5]] != 0);
+            const bool fixedScale   = manual && o[2] >= 0;
+            unsigned int* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
+            rec[0] = child1States ? this->getStatesOffsetElements(o[3]) : this->getPartialsOffsetElements(o[3]);
+            rec[1] = child2States ? this->getStatesOffsetElements(o[5]) : this->getPartialsOffsetElements(o[5]);
+            rec[2] = this->getPartialsOffsetElements(o[0]);
+            fillLevelBranch(rec + 3, o[4]);
+            fillLevelBranch(rec + 6, o[6]);
+            rec[9]  = (child1States ? SPECTRAL_LEVEL_CHILD1_STATES : 0u) |
+                      (child2States ? SPECTRAL_LEVEL_CHILD2_STATES : 0u) |
+                      (fixedScale   ? SPECTRAL_LEVEL_FIXED_SCALE   : 0u);
+            rec[10] = fixedScale ? (unsigned int) o[2] * scaleSize : 0u;
+        }
+        segment[2 * level + 1] = records - segment[2 * level];
+    }
+
+    flushSpectralDistances();
+    if (records > 0)
+        this->gpu->MemcpyHostToDevice(dLevelQueue, hLevelQueue,
+                                      sizeof(unsigned int) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
+    GPUPtr partialsOrigin = this->getPartialsOrigin();
+    GPUPtr statesOrigin   = this->getStatesOrigin() ? this->getStatesOrigin() : partialsOrigin;
+    GPUPtr scaleOrigin    = this->getScalingFactorsOriginRaw() ? this->getScalingFactorsOriginRaw() : partialsOrigin;
+    for (int level = 0; level < levelCount; level++) {
+        if (segment[2 * level + 1] > 0)
+            this->kernels->PruningLevelSpectral(partialsOrigin, statesOrigin,
+                this->dIevcOrigin, this->dEvecOrigin, this->dEigenValuesOrigin, dSpectralDistancesOrigin,
+                scaleOrigin, dLevelQueue, segment[2 * level], segment[2 * level + 1], this->kPaddedPatternCount);
+        for (int i = hLevelStart[level]; i < hLevelStart[level + 1]; i++) {
+            const int* o = operations + hLevelOrder[i] * BEAGLE_OP_COUNT;
+            if (o[5] != BEAGLE_OP_NONE)
+                continue;
+            const bool child1States = (this->dStates[o[3]] != 0);
+            const bool fixedScale   = manual && o[2] >= 0;
+            dispatchPruneDegree2(child1States ? this->dStates[o[3]] : this->dPartials[o[3]], child1States,
+                                 this->dPartials[o[0]], o[4],
+                                 fixedScale ? this->getScalingFactors(o[2]) : (GPUPtr)NULL, (GPUPtr)NULL,
+                                 0, 0, fixedScale ? 0 : BEAGLE_OP_NONE, -1, -1);
+        }
     }
     return BEAGLE_SUCCESS;
 }
@@ -822,6 +1019,19 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         };
         int scaledRow = 0;
 
+        // The low-rank adjoint (more than 4 states, few patterns) takes each eigen decomposition's branches as one run
+        // of records: a stable sort by eigen decomposition, its runs from eiStart[ei]
+        const bool lowRank = (S != 4 && this->getPatternCount() <= ADJOINT_LOWRANK_MAX_PATTERNS);
+        std::vector<int> eiStart;
+        if (lowRank) {
+            eiStart.assign(kSpectralEigenDecompCount + 1, 0);
+            for (int i = 0; i < count; i++) eiStart[hEigenIndexForMatrix[eigenIndices[i]] + 1]++;
+            for (int e = 0; e < kSpectralEigenDecompCount; e++) eiStart[e + 1] += eiStart[e];
+            std::vector<int> next(eiStart.begin(), eiStart.end() - 1);
+            hAdjointQueuePos.resize(count);
+            for (int i = 0; i < count; i++) hAdjointQueuePos[i] = next[hEigenIndexForMatrix[eigenIndices[i]]]++;
+        }
+
         for (int i = 0; i < count; i++) {
             const int postIdx = postBufferIndices[i];
             const int preIdx  = preBufferIndices[i];
@@ -829,7 +1039,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             const int ei      = hEigenIndexForMatrix[matIdx];
             const bool isStates  = (this->dStates[postIdx] != 0);
             const bool isAllReal = hEigenDecompIsAllReal[ei];
-            unsigned int* rec = hAdjointQueue + (size_t)i * kAdjointQueueFieldsPerBranch;
+            unsigned int* rec = hAdjointQueue + (size_t)(lowRank ? hAdjointQueuePos[i] : i) * kAdjointQueueFieldsPerBranch;
 
             rec[0] = this->getPartialsOffsetElements(preIdx);
             rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
@@ -868,6 +1078,42 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
                 dSpectralDistancesOrigin, this->dPatternWeights, catW,
                 dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue,
                 this->kPaddedPatternCount, this->kCategoryCount, count);
+        } else if (lowRank) {
+            /* Per eigen decomposition, its (branch, category) slots, branch-major, in chunks whose scratch (the unit
+             * lists, a record per slot, a plane per slab of slabSlots slots) fits the budget. Fixed sizes, so the
+             * order of summation, and the gradient's bits, depend on the call only. */
+            static const int slabSlots = getenv("BEAGLE_GPU_ADJOINT_LOWRANK_SLAB")   // test only, as the budget
+                ? std::max(1, atoi(getenv("BEAGLE_GPU_ADJOINT_LOWRANK_SLAB"))) : ADJOINT_LOWRANK_SLAB_SLOTS;
+            static const size_t budget = getenv("BEAGLE_GPU_ADJOINT_LOWRANK_BUDGET")
+                ? std::min((size_t)1 << 30, (size_t)std::max(1LL, atoll(getenv("BEAGLE_GPU_ADJOINT_LOWRANK_BUDGET"))))
+                : (size_t)ADJOINT_LOWRANK_BUDGET_BYTES;
+            const int C = this->kCategoryCount;
+            const size_t RS = ADJOINT_LOWRANK_RECORD_REALS(this->getPatternCount(), S);
+            const size_t chunkSlots = slabSlots * std::max((size_t)1, std::min((size_t)65535,
+                budget / ((slabSlots * RS + (size_t)SS) * sizeof(Real))));
+            size_t maxSlots = 0;
+            for (int e = 0; e < kSpectralEigenDecompCount; e++)
+                maxSlots = std::max(maxSlots, std::min(chunkSlots, (size_t)(eiStart[e + 1] - eiStart[e]) * C));
+            const size_t planeOffset = ADJOINT_LOWRANK_UNITS_REALS(S) + maxSlots * RS;
+            const size_t need = planeOffset + (maxSlots + slabSlots - 1) / slabSlots * SS;
+            if (need > kAdjointLowRankScratchReals) {
+                if (dAdjointLowRankScratch) gpuIf->FreeMemory(dAdjointLowRankScratch);
+                kAdjointLowRankScratchReals = need;
+                dAdjointLowRankScratch = gpuIf->AllocateMemory(need * sizeof(Real));
+            }
+            for (int e = 0; e < kSpectralEigenDecompCount; e++) {
+                const size_t slots = (size_t)(eiStart[e + 1] - eiStart[e]) * C;
+                for (size_t first = 0; first < slots; first += chunkSlots)
+                    this->kernels->AdjointCrossProductLowRankSpectralN(
+                        this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,
+                        this->dIevcOrigin, this->dEigenValuesOrigin,
+                        dSpectralDistancesOrigin, this->dPatternWeights, catW,
+                        dAdjointSiteLogLk, dGradientOrigin, dAdjointQueue, dAdjointLowRankScratch,
+                        this->kPaddedPatternCount, C,
+                        (int)((size_t)eiStart[e] * C + first), (int)std::min(chunkSlots, slots - first), slabSlots,
+                        (unsigned int)e * this->getEvalStrideElements(), (unsigned int)e * matStrideElements,
+                        (unsigned int)planeOffset, this->kStateCount);
+            }
         } else {
             this->kernels->AdjointCrossProductMergedSpectralN(
                 this->getPartialsOrigin(), this->getStatesOrigin(), dEvecTOrigin,

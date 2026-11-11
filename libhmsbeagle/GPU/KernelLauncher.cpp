@@ -384,6 +384,13 @@ void KernelLauncher::LoadKernels() {
             fAdjointMerged4 = gpu->GetFunction("kernelAdjointMerged4");
         } else {
             fAdjointMergedN = gpu->GetFunction("kernelAdjointMergedN");
+            fAdjointLowRankPrepN   = gpu->GetFunction("kernelAdjointLowRankPrepN");
+            fAdjointLowRankSlabN   = gpu->GetFunction("kernelAdjointLowRankSlabN");
+            fAdjointLowRankReduceN = gpu->GetFunction("kernelAdjointLowRankReduceN");
+            fPruningLevel        = gpu->GetFunction("kernelPruningLevel");
+            fGrowingLevel        = gpu->GetFunction("kernelGrowingLevel");
+            fGrowingTopLevel     = gpu->GetFunction("kernelGrowingTopLevel");
+            fGrowingTopRootLevel = gpu->GetFunction("kernelGrowingTopRootLevel");
         }
         fAdjointScaledSiteLogLk = gpu->GetFunction("kernelAdjointScaledSiteLogLk");
     }
@@ -637,6 +644,13 @@ void KernelLauncher::LoadKernels() {
 
         fSumSites1Partition = gpu->GetFunction("kernelSumSites1Partition");
     }
+#ifdef FW_TINYGPU
+    // resetScaleFactors and copyScaleFactors as launches at every state count (BeagleGPUImpl)
+    fResetFactorsDynamicScalingByPartition = gpu->GetFunction("kernelResetFactorsByPartition");
+    fCopyFactors = gpu->GetFunction("kernelCopyFactors");
+    fLevelScaleFactors = gpu->GetFunction((kFlags & BEAGLE_FLAG_SCALERS_LOG) ? "kernelLevelScaleFactorsScalersLog" :
+                                                                               "kernelLevelScaleFactors");
+#endif
 #endif // !FW_OPENCL_TESTING
 }
 
@@ -1377,6 +1391,53 @@ void KernelLauncher::PartialsDegree2GrowingSpectral(GPUPtr partials1,
     SYNCHRONIZE_FOR_ORDER();
 }
 
+void KernelLauncher::PruningLevelSpectral(GPUPtr partialsOrigin,
+                                          GPUPtr statesOrigin,
+                                          GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                                          GPUPtr evalOrigin, GPUPtr distOrigin,
+                                          GPUPtr scaleOrigin,
+                                          GPUPtr levelQueue,
+                                          int queueStart,
+                                          int opCount,
+                                          unsigned int patternCount) {
+    for (int first = 0; first < opCount; first += kLevelMaxGridZ) {
+        const int ops = (opCount - first < kLevelMaxGridZ) ? opCount - first : kLevelMaxGridZ;
+        Dim3Int grid(bgSpectralPeelingGrid.x, bgSpectralPeelingGrid.y, ops);
+        gpu->LaunchKernel(fPruningLevel,
+                          bgSpectralPeelingBlock, grid,
+                          8, 10,
+                          partialsOrigin, statesOrigin,
+                          ievcOrigin, evecOrigin, evalOrigin, distOrigin,
+                          scaleOrigin, levelQueue,
+                          queueStart + first, patternCount);
+    }
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::GrowingLevelSpectral(bool isTop, bool isRoot,
+                                          GPUPtr partialsOrigin,
+                                          GPUPtr statesOrigin,
+                                          GPUPtr evecTOrigin, GPUPtr ievcTOrigin,
+                                          GPUPtr ievcOrigin, GPUPtr evecOrigin,
+                                          GPUPtr evalOrigin, GPUPtr distOrigin,
+                                          GPUPtr levelQueue,
+                                          int queueStart,
+                                          int opCount,
+                                          unsigned int patternCount) {
+    for (int first = 0; first < opCount; first += kLevelMaxGridZ) {
+        const int ops = (opCount - first < kLevelMaxGridZ) ? opCount - first : kLevelMaxGridZ;
+        Dim3Int grid(bgSpectralPeelingGrid.x, bgSpectralPeelingGrid.y, ops);
+        gpu->LaunchKernel(!isTop ? fGrowingLevel : (isRoot ? fGrowingTopRootLevel : fGrowingTopLevel),
+                          bgSpectralPeelingBlock, grid,
+                          9, 11,
+                          partialsOrigin, statesOrigin,
+                          evecTOrigin, ievcTOrigin, ievcOrigin, evecOrigin, evalOrigin, distOrigin,
+                          levelQueue,
+                          queueStart + first, patternCount);
+    }
+    SYNCHRONIZE_FOR_ORDER();
+}
+
 
 void KernelLauncher::AdjointCrossProductMergedSpectral4(GPUPtr partialsOrigin,
                                                          GPUPtr statesOrigin,
@@ -1423,6 +1484,46 @@ void KernelLauncher::AdjointCrossProductMergedSpectralN(GPUPtr partialsOrigin,
         distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
         gradientOrigin, adjointQueue,
         (int)patternCount, (int)kUnpaddedPatternCount); // the row stride, and the patterns summed
+    SYNCHRONIZE_FOR_ORDER();
+}
+
+void KernelLauncher::AdjointCrossProductLowRankSpectralN(GPUPtr partialsOrigin,
+                                                          GPUPtr statesOrigin,
+                                                          GPUPtr evecTOrigin,
+                                                          GPUPtr ievcOrigin,
+                                                          GPUPtr evalOrigin,
+                                                          GPUPtr distOrigin,
+                                                          GPUPtr patternWeights,
+                                                          GPUPtr categoryWeights,
+                                                          GPUPtr perSiteLikelihoods,
+                                                          GPUPtr gradientOrigin,
+                                                          GPUPtr adjointQueue,
+                                                          GPUPtr scratch,
+                                                          unsigned int patternCount,
+                                                          unsigned int categoryCount,
+                                                          int firstSlot,
+                                                          int slotCount,
+                                                          int slabSlots,
+                                                          unsigned int evalOffset,
+                                                          unsigned int gradOffset,
+                                                          unsigned int planeOffset,
+                                                          int stateCount) {
+    const int B = kAdjointBlockSizeN;   // the kernels' ADJOINT_BLOCK_SP_N
+    const int units = stateCount * stateCount;   // at least the kernels' (nr + np)^2, from Prep's unit lists
+    const int slabCount = (slotCount + slabSlots - 1) / slabSlots;
+    Dim3Int block(B);
+    gpu->LaunchKernel(fAdjointLowRankPrepN, block, Dim3Int(slotCount), 11, 16,
+        partialsOrigin, statesOrigin, evecTOrigin, ievcOrigin, evalOrigin,
+        distOrigin, patternWeights, categoryWeights, perSiteLikelihoods,
+        scratch, adjointQueue,
+        (int)patternCount, (int)kUnpaddedPatternCount, (int)categoryCount, stateCount, firstSlot); // the row stride, the patterns summed
+    // Slab's four regions in tiles of B units: at most one tile more each than the units fill
+    gpu->LaunchKernel(fAdjointLowRankSlabN, block, Dim3Int((units + B - 1) / B + 4, slabCount), 2, 7,
+        scratch, evalOrigin,
+        (int)kUnpaddedPatternCount, slotCount, slabSlots, evalOffset, planeOffset);
+    gpu->LaunchKernel(fAdjointLowRankReduceN, block, Dim3Int((units + B - 1) / B), 3, 7,
+        scratch, evalOrigin, gradientOrigin,
+        slabCount, evalOffset, gradOffset, planeOffset);
     SYNCHRONIZE_FOR_ORDER();
 }
 
@@ -2735,6 +2836,33 @@ void KernelLauncher::ResetFactorsDynamicScalingByPartition(GPUPtr dScalingFactor
 #endif
 
 }
+
+#ifdef FW_TINYGPU
+void KernelLauncher::CopyFactors(GPUPtr dScalingFactorsDest,
+                                 GPUPtr dScalingFactorsSource,
+                                 unsigned int count) {
+    Dim3Int grid((count + kPatternBlockSize - 1) / kPatternBlockSize);
+    gpu->LaunchKernel(fCopyFactors,
+                      bgAccumulateBlock, grid,
+                      2, 3,
+                      dScalingFactorsDest, dScalingFactorsSource,
+                      count);
+}
+
+void KernelLauncher::LevelScaleFactors(GPUPtr scaleOrigin,
+                                       GPUPtr scaleOpQueue,
+                                       int queueStart,
+                                       int opCount,
+                                       unsigned int copyCount,
+                                       unsigned int patternCount) {
+    Dim3Int grid(opCount);
+    gpu->LaunchKernel(fLevelScaleFactors,
+                      bgAccumulateBlock, grid,
+                      2, 5,
+                      scaleOrigin, scaleOpQueue,
+                      queueStart, copyCount, patternCount);
+}
+#endif
 
 void KernelLauncher::RescalePartials(GPUPtr partials3,
                                      GPUPtr scalingFactors,

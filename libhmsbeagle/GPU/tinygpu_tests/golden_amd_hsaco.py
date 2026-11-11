@@ -5,7 +5,10 @@ either: clang names a marker symbol __hip_cuid_<16 hex digits> after the compile
 process. So everything else must be the same: every other section byte for byte (the symbol and string tables and the
 two hash tables aside, which hash the names), and then what the GPU gets: elf_loader's image, the relocations and every
 kernel's descriptor. The hash is printed without leading zeros, so the string tables can differ in length: the symbol
-tables are compared symbol by symbol (name with the cuid blanked, value, size, binding, section). Needs tinygrad's comgr build (COMGR_PATH, default /opt/homebrew/lib/libamd_comgr.dylib).
+tables are compared symbol by symbol (name with the cuid blanked, value, size, binding, section). That byte can also move
+.rodata, laid out after .dynstr at a 64-byte alignment, when .dynstr ends at a multiple of 64 in one of the two (moved):
+then the rest must be the same with .rodata's addresses moved, and every kernel descriptor must reach the same code.
+Needs tinygrad's comgr build (COMGR_PATH, default /opt/homebrew/lib/libamd_comgr.dylib).
 Each arch's two sides compile at once: tinygpu_amd_compile in one process with every variant, as make_tinygpu_hsaco.sh runs
 it, while this process runs tinygrad's compile_hip. With the build's spectral variants (TODO.md plan step S8.3), the same for
 tinygpu_amd_compile_spectral's SPEC_ variants of BeagleOpenCLSpectral_kernels.h, as parts of their own.
@@ -59,7 +62,65 @@ NAMES = (".symtab", ".strtab", ".dynsym", ".dynstr", ".gnu.hash", ".hash", ".dyn
 def dynamic(secs):   # .dynamic's (d_tag, d_val) entries, DT_STRSZ (10) apart
     d = [struct.unpack_from("<qQ", secs[".dynamic"], o) for o in range(0, len(secs[".dynamic"]), 16)]
     return [e for e in d if e[0] != 10], next(v for t, v in d if t == 10)
-def compare(got, ref):
+def section_headers(b):   # (name, sh_type, sh_addr, sh_size) of each section header
+    shoff, shnum, shstrndx = struct.unpack_from("<Q", b, 0x28)[0], *struct.unpack_from("<HH", b, 0x3c)
+    hs = [struct.unpack_from("<IIQQQQ", b, shoff + i * 64) for i in range(shnum)]
+    strtab = hs[shstrndx][4]
+    return [(b[strtab + h[0]:b.index(b"\0", strtab + h[0])].decode(), h[1], h[3], h[5]) for h in hs]
+def entries(secs, rodata):   # {kernel descriptor symbol: (its address, the code address it enters)}; .rodata at rodata
+    out = {}
+    for i in range(len(secs[".symtab"]) // 24):
+        st_name, _, _, _, value, _ = struct.unpack_from("<IBBHQQ", secs[".symtab"], i * 24)
+        name = secs[".strtab"][st_name:secs[".strtab"].index(b"\0", st_name)]
+        if name.endswith(b".kd"):   # its kernel_code_entry_byte_offset: 8 bytes at 16, relative to the descriptor
+            out[name] = (value, value + struct.unpack_from("<q", secs[".rodata"], value - rodata + 16)[0])
+    return out
+def blank(rodata_bytes, kds, rodata):   # .rodata with each descriptor's code entry offset zeroed
+    b = bytearray(rodata_bytes)
+    for kd, _ in kds.values(): b[kd - rodata + 16:kd - rodata + 24] = bytes(8)
+    return bytes(b)
+def loaded(image, secs):   # elf_loader's image is its PROGBITS sections' bytes, at their addresses, and zeros between
+    b = bytearray(image)
+    for sec in secs:
+        if sec.header.sh_type == 1 and sec.header.sh_size:   # SHT_PROGBITS
+            a, n = sec.header.sh_addr, sec.header.sh_size
+            if bytes(b[a:a + n]) != bytes(sec.content): return False
+            b[a:a + n] = bytes(n)
+    return not any(b)
+def moved(got, ref):
+    """"" if got and ref are the same but for the cuid and .rodata moved by it (the docstring), else what differs"""
+    gc, rc = CUID.findall(got), CUID.findall(ref)
+    gh, rh = section_headers(got), section_headers(ref)
+    if [h[:2] for h in gh] != [h[:2] for h in rh]: return "the section list"
+    for (name, _, ga, gz), (_, _, ra, rz) in zip(gh, rh):
+        if name != ".rodata" and ga != ra: return "the layout"
+        if name not in NAMES and gz != rz: return f"the size of {name}"
+    gs, rs = sections(got), sections(ref)
+    for name in gs:
+        if name not in NAMES and name != ".rodata" and gs[name] != rs[name]: return f"section {name}"
+    (gd, gsz), (rd, rsz) = dynamic(gs), dynamic(rs)
+    if gd != rd or gsz - rsz != len(gc[0]) - len(rc[0]): return "section .dynamic"
+    lo, hi = next((a, a + z) for name, _, a, z in rh if name == ".rodata")
+    d = next(a for name, _, a, _ in gh if name == ".rodata") - lo
+    move = lambda a: a + d if lo <= a < hi else a   # an address in ref, in got's layout
+    gk, rk = entries(gs, lo + d), entries(rs, lo)
+    if gk.keys() != rk.keys() or any(gk[k] != (move(rk[k][0]), move(rk[k][1])) for k in gk):
+        return "the kernel descriptors' addresses or the code they enter"
+    if blank(gs[".rodata"], gk, lo + d) != blank(rs[".rodata"], rk, lo): return "section .rodata"
+    ndx = [h[0] for h in rh].index(".rodata")
+    for tab, strs in ((".symtab", ".strtab"), (".dynsym", ".dynstr")):
+        if symbols(gs, tab, strs) != sorted((n, v + d if x == ndx else v, z, i, o, x) for n, v, z, i, o, x in symbols(rs, tab, strs)):
+            return f"the symbols of {tab}"
+    (gi, gl, grel), (ri, rl, rrel) = elf_loader(got), elf_loader(ref)
+    if len(gi) != len(ri) or grel != rrel or not loaded(gi, gl) or not loaded(ri, rl):
+        return "elf_loader's image or relocations"
+    gk, rk = ach.parse_kernels(got)[1], ach.parse_kernels(ref)[1]
+    unentered = lambda desc: bytes(desc)[:16] + bytes(desc)[24:]
+    if gk.keys() != rk.keys() or any(gk[k][0] != move(rk[k][0]) or unentered(gk[k][1]) != unentered(rk[k][1]) for k in gk):
+        return "the kernel descriptors"
+    return ""
+
+def strictly(got, ref):
     """"" if all that matters is the same, else what differs"""
     gc, rc = CUID.findall(got), CUID.findall(ref)
     if len(gc) != len(rc): return "the __hip_cuid_ symbols"
@@ -78,6 +139,17 @@ def compare(got, ref):
         return "the kernel descriptors"
     return ""
 
+def compare(got, ref):
+    """(True, how) if all that matters is the same, else (False, what differs)"""
+    why = strictly(got, ref)
+    if not why: return True, "IDENTICAL but for the compile's __hip_cuid_"
+    gc, rc = CUID.findall(got), CUID.findall(ref)
+    if gc and len(gc) == len(rc) and len(gc[0]) != len(rc[0]):   # a shorter cuid may have moved .rodata
+        why_moved = moved(got, ref)
+        if not why_moved: return True, "IDENTICAL but for the compile's __hip_cuid_, and .rodata moved by it"
+        why += f"; with .rodata moved: {why_moved}"
+    return False, f"DIFFERS: {why}"
+
 def check_arch(arch, spectral=False):
     """arch's variants (the SPEC_ ones with spectral) compared, a line each: the number that differ"""
     out = WORK / ("hsaco_spec" if spectral else "hsaco"); out.mkdir(exist_ok=True)
@@ -95,9 +167,9 @@ def check_arch(arch, spectral=False):
     fails = 0
     for v in variants:
         got = (out / f"{v}_{arch}.hsaco").read_bytes()
-        why = compare(got, refs[v])
-        fails += bool(why)
-        print(f"{v} {arch}: {len(got)} bytes, {len(ach.parse_kernels(got)[1])} kernels: " + ("IDENTICAL but for the compile's __hip_cuid_" if not why else f"DIFFERS: {why}"))
+        same, how = compare(got, refs[v])
+        fails += not same
+        print(f"{v} {arch}: {len(got)} bytes, {len(ach.parse_kernels(got)[1])} kernels: {how}")
     return fails
 
 def main(part=None):   # a part exits with its number of differing variants; run_goldens.sh prints the verdict

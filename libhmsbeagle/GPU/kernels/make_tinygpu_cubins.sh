@@ -46,7 +46,8 @@ PREFIX_LIST='SP DP'
 # <regex> launch <block> threads, and nvd_check_launch skips, with one stderr line, a launch above
 # max_threads = ((65536 / round_up(regs*32, 256)) / 4) * 4 * 32 (TinyGPUNVProgram.h, GPUInterfaceTinyGPUNV.cpp's launch); a
 # regex that matches no kernel fails too, and each prints its kernels' largest register count and spill bytes. *Spectral
-# kernels launch (S, PATTERN_BLOCK_SIZE) threads (KernelLauncher.cpp, bgSpectralPeelingBlock); kernelUpPartialsFused
+# kernels, and the *Level kernels of the SPEC_ modules above 4 states, launch (S, PATTERN_BLOCK_SIZE) threads
+# (KernelLauncher.cpp, bgSpectralPeelingBlock); kernelUpPartialsFused
 # (16, 16 / C, C), at most 256, at 4 states and (S, PATTERN_BLOCK_SIZE) otherwise (BeagleGPUFusedImpl.hpp). The loader
 # refuses a module above 100 KiB of 0x400 + shared memory (TinyGPUNVProgram.h). Lines that are not ptxas info pass through.
 NV_GATE='BEGIN { ng = split(gates, g, " "); for (j = 1; j <= ng; j++) { e = index(g[j], "="); re[j] = substr(g[j], 1, e - 1); blk[j] = substr(g[j], e + 1) + 0 } }
@@ -92,6 +93,7 @@ for p in $PREFIX_LIST; do
 			pbs=$(awk -v m="PATTERN_BLOCK_SIZE_${p#SPEC_}_$s" '$1 == "#define" && $2 == m { print $3 }' "${srcdir}/../GPUImplDefs.h")
 			gates=
 			[ "$p" != "${p#SPEC_}" ] && gates="Spectral\$=$((s * pbs))"
+			[ "$p" != "${p#SPEC_}" ] && [ $s != 4 ] && gates="${gates} Level\$=$((s * pbs))"
 			[ -n "${FUSED}" ] && gates="${gates} ^kernelUpPartialsFused\$=$([ $s = 4 ] && echo 256 || echo $((s * pbs)))"
 			if [ -n "${gates}" ]; then   # NV_GATE on a second, --verbose run, whose cubin is not kept: on sm_120 --verbose
 				# changes the cubin's bytes, which must equal the daemon's compile_ptx (test_c1_cubins.py). ptxas prints its info

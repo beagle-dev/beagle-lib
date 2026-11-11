@@ -12,7 +12,8 @@
  *   - waits: HCQSignal.wait (fails after 30 s without progress, HCQDEV_WAIT_TIMEOUT_MS) with AMDSignal._sleep's interrupt
  *     check after 200 ms: AM_IH.interrupt_handler's decode, where an SQ error or a UTCL2 fault puts the device in error;
  *   - synchronize: the timeline wait, its wrap at 2^31 (_wrap_timeline_signal) and AMDDevice.synchronize's IH drain;
- *   - copies: HCQAllocator._copyin/_copyout through staging (amd_copyin/amd_copyout);
+ *   - copies: HCQAllocator._copyin/_copyout through staging (amd_copyin/amd_copyout), and _transfer on the GPU
+ *     (amd_transfer);
  *   - allocations: PCIIfaceBase.alloc's rounding, carved from the pool, which takes freed blocks back (TinyGPUPool.h, as on
  *     NV; plan step C14).
  * Deliberate differences, beyond TinyGPUAMDProgram.h's: hcq1 never waits before reusing compute ring or kernargs

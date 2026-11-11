@@ -1,6 +1,7 @@
 """Golden test for the SDMA half of TinyGPUAMDDispatch.h (TODO.md plan step A1c). hcq1's own AMDCopyQueue, submitted
 into a small ring through AMDQueueDesc.signal_doorbell, and HCQAllocator._copyin/_copyout on a stub device (its timeline,
-and staging slots in one buffer) run random sequences; golden_amd_copy.cpp runs the same with the C++ encoder and flows.
+and staging slots in one buffer) run random sequences, with HCQAllocator._transfer from the device to itself in the last
+runs; golden_amd_copy.cpp runs the same with the C++ encoder and flows.
 The ring (random-filled first, so the tail's zero fill shows), put_value, one ordered list of the host waits, synchronizes
 and wptr/HDP/doorbell writes, the staging bytes and the copied-out bytes must be identical, across ring wraps; on gfx11, and on
 gfx12 (GC 12.0.0 with SDMA 7.0.0, which AMDDevice clamps to sdma_6_0_0's packets, ops_amd.py:1025: TODO.md plan step N2)."""
@@ -20,7 +21,7 @@ class Recorder:
     def __init__(self, events, what): self.events, self.what = events, what
     def __setitem__(self, i, v): self.events.append((self.what, v))
 
-def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11):
+def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11, transfers=False):
     rng = random.Random(seed)
     events = []
     ring = (ctypes.c_uint32 * (ring_bytes // 4))(*[rng.getrandbits(32) for _ in range(ring_bytes // 4)])
@@ -42,6 +43,7 @@ def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11):
                                           wait=lambda v, timeout=None: events.append(("wait", v)))
     dev.synchronize = lambda: events.append(("sync", 0))
     dev.hw_copy_queue_t = functools.partial(ops_amd.AMDCopyQueue, dev, max_copy_size=0x40000000)
+    dev.peer_group, dev.allocator = "AMD", types.SimpleNamespace(_map=lambda buf: None)   # for _transfer
     smem = (ctypes.c_uint8 * (slot * nslots))(*[rng.getrandbits(8) for _ in range(slot * nslots)])
     staging_before = bytes(smem)
     alloc = types.SimpleNamespace(dev=dev, b_timeline=[0] * nslots, b_next=0,
@@ -49,9 +51,13 @@ def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11):
     lines = [f"SIG {SIG_VA}", f"RING {ring_bytes} {put_value}", f"STAGING {STAGING_VA} {slot} {nslots}", f"TL {dev.timeline_value}"]
     srcs, outs = bytearray(), bytearray()
     for _ in range(nops):
-        op = rng.choice(["in", "in", "out", "raw"])
+        op = rng.choice(["in", "out", "raw", "tr", "tr"] if transfers else ["in", "in", "out", "raw"])
         n = rng.choice([1, 4, 100, slot - 1, slot, slot + 1, 3 * slot + 123])
-        if op == "in":
+        if op == "tr":   # GPU memory to GPU memory on one device, as BEAGLE's MemcpyDeviceToDevice; copy() splits past 1 GiB
+            dest, src, n = rng.getrandbits(40), rng.getrandbits(40), rng.choice([n, 0x40000000, 0x40000000 + 5, 3 * 0x40000000 + 77])
+            HCQAllocator._transfer(alloc, HCQBuffer(dest, n), HCQBuffer(src, n), n, dev, dev)
+            lines.append(f"TR {dest} {src} {n}")
+        elif op == "in":
             data = bytes(rng.getrandbits(8) for _ in range(n))
             dest = 0x7f_5000_0000 + (rng.getrandbits(24) << 4)
             HCQAllocator._copyin(alloc, HCQBuffer(dest, n), memoryview(data))
@@ -94,6 +100,7 @@ def run(seed, ring_bytes, put_value, slot, nslots, nops, gfx=11):
 # tinygrad then zero-fills and wraps instead of filling the ring to its end
 results = [run(1, 4096, 3900, 4096, 4, 40), run(2, 1024, 0, 512, 3, 80), run(3, 65536, 65000, 8192, 8, 60), run(4, 512, 500, 256, 2, 120),
            run(5, 1024, 1024 - 24, 256, 2, 30), run(6, 2048, 3 * 2048 - 52, 512, 2, 1), run(7, 4096, 4096 - 52, 512, 2, 1),
-           run(8, 4096, 3900, 4096, 4, 40, gfx=12), run(9, 1024, 0, 512, 3, 80, gfx=12), run(10, 2048, 3 * 2048 - 52, 512, 2, 1, gfx=12)]
+           run(8, 4096, 3900, 4096, 4, 40, gfx=12), run(9, 1024, 0, 512, 3, 80, gfx=12), run(10, 2048, 3 * 2048 - 52, 512, 2, 1, gfx=12),
+           run(11, 4096, 3900, 4096, 4, 60, transfers=True), run(12, 1024, 0, 512, 3, 80, gfx=12, transfers=True)]
 print("A1c SDMA encoder and copy flows vs hcq1:", "all identical" if all(results) else "MISMATCH")
 sys.exit(0 if all(results) else 1)

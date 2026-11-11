@@ -213,9 +213,21 @@ void GPUInterface::InitializeKernelResource(int n, bool dp) {
     }
 }
 
+// ── BeagleGPUImpl's deferred scale-factor operations ─────────────────────────
+// Every call below that sends the GPU work, copies or frees GPU memory, or waits runs the hook first (SynchronizeDevice,
+// LaunchKernel and the Memset/Printf helpers go through them). The hook's own calls do not run it again.
+
+void GPUInterface::RunPreOperationHook() {
+    if (!preOperationHook || inPreOperationHook) return;
+    struct Reset { bool& flag; ~Reset() { flag = false; } } reset{inPreOperationHook};
+    inPreOperationHook = true;
+    preOperationHook(preOperationOwner);
+}
+
 // ── Synchronization ───────────────────────────────────────────────────────────
 
 void GPUInterface::SynchronizeHost() {
+    RunPreOperationHook();
     if (!isNVIDIA) { AmdSynchronizeHost(this); return; }
     NvSynchronizeHost(this);
 }
@@ -235,6 +247,7 @@ GPUFunction GPUInterface::GetFunction(const char* name) {
 
 void GPUInterface::LaunchKernelImpl(GPUFunction fn, Dim3Int block, Dim3Int grid,
                                      int nPtr, int nTotal, GPUPtr* ptrs, unsigned int* ints) {
+    RunPreOperationHook();
     if (!isNVIDIA) { AmdLaunchKernelImpl(this, fn, block, grid, nPtr, nTotal, ptrs, ints); return; }
     NvLaunchKernelImpl(this, fn, block, grid, nPtr, nTotal, ptrs, ints);
 }
@@ -331,20 +344,21 @@ void GPUInterface::DebugRemoveBuffer(GPUPtr dPtr) {
 #endif
 
 void GPUInterface::MemcpyHostToDevice(GPUPtr dst, const void* src, size_t sz) {
+    RunPreOperationHook();
     if (!isNVIDIA) { AmdMemcpyHostToDevice(this, dst, src, sz); return; }
     NvMemcpyHostToDevice(this, dst, src, sz);
 }
 
 void GPUInterface::MemcpyDeviceToHost(void* dst, const GPUPtr src, size_t sz) {
+    RunPreOperationHook();
     if (!isNVIDIA) { AmdMemcpyDeviceToHost(this, dst, src, sz); return; }
     NvMemcpyDeviceToHost(this, dst, src, sz);
 }
 
 void GPUInterface::MemcpyDeviceToDevice(GPUPtr dst, GPUPtr src, size_t sz) {
-    if (!sz) return;
-    std::vector<uint8_t> tmp(sz);
-    MemcpyDeviceToHost(tmp.data(), src, sz);
-    MemcpyHostToDevice(dst, tmp.data(), sz);
+    RunPreOperationHook();
+    if (!isNVIDIA) { AmdMemcpyDeviceToDevice(this, dst, src, sz); return; }
+    NvMemcpyDeviceToDevice(this, dst, src, sz);
 }
 
 void GPUInterface::MemsetShort(GPUPtr dst, unsigned short val, size_t count) {
@@ -376,6 +390,7 @@ void* GPUInterface::AllocatePinnedHostMemory(size_t sz, bool, bool) { return mal
 void  GPUInterface::FreeHostMemory(void* p)        { free(p); }
 void  GPUInterface::FreePinnedHostMemory(void* p)  { free(p); }
 void  GPUInterface::FreeMemory(GPUPtr p) {   // TODO.md plan step C14
+    RunPreOperationHook();   // also before a block another instance may reuse
 #ifdef BEAGLE_DEBUG_MEMORY
     if (p) DebugRemoveBuffer(p);   // a failed instance frees the 0s its allocations returned
 #endif
