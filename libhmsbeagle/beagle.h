@@ -206,7 +206,11 @@ enum BeagleFlags {
      * the bundle: they are state frequencies buffer 0, set with beagleSetStateFrequencies, and must be the pi from which
      * the application computed H. The bundle is an array of doubles; S is the state count, C the category count and N = S - 1 the number of internal state-tree
      * nodes. Nodes 0 .. S-1 are the tips in state order and nodes S .. 2S-2 are the internal nodes; the state tree is
-     * binary. Node indices are stored as exactly representable doubles.
+     * binary. A multifurcating state tree is passed as a binary resolution of it whose added nodes have lambda = 0 on
+     * the model path and H = 0 on the bundle path: such a node does not change the generator, so every resolution
+     * gives the same transition probabilities. Send one resolution per multifurcating tree (the CPU implementation
+     * keys per-tree caches on the triples), preferably balanced (the small-state kernels are faster on it). Node
+     * indices are stored as exactly representable doubles.
      *
      *   offset 0                 length 1      version * 65536 + N (version 1)
      *   offset 1                 length 3N     post-order triples (parent, left child, right child), children
@@ -230,7 +234,8 @@ enum BeagleFlags {
      * hierarchical model in eigen buffer eigenIndex instead of an eigen-decomposition:
      *
      *   eigenValues[0]               version * 65536 + N (version 1)
-     *   eigenValues[1 .. S-1]        lambda for the internal nodes S .. 2S-2, finite and non-negative
+     *   eigenValues[1 .. S-1]        lambda for the internal nodes S .. 2S-2, finite and non-negative; 0 marks a
+     *                                node that only resolves a multifurcation
      *   eigenVectors[0 .. 3N)        post-order triples, as in the bundle; the pre-order is the reverse list
      *   inverseEigenVectors          ignored
      *
