@@ -83,6 +83,7 @@ namespace beagle {
             int kGroupOrder;
             unsigned long gFrequencyStamp;
             bool kMayAggregate = false;
+            bool kBlocks = false;
             int kAggregateMode = kHierarchicalAggregateOff;
             bool kVerbose = false;
             bool gClassesValid = false;

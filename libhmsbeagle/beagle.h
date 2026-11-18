@@ -258,10 +258,11 @@ enum BeagleFlags {
      * only by rounding). BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_ON makes the instance aggregate whenever it can and
      * BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF makes it never aggregate; with neither the instance decides (never for
      * S <= 8 or where the fused kernel applies, otherwise when the summed reduced state count over the patterns is
-     * below a category-dependent fraction of K * S). Asking for both fails. The environment variable
-     * BEAGLE_HRATE_AGGREGATE overrides the flags for comparison runs: 0 is off, 1 is on, and any other value or unset
-     * leaves the flags in charge. The instance flags report the setting in effect after the override (ON, OFF, or
-     * neither for automatic). BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
+     * below a category-dependent fraction of K * S). At S = 2 to 6 and S = 8 an instance asked to aggregate runs the
+     * same kernels as with BEAGLE_FLAG_HIERARCHICAL_AGGREGATE_OFF, with bit-identical results. Asking for both fails.
+     * The environment variable BEAGLE_HRATE_AGGREGATE overrides the flags for comparison runs: 0 is off, 1 is on, and
+     * any other value or unset leaves the flags in charge. The instance flags report the setting in effect after the
+     * override (ON, OFF, or neither for automatic). BEAGLE_HRATE_VERBOSE=1 prints the decision to stderr.
      */
     BEAGLE_FLAG_HIERARCHICAL_REPRESENTATION = 1L << 48,
 

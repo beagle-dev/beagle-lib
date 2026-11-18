@@ -43,6 +43,7 @@ struct Probe : public Hier {
     const double* piNode(int f, const HierarchicalOps& ops) { return this->nodeFrequencies(f, ops); }
     void classes(const int* operations, int count) { this->prepareClasses(operations, count, BEAGLE_OP_COUNT); }
     bool aggregated() const { return this->gAggregated; }
+    bool blocks() const { return this->kBlocks; }
     bool classesValid() const { return this->gClassesValid; }
     const std::vector<HierarchicalClass<Real>>& classList() const { return this->gClasses; }
     const std::vector<int>& classOf() const { return this->gClassOfPattern; }
@@ -438,8 +439,9 @@ template <typename Real, typename Hier>
 static void ruleCase(const char* label, int S, int K, const char* env, const char* kernel, bool expectMay,
                      std::mt19937_64& rng) {
     char tag[160];
-    snprintf(tag, sizeof(tag), "%s rule S=%d K=%d AGGREGATE=%s KERNEL=%s", label, S, K, env ? env : "unset",
-             kernel ? kernel : "default");
+    const char* blocksEnv = getenv("BEAGLE_HRATE_BLOCKS");
+    snprintf(tag, sizeof(tag), "%s rule S=%d K=%d AGGREGATE=%s KERNEL=%s BLOCKS=%s", label, S, K, env ? env : "unset",
+             kernel ? kernel : "default", blocksEnv ? blocksEnv : "unset");
     const std::string name(tag);
     if (env)
         setenv("BEAGLE_HRATE_AGGREGATE", env, 1);
@@ -475,7 +477,10 @@ static void ruleCase(const char* label, int S, int K, const char* env, const cha
         h.setTipStates(t, sparse.data());
     h.classes(ops, 1);
     const bool sparseDecision = h.aggregated();
-    if (forced)
+    const bool shapeRoute = forced && !kernel && S <= 8 && S != 7 && !(blocksEnv && std::string(blocksEnv) == "0");
+    if (shapeRoute)
+        report(name + " forced on runs the shape kernels", h.blocks() && !denseDecision && !sparseDecision, "");
+    else if (forced)
         report(name + " forced on for dense and sparse data", denseDecision && sparseDecision, "");
     else if (S >= 256)
         report(name + " decision follows r", !denseDecision && sparseDecision, "");
@@ -1340,6 +1345,9 @@ int main() {
         }
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, NULL, NULL, false, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
+    setenv("BEAGLE_HRATE_BLOCKS", "0", 1);
+    ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 8, 200, "1", NULL, true, rng);
+    unsetenv("BEAGLE_HRATE_BLOCKS");
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, NULL, NULL, true, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, "1", NULL, true, rng);
     ruleCase<double, BeagleCPUHierarchicalImpl<double, 1, 0>>("double", 64, 200, "0", NULL, false, rng);

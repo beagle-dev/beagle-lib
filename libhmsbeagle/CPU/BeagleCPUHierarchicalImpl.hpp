@@ -194,8 +194,13 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kMayAggregate = kAggregateMode == kHierarchicalAggregateOn ||
                     (kAggregateMode == kHierarchicalAggregateAuto && kStateCount >= kHierarchicalAggregateMinStates &&
                      !kSmallBand && !kFusedBand);
+    const char* blocksEnv = getenv("BEAGLE_HRATE_BLOCKS");
+    kBlocks = kAggregateMode == kHierarchicalAggregateOn && kKernel == kHierarchicalKernelShape && kSmallBand &&
+              !(blocksEnv != NULL && std::strcmp(blocksEnv, "0") == 0);
     const char* verboseEnv = getenv("BEAGLE_HRATE_VERBOSE");
     kVerbose = verboseEnv != NULL && std::strcmp(verboseEnv, "0") != 0;
+    if (kVerbose && kBlocks)
+        fprintf(stderr, "hrate aggregation: forced on, %d-state: shape kernels\n", kStateCount);
     gTipPlanesEqual.assign(kTipCount, 0);
     gRagged.assign(kBufferCount, nullptr);
     gRaggedCapacity.assign(kBufferCount, 0);
@@ -1783,7 +1788,7 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::stampBuffers(const int* oper
 
 BEAGLE_CPU_TEMPLATE
 void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareClasses(const int* operations, int count, int numOps) {
-    if (!kMayAggregate || count == 0)
+    if (!kMayAggregate || kBlocks || count == 0)
         return;
     opTopologies(operations, count, numOps);
     if (!gClassesValid || gClassTipStamp != gTipStamp) {
