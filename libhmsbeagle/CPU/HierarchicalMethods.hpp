@@ -1581,6 +1581,306 @@ struct HierarchicalShapeDispatch {
     }
 };
 
+inline bool hierarchicalBlockOf(const HierarchicalOps& ops, int keptBits, HierarchicalBlock& block) {
+    const int S = 4;
+    std::vector<int> left(2 * S - 1, -1), right(2 * S - 1, -1), observed;
+    for (int t = 0; t < S - 1; t++) {
+        const int m = ops.postOps[3 * t];
+        left[m] = ops.postOps[3 * t + 1];
+        right[m] = ops.postOps[3 * t + 2];
+        if (keptBits & (1 << (m - S)))
+            for (int c = 1; c <= 2; c++)
+                if (ops.postOps[3 * t + c] < S)
+                    observed.push_back(ops.postOps[3 * t + c]);
+    }
+    std::sort(observed.begin(), observed.end());
+    const std::vector<double> piNode(2 * S - 1, 0.0);
+    HierarchicalReduced<double> red;
+    hierarchicalBuildReduced(ops, S, piNode.data(), observed, red);
+    HierarchicalOps reduced = red.ops;
+    const int Sc = red.stateCount;
+    if (Sc < 2 || Sc > 3)
+        return false;
+    hierarchicalDetectShape(reduced, Sc);
+    if (reduced.shapeId != 0)
+        return false;
+    block = HierarchicalBlock();
+    block.stateCount = Sc;
+    for (int i = 0; i < Sc; i++) {
+        const int local = reduced.tipOfSlot[i];
+        const int node = red.localToFull[local];
+        block.row[i] = red.repOfRow[local];
+        block.zNode[i] = node;
+        if (node >= S) {
+            if (block.agg >= 0)
+                return false;
+            block.agg = i;
+            block.top = node;
+            std::vector<int> stack(1, node);
+            while (!stack.empty()) {
+                const int m = stack.back();
+                stack.pop_back();
+                if (m >= S) {
+                    stack.push_back(left[m]);
+                    stack.push_back(right[m]);
+                } else if (m != block.row[i]) {
+                    if (block.extraCount == 2)
+                        return false;
+                    block.extra[block.extraCount++] = m;
+                }
+            }
+        }
+    }
+    for (int j = 0; j < Sc - 1; j++)
+        block.height[j] = red.localToFull[reduced.intOfSlot[j]] - S;
+    if (Sc == 3 && block.agg == 2 && block.extraCount == 1)
+        block.kind = 1;
+    else if (Sc == 3 && block.agg == 1 && block.extraCount == 1)
+        block.kind = 2;
+    else if (Sc == 2 && block.agg == 1 && block.extraCount == 2)
+        block.kind = 3;
+    return block.kind != 0;
+}
+
+inline bool hierarchicalBlockTable(const HierarchicalOps& ops, HierarchicalBlockTable& table) {
+    const int S = 4;
+    table.valid = false;
+    table.blockCount = 0;
+    table.lumpKey = -1;
+    for (int mask = 0; mask < 16; mask++)
+        table.blockOfMask[mask] = -1;
+    if ((int) ops.postOps.size() != 3 * (S - 1) || (int) ops.parentOf.size() != 2 * S - 1)
+        return false;
+    std::vector<int> clade(2 * S - 1, 0);
+    for (int x = 0; x < S; x++)
+        clade[x] = 1 << x;
+    for (int t = 0; t < S - 1; t++)
+        clade[ops.postOps[3 * t]] = clade[ops.postOps[3 * t + 1]] | clade[ops.postOps[3 * t + 2]];
+    int lump[2], n = 0;
+    for (int t = 0; t < S - 2; t++)
+        lump[n++] = clade[ops.postOps[3 * t]];
+    if (lump[0] > lump[1])
+        std::swap(lump[0], lump[1]);
+    int keys[2] = { 0, 0 };
+    for (int mask = 1; mask < 16; mask++) {
+        int bits = 0;
+        for (int x = 0; x < S; x++)
+            if (mask & (1 << x))
+                for (int m = ops.parentOf[x]; m >= 0; m = ops.parentOf[m])
+                    bits |= 1 << (m - S);
+        if (bits == (1 << (S - 1)) - 1)
+            continue;
+        int b = 0;
+        while (b < table.blockCount && keys[b] != bits)
+            b++;
+        if (b == table.blockCount) {
+            if (b == 2 || !hierarchicalBlockOf(ops, bits, table.blocks[b]))
+                return false;
+            keys[b] = bits;
+            table.blockCount++;
+        }
+        table.blockOfMask[mask] = (signed char) b;
+    }
+    table.lumpKey = lump[0] * 16 + lump[1];
+    table.valid = table.blockCount == 2;
+    return table.valid;
+}
+
+inline void hierarchicalBlockRuns(const signed char* blockOfMask,
+                                  const unsigned char* maskOfPattern,
+                                  int start,
+                                  int end,
+                                  int align,
+                                  int minRun,
+                                  std::vector<HierarchicalRun>& out) {
+    auto addM0 = [&](size_t first, int a, int b) {
+        if (b <= a)
+            return;
+        if (out.size() > first && out.back().block < 0 && out.back().end == a)
+            out.back().end = b;
+        else
+            out.push_back({ -1, a, b });
+    };
+    const size_t first = out.size();
+    int k = start;
+    while (k < end) {
+        const int b = blockOfMask[maskOfPattern[k] & 15];
+        int e = k + 1;
+        while (e < end && blockOfMask[maskOfPattern[e] & 15] == b)
+            e++;
+        const int a0 = k == start ? start : (k + align - 1) / align * align;
+        const int b0 = e == end ? end : e / align * align;
+        if (b < 0 || b0 - a0 < minRun) {
+            addM0(first, k, e);
+        } else {
+            addM0(first, k, a0);
+            out.push_back({ b, a0, b0 });
+            addM0(first, b0, e);
+        }
+        k = e;
+    }
+}
+
+template <int Kind>
+struct HierarchicalBlockKind;
+
+template <>
+struct HierarchicalBlockKind<1> {
+    static constexpr int Sc = 3;
+    static constexpr int Agg = 2;
+    static constexpr int Extra = 1;
+};
+
+template <>
+struct HierarchicalBlockKind<2> {
+    static constexpr int Sc = 3;
+    static constexpr int Agg = 1;
+    static constexpr int Extra = 1;
+};
+
+template <>
+struct HierarchicalBlockKind<3> {
+    static constexpr int Sc = 2;
+    static constexpr int Agg = 1;
+    static constexpr int Extra = 2;
+};
+
+template <typename REALTYPE, int Sc>
+inline void hierarchicalBlockCoef(const HierarchicalSlot<REALTYPE>& slot,
+                                  int category,
+                                  const HierarchicalBlock& block,
+                                  const REALTYPE* pi,
+                                  REALTYPE piAggregate,
+                                  HierarchicalLaneCoef<REALTYPE, Sc>& c) {
+    const int S = 4;
+    const REALTYPE* H = slot.values.data() + (size_t) category * hierarchicalBlockLength(S);
+    const REALTYPE* prZ0 = H + (S - 1);
+    const REALTYPE* internal = slot.prZ0Internal.data() + (size_t) category * (S - 1);
+    for (int i = 0; i < Sc; i++) {
+        const int node = block.zNode[i];
+        c.pi[i] = node < S ? pi[node] : piAggregate;
+        c.z[i] = node < S ? prZ0[node] : internal[node - S];
+    }
+    for (int j = 0; j < Sc - 1; j++)
+        c.h[j] = H[block.height[j]];
+}
+
+template <typename REALTYPE, int Sc>
+inline void hierarchicalBlockTableRows(const REALTYPE* T, const HierarchicalBlock& block, REALTYPE* out) {
+    const int width = 5;
+    for (int i = 0; i < Sc; i++)
+        for (int s = 0; s < width; s++)
+            out[i * width + s] = T[block.row[i] * width + s];
+}
+
+template <typename REALTYPE, int Sc, int Agg, int Extra, bool Scaled>
+BEAGLE_HIERARCHICAL_NOINLINE void hierarchicalBlockPair(const REALTYPE* const* L1_,
+                                                        const HierarchicalLaneCoef<REALTYPE, Sc>& c1_,
+                                                        const REALTYPE* const* L2_,
+                                                        const HierarchicalLaneCoef<REALTYPE, Sc>& c2_,
+                                                        REALTYPE* const* dest_,
+                                                        const REALTYPE* invScale,
+                                                        int k0,
+                                                        int k1) {
+    const HierarchicalLaneCoef<REALTYPE, Sc> c1 = c1_;
+    const HierarchicalLaneCoef<REALTYPE, Sc> c2 = c2_;
+    const REALTYPE* L1[Sc];
+    const REALTYPE* L2[Sc];
+    REALTYPE* dest[Sc + Extra];
+    for (int x = 0; x < Sc; x++) {
+        L1[x] = L1_[x];
+        L2[x] = L2_[x];
+    }
+    for (int x = 0; x < Sc + Extra; x++)
+        dest[x] = dest_[x];
+    BEAGLE_HIERARCHICAL_LANE_LOOP
+    for (int k = k0; k < k1; k++) {
+        REALTYPE o1[Sc], o2[Sc];
+        hierarchicalLane<REALTYPE, Sc, 0>(L1, c1, k, o1);
+        hierarchicalLane<REALTYPE, Sc, 0>(L2, c2, k, o2);
+        BEAGLE_HIERARCHICAL_UNROLL
+        for (int x = 0; x < Sc; x++) {
+            REALTYPE v = o1[x] * o2[x];
+            if (Scaled)
+                v = v * invScale[k];
+            dest[x][k] = v;
+            if (x == Agg) {
+                BEAGLE_HIERARCHICAL_UNROLL
+                for (int e = 0; e < Extra; e++)
+                    dest[Sc + e][k] = v;
+            }
+        }
+    }
+}
+
+template <typename REALTYPE, int Sc, int Agg, int Extra, bool Scaled>
+BEAGLE_HIERARCHICAL_NOINLINE void hierarchicalBlockColPair(const REALTYPE* const* L1_,
+                                                           const HierarchicalLaneCoef<REALTYPE, Sc>& c1_,
+                                                           const int* states2,
+                                                           const REALTYPE* T2,
+                                                           REALTYPE* const* dest_,
+                                                           const REALTYPE* invScale,
+                                                           int k0,
+                                                           int k1) {
+    const int W = 5;
+    const HierarchicalLaneCoef<REALTYPE, Sc> c1 = c1_;
+    const REALTYPE* L1[Sc];
+    REALTYPE* dest[Sc + Extra];
+    for (int x = 0; x < Sc; x++)
+        L1[x] = L1_[x];
+    for (int x = 0; x < Sc + Extra; x++)
+        dest[x] = dest_[x];
+    BEAGLE_HIERARCHICAL_LANE_LOOP
+    for (int k = k0; k < k1; k++) {
+        REALTYPE o1[Sc];
+        hierarchicalLane<REALTYPE, Sc, 0>(L1, c1, k, o1);
+        const int s = states2[k];
+        BEAGLE_HIERARCHICAL_UNROLL
+        for (int x = 0; x < Sc; x++) {
+            REALTYPE v = o1[x] * T2[x * W + s];
+            if (Scaled)
+                v = v * invScale[k];
+            dest[x][k] = v;
+            if (x == Agg) {
+                BEAGLE_HIERARCHICAL_UNROLL
+                for (int e = 0; e < Extra; e++)
+                    dest[Sc + e][k] = v;
+            }
+        }
+    }
+}
+
+template <typename REALTYPE, int Sc, int Agg, int Extra, bool Scaled>
+BEAGLE_HIERARCHICAL_NOINLINE void hierarchicalBlockColColPair(const int* states1,
+                                                              const REALTYPE* T1,
+                                                              const int* states2,
+                                                              const REALTYPE* T2,
+                                                              REALTYPE* const* dest_,
+                                                              const REALTYPE* invScale,
+                                                              int k0,
+                                                              int k1) {
+    const int W = 5;
+    REALTYPE* dest[Sc + Extra];
+    for (int x = 0; x < Sc + Extra; x++)
+        dest[x] = dest_[x];
+    BEAGLE_HIERARCHICAL_LANE_LOOP
+    for (int k = k0; k < k1; k++) {
+        const int a = states1[k], b = states2[k];
+        BEAGLE_HIERARCHICAL_UNROLL
+        for (int x = 0; x < Sc; x++) {
+            REALTYPE v = T1[x * W + a] * T2[x * W + b];
+            if (Scaled)
+                v = v * invScale[k];
+            dest[x][k] = v;
+            if (x == Agg) {
+                BEAGLE_HIERARCHICAL_UNROLL
+                for (int e = 0; e < Extra; e++)
+                    dest[Sc + e][k] = v;
+            }
+        }
+    }
+}
+
 }
 }
 

@@ -394,6 +394,47 @@ void hierarchicalSweep(const HierarchicalSlot<REALTYPE>& slot,
                        int startPattern,
                        int endPattern);
 
+const int kHierarchicalBlockMinPatterns = 64;
+
+struct HierarchicalRun {
+    int block;
+    int start;
+    int end;
+};
+
+struct HierarchicalBlock {
+    int kind = 0;
+    int stateCount = 0;
+    int agg = -1;
+    int top = -1;
+    int row[3] = { 0, 0, 0 };
+    int zNode[3] = { 0, 0, 0 };
+    int height[2] = { 0, 0 };
+    int extra[2] = { 0, 0 };
+    int extraCount = 0;
+};
+
+struct HierarchicalBlockTable {
+    int topologyId = -1;
+    int lumpKey = -1;
+    bool valid = false;
+    signed char blockOfMask[16];
+    int blockCount = 0;
+    HierarchicalBlock blocks[2];
+};
+
+inline bool hierarchicalBlockOf(const HierarchicalOps& ops, int keptBits, HierarchicalBlock& block);
+
+inline bool hierarchicalBlockTable(const HierarchicalOps& ops, HierarchicalBlockTable& table);
+
+inline void hierarchicalBlockRuns(const signed char* blockOfMask,
+                                  const unsigned char* maskOfPattern,
+                                  int start,
+                                  int end,
+                                  int align,
+                                  int minRun,
+                                  std::vector<HierarchicalRun>& out);
+
 }
 }
 
