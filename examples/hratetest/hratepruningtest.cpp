@@ -636,6 +636,21 @@ int main() {
                 statesMatchPartials(pr, sparseRng);
             }
 
+    std::mt19937_64 sparse4Rng(20261118);
+    for (bool dp : { true, false })
+        for (bool caterpillar : { false, true })
+            for (int C : { 1, 4 }) {
+                Problem pr = makeSparseProblem(dp, 4, C, 300, sparse4Rng);
+                pr.stateTree = makeShapedTree(4, caterpillar, sparse4Rng, 2.0);
+                pr.label = caterpillar ? " sparse caterpillar" : " sparse balanced";
+                for (const Variant& v : variants) {
+                    compare(pr, v, sparse4Rng);
+                    modelMatchesBundles(pr, v, sparse4Rng);
+                    fusedMatchesTiled(pr, v, sparse4Rng);
+                }
+                statesMatchPartials(pr, sparse4Rng);
+            }
+
     printf("%d of %d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
 }

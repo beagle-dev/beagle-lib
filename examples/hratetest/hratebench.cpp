@@ -52,6 +52,8 @@ struct Options {
     int tile = 0;
     int sparse = 0;
     bool categoriesSet = false;
+    bool refreq = false;
+    int partial = 0;
 };
 
 struct Problem {
@@ -64,6 +66,8 @@ struct Problem {
     int nodes = 0;
     int root = 0;
     int slots = 0;
+    std::vector<BeagleOperation> partialOps;
+    std::vector<int> partialSlots;
 };
 
 struct Timings {
@@ -380,6 +384,8 @@ static long scalingFlags(const std::string& s) {
         return BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_LOG;
     if (s == "always")
         return BEAGLE_FLAG_SCALING_ALWAYS;
+    if (s == "fixed")
+        return BEAGLE_FLAG_SCALING_MANUAL | BEAGLE_FLAG_SCALERS_RAW;
     return 0;
 }
 
@@ -440,6 +446,7 @@ struct BeagleRun {
     std::string implName;
     int failed = 0;
     std::string failedCall;
+    int evals = 0;
 };
 
 static bool call(BeagleRun& r, const char* name, int code) {
@@ -524,29 +531,43 @@ static void evaluateBeagle(const Options& o, const Problem& pr, BeagleRun& run,
     const int N = o.tips;
     const int internal = N - 1;
     const int cumulative = scaling == "none" ? BEAGLE_OP_NONE : internal;
-    std::vector<BeagleOperation> ops = pr.ops;
+    const bool firstEval = run.evals == 0;
+    run.evals++;
+    const bool fixedMode = scaling == "fixed";
+    const bool partial = o.partial > 0 && !firstEval;
+    std::vector<BeagleOperation> ops = partial ? pr.partialOps : pr.ops;
+    std::vector<int> slots;
+    if (partial)
+        slots = pr.partialSlots;
+    else
+        for (int n = 0; n < pr.slots; ++n)
+            slots.push_back(n);
     std::vector<int> writes;
-    if (scaling == "manual")
+    if (scaling == "manual" || (fixedMode && firstEval))
         for (auto& op : ops) {
             op.destinationScaleWrite = op.destinationPartials - N;
             writes.push_back(op.destinationScaleWrite);
         }
+    if (fixedMode && !firstEval)
+        for (auto& op : ops)
+            op.destinationScaleRead = op.destinationPartials - N;
     const bool eigen = o.impl == "eigen" || (o.model && o.impl == "hierarchical");
     const bool closedform = o.impl == "closedform";
     const bool rebuild = closedform || (o.rebuild && o.impl == "hierarchical");
     auto t0 = Clock::now();
+    if (o.refreq && !firstEval)
+        call(run, "beagleSetStateFrequencies", beagleSetStateFrequencies(run.instance, 0, pr.pi.data()));
     if (eigen) {
-        std::vector<int> idx(pr.slots);
-        std::vector<double> len(pr.slots);
-        for (int n = 0; n < pr.slots; ++n) {
-            idx[n] = n;
-            len[n] = pr.distinctLengths[pr.lengthOf[n]];
-        }
+        std::vector<int> idx(slots);
+        std::vector<double> len;
+        for (int n : slots)
+            len.push_back(pr.distinctLengths[pr.lengthOf[n]]);
         call(run, "beagleUpdateTransitionMatrices",
-             beagleUpdateTransitionMatrices(run.instance, 0, idx.data(), nullptr, nullptr, len.data(), pr.slots));
+             beagleUpdateTransitionMatrices(run.instance, 0, idx.data(), nullptr, nullptr, len.data(),
+                                            (int) idx.size()));
     } else if (rebuild) {
         std::vector<double> fresh;
-        for (int n = 0; n < pr.slots; ++n) {
+        for (int n : slots) {
             const double t = pr.distinctLengths[pr.lengthOf[n]];
             if (closedform)
                 denseP(pr.tree, pr.rates, t, fresh);
@@ -555,13 +576,13 @@ static void evaluateBeagle(const Options& o, const Problem& pr, BeagleRun& run,
             call(run, "beagleSetTransitionMatrix", beagleSetTransitionMatrix(run.instance, n, fresh.data(), 1.0));
         }
     } else {
-        for (int n = 0; n < pr.slots; ++n)
+        for (int n : slots)
             call(run, "beagleSetTransitionMatrix",
                  beagleSetTransitionMatrix(run.instance, n, payloads[pr.lengthOf[n]].data(), 1.0));
     }
     setMs = since(t0);
     scaleMs = 0.0;
-    if (scaling != "none") {
+    if (scaling != "none" && !(fixedMode && !firstEval)) {
         t0 = Clock::now();
         call(run, "beagleResetScaleFactors", beagleResetScaleFactors(run.instance, cumulative));
         scaleMs += since(t0);
@@ -571,7 +592,7 @@ static void evaluateBeagle(const Options& o, const Problem& pr, BeagleRun& run,
          beagleUpdatePartials(run.instance, ops.data(), (int) ops.size(),
                               scaling == "always" ? cumulative : BEAGLE_OP_NONE));
     upMs = since(t0);
-    if (scaling == "manual") {
+    if (scaling == "manual" || (fixedMode && firstEval)) {
         t0 = Clock::now();
         call(run, "beagleAccumulateScaleFactors",
              beagleAccumulateScaleFactors(run.instance, writes.data(), (int) writes.size(), cumulative));
@@ -685,13 +706,37 @@ static const char* kHeader =
     "up_ms_p25,up_ms_p75,scale_ms_med,root_ms_min,root_ms_med,maxrss_mb,lnL,check_lnL,check_maxdiff,"
     "check_maxrel,partials_sha,pre_ms,grad_ms,kernel,sparse,aggregate,classes,sc_mean,r";
 
+static void partialPath(const Options& o, Problem& pr) {
+    std::vector<int> opOf(pr.nodes, -1), size(pr.nodes, 1);
+    for (size_t i = 0; i < pr.ops.size(); ++i) {
+        const BeagleOperation& op = pr.ops[i];
+        opOf[op.destinationPartials] = (int) i;
+        size[op.destinationPartials] = size[op.child1Partials] + size[op.child2Partials];
+    }
+    std::vector<BeagleOperation> path;
+    std::vector<int> slots;
+    int m = pr.ops.back().destinationPartials;
+    while (m >= o.tips && (int) path.size() < o.partial) {
+        const BeagleOperation& op = pr.ops[opOf[m]];
+        path.push_back(op);
+        slots.push_back(op.child1TransitionMatrix);
+        slots.push_back(op.child2TransitionMatrix);
+        const int a = op.child1Partials, b = op.child2Partials;
+        m = size[a] >= size[b] ? a : b;
+    }
+    pr.partialOps.assign(path.rbegin(), path.rend());
+    std::sort(slots.begin(), slots.end());
+    pr.partialSlots = slots;
+}
+
 static void usage() {
     fprintf(stderr,
             "usage: hratebench [--impl hierarchical|standard|eigen|closedform|blas] [--rebuild] [--model] [--vector sse|none] [--precision double|single]\n"
             "                  [--states S] [--patterns K] [--categories C] [--tips N] [--tipdata partials|states]\n"
             "                  [--statetree random|star|balanced|caterpillar] [--kernel tiled|shape|dense|fused] [--group G] [--order category|group] [--tile T] [--lambda m] [--lengths D] [--seed n]\n"
-            "                  [--threads T] [--threadmode none|auto] [--scaling none|manual|always]\n"
+            "                  [--threads T] [--threadmode none|auto] [--scaling none|manual|always|fixed]\n"
             "                  [--warmup W] [--minreps R] [--budget s] [--check] [--reps-out FILE] [--load FILE] [--sparse k]\n"
+            "                  [--refreq] [--partial n]\n"
             "                  [--header]\n");
 }
 
@@ -740,6 +785,8 @@ int main(int argc, char** argv) {
         else if (a == "--order") o.order = next();
         else if (a == "--tile") o.tile = atoi(next());
         else if (a == "--sparse") o.sparse = atoi(next());
+        else if (a == "--refreq") o.refreq = true;
+        else if (a == "--partial") o.partial = atoi(next());
         else {
             usage();
             return 2;
@@ -757,8 +804,9 @@ int main(int argc, char** argv) {
         (!o.kernel.empty() && o.kernel != "tiled" && o.kernel != "shape" && o.kernel != "dense" && o.kernel != "fused") ||
         (!o.order.empty() && o.order != "category" && o.order != "group") ||
         (o.threadmode != "none" && o.threadmode != "auto") ||
-        (o.scaling != "none" && o.scaling != "manual" && o.scaling != "always") || o.states < 2 || o.tips < 2 ||
-        o.patterns < 1 || o.categories < 1 || o.sparse < 0) {
+        (o.scaling != "none" && o.scaling != "manual" && o.scaling != "always" && o.scaling != "fixed") || o.states < 2 || o.tips < 2 ||
+        o.patterns < 1 || o.categories < 1 || o.sparse < 0 || o.partial < 0 ||
+        (o.partial > 0 && o.scaling != "none" && o.scaling != "fixed")) {
         usage();
         return 2;
     }
@@ -798,6 +846,8 @@ int main(int argc, char** argv) {
     } else {
         pr = makeProblem(o);
     }
+    if (o.partial > 0)
+        partialPath(o, pr);
     Timings tm;
     BeagleRun run;
     std::vector<std::vector<double>> payloads;
@@ -849,7 +899,7 @@ int main(int argc, char** argv) {
     auto budgetStart = Clock::now();
     while ((int) tm.up.size() < minreps || since(budgetStart) < o.budget * 1000.0) {
         evaluate(setMs, upMs, scaleMs, rootMs, lnL);
-        tm.set.push_back(setMs * 1000.0 / std::max(1, pr.slots));
+        tm.set.push_back(setMs * 1000.0 / std::max(1, o.partial > 0 ? (int) pr.partialSlots.size() : pr.slots));
         tm.up.push_back(upMs);
         tm.scale.push_back(scaleMs);
         tm.root.push_back(rootMs);
@@ -865,7 +915,7 @@ int main(int argc, char** argv) {
     std::vector<double> mine;
     uint64_t sha = 1469598103934665603ULL;
     bool haveSha = false;
-    if (o.scaling == "none") {
+    if (o.scaling == "none" || o.scaling == "fixed") {
         haveSha = true;
         for (int m = o.tips; m < pr.nodes; ++m) {
             std::vector<double> one;
