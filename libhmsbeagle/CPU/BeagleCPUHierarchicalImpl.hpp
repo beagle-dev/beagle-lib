@@ -203,12 +203,18 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     kBlockDispatch = kBlocks && kStateCount == 4 && !(blocksEnv != NULL && std::strcmp(blocksEnv, "m0") == 0);
     if (const char* minEnv = getenv("BEAGLE_HRATE_BLOCK_MIN"))
         kBlockMin = std::max(0, atoi(minEnv));
+    const char* storeEnv = getenv("BEAGLE_HRATE_BLOCK_STORE");
+    kBlockCompact = kBlockDispatch && !(storeEnv != NULL && std::strcmp(storeEnv, "broadcast") == 0);
+    gCompact.assign(kBufferCount, -1);
+    gChildCompact.assign(kBufferCount, { -1, -1 });
+    gLump.assign(kBufferCount, -2);
+    gOpBlockOk.assign(kBufferCount, 0);
     kBlockAlign = getPaddedPatternsModulus();
     if (const char* alignEnv = getenv("BEAGLE_HRATE_BLOCK_ALIGN"))
         kBlockAlign = std::max(1, atoi(alignEnv));
     if (kVerbose && kBlocks)
         fprintf(stderr, "hrate aggregation: forced on, %d-state: %s\n", kStateCount,
-                kBlockDispatch ? "blocks" : "shape kernels");
+                kBlockDispatch ? (kBlockCompact ? "blocks, compact rows" : "blocks, broadcast rows") : "shape kernels");
     gTipPlanesEqual.assign(kTipCount, 0);
     gRagged.assign(kBufferCount, nullptr);
     gRaggedCapacity.assign(kBufferCount, 0);
@@ -543,6 +549,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setPartials(int bufferIndex,
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
     transposeToSiteMajor(gPartials[bufferIndex], inPartials, kPatternCount * kStateCount, kStateCount);
+    if (bufferIndex < (int) gCompact.size())
+        gCompact[bufferIndex] = -1;
+    if (bufferIndex < (int) gLump.size())
+        gLump[bufferIndex] = -2;
     if (bufferIndex < kTipCount) {
         if (bufferIndex < (int) gTipPlanesEqual.size())
             gTipPlanesEqual[bufferIndex] = 0;
@@ -575,6 +585,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::setRootPrePartials(const int*
     int bufferIndex = bufferIndices[0];
     if (bufferIndex < 0 || bufferIndex >= kBufferCount)
         return BEAGLE_ERROR_OUT_OF_RANGE;
+    if (bufferIndex < (int) gCompact.size())
+        gCompact[bufferIndex] = -1;
+    if (bufferIndex < (int) gLump.size())
+        gLump[bufferIndex] = -2;
     int returnCode = ensurePartials(bufferIndex);
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
@@ -622,6 +636,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::getPartials(int bufferIndex,
         return BEAGLE_ERROR_OUT_OF_RANGE;
     BEAGLE_CHECK_INDICES(cumulativeScaleIndex != BEAGLE_OP_NONE && this->badScale(cumulativeScaleIndex));
 
+    if (kBlockCompact && bufferIndex < (int) gCompact.size() && gCompact[bufferIndex] >= 0) {
+        expandCompact(bufferIndex, gCompact[bufferIndex], 0, kPatternCount);
+        gCompact[bufferIndex] = -1;
+    }
     if (raggedReady(bufferIndex)) {
         const REALTYPE* ragged = gRagged[bufferIndex];
         const int live = liveSlotOf(gRaggedTopology[bufferIndex]);
@@ -931,6 +949,8 @@ double BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::rootLogLikelihoodRange(con
                                                                             const int scaleBufferIndex,
                                                                             int startPattern,
                                                                             int endPattern) {
+    if (kBlockCompact && bufferIndex >= 0 && bufferIndex < kBufferCount && gCompact[bufferIndex] >= 0)
+        expandCompact(bufferIndex, gCompact[bufferIndex], startPattern, endPattern);
     const REALTYPE* rootPartials = gPartials[bufferIndex];
     const REALTYPE* wt = gCategoryWeights[categoryWeightsIndex];
     const REALTYPE* freqs = gStateFrequencies[stateFrequenciesIndex];
@@ -1953,7 +1973,20 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
     if (!kBlockDispatch || count == 0)
         return;
     bool rebuild = false;
-    if (gBlockMaskStamp != gTipStamp || (int) gBlockMask.size() != kPatternCount) {
+    const bool masksStale = gBlockMaskStamp != gTipStamp || (int) gBlockMask.size() != kPatternCount;
+    std::vector<int> ranges;
+    if (kPartitionCount > 1 && gPatternPartitionsStartPatterns != NULL)
+        for (int p = 0; p < kPartitionCount; p++) {
+            ranges.push_back(gPatternPartitionsStartPatterns[p]);
+            ranges.push_back(gPatternPartitionsStartPatterns[p + 1]);
+        }
+    ranges.push_back(0);
+    ranges.push_back(kPatternCount);
+    if (masksStale || ranges != gBlockRangeStarts)
+        expandAllCompact(-1);
+    if (masksStale) {
+        for (int b = kTipCount; b < (int) gLump.size(); b++)
+            gLump[b] = -2;
         gBlockMask.assign(kPatternCount, 0);
         for (int t = 0; t < kTipCount; t++) {
             const int* states = gTipStates[t];
@@ -1967,14 +2000,6 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
         gBlockMaskStamp = gTipStamp;
         rebuild = true;
     }
-    std::vector<int> ranges;
-    if (kPartitionCount > 1 && gPatternPartitionsStartPatterns != NULL)
-        for (int p = 0; p < kPartitionCount; p++) {
-            ranges.push_back(gPatternPartitionsStartPatterns[p]);
-            ranges.push_back(gPatternPartitionsStartPatterns[p + 1]);
-        }
-    ranges.push_back(0);
-    ranges.push_back(kPatternCount);
     if (ranges != gBlockRangeStarts) {
         gBlockRangeStarts = ranges;
         rebuild = true;
@@ -2016,6 +2041,8 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
                     if (gBlockUse[i] < gBlockUse[idx])
                         idx = i;
             }
+            if (gBlockTables[idx].topologyId >= 0)
+                expandAllCompact(gBlockTables[idx].topologyId);
             hierarchicalBlockTable(*s1.ops, gBlockTables[idx]);
             gBlockTables[idx].topologyId = id;
             gBlockRuns[idx].clear();
@@ -2038,6 +2065,117 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
                     gBlockPi[idx][b] = (REALTYPE) piNode[table.blocks[b].top];
         }
     }
+    gBlockCallBlocked = false;
+    std::vector<char> seen(kBufferCount, 0);
+    for (int op = 0; op < count; op++) {
+        const int dest = operations[op * numOps];
+        if (dest < 0 || dest >= kBufferCount || seen[dest])
+            gBlockCallBlocked = true;
+        else
+            seen[dest] = 1;
+    }
+    for (int op = 0; op < count; op++) {
+        const int dest = operations[op * numOps];
+        const int c1 = operations[op * numOps + 3];
+        const int c2 = operations[op * numOps + 5];
+        const int m1 = operations[op * numOps + 4];
+        const int m2 = operations[op * numOps + 6];
+        if (dest < 0 || dest >= kBufferCount)
+            continue;
+        const int s1 = c1 >= 0 && c1 < kBufferCount ? gCompact[c1] : -1;
+        const int s2 = c2 >= 0 && c2 < kBufferCount ? gCompact[c2] : -1;
+        gChildCompact[dest] = { s1, s2 };
+        int topology = -1, key = -2;
+        if (c2 != BEAGLE_OP_NONE && m1 >= 0 && m2 >= 0 && m1 < (int) gSlots.size() && m2 < (int) gSlots.size() &&
+            gSlots[m1].set && gSlots[m2].set && gSlots[m1].ops != NULL && gSlots[m2].ops != NULL &&
+            gSlots[m1].ops->topologyId >= 0 && gSlots[m1].ops->topologyId == gSlots[m2].ops->topologyId) {
+            const int t = blockTableIndex(gSlots[m1].ops->topologyId);
+            bool reduces = false;
+            if (t >= 0)
+                for (const auto& runs : gBlockRuns[t])
+                    for (const HierarchicalRun& run : runs)
+                        reduces = reduces || run.block >= 0;
+            if (t >= 0 && reduces) {
+                topology = gSlots[m1].ops->topologyId;
+                key = gBlockTables[t].lumpKey;
+            }
+        }
+        auto lumpable = [&](int c) {
+            return c >= 0 && (c < kTipCount || (c < kBufferCount && gLump[c] == key));
+        };
+        const bool ok = !gBlockCallBlocked && topology >= 0 && lumpable(c1) && lumpable(c2);
+        gOpBlockOk[dest] = ok ? 1 : 0;
+        gLump[dest] = ok ? key : -2;
+        if (kBlockCompact)
+            gCompact[dest] = ok ? topology : -1;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::expandCompact(int buffer,
+                                                                  int topologyId,
+                                                                  int startPattern,
+                                                                  int endPattern) {
+    if (topologyId < 0 || buffer < 0 || buffer >= kBufferCount || gPartials[buffer] == NULL ||
+        (int) gBlockMask.size() != kPatternCount)
+        return;
+    int t = -1;
+    for (int i = 0; i < (int) gBlockTables.size(); i++)
+        if (gBlockTables[i].topologyId == topologyId)
+            t = i;
+    if (t < 0 || !gBlockTables[t].valid)
+        return;
+    const HierarchicalBlockTable& table = gBlockTables[t];
+    REALTYPE* P = gPartials[buffer];
+    for (int l = 0; l < kCategoryCount; l++)
+        for (int k = startPattern; k < endPattern; k++) {
+            const int b = table.blockOfMask[gBlockMask[k] & 15];
+            if (b < 0)
+                continue;
+            const HierarchicalBlock& blk = table.blocks[b];
+            const REALTYPE v = P[pIdx(l, 0, blk.row[blk.agg]) + k];
+            for (int e = 0; e < blk.extraCount; e++)
+                P[pIdx(l, 0, blk.extra[e]) + k] = v;
+        }
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::expandAllCompact(int topologyId) {
+    for (int b = 0; b < (int) gCompact.size(); b++)
+        if (gCompact[b] >= 0 && (topologyId < 0 || gCompact[b] == topologyId)) {
+            expandCompact(b, gCompact[b], 0, kPatternCount);
+            gCompact[b] = -1;
+        }
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockStep(int parIndex,
+                                                              int child1Index,
+                                                              int child2Index,
+                                                              REALTYPE* destP,
+                                                              const REALTYPE* partials1,
+                                                              const int* states1,
+                                                              const HierarchicalSlot<REALTYPE>& slot1,
+                                                              bool singleChild,
+                                                              const REALTYPE* partials2,
+                                                              const int* states2,
+                                                              const HierarchicalSlot<REALTYPE>* slot2,
+                                                              const REALTYPE* scaleFactors,
+                                                              int startPattern,
+                                                              int endPattern) {
+    if (!kBlockDispatch)
+        return false;
+    if (blockPartials(parIndex, child1Index, child2Index, destP, partials1, states1, slot1, singleChild, partials2,
+                      states2, slot2, scaleFactors, startPattern, endPattern))
+        return true;
+    if (kBlockCompact && parIndex >= 0 && parIndex < kBufferCount) {
+        const std::array<int, 2>& s = gChildCompact[parIndex];
+        if (s[0] >= 0)
+            expandCompact(child1Index, s[0], startPattern, endPattern);
+        if (s[1] >= 0 && !singleChild)
+            expandCompact(child2Index, s[1], startPattern, endPattern);
+    }
+    return false;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -2050,7 +2188,10 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockTableIndex(int topologyI
 }
 
 BEAGLE_CPU_TEMPLATE
-bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* destP,
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(int parIndex,
+                                                                  int child1Index,
+                                                                  int child2Index,
+                                                                  REALTYPE* destP,
                                                                   const REALTYPE* partials1,
                                                                   const int* states1,
                                                                   const HierarchicalSlot<REALTYPE>& slot1,
@@ -2061,7 +2202,8 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* dest
                                                                   const REALTYPE* scaleFactors,
                                                                   int startPattern,
                                                                   int endPattern) {
-    if (singleChild || slot1.ops == NULL || slot2 == NULL || slot2->ops == NULL ||
+    if (gBlockCallBlocked || parIndex < 0 || parIndex >= kBufferCount || !gOpBlockOk[parIndex] || singleChild ||
+        slot1.ops == NULL || slot2 == NULL || slot2->ops == NULL ||
         slot1.ops->topologyId < 0 || slot1.ops->topologyId != slot2->ops->topologyId)
         return false;
     const int plan = smallPlan(states1 != NULL, slot1, false, states2 != NULL, slot2);
@@ -2084,6 +2226,14 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* dest
     const std::vector<HierarchicalRun>& runs = gBlockRuns[table][range];
     if (runs.empty() || (runs.size() == 1 && runs[0].block < 0))
         return false;
+    if (kBlockCompact) {
+        const int topology = slot1.ops->topologyId;
+        const std::array<int, 2>& s = gChildCompact[parIndex];
+        if (s[0] >= 0 && s[0] != topology)
+            expandCompact(child1Index, s[0], startPattern, endPattern);
+        if (s[1] >= 0 && s[1] != topology)
+            expandCompact(child2Index, s[1], startPattern, endPattern);
+    }
     REALTYPE* invScale = NULL;
     if (scaleFactors != NULL) {
         invScale = gInvScaleTmp.data();
@@ -2102,14 +2252,19 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* dest
                 continue;
             }
             const int kind = gBlockTables[table].blocks[run.block].kind;
+#define BEAGLE_HIERARCHICAL_BLOCK_CALL(K, Sc, Cp)                                                                \
+    blockCategory<K, Sc, Cp>(plan, l, table, run.block, destP, partials1, states1, slot1, partials2, states2, slot2,  \
+                             invScale, run.start, run.end)
 #define BEAGLE_HIERARCHICAL_BLOCK_CASE(K)                                                                        \
     case K:                                                                                                      \
-        if (invScale != NULL)                                                                                    \
-            blockCategory<K, true>(plan, l, table, run.block, destP, partials1, states1, slot1, partials2,       \
-                                   states2, slot2, invScale, run.start, run.end);                                \
+        if (invScale != NULL && kBlockCompact)                                                                   \
+            BEAGLE_HIERARCHICAL_BLOCK_CALL(K, true, true);                                                       \
+        else if (invScale != NULL)                                                                               \
+            BEAGLE_HIERARCHICAL_BLOCK_CALL(K, true, false);                                                      \
+        else if (kBlockCompact)                                                                                  \
+            BEAGLE_HIERARCHICAL_BLOCK_CALL(K, false, true);                                                      \
         else                                                                                                     \
-            blockCategory<K, false>(plan, l, table, run.block, destP, partials1, states1, slot1, partials2,      \
-                                    states2, slot2, invScale, run.start, run.end);                               \
+            BEAGLE_HIERARCHICAL_BLOCK_CALL(K, false, false);                                                     \
         break;
             switch (kind) {
                 BEAGLE_HIERARCHICAL_BLOCK_CASE(1)
@@ -2119,11 +2274,12 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* dest
                     break;
             }
 #undef BEAGLE_HIERARCHICAL_BLOCK_CASE
+#undef BEAGLE_HIERARCHICAL_BLOCK_CALL
         }
     return true;
 }
 
-BEAGLE_CPU_TEMPLATE template <int Kind, bool Scaled>
+BEAGLE_CPU_TEMPLATE template <int Kind, bool Scaled, bool Compact>
 void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockCategory(int plan,
                                                                   int category,
                                                                   int table,
@@ -2140,6 +2296,7 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockCategory(int plan,
                                                                   int endPattern) {
     typedef HierarchicalBlockKind<Kind> K;
     constexpr int Sc = K::Sc;
+    constexpr int Extra = Compact ? 0 : K::Extra;
     const int l = category;
     const HierarchicalBlock& blk = gBlockTables[table].blocks[block];
     const REALTYPE piAggregate = gBlockPi[table][block];
@@ -2167,27 +2324,27 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockCategory(int plan,
             hierarchicalBlockCoef<REALTYPE, Sc>(*slot2, l, blk, pi, piAggregate, c2);
             rows(partials1, L1);
             rows(partials2, L2);
-            hierarchicalBlockPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L1, c1, L2, c2, D, invScale, startPattern,
+            hierarchicalBlockPair<REALTYPE, Sc, K::Agg, Extra, Scaled>(L1, c1, L2, c2, D, invScale, startPattern,
                                                                          endPattern);
             break;
         case kHierarchicalSmallRegCol:
             hierarchicalBlockCoef<REALTYPE, Sc>(slot1, l, blk, pi, piAggregate, c1);
             rows(partials1, L1);
             columns(*slot2, T2);
-            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L1, c1, states2, T2, D, invScale,
+            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, Extra, Scaled>(L1, c1, states2, T2, D, invScale,
                                                                             startPattern, endPattern);
             break;
         case kHierarchicalSmallColReg:
             hierarchicalBlockCoef<REALTYPE, Sc>(*slot2, l, blk, pi, piAggregate, c2);
             rows(partials2, L2);
             columns(slot1, T1);
-            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L2, c2, states1, T1, D, invScale,
+            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, Extra, Scaled>(L2, c2, states1, T1, D, invScale,
                                                                             startPattern, endPattern);
             break;
         case kHierarchicalSmallColCol:
             columns(slot1, T1);
             columns(*slot2, T2);
-            hierarchicalBlockColColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(states1, T1, states2, T2, D, invScale,
+            hierarchicalBlockColColPair<REALTYPE, Sc, K::Agg, Extra, Scaled>(states1, T1, states2, T2, D, invScale,
                                                                                startPattern, endPattern);
             break;
         default:
@@ -2587,6 +2744,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         const HierarchicalStatesSource<REALTYPE> statesSource2 = { tipStates2, kStateCount };
 
         bool rescaled = false;
+        bool blocked = false;
         auto run = [&](const auto& source1, const auto* source2) {
             if (kFusedBand) {
                 hierarchicalPartialsFused(destPartials, source1, slot1, source2, slot2, fixedScaleFactors,
@@ -2605,8 +2763,9 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                                rescale, fixedScaleFactors, rescale == 1 ? scalingFactors : NULL,
                                rescale == 1 ? cumulativeScaleBuffer : NULL, startPattern, endPattern);
             rescaled = rescale == 1;
-        } else if (kBlockDispatch && blockPartials(destPartials, partials1, tipStates1, slot1, singleChild, partials2,
-                                                   tipStates2, slot2, fixedScaleFactors, startPattern, endPattern)) {
+        } else if (blockStep(parIndex, child1Index, child2Index, destPartials, partials1, tipStates1, slot1, singleChild,
+                             partials2, tipStates2, slot2, fixedScaleFactors, startPattern, endPattern)) {
+            blocked = true;
         } else if (kSmallBand && smallPartials(destPartials, partials1, tipStates1, slot1, singleChild, partials2, tipStates2,
                                         slot2, fixedScaleFactors, startPattern, endPattern)) {
         } else if (kColumnGather &&
@@ -2634,6 +2793,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         }
 
         if (rescale == 1 && !rescaled) {
+            if (blocked && kBlockCompact)
+                expandCompact(parIndex, slot1.ops->topologyId, startPattern, endPattern);
             if (byPartition)
                 rescalePartialsByPartition(destPartials, scalingFactors, cumulativeScaleBuffer, 0, currentPartition);
             else

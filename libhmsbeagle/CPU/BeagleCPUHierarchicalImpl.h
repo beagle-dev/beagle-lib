@@ -86,6 +86,12 @@ namespace beagle {
             bool kMayAggregate = false;
             bool kBlocks = false;
             bool kBlockDispatch = false;
+            bool kBlockCompact = false;
+            bool gBlockCallBlocked = false;
+            std::vector<int> gCompact;
+            std::vector<int> gLump;
+            std::vector<char> gOpBlockOk;
+            std::vector<std::array<int, 2>> gChildCompact;
             int kBlockMin = kHierarchicalBlockMinPatterns;
             int kBlockAlign = 0;
             std::vector<unsigned char> gBlockMask;
@@ -188,7 +194,26 @@ namespace beagle {
             void prepareClasses(const int* operations, int count, int numOps);
             void prepareBlocks(const int* operations, int count, int numOps);
             int blockTableIndex(int topologyId) const;
-            bool blockPartials(REALTYPE* destP,
+            void expandCompact(int buffer, int topologyId, int startPattern, int endPattern);
+            void expandAllCompact(int topologyId);
+            bool blockStep(int parIndex,
+                           int child1Index,
+                           int child2Index,
+                           REALTYPE* destP,
+                           const REALTYPE* partials1,
+                           const int* states1,
+                           const HierarchicalSlot<REALTYPE>& slot1,
+                           bool singleChild,
+                           const REALTYPE* partials2,
+                           const int* states2,
+                           const HierarchicalSlot<REALTYPE>* slot2,
+                           const REALTYPE* scaleFactors,
+                           int startPattern,
+                           int endPattern);
+            bool blockPartials(int parIndex,
+                               int child1Index,
+                               int child2Index,
+                               REALTYPE* destP,
                                const REALTYPE* partials1,
                                const int* states1,
                                const HierarchicalSlot<REALTYPE>& slot1,
@@ -199,7 +224,7 @@ namespace beagle {
                                const REALTYPE* scaleFactors,
                                int startPattern,
                                int endPattern);
-            template <int Kind, bool Scaled>
+            template <int Kind, bool Scaled, bool Compact>
             void blockCategory(int plan,
                                int category,
                                int table,
