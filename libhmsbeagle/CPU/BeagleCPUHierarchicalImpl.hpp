@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <new>
 #include <cstring>
+#include <limits>
 #include <iostream>
 
 #include "libhmsbeagle/beagle.h"
@@ -199,8 +200,15 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
               !(blocksEnv != NULL && std::strcmp(blocksEnv, "0") == 0);
     const char* verboseEnv = getenv("BEAGLE_HRATE_VERBOSE");
     kVerbose = verboseEnv != NULL && std::strcmp(verboseEnv, "0") != 0;
+    kBlockDispatch = kBlocks && kStateCount == 4 && !(blocksEnv != NULL && std::strcmp(blocksEnv, "m0") == 0);
+    if (const char* minEnv = getenv("BEAGLE_HRATE_BLOCK_MIN"))
+        kBlockMin = std::max(0, atoi(minEnv));
+    kBlockAlign = getPaddedPatternsModulus();
+    if (const char* alignEnv = getenv("BEAGLE_HRATE_BLOCK_ALIGN"))
+        kBlockAlign = std::max(1, atoi(alignEnv));
     if (kVerbose && kBlocks)
-        fprintf(stderr, "hrate aggregation: forced on, %d-state: shape kernels\n", kStateCount);
+        fprintf(stderr, "hrate aggregation: forced on, %d-state: %s\n", kStateCount,
+                kBlockDispatch ? "blocks" : "shape kernels");
     gTipPlanesEqual.assign(kTipCount, 0);
     gRagged.assign(kBufferCount, nullptr);
     gRaggedCapacity.assign(kBufferCount, 0);
@@ -875,6 +883,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* ope
     if (!gAggregated)
         prepareTables(operations, operationCount, BEAGLE_OP_COUNT);
     preparePrZ0(operations, operationCount, BEAGLE_OP_COUNT);
+    prepareBlocks(operations, operationCount, BEAGLE_OP_COUNT);
     int returnCode = prepareRagged(operations, operationCount, BEAGLE_OP_COUNT);
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
@@ -896,6 +905,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(con
     if (!slotsReady(operations, operationCount, BEAGLE_PARTITION_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareClasses(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
+    for (auto& pi : gBlockPi)
+        pi = { std::numeric_limits<REALTYPE>::quiet_NaN(), std::numeric_limits<REALTYPE>::quiet_NaN() };
     completeSlots(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     if (!gAggregated)
         prepareTables(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
@@ -1938,6 +1949,253 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::fusedColumnPartials(REALTYPE
 }
 
 BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* operations, int count, int numOps) {
+    if (!kBlockDispatch || count == 0)
+        return;
+    bool rebuild = false;
+    if (gBlockMaskStamp != gTipStamp || (int) gBlockMask.size() != kPatternCount) {
+        gBlockMask.assign(kPatternCount, 0);
+        for (int t = 0; t < kTipCount; t++) {
+            const int* states = gTipStates[t];
+            for (int k = 0; k < kPatternCount; k++) {
+                if (states == NULL)
+                    gBlockMask[k] = 15;
+                else if (states[k] >= 0 && states[k] < 4)
+                    gBlockMask[k] |= (unsigned char) (1 << states[k]);
+            }
+        }
+        gBlockMaskStamp = gTipStamp;
+        rebuild = true;
+    }
+    std::vector<int> ranges;
+    if (kPartitionCount > 1 && gPatternPartitionsStartPatterns != NULL)
+        for (int p = 0; p < kPartitionCount; p++) {
+            ranges.push_back(gPatternPartitionsStartPatterns[p]);
+            ranges.push_back(gPatternPartitionsStartPatterns[p + 1]);
+        }
+    ranges.push_back(0);
+    ranges.push_back(kPatternCount);
+    if (ranges != gBlockRangeStarts) {
+        gBlockRangeStarts = ranges;
+        rebuild = true;
+    }
+    if (rebuild)
+        for (auto& runs : gBlockRuns)
+            runs.clear();
+    const int rangeCount = (int) gBlockRangeStarts.size() / 2;
+    const REALTYPE nan = std::numeric_limits<REALTYPE>::quiet_NaN();
+    for (auto& pi : gBlockPi)
+        pi = { nan, nan };
+    for (int op = 0; op < count; op++) {
+        const int child2 = operations[op * numOps + 5];
+        const int m1 = operations[op * numOps + 4];
+        const int m2 = operations[op * numOps + 6];
+        if (child2 == BEAGLE_OP_NONE || m1 < 0 || m2 < 0 || m1 >= (int) gSlots.size() || m2 >= (int) gSlots.size())
+            continue;
+        const HierarchicalSlot<REALTYPE>& s1 = gSlots[m1];
+        const HierarchicalSlot<REALTYPE>& s2 = gSlots[m2];
+        if (!s1.set || !s2.set || s1.ops == NULL || s2.ops == NULL)
+            continue;
+        const int id = s1.ops->topologyId;
+        if (id < 0 || s2.ops->topologyId != id)
+            continue;
+        int idx = -1;
+        for (int i = 0; i < (int) gBlockTables.size(); i++)
+            if (gBlockTables[i].topologyId == id)
+                idx = i;
+        if (idx < 0) {
+            if (gBlockTables.size() < kHierarchicalTopologyCacheSize) {
+                idx = (int) gBlockTables.size();
+                gBlockTables.emplace_back();
+                gBlockRuns.emplace_back();
+                gBlockPi.push_back({ nan, nan });
+                gBlockUse.push_back(0);
+            } else {
+                idx = 0;
+                for (int i = 1; i < (int) gBlockTables.size(); i++)
+                    if (gBlockUse[i] < gBlockUse[idx])
+                        idx = i;
+            }
+            hierarchicalBlockTable(*s1.ops, gBlockTables[idx]);
+            gBlockTables[idx].topologyId = id;
+            gBlockRuns[idx].clear();
+            gBlockPi[idx] = { nan, nan };
+        }
+        gBlockUse[idx] = ++gBlockClock;
+        HierarchicalBlockTable& table = gBlockTables[idx];
+        if (!table.valid)
+            continue;
+        if (gBlockRuns[idx].empty()) {
+            gBlockRuns[idx].resize(rangeCount);
+            for (int r = 0; r < rangeCount; r++)
+                hierarchicalBlockRuns(table.blockOfMask, gBlockMask.data(), gBlockRangeStarts[2 * r],
+                                      gBlockRangeStarts[2 * r + 1], kBlockAlign, kBlockMin, gBlockRuns[idx][r]);
+        }
+        if (gBlockPi[idx][0] != gBlockPi[idx][0]) {
+            const double* piNode = nodeFrequencies(0, *s1.ops);
+            if (piNode != NULL)
+                for (int b = 0; b < table.blockCount; b++)
+                    gBlockPi[idx][b] = (REALTYPE) piNode[table.blocks[b].top];
+        }
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
+int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockTableIndex(int topologyId) const {
+    for (int i = 0; i < (int) gBlockTables.size(); i++)
+        if (gBlockTables[i].topologyId == topologyId)
+            return gBlockTables[i].valid && i < (int) gBlockRuns.size() && !gBlockRuns[i].empty() &&
+                   gBlockPi[i][0] == gBlockPi[i][0] ? i : -1;
+    return -1;
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(REALTYPE* destP,
+                                                                  const REALTYPE* partials1,
+                                                                  const int* states1,
+                                                                  const HierarchicalSlot<REALTYPE>& slot1,
+                                                                  bool singleChild,
+                                                                  const REALTYPE* partials2,
+                                                                  const int* states2,
+                                                                  const HierarchicalSlot<REALTYPE>* slot2,
+                                                                  const REALTYPE* scaleFactors,
+                                                                  int startPattern,
+                                                                  int endPattern) {
+    if (singleChild || slot1.ops == NULL || slot2 == NULL || slot2->ops == NULL ||
+        slot1.ops->topologyId < 0 || slot1.ops->topologyId != slot2->ops->topologyId)
+        return false;
+    const int plan = smallPlan(states1 != NULL, slot1, false, states2 != NULL, slot2);
+    if (plan != kHierarchicalSmallRegPair && plan != kHierarchicalSmallRegCol && plan != kHierarchicalSmallColReg &&
+        plan != kHierarchicalSmallColCol)
+        return false;
+    if ((states1 != NULL && !tableReady(slot1)) || (states2 != NULL && !tableReady(*slot2)))
+        return false;
+    const int table = blockTableIndex(slot1.ops->topologyId);
+    if (table < 0)
+        return false;
+    int range = -1;
+    for (int r = 0; r < (int) gBlockRangeStarts.size() / 2; r++)
+        if (gBlockRangeStarts[2 * r] == startPattern && gBlockRangeStarts[2 * r + 1] == endPattern) {
+            range = r;
+            break;
+        }
+    if (range < 0)
+        return false;
+    const std::vector<HierarchicalRun>& runs = gBlockRuns[table][range];
+    if (runs.empty() || (runs.size() == 1 && runs[0].block < 0))
+        return false;
+    REALTYPE* invScale = NULL;
+    if (scaleFactors != NULL) {
+        invScale = gInvScaleTmp.data();
+        for (int k = startPattern; k < endPattern; k++)
+            invScale[k] = REALTYPE(1.0) / scaleFactors[k];
+    }
+    for (int l = 0; l < kCategoryCount; l++)
+        for (const HierarchicalRun& run : runs) {
+            if (run.block < 0) {
+                if (invScale != NULL)
+                    smallCategory<4, true>(plan, l, destP, partials1, states1, slot1, partials2, states2, slot2,
+                                           invScale, run.start, run.end);
+                else
+                    smallCategory<4, false>(plan, l, destP, partials1, states1, slot1, partials2, states2, slot2,
+                                            invScale, run.start, run.end);
+                continue;
+            }
+            const int kind = gBlockTables[table].blocks[run.block].kind;
+#define BEAGLE_HIERARCHICAL_BLOCK_CASE(K)                                                                        \
+    case K:                                                                                                      \
+        if (invScale != NULL)                                                                                    \
+            blockCategory<K, true>(plan, l, table, run.block, destP, partials1, states1, slot1, partials2,       \
+                                   states2, slot2, invScale, run.start, run.end);                                \
+        else                                                                                                     \
+            blockCategory<K, false>(plan, l, table, run.block, destP, partials1, states1, slot1, partials2,      \
+                                    states2, slot2, invScale, run.start, run.end);                               \
+        break;
+            switch (kind) {
+                BEAGLE_HIERARCHICAL_BLOCK_CASE(1)
+                BEAGLE_HIERARCHICAL_BLOCK_CASE(2)
+                BEAGLE_HIERARCHICAL_BLOCK_CASE(3)
+                default:
+                    break;
+            }
+#undef BEAGLE_HIERARCHICAL_BLOCK_CASE
+        }
+    return true;
+}
+
+BEAGLE_CPU_TEMPLATE template <int Kind, bool Scaled>
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockCategory(int plan,
+                                                                  int category,
+                                                                  int table,
+                                                                  int block,
+                                                                  REALTYPE* destP,
+                                                                  const REALTYPE* partials1,
+                                                                  const int* states1,
+                                                                  const HierarchicalSlot<REALTYPE>& slot1,
+                                                                  const REALTYPE* partials2,
+                                                                  const int* states2,
+                                                                  const HierarchicalSlot<REALTYPE>* slot2,
+                                                                  const REALTYPE* invScale,
+                                                                  int startPattern,
+                                                                  int endPattern) {
+    typedef HierarchicalBlockKind<Kind> K;
+    constexpr int Sc = K::Sc;
+    const int l = category;
+    const HierarchicalBlock& blk = gBlockTables[table].blocks[block];
+    const REALTYPE piAggregate = gBlockPi[table][block];
+    const REALTYPE* pi = gStateFrequencies[0];
+    const int width = 5;
+    REALTYPE* D[Sc + K::Extra];
+    for (int i = 0; i < Sc; i++)
+        D[i] = destP + pIdx(l, 0, blk.row[i]);
+    for (int e = 0; e < K::Extra; e++)
+        D[Sc + e] = destP + pIdx(l, 0, blk.extra[e]);
+    auto rows = [&](const REALTYPE* partials, const REALTYPE** L) {
+        for (int i = 0; i < Sc; i++)
+            L[i] = partials + pIdx(l, 0, blk.row[i]);
+    };
+    auto columns = [&](const HierarchicalSlot<REALTYPE>& slot, REALTYPE* out) {
+        hierarchicalBlockTableRows<REALTYPE, Sc>(slot.columnTable.data() + (size_t) l * 4 * width, blk, out);
+    };
+    HierarchicalLaneCoef<REALTYPE, Sc> c1, c2;
+    const REALTYPE* L1[Sc];
+    const REALTYPE* L2[Sc];
+    REALTYPE T1[Sc * 5], T2[Sc * 5];
+    switch (plan) {
+        case kHierarchicalSmallRegPair:
+            hierarchicalBlockCoef<REALTYPE, Sc>(slot1, l, blk, pi, piAggregate, c1);
+            hierarchicalBlockCoef<REALTYPE, Sc>(*slot2, l, blk, pi, piAggregate, c2);
+            rows(partials1, L1);
+            rows(partials2, L2);
+            hierarchicalBlockPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L1, c1, L2, c2, D, invScale, startPattern,
+                                                                         endPattern);
+            break;
+        case kHierarchicalSmallRegCol:
+            hierarchicalBlockCoef<REALTYPE, Sc>(slot1, l, blk, pi, piAggregate, c1);
+            rows(partials1, L1);
+            columns(*slot2, T2);
+            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L1, c1, states2, T2, D, invScale,
+                                                                            startPattern, endPattern);
+            break;
+        case kHierarchicalSmallColReg:
+            hierarchicalBlockCoef<REALTYPE, Sc>(*slot2, l, blk, pi, piAggregate, c2);
+            rows(partials2, L2);
+            columns(slot1, T1);
+            hierarchicalBlockColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(L2, c2, states1, T1, D, invScale,
+                                                                            startPattern, endPattern);
+            break;
+        case kHierarchicalSmallColCol:
+            columns(slot1, T1);
+            columns(*slot2, T2);
+            hierarchicalBlockColColPair<REALTYPE, Sc, K::Agg, K::Extra, Scaled>(states1, T1, states2, T2, D, invScale,
+                                                                               startPattern, endPattern);
+            break;
+        default:
+            break;
+    }
+}
+
+BEAGLE_CPU_TEMPLATE
 bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::smallPartials(REALTYPE* destP,
                                                                   const REALTYPE* partials1,
                                                                   const int* states1,
@@ -2347,6 +2605,8 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
                                rescale, fixedScaleFactors, rescale == 1 ? scalingFactors : NULL,
                                rescale == 1 ? cumulativeScaleBuffer : NULL, startPattern, endPattern);
             rescaled = rescale == 1;
+        } else if (kBlockDispatch && blockPartials(destPartials, partials1, tipStates1, slot1, singleChild, partials2,
+                                                   tipStates2, slot2, fixedScaleFactors, startPattern, endPattern)) {
         } else if (kSmallBand && smallPartials(destPartials, partials1, tipStates1, slot1, singleChild, partials2, tipStates2,
                                         slot2, fixedScaleFactors, startPattern, endPattern)) {
         } else if (kColumnGather &&

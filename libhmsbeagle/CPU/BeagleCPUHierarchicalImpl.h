@@ -21,6 +21,7 @@
 #include "libhmsbeagle/CPU/BeagleCPUImpl.h"
 #include "libhmsbeagle/CPU/HierarchicalMethods.h"
 
+#include <array>
 #include <vector>
 
 namespace beagle {
@@ -84,6 +85,17 @@ namespace beagle {
             unsigned long gFrequencyStamp;
             bool kMayAggregate = false;
             bool kBlocks = false;
+            bool kBlockDispatch = false;
+            int kBlockMin = kHierarchicalBlockMinPatterns;
+            int kBlockAlign = 0;
+            std::vector<unsigned char> gBlockMask;
+            unsigned long gBlockMaskStamp = ~0UL;
+            std::vector<int> gBlockRangeStarts;
+            std::vector<HierarchicalBlockTable> gBlockTables;
+            std::vector<std::vector<std::vector<HierarchicalRun>>> gBlockRuns;
+            std::vector<std::array<REALTYPE, 2>> gBlockPi;
+            unsigned long gBlockClock = 0;
+            std::vector<unsigned long> gBlockUse;
             int kAggregateMode = kHierarchicalAggregateOff;
             bool kVerbose = false;
             bool gClassesValid = false;
@@ -174,6 +186,34 @@ namespace beagle {
             bool layoutRagged(std::vector<int>& added);
             void stampBuffers(const int* operations, int count, int numOps);
             void prepareClasses(const int* operations, int count, int numOps);
+            void prepareBlocks(const int* operations, int count, int numOps);
+            int blockTableIndex(int topologyId) const;
+            bool blockPartials(REALTYPE* destP,
+                               const REALTYPE* partials1,
+                               const int* states1,
+                               const HierarchicalSlot<REALTYPE>& slot1,
+                               bool singleChild,
+                               const REALTYPE* partials2,
+                               const int* states2,
+                               const HierarchicalSlot<REALTYPE>* slot2,
+                               const REALTYPE* scaleFactors,
+                               int startPattern,
+                               int endPattern);
+            template <int Kind, bool Scaled>
+            void blockCategory(int plan,
+                               int category,
+                               int table,
+                               int block,
+                               REALTYPE* destP,
+                               const REALTYPE* partials1,
+                               const int* states1,
+                               const HierarchicalSlot<REALTYPE>& slot1,
+                               const REALTYPE* partials2,
+                               const int* states2,
+                               const HierarchicalSlot<REALTYPE>* slot2,
+                               const REALTYPE* invScale,
+                               int startPattern,
+                               int endPattern);
             int liveSlotOf(int topologyId) const;
             void buildSupport(int live);
             std::shared_ptr<const HierarchicalBuildInputs> buildInputs(int modelIndex, int categoryRatesIndex);
