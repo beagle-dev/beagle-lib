@@ -22,6 +22,7 @@
 #include "libhmsbeagle/CPU/HierarchicalMethods.h"
 
 #include <array>
+#include <atomic>
 #include <vector>
 
 namespace beagle {
@@ -90,6 +91,19 @@ namespace beagle {
             bool gBlockCallBlocked = false;
             std::vector<int> gCompact;
             std::vector<int> gLump;
+            bool kBlockCheck = false;
+            std::vector<REALTYPE> gBlockShadow;
+            std::vector<std::array<unsigned long, 3>> gAdmitKey;
+            std::vector<char> gAdmitOk;
+            std::atomic<long> gBlockOps{ 0 };
+            std::atomic<long> gBlockCheckOps{ 0 };
+            std::atomic<long> gBlockCheckMismatches{ 0 };
+            long gBlockRefusedAdmission = 0;
+            long gBlockRefusedLump = 0;
+            unsigned long gBlockCalls = 0;
+            std::vector<char> gOpBroadcast;
+            std::vector<char> gBlockSeen;
+            std::vector<int> gBlockRangeScratch;
             std::vector<char> gOpBlockOk;
             std::vector<std::array<int, 2>> gChildCompact;
             int kBlockMin = kHierarchicalBlockMinPatterns;
@@ -194,6 +208,8 @@ namespace beagle {
             void prepareClasses(const int* operations, int count, int numOps);
             void prepareBlocks(const int* operations, int count, int numOps);
             int blockTableIndex(int topologyId) const;
+            bool blockAdmit(int slotIndex, int table);
+            void blockPartitionCall(const int* operations, int count, int numOps);
             void expandCompact(int buffer, int topologyId, int startPattern, int endPattern);
             void expandAllCompact(int topologyId);
             bool blockStep(int parIndex,

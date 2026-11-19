@@ -61,6 +61,10 @@ inline const long getBeagleCPUHierarchicalFlags() {
 
 BEAGLE_CPU_TEMPLATE
 BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::~BeagleCPUHierarchicalImpl() {
+    if (kBlockDispatch && (kVerbose || kBlockCheck))
+        fprintf(stderr, "hrate blocks: %ld block operations; refused: %ld admission, %ld subtree; check: %ld operations, "
+                "%ld mismatches\n", (long) gBlockOps, gBlockRefusedAdmission, gBlockRefusedLump, (long) gBlockCheckOps,
+                (long) gBlockCheckMismatches);
     for (REALTYPE* ragged : gRagged)
         free(ragged);
     for (auto& tips : gTipRagged)
@@ -204,7 +208,9 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::createInstance(int tipCount,
     if (const char* minEnv = getenv("BEAGLE_HRATE_BLOCK_MIN"))
         kBlockMin = std::max(0, atoi(minEnv));
     const char* storeEnv = getenv("BEAGLE_HRATE_BLOCK_STORE");
-    kBlockCompact = kBlockDispatch && !(storeEnv != NULL && std::strcmp(storeEnv, "broadcast") == 0);
+    const char* checkEnv = getenv("BEAGLE_HRATE_BLOCK_CHECK");
+    kBlockCheck = kBlockDispatch && checkEnv != NULL && std::strcmp(checkEnv, "0") != 0;
+    kBlockCompact = kBlockDispatch && !kBlockCheck && !(storeEnv != NULL && std::strcmp(storeEnv, "broadcast") == 0);
     gCompact.assign(kBufferCount, -1);
     gChildCompact.assign(kBufferCount, { -1, -1 });
     gLump.assign(kBufferCount, -2);
@@ -905,8 +911,16 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartials(const int* ope
     int returnCode = prepareRagged(operations, operationCount, BEAGLE_OP_COUNT);
     if (returnCode != BEAGLE_SUCCESS)
         return returnCode;
-    return BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(operations, operationCount,
-                                                             cumulativeScalingIndex, partialsType);
+    returnCode = BeagleCPUImpl<BEAGLE_CPU_GENERIC>::updatePartials(operations, operationCount, cumulativeScalingIndex,
+                                                                   partialsType);
+    if (kBlockDispatch && (kVerbose || kBlockCheck)) {
+        gBlockCalls++;
+        if ((gBlockCalls & (gBlockCalls - 1)) == 0)
+            fprintf(stderr, "hrate blocks after %lu calls: %ld block operations; refused: %ld admission, %ld subtree; "
+                    "check: %ld operations, %ld mismatches\n", gBlockCalls, (long) gBlockOps, gBlockRefusedAdmission,
+                    gBlockRefusedLump, (long) gBlockCheckOps, (long) gBlockCheckMismatches);
+    }
+    return returnCode;
 }
 
 BEAGLE_CPU_TEMPLATE
@@ -923,8 +937,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::updatePartialsByPartition(con
     if (!slotsReady(operations, operationCount, BEAGLE_PARTITION_OP_COUNT))
         return BEAGLE_ERROR_OUT_OF_RANGE;
     prepareClasses(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
-    for (auto& pi : gBlockPi)
-        pi = { std::numeric_limits<REALTYPE>::quiet_NaN(), std::numeric_limits<REALTYPE>::quiet_NaN() };
+    blockPartitionCall(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     completeSlots(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
     if (!gAggregated)
         prepareTables(operations, operationCount, BEAGLE_PARTITION_OP_COUNT);
@@ -1974,7 +1987,8 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
         return;
     bool rebuild = false;
     const bool masksStale = gBlockMaskStamp != gTipStamp || (int) gBlockMask.size() != kPatternCount;
-    std::vector<int> ranges;
+    std::vector<int>& ranges = gBlockRangeScratch;
+    ranges.clear();
     if (kPartitionCount > 1 && gPatternPartitionsStartPatterns != NULL)
         for (int p = 0; p < kPartitionCount; p++) {
             ranges.push_back(gPatternPartitionsStartPatterns[p]);
@@ -2066,7 +2080,10 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
         }
     }
     gBlockCallBlocked = false;
-    std::vector<char> seen(kBufferCount, 0);
+    std::vector<char>& seen = gBlockSeen;
+    seen.assign(kBufferCount, 0);
+    if (gOpBroadcast.size() != (size_t) kBufferCount)
+        gOpBroadcast.assign(kBufferCount, 0);
     for (int op = 0; op < count; op++) {
         const int dest = operations[op * numOps];
         if (dest < 0 || dest >= kBufferCount || seen[dest])
@@ -2103,11 +2120,89 @@ void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::prepareBlocks(const int* ope
         auto lumpable = [&](int c) {
             return c >= 0 && (c < kTipCount || (c < kBufferCount && gLump[c] == key));
         };
-        const bool ok = !gBlockCallBlocked && topology >= 0 && lumpable(c1) && lumpable(c2);
+        bool admitted = false;
+        if (topology >= 0) {
+            const int t = blockTableIndex(topology);
+            admitted = blockAdmit(m1, t) && blockAdmit(m2, t);
+            if (!admitted)
+                gBlockRefusedAdmission++;
+            else if (!gBlockCallBlocked && !(lumpable(c1) && lumpable(c2)))
+                gBlockRefusedLump++;
+        }
+        const bool ok = !gBlockCallBlocked && topology >= 0 && admitted && lumpable(c1) && lumpable(c2);
         gOpBlockOk[dest] = ok ? 1 : 0;
         gLump[dest] = ok ? key : -2;
+        gOpBroadcast[dest] = op == count - 1 ? 1 : 0;
         if (kBlockCompact)
-            gCompact[dest] = ok ? topology : -1;
+            gCompact[dest] = ok && op != count - 1 ? topology : -1;
+    }
+    if (kBlockCheck && gBlockShadow.size() != (size_t) kPartialsSize)
+        gBlockShadow.assign(kPartialsSize, REALTYPE(0));
+}
+
+BEAGLE_CPU_TEMPLATE
+bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockAdmit(int slotIndex, int table) {
+    if (table < 0 || slotIndex < 0 || slotIndex >= (int) gSlots.size())
+        return false;
+    const HierarchicalSlot<REALTYPE>& slot = gSlots[slotIndex];
+    if (!slot.set || slot.ops == NULL || !prZ0Ready(slot))
+        return false;
+    if ((int) gAdmitKey.size() < (int) gSlots.size()) {
+        gAdmitKey.resize(gSlots.size(), { ~0UL, ~0UL, ~0UL });
+        gAdmitOk.resize(gSlots.size(), 0);
+    }
+    const std::array<unsigned long, 3> key = { slot.stamp, gFrequencyStamp,
+                                               (unsigned long) gBlockTables[table].topologyId };
+    if (gAdmitKey[slotIndex] == key)
+        return gAdmitOk[slotIndex] != 0;
+    const int S = 4;
+    const HierarchicalOps& ops = *slot.ops;
+    const double* piNode = nodeFrequencies(0, ops);
+    bool ok = piNode != NULL && (int) slot.prZ0Internal.size() >= kCategoryCount * (S - 1);
+    const double tolerance = sizeof(REALTYPE) == sizeof(double) ? 1e-12 : 2e-5;
+    const HierarchicalBlockTable& t = gBlockTables[table];
+    for (int b = 0; ok && b < t.blockCount; b++) {
+        const HierarchicalBlock& blk = t.blocks[b];
+        int members[3] = { blk.row[blk.agg], blk.extra[0], blk.extra[1] };
+        for (int i = 0; ok && i < 1 + blk.extraCount; i++) {
+            const int x = members[i];
+            for (int l = 0; ok && l < kCategoryCount; l++) {
+                const REALTYPE* H = slot.values.data() + (size_t) l * hierarchicalBlockLength(S);
+                const REALTYPE* internal = slot.prZ0Internal.data() + (size_t) l * (S - 1);
+                double rhs = (double) H[S - 1 + x];
+                for (int n = ops.parentOf[x]; n >= 0; n = ops.parentOf[n]) {
+                    rhs += (double) H[n - S] * piNode[n];
+                    if (n == blk.top)
+                        break;
+                }
+                const double lhs = (double) internal[blk.top - S];
+                ok = std::fabs(lhs - rhs) <= tolerance * std::max(std::fabs(lhs), 1e-300);
+            }
+        }
+    }
+    gAdmitKey[slotIndex] = key;
+    gAdmitOk[slotIndex] = ok ? 1 : 0;
+    return ok;
+}
+
+BEAGLE_CPU_TEMPLATE
+void BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartitionCall(const int* operations, int count, int numOps) {
+    if (!kBlockDispatch)
+        return;
+    gBlockCallBlocked = true;
+    for (auto& pi : gBlockPi)
+        pi = { std::numeric_limits<REALTYPE>::quiet_NaN(), std::numeric_limits<REALTYPE>::quiet_NaN() };
+    for (int op = 0; op < count; op++) {
+        const int dest = operations[op * numOps];
+        const int c1 = operations[op * numOps + 3];
+        const int c2 = operations[op * numOps + 5];
+        if (dest < 0 || dest >= kBufferCount)
+            continue;
+        gChildCompact[dest] = { c1 >= 0 && c1 < kBufferCount ? gCompact[c1] : -1,
+                                c2 >= 0 && c2 < kBufferCount ? gCompact[c2] : -1 };
+        gOpBlockOk[dest] = 0;
+        gLump[dest] = -2;
+        gCompact[dest] = -1;
     }
 }
 
@@ -2240,6 +2335,7 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(int parIndex,
         for (int k = startPattern; k < endPattern; k++)
             invScale[k] = REALTYPE(1.0) / scaleFactors[k];
     }
+    const bool compact = kBlockCompact && !gOpBroadcast[parIndex];
     for (int l = 0; l < kCategoryCount; l++)
         for (const HierarchicalRun& run : runs) {
             if (run.block < 0) {
@@ -2257,11 +2353,11 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(int parIndex,
                              invScale, run.start, run.end)
 #define BEAGLE_HIERARCHICAL_BLOCK_CASE(K)                                                                        \
     case K:                                                                                                      \
-        if (invScale != NULL && kBlockCompact)                                                                   \
+        if (invScale != NULL && compact)                                                                         \
             BEAGLE_HIERARCHICAL_BLOCK_CALL(K, true, true);                                                       \
         else if (invScale != NULL)                                                                               \
             BEAGLE_HIERARCHICAL_BLOCK_CALL(K, true, false);                                                      \
-        else if (kBlockCompact)                                                                                  \
+        else if (compact)                                                                                        \
             BEAGLE_HIERARCHICAL_BLOCK_CALL(K, false, true);                                                      \
         else                                                                                                     \
             BEAGLE_HIERARCHICAL_BLOCK_CALL(K, false, false);                                                     \
@@ -2276,6 +2372,23 @@ bool BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::blockPartials(int parIndex,
 #undef BEAGLE_HIERARCHICAL_BLOCK_CASE
 #undef BEAGLE_HIERARCHICAL_BLOCK_CALL
         }
+    gBlockOps++;
+    if (kBlockCheck && gBlockShadow.size() == (size_t) kPartialsSize) {
+        REALTYPE* shadow = gBlockShadow.data();
+        smallPartials(shadow, partials1, states1, slot1, false, partials2, states2, slot2, scaleFactors, startPattern,
+                      endPattern);
+        const double tolerance = sizeof(REALTYPE) == sizeof(double) ? 1e-12 : 2e-5;
+        long bad = 0;
+        for (int l = 0; l < kCategoryCount; l++)
+            for (int x = 0; x < 4; x++)
+                for (int k = startPattern; k < endPattern; k++) {
+                    const double a = destP[pIdx(l, 0, x) + k], b = shadow[pIdx(l, 0, x) + k];
+                    if (!(std::fabs(a - b) <= tolerance * std::max(std::fabs(b), 1e-290)))
+                        bad++;
+                }
+        gBlockCheckOps++;
+        gBlockCheckMismatches += bad;
+    }
     return true;
 }
 
@@ -2793,7 +2906,7 @@ int BeagleCPUHierarchicalImpl<BEAGLE_CPU_GENERIC>::upPartials(bool byPartition,
         }
 
         if (rescale == 1 && !rescaled) {
-            if (blocked && kBlockCompact)
+            if (blocked && kBlockCompact && !gOpBroadcast[parIndex])
                 expandCompact(parIndex, slot1.ops->topologyId, startPattern, endPattern);
             if (byPartition)
                 rescalePartialsByPartition(destPartials, scalingFactors, cumulativeScaleBuffer, 0, currentPartition);
