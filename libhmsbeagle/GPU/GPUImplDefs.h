@@ -90,6 +90,12 @@ enum BeagleDeviceImplementationCodes {
 #define INT         int
 #define SIZE_INT    sizeof(INT)
 
+#if defined(OPENCL_KERNEL_BUILD) && !defined(FW_TINYGPU_AMD)
+    #define POOL_OFFSET ulong
+#else
+    #define POOL_OFFSET unsigned long long
+#endif
+
 /* Define keywords for parallel frameworks */
 #ifdef CUDA
     #define BEAGLE_STREAM_COUNT 1024 // max stream count

@@ -834,7 +834,7 @@
 
 KW_GLOBAL_KERNEL void kernelPartialsPartialsNoScaleMulti(KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                          const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
-                                                         const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                         const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                          int gridStartOp,
                                                          int totalPatterns) {
 
@@ -986,7 +986,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScaleMulti(
                                              KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
                                        const KW_GLOBAL_VAR REAL*         KW_RESTRICT matrices,
                                        const KW_GLOBAL_VAR REAL*         KW_RESTRICT scaleFactors,
-                                       const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                       const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                                                  int gridStartOp,
                                                                                  int totalPatterns) {
 
@@ -1082,7 +1082,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsFixedScale(KW_GLOBAL_VAR REAL* KW_RE
 KW_GLOBAL_KERNEL void kernelStatesPartialsNoScaleMulti(KW_GLOBAL_VAR int* KW_RESTRICT states,
                                                        KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                        const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
-                                                       const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                       const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                        int gridStartOp,
                                                        int totalPatterns) {
 
@@ -1169,7 +1169,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScaleMulti(
                                                KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
                                          const KW_GLOBAL_VAR REAL*         KW_RESTRICT matrices,
                                          const KW_GLOBAL_VAR REAL*         KW_RESTRICT scaleFactors,
-                                         const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                         const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                                                    int gridStartOp,
                                                                                    int totalPatterns) {
 
@@ -1267,7 +1267,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsFixedScale(KW_GLOBAL_VAR int* KW_RESTR
 KW_GLOBAL_KERNEL void kernelStatesStatesNoScaleMulti(KW_GLOBAL_VAR int* KW_RESTRICT states,
                                                      KW_GLOBAL_VAR REAL* KW_RESTRICT partials,
                                                      const KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
-                                                     const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                                     const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                      int gridStartOp,
                                                      int totalPatterns) {
 
@@ -1339,7 +1339,7 @@ KW_GLOBAL_KERNEL void kernelStatesStatesFixedScaleMulti(
                                              KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
                                        const KW_GLOBAL_VAR REAL*         KW_RESTRICT matrices,
                                        const KW_GLOBAL_VAR REAL*         KW_RESTRICT scaleFactors,
-                                       const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                                       const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                                                  int gridStartOp,
                                                                                  int totalPatterns) {
 
@@ -1725,7 +1725,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsPartition(
                                         KW_GLOBAL_VAR REAL*         KW_RESTRICT dRootPartialsOrigin,
                                         KW_GLOBAL_VAR REAL*         KW_RESTRICT dWeightsOrigin,
                                         KW_GLOBAL_VAR REAL*         KW_RESTRICT dFrequenciesOrigin,
-                                        KW_GLOBAL_VAR unsigned int* KW_RESTRICT dPtrOffsets,
+                                        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT dPtrOffsets,
                                                       int                       matrixCount,
                                                       int                       patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -1770,7 +1770,7 @@ KW_GLOBAL_KERNEL void kernelIntegrateLikelihoodsFixedScalePartition(
                                         KW_GLOBAL_VAR REAL*         KW_RESTRICT dWeightsOrigin,
                                         KW_GLOBAL_VAR REAL*         KW_RESTRICT dFrequenciesOrigin,
                                         KW_GLOBAL_VAR REAL* KW_RESTRICT dRootScalingFactorsOrigin,
-                                        KW_GLOBAL_VAR unsigned int* KW_RESTRICT dPtrOffsets,
+                                        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT dPtrOffsets,
                                                       int                       matrixCount,
                                                       int                       patternCount) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
@@ -1924,7 +1924,7 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeLikelihoodsByPartition(
                                     KW_GLOBAL_VAR REAL* KW_RESTRICT         dPartialsTmp,
                               const KW_GLOBAL_VAR REAL* KW_RESTRICT         partials,
                                     KW_GLOBAL_VAR REAL* KW_RESTRICT         matrices,
-                              const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                              const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                   int                       totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_EDGEPART_1_CPU();
@@ -2012,7 +2012,7 @@ KW_GLOBAL_KERNEL void kernelStatesPartialsEdgeLikelihoodsByPartition(
                               const KW_GLOBAL_VAR REAL*         KW_RESTRICT partials,
                               const KW_GLOBAL_VAR int*          KW_RESTRICT states,
                                     KW_GLOBAL_VAR REAL*         KW_RESTRICT matrices,
-                              const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                              const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                                                   int                       totalPatterns) {
 #ifdef FW_OPENCL_CPU // CPU/MIC implementation
     DETERMINE_INDICES_4_EDGEPART_1_CPU();

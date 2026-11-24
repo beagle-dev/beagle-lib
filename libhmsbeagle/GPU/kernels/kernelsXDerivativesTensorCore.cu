@@ -240,7 +240,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesGrowing(KW_GLOBAL_VAR REAL* KW_RESTRIC
 KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR REAL* KW_RESTRICT out,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                                 KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                                 KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT instructions,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
 //                                                                 KW_GLOBAL_VAR REAL* KW_RESTRICT tmpAcc,
                                                                  int skip,
@@ -258,8 +258,8 @@ KW_GLOBAL_KERNEL void kernelPartialsPartialsEdgeFirstDerivatives(KW_GLOBAL_VAR R
     int node = KW_GROUP_ID_1 + skip;
     int instructionOffset = node * 3;
 
-    unsigned int partials1Offset = instructions[instructionOffset + 0];
-    unsigned int partials2Offset = instructions[instructionOffset + 1];
+    POOL_OFFSET  partials1Offset = instructions[instructionOffset + 0];
+    POOL_OFFSET  partials2Offset = instructions[instructionOffset + 1];
     unsigned int matrices1Offset = instructions[instructionOffset + 2];
 
 //    KW_LOCAL_MEM REAL sMatrix2[NEW_BLOCK_PEELING_SIZE][PADDED_STATE_COUNT];
@@ -416,7 +416,7 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
                                                                  KW_GLOBAL_VAR int*  KW_RESTRICT states0,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT partials0,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT matrices0,
-                                                                 KW_GLOBAL_VAR unsigned int* KW_RESTRICT instructions,
+                                                                 KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT instructions,
                                                                  KW_GLOBAL_VAR REAL* KW_RESTRICT weights,
                                                                  int skip,
                                                                  int totalPatterns, int categoryCount) {
@@ -433,8 +433,8 @@ KW_GLOBAL_KERNEL void kernelPartialsStatesEdgeFirstDerivatives(KW_GLOBAL_VAR REA
     int node = KW_GROUP_ID_1 + skip;
     int instructionOffset = node * 3;
 
-    unsigned int states1Offset = instructions[instructionOffset + 0];
-    unsigned int partials2Offset = instructions[instructionOffset + 1];
+    POOL_OFFSET states1Offset = instructions[instructionOffset + 0];
+    POOL_OFFSET partials2Offset = instructions[instructionOffset + 1];
     unsigned int matrices1Offset = instructions[instructionOffset + 2];
 
     KW_LOCAL_MEM REAL sMatrix2Permuted[WMMA_K * PADDED_STATE_COUNT];

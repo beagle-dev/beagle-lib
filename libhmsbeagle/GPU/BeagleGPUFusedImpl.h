@@ -40,7 +40,7 @@ namespace gpu {
 BEAGLE_GPU_TEMPLATE
 class BeagleGPUFusedImpl : public BeagleGPUImpl<Real> {
 private:
-    static const int kOpTableWords = 8;   // unsigned ints per operation
+    static const int kOpTableWords = 8;   // POOL_OFFSETs per operation
 
     GPUFunction    fFused;
     GPUPtr         dFusedOps;    // the op table of the current call

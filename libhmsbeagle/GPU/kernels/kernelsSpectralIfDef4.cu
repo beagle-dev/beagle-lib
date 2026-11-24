@@ -1296,14 +1296,14 @@ kernelAdjointMerged4(
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT adjointQueue,
         int totalPatterns,
         int patternCount) { /* the padded rows' stride; the patterns summed (the padding has no weights) */
 
     const int tid    = KW_LOCAL_ID_0;
     const int cat    = KW_GROUP_ID_0;
     const int branch = KW_GROUP_ID_1;
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
 
     const bool isStates  = (rec[2] != 0u);
     const bool isAllReal = (rec[8] != 0u);
@@ -1355,9 +1355,9 @@ kernelAdjointMerged4(
 KW_GLOBAL_KERNEL void kernelAdjointScaledSiteLogLk(
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLk,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scaleOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT adjointQueue,
         int patternCount) {
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + KW_GROUP_ID_0 * ADJOINT_QUEUE_STRIDE;
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = adjointQueue + KW_GROUP_ID_0 * ADJOINT_QUEUE_STRIDE;
     const unsigned int row = rec[9];
     if (row == 0u) return;
     for (int k = KW_LOCAL_ID_0; k < patternCount; k += KW_LOCAL_SIZE_0)

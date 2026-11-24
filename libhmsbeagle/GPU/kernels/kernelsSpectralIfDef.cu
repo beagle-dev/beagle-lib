@@ -979,7 +979,7 @@ KW_GLOBAL_KERNEL void kernelPartialsDegree2GrowingSpectral(
  * ═══════════════════════════════════════════════════════════════════════════*/
 
 #define SPECTRAL_LEVEL_RECORD_GPU() \
-    KW_GLOBAL_VAR const unsigned int* rec = levelQueue + (queueStart + KW_GROUP_ID_2) * SPECTRAL_LEVEL_QUEUE_STRIDE; \
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = levelQueue + (queueStart + KW_GROUP_ID_2) * SPECTRAL_LEVEL_QUEUE_STRIDE; \
     const unsigned int flags = rec[9];
 
 /* sPN as SPECTRAL_LOAD_PARTIALSN_GPU, loaded only when LOAD (a child's states leave it unused) */
@@ -1002,7 +1002,7 @@ KW_GLOBAL_KERNEL void kernelPruningLevel(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scaleOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT levelQueue,
         int queueStart,
         int totalPatterns) {
     SPECTRAL_LEVEL_RECORD_GPU()
@@ -1066,7 +1066,7 @@ KW_GLOBAL_KERNEL void kernelGrowingLevel(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT levelQueue,
         int queueStart,
         int totalPatterns) {
     SPECTRAL_LEVEL_RECORD_GPU()
@@ -1120,7 +1120,7 @@ KW_GLOBAL_KERNEL void kernelGrowingTopLevel(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT levelQueue,
         int queueStart,
         int totalPatterns) {
     SPECTRAL_LEVEL_RECORD_GPU()
@@ -1164,7 +1164,7 @@ KW_GLOBAL_KERNEL void kernelGrowingTopRootLevel(
         KW_GLOBAL_VAR REAL* KW_RESTRICT evecOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT evalOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT distOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT levelQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT levelQueue,
         int queueStart,
         int totalPatterns) {
     SPECTRAL_LEVEL_RECORD_GPU()
@@ -1569,7 +1569,7 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT gradientOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT adjointQueue,
         int totalPatterns,
         int patternCount) { /* the padded rows' stride; the patterns summed (the padding has no weights) */
 
@@ -1577,7 +1577,7 @@ KW_GLOBAL_KERNEL void kernelAdjointMergedN(
     const int ls     = KW_GROUP_ID_0;
     const int cat    = KW_GROUP_ID_1;
     const int branch = KW_GROUP_ID_2;
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = adjointQueue + branch * ADJOINT_QUEUE_STRIDE;
 
     const bool isStates  = (rec[2] != 0u);
     const bool isAllReal = (rec[8] != 0u);
@@ -1740,7 +1740,7 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankPrepN(
         KW_GLOBAL_VAR REAL* KW_RESTRICT categoryWeights,
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLkOrigin,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scratch,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT adjointQueue,
         int totalPatterns,   /* the padded rows' stride */
         int patternCount,    /* K, the patterns summed: at most ADJOINT_LOWRANK_MAX_PATTERNS */
         int categoryCount,
@@ -1751,7 +1751,7 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankPrepN(
     const int slot = firstSlot + KW_GROUP_ID_0;
     const int q    = slot / categoryCount;   /* the branch's record in the queue */
     const int cat  = slot - q * categoryCount;
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + q * ADJOINT_QUEUE_STRIDE;
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = adjointQueue + q * ADJOINT_QUEUE_STRIDE;
 
     const bool isStates  = (rec[2] != 0u);
     const bool isAllReal = (rec[8] != 0u);
@@ -2063,9 +2063,9 @@ KW_GLOBAL_KERNEL void kernelAdjointLowRankReduceN(
 KW_GLOBAL_KERNEL void kernelAdjointScaledSiteLogLk(
         KW_GLOBAL_VAR REAL* KW_RESTRICT siteLogLk,
         KW_GLOBAL_VAR REAL* KW_RESTRICT scaleOrigin,
-        KW_GLOBAL_VAR unsigned int* KW_RESTRICT adjointQueue,
+        KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT adjointQueue,
         int patternCount) {
-    KW_GLOBAL_VAR const unsigned int* rec = adjointQueue + KW_GROUP_ID_0 * ADJOINT_QUEUE_STRIDE;
+    KW_GLOBAL_VAR const POOL_OFFSET* rec = adjointQueue + KW_GROUP_ID_0 * ADJOINT_QUEUE_STRIDE;
     const unsigned int row = rec[9];
     if (row == 0u) return;
     for (int k = KW_LOCAL_ID_0; k < patternCount; k += KW_LOCAL_SIZE_0)
