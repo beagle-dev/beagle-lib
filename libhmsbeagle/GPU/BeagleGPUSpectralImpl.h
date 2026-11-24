@@ -100,7 +100,7 @@ private:
      * call and isn't known at createInstance time. */
     static const int kAdjointQueueFieldsPerBranch = 13;
     GPUPtr        dAdjointQueue;
-    unsigned int* hAdjointQueue;
+    POOL_OFFSET*  hAdjointQueue;
     int           kAdjointQueueCapacity;
 
     /* The low-rank adjoint (more than 4 states, at most ADJOINT_LOWRANK_MAX_PATTERNS patterns:
@@ -121,7 +121,7 @@ private:
      * call of their records (SPECTRAL_LEVEL_QUEUE_STRIDE, GPUImplDefs.h), at the pools' offsets as the adjoint queue.
      * Every upload is ordered after the launches before it, so one queue serves both traversals. */
     GPUPtr        dLevelQueue;
-    unsigned int* hLevelQueue;
+    POOL_OFFSET*  hLevelQueue;
     int           kLevelQueueCapacity;   // records
     // scheduleLevels' input (per operation: the two buffers it reads, child 2 BEAGLE_OP_NONE in degree 2, and the one
     // it writes) and
@@ -312,7 +312,7 @@ private:
     void ensureLevelQueue(int count);
 
     // the queue's offsets of a branch through matrix index matIndex: eigenvectors, eigenvalues, distances
-    void fillLevelBranch(unsigned int* fields, int matIndex);
+    void fillLevelBranch(POOL_OFFSET* fields, int matIndex);
 };
 
 BEAGLE_GPU_TEMPLATE

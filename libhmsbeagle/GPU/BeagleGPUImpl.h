@@ -193,12 +193,12 @@ private:
     GPUPtr  dStatesSortOrigin;
     GPUPtr  dPatternWeightsSort;
     GPUPtr* dStatesSort;
-    unsigned int* hPartialsPtrs;
+    POOL_OFFSET* hPartialsPtrs;
     unsigned int* hPartitionOffsets;
     unsigned int* hIntegratePartitionOffsets;
-    unsigned int* hPartialsOffsets;
-    unsigned int* hStatesOffsets;
-    int* hTipOffsets;
+    POOL_OFFSET* hPartialsOffsets;
+    POOL_OFFSET* hStatesOffsets;
+    POOL_OFFSET* hTipOffsets;
     BeagleDeviceImplementationCodes kDeviceCode;
     long long kDeviceType;
     int kPartitionCount;
@@ -220,7 +220,7 @@ private:
 
     unsigned int* hPtrQueue;
 
-	unsigned int* hDerivativeQueue;
+	POOL_OFFSET* hDerivativeQueue;
 
     Real* hPatternWeightsCache;
 
@@ -574,8 +574,8 @@ protected:
      * physical buffer a logical index maps to. */
     GPUPtr getPartialsOrigin() const { return dPartialsOrigin; }
     GPUPtr getStatesOrigin() const { return dStatesOrigin; }
-    unsigned int getPartialsOffsetElements(int index) const { return hPartialsOffsets[index]; }
-    unsigned int getStatesOffsetElements(int index) const { return hStatesOffsets[index]; }
+    POOL_OFFSET getPartialsOffsetElements(int index) const { return hPartialsOffsets[index]; }
+    POOL_OFFSET getStatesOffsetElements(int index) const { return hStatesOffsets[index]; }
     unsigned int getEvecStrideElements() const { return kEvecOffset; }
     unsigned int getEvalStrideElements() const { return kEvalOffset; }
     // For BeagleGPUFusedImpl's op table: the matrix pool and its per-index stride, and the scale pool (0 without scale

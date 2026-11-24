@@ -49,7 +49,7 @@ BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::~BeagleGPUFusedImpl() {
 
 BEAGLE_GPU_TEMPLATE
 void BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::allocateOpTable(int capacity) {
-    const size_t tableBytes = (size_t) capacity * kOpTableWords * sizeof(unsigned int);
+    const size_t tableBytes = (size_t) capacity * kOpTableWords * sizeof(POOL_OFFSET);
     kOpCapacity = capacity;
     dFusedOps = this->gpu->AllocateMemory(tableBytes);
 #ifdef FW_OPENCL
@@ -124,14 +124,14 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
         allocateOpTable(operationCount > 2 * kOpCapacity ? operationCount : 2 * kOpCapacity);
     }
 
-    const size_t tableBytes = (size_t) operationCount * kOpTableWords * sizeof(unsigned int);
+    const size_t tableBytes = (size_t) operationCount * kOpTableWords * sizeof(POOL_OFFSET);
 #ifdef FW_OPENCL
     if (kFusedOpsPos + tableBytes > kFusedOpsBytes) {
         gpuIf->SynchronizeHost();   // every earlier upload from hFusedOps has completed
         kFusedOpsPos = 0;
     }
 #endif
-    unsigned int* rec = (unsigned int*) (hFusedOps + kFusedOpsPos);
+    POOL_OFFSET* rec = (POOL_OFFSET*) (hFusedOps + kFusedOpsPos);
 
     // the offsets are read on every call: ensureBufferCounts and pattern resorting move the pools
     const unsigned int matrixStride = this->getMatrixStrideElements();
@@ -149,7 +149,8 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
 
         const bool states1 = (this->dStates[child1Index] != 0);
         const bool states2 = (this->dStates[child2Index] != 0);
-        unsigned int kind, c1Off, c2Off;
+        unsigned int kind;
+        POOL_OFFSET c1Off, c2Off;
         unsigned int c1MOff = child1TransMatIndex * matrixStride;
         unsigned int c2MOff = child2TransMatIndex * matrixStride;
         if (states1 && states2) {
@@ -181,7 +182,7 @@ int BeagleGPUFusedImpl<BEAGLE_GPU_GENERIC>::updatePartials(const int* operations
             scaleOff = readScalingIndex * scaleSize;
         }
 
-        unsigned int* r = rec + op * kOpTableWords;
+        POOL_OFFSET* r = rec + op * kOpTableWords;
         r[0] = kind | (mode << 2);
         r[1] = 0;
         r[2] = c1Off;

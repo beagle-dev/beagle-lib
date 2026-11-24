@@ -97,7 +97,7 @@
 KW_GLOBAL_KERNEL void kernelReorderPatterns(      KW_GLOBAL_VAR REAL*             dPartials,
                                                   KW_GLOBAL_VAR int*              dStates,
                                                   KW_GLOBAL_VAR int*              dStatesSort,
-                                            const KW_GLOBAL_VAR int*  KW_RESTRICT dTipOffsets,
+                                            const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT dTipOffsets,
                                             const KW_GLOBAL_VAR int*  KW_RESTRICT dTipTypes,
                                             const KW_GLOBAL_VAR int*  KW_RESTRICT dPatternsNewOrder,
                                             const KW_GLOBAL_VAR REAL* KW_RESTRICT dPatternWeights,

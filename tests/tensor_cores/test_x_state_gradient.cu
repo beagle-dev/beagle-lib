@@ -53,9 +53,9 @@ int main() {
     }
 
     double *out, *partials0, *matrices0, *weightsDevice, *tmpAcc;
-    int *instructionsDevice;
+    unsigned long long *instructionsDevice;
     int totalPatterns = NPATTERNS;
-    unsigned int instructions[] = {0, STATE_SIZE * NPATTERNS, 0};
+    unsigned long long instructions[] = {0, STATE_SIZE * NPATTERNS, 0};
     int skip = 0;
     int categoryCount = 1;
     double weights[] = {1};
@@ -65,7 +65,7 @@ int main() {
     cuMemAlloc((CUdeviceptr*)&out, sizeof(double) * NPATTERNS); // 8 is pattern block size
     cuMemAlloc((CUdeviceptr*)&partials0, sizeof(double) * STATE_SIZE * NPATTERNS * 2);
     cuMemAlloc((CUdeviceptr*)&matrices0, sizeof(double) * STATE_SIZE * STATE_SIZE);
-    cuMemAlloc((CUdeviceptr*)&instructionsDevice, sizeof(int) * 3);
+    cuMemAlloc((CUdeviceptr*)&instructionsDevice, sizeof(unsigned long long) * 3);
     cuMemAlloc((CUdeviceptr*)&weightsDevice, sizeof(double) * categoryCount);
     cuMemAlloc((CUdeviceptr*)&tmpAcc, sizeof(double) * STATE_SIZE * STATE_SIZE);
 
@@ -73,7 +73,7 @@ int main() {
     err = cudaMemcpy(matrices0, GET_VAR_NAME(matrices0), sizeof(double) * STATE_SIZE * STATE_SIZE, cudaMemcpyHostToDevice);
     std::cerr << "Memcpy matrices0 " << err << std::endl;
 
-    cudaMemcpy(instructionsDevice, instructions, sizeof(int) * 3, cudaMemcpyHostToDevice);
+    cudaMemcpy(instructionsDevice, instructions, sizeof(unsigned long long) * 3, cudaMemcpyHostToDevice);
     cudaMemcpy(weightsDevice, weights, sizeof(double) * categoryCount, cudaMemcpyHostToDevice);
 
     void *params[] = {

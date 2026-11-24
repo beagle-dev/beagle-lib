@@ -501,12 +501,12 @@ void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::ensureLevelQueue(int count) {
         gpuIf->FreeHostMemory(hLevelQueue);
     kLevelQueueCapacity = std::max(count, 2 * kLevelQueueCapacity);
     const size_t words = (size_t) kLevelQueueCapacity * SPECTRAL_LEVEL_QUEUE_STRIDE;
-    dLevelQueue = gpuIf->AllocateMemory(sizeof(unsigned int) * words);
-    hLevelQueue = (unsigned int*) gpuIf->CallocHost(sizeof(unsigned int), words);
+    dLevelQueue = gpuIf->AllocateMemory(sizeof(POOL_OFFSET) * words);
+    hLevelQueue = (POOL_OFFSET*) gpuIf->CallocHost(sizeof(POOL_OFFSET), words);
 }
 
 BEAGLE_GPU_TEMPLATE
-void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::fillLevelBranch(unsigned int* fields, int matIndex) {
+void BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::fillLevelBranch(POOL_OFFSET* fields, int matIndex) {
     const int ei = hEigenIndexForMatrix[matIndex];
     fields[0] = (unsigned int) ei * this->getEvecStrideElements();   // dEvecT and dIevcT have dEvec's stride
     fields[1] = (unsigned int) ei * this->getEvalStrideElements();
@@ -546,7 +546,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
                 if (o[5] == BEAGLE_OP_NONE || isRoot != (pass == 0))
                     continue;
                 const bool siblingStates = (this->dStates[o[5]] != 0);
-                unsigned int* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
+                POOL_OFFSET* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
                 rec[0] = this->getPartialsOffsetElements(o[3]);
                 rec[1] = siblingStates ? this->getStatesOffsetElements(o[5]) : this->getPartialsOffsetElements(o[5]);
                 rec[2] = this->getPartialsOffsetElements(o[0]);
@@ -565,7 +565,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePrePartials(
     flushSpectralDistances();
     if (records > 0)
         this->gpu->MemcpyHostToDevice(dLevelQueue, hLevelQueue,
-                                      sizeof(unsigned int) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
+                                      sizeof(POOL_OFFSET) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
     GPUPtr partialsOrigin = this->getPartialsOrigin();
     GPUPtr statesOrigin   = this->getStatesOrigin() ? this->getStatesOrigin() : partialsOrigin;
     for (int level = 0; level < levelCount; level++) {
@@ -622,7 +622,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartials(
             const bool child1States = (this->dStates[o[3]] != 0);
             const bool child2States = (this->dStates[o[5]] != 0);
             const bool fixedScale   = manual && o[2] >= 0;
-            unsigned int* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
+            POOL_OFFSET* rec = hLevelQueue + (size_t) records++ * SPECTRAL_LEVEL_QUEUE_STRIDE;
             rec[0] = child1States ? this->getStatesOffsetElements(o[3]) : this->getPartialsOffsetElements(o[3]);
             rec[1] = child2States ? this->getStatesOffsetElements(o[5]) : this->getPartialsOffsetElements(o[5]);
             rec[2] = this->getPartialsOffsetElements(o[0]);
@@ -639,7 +639,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::updatePartials(
     flushSpectralDistances();
     if (records > 0)
         this->gpu->MemcpyHostToDevice(dLevelQueue, hLevelQueue,
-                                      sizeof(unsigned int) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
+                                      sizeof(POOL_OFFSET) * (size_t) records * SPECTRAL_LEVEL_QUEUE_STRIDE);
     GPUPtr partialsOrigin = this->getPartialsOrigin();
     GPUPtr statesOrigin   = this->getStatesOrigin() ? this->getStatesOrigin() : partialsOrigin;
     GPUPtr scaleOrigin    = this->getScalingFactorsOriginRaw() ? this->getScalingFactorsOriginRaw() : partialsOrigin;
@@ -1007,9 +1007,9 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             if (hAdjointQueue) gpuIf->FreeHostMemory(hAdjointQueue);
             kAdjointQueueCapacity = count;
             dAdjointQueue = gpuIf->AllocateMemory(
-                sizeof(unsigned int) * kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
-            hAdjointQueue = (unsigned int*) gpuIf->CallocHost(
-                sizeof(unsigned int), kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+                sizeof(POOL_OFFSET) * kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
+            hAdjointQueue = (POOL_OFFSET*) gpuIf->CallocHost(
+                sizeof(POOL_OFFSET), kAdjointQueueCapacity * kAdjointQueueFieldsPerBranch);
         }
 
         // a rescaled branch's scale buffer that is NONE reads the pool's buffer of zeros (index getScaleBufferCount())
@@ -1039,7 +1039,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
             const int ei      = hEigenIndexForMatrix[matIdx];
             const bool isStates  = (this->dStates[postIdx] != 0);
             const bool isAllReal = hEigenDecompIsAllReal[ei];
-            unsigned int* rec = hAdjointQueue + (size_t)(lowRank ? hAdjointQueuePos[i] : i) * kAdjointQueueFieldsPerBranch;
+            POOL_OFFSET* rec = hAdjointQueue + (size_t)(lowRank ? hAdjointQueuePos[i] : i) * kAdjointQueueFieldsPerBranch;
 
             rec[0] = this->getPartialsOffsetElements(preIdx);
             rec[1] = isStates ? this->getStatesOffsetElements(postIdx)
@@ -1065,7 +1065,7 @@ int BeagleGPUSpectralImpl<BEAGLE_GPU_GENERIC>::calculateAdjointCrossProducts(
         }
 
         gpuIf->MemcpyHostToDevice(dAdjointQueue, hAdjointQueue,
-            sizeof(unsigned int) * count * kAdjointQueueFieldsPerBranch);
+            sizeof(POOL_OFFSET) * count * kAdjointQueueFieldsPerBranch);
 
         if (scaledCount > 0)
             this->kernels->AdjointScaledSiteLogLkSpectral(dAdjointSiteLogLk, this->getScalingFactorsOriginRaw(),

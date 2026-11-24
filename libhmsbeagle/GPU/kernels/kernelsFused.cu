@@ -69,7 +69,7 @@ kernelUpPartialsFused(KW_GLOBAL_VAR REAL* partials,
                       KW_GLOBAL_VAR int* KW_RESTRICT states,
                       KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
                       KW_GLOBAL_VAR REAL* scaleFactors,
-                      const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                      const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                       int opCount, int totalPatterns, int matrixCount,
                       int layoutParam, int cumulativeOffset, int fusedFlags) {
     KW_LOCAL_MEM REAL fsPartials1[2][256], fsPartials2[2][256];     /* [op parity][category tile 16 * R] */
@@ -137,7 +137,7 @@ kernelUpPartialsFused(KW_GLOBAL_VAR REAL* partials,
                       KW_GLOBAL_VAR int* KW_RESTRICT states,
                       KW_GLOBAL_VAR REAL* KW_RESTRICT matrices,
                       KW_GLOBAL_VAR REAL* scaleFactors,
-                      const KW_GLOBAL_VAR unsigned int* KW_RESTRICT ptrOffsets,
+                      const KW_GLOBAL_VAR POOL_OFFSET* KW_RESTRICT ptrOffsets,
                       int opCount, int totalPatterns, int matrixCount,
                       int layoutParam, int cumulativeOffset, int fusedFlags) {
     SUM_PARTIALS_PARTIALS_X_DECLARE_GPU()              /* sMatrix1/2, sPartials1/2; states-partials reuses them */
