@@ -171,6 +171,7 @@ enum BeagleFlags {
     BEAGLE_FLAG_FRAMEWORK_OPENCL    = 1 << 23,   /**< Use OpenCL implementation with GPU resources */
     BEAGLE_FLAG_FRAMEWORK_CPU       = 1 << 27,   /**< Use CPU implementation */
     /*  BEAGLE_FLAG_FRAMEWORK_TINYGPU       (1LL << 45), defined after this enum */
+    /*  BEAGLE_FLAG_FRAMEWORK_REMOTE        (1LL << 47), defined after this enum */
 
     BEAGLE_FLAG_PARALLELOPS_STREAMS = 1 << 28,   /**< Operations in updatePartials may be assigned to separate device streams */
     BEAGLE_FLAG_PARALLELOPS_GRID    = 1 << 29    /**< Operations in updatePartials may be folded into single kernel launch (necessary for partitions; typically performs better for problems with fewer pattern sites) */
@@ -213,6 +214,16 @@ enum BeagleFlags {
 
 #define BEAGLE_FLAG_FRAMEWORK_TINYGPU         (1LL << 45) /**< Use TinyGPU USB4/Thunderbolt eGPU implementation */
 #define BEAGLE_FLAG_PARALLELOPS_FUSED         (1LL << 46) /**< TEST: updatePartials makes one kernel launch, with the operation loop inside the kernel (BUILD_FUSED plugins only) */
+
+/**
+ * The instance runs in a beagle-worker process on another machine (the hmsbeagle-remote plugin).
+ *
+ * A remote resource carries this flag next to the flags the worker reports for it, and is only used when it is
+ * named in the resource list given to beagleCreateInstance or this flag is among the preference or requirement
+ * flags. Calls that return nothing are queued and sent with the next call that returns a value, which is also
+ * where an error from a queued call is returned.
+ */
+#define BEAGLE_FLAG_FRAMEWORK_REMOTE          (1LL << 47)
 
 
 /**

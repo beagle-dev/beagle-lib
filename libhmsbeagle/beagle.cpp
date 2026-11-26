@@ -24,6 +24,7 @@
 #include <windows.h>
 #endif
 
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -271,6 +272,20 @@ void beagleLoadPlugins(void) {
         beagle::plugin::Plugin* avxplug = pm.findPlugin("hmsbeagle-cpu-avx");
         plugins->push_back(avxplug);
     }catch(beagle::plugin::SharedLibraryException sle){}
+
+    // The resources of beagle-worker processes on other machines. Loaded last, so that the numbers of the local
+    // resources do not depend on which workers are listed; loaded only when workers are listed, as it is the
+    // listing that gives the plugin anything to contribute
+    const char* remoteHosts = getenv("BEAGLE_REMOTE_HOSTS");
+    if (remoteHosts && *remoteHosts) {
+        try{
+            beagle::plugin::Plugin* remoteplug = pm.findPlugin("hmsbeagle-remote");
+            plugins->push_back(remoteplug);
+        }catch(beagle::plugin::SharedLibraryException sle){
+            std::cerr << "BEAGLE_REMOTE_HOSTS is set but the remote plugin could not be loaded: "
+                      << sle.getError() << std::endl;
+        }
+    }
 }
 
 std::list<beagle::BeagleImplFactory*>* beagleGetFactoryList(void) {
@@ -450,10 +465,16 @@ int filterResources(int* resourceList,
 
     // First determine a list of possible resources
     if (resourceList == NULL || resourceCount == 0) { // No list given
-        for(int i=0; i<rsrcList->length; i++)
+        // A resource on another machine is used only when asked for: by number, or by its flag
+        const bool remoteRequested =
+                ((preferenceFlags | requirementFlags) & BEAGLE_FLAG_FRAMEWORK_REMOTE) != 0;
+        for(int i=0; i<rsrcList->length; i++) {
+            if (!remoteRequested && (rsrcList->list[i].requiredFlags & BEAGLE_FLAG_FRAMEWORK_REMOTE))
+                continue;
             possibleResources->push_back(std::make_pair(
                 scoreFlags(preferenceFlags,rsrcList->list[i].supportFlags), // Score
                 i)); // ID
+        }
     } else {
         for(int i=0; i<resourceCount; i++)
             possibleResources->push_back(std::make_pair(
@@ -496,6 +517,7 @@ int filterResources(int* resourceList,
 
 int rankResourceImplementationPairs(long long preferenceFlags,
                                     long long requirementFlags,
+                                    int firstListedResource,
                                     PairedList* possibleResources,
                                     RsrcImplList* possibleResourceImplementations) {
 
@@ -528,6 +550,9 @@ int rankResourceImplementationPairs(long long preferenceFlags,
                 && ((resourceRequiredFlags & factoryFlags) >= resourceRequiredFlags) // Factory meets resourceFlags
                 && ((requirementFlags & resourceSupportedFlags) >= requirementFlags) // Resource meets requirementFlags
                 && (spectralRequested || !(factoryFlags & BEAGLE_FLAG_SPECTRAL_REPRESENTATION)) // Spectral only if asked
+                // The remote factory claims every flag its workers support, so it is kept to remote resources here
+                && (((factoryFlags & BEAGLE_FLAG_FRAMEWORK_REMOTE) != 0) ==
+                    ((resourceRequiredFlags & BEAGLE_FLAG_FRAMEWORK_REMOTE) != 0))
                 ) {
                 int implementationScore = scoreFlags(preferenceFlags,factoryFlags);
                 // Penalize unrequested factory capabilities so a minimal
@@ -536,6 +561,12 @@ int rankResourceImplementationPairs(long long preferenceFlags,
                 int penalty = 0;
                 for (long long f = unneeded; f; f &= (f - 1)) penalty++;
                 int totalScore = 2 * resourceScore + implementationScore + penalty / 2;
+                // The remote factory stands for whichever implementation the worker will choose, so its flags
+                // say nothing that can be scored against a local implementation. Its place comes from the
+                // caller's resource list instead: tried first if its resource heads the list, and otherwise
+                // only after every local candidate
+                if (factoryFlags & BEAGLE_FLAG_FRAMEWORK_REMOTE)
+                    totalScore = (resource == firstListedResource) ? INT_MIN : INT_MAX;
 #ifdef BEAGLE_DEBUG_FLOW
                 fprintf(stderr,"\tPossible implementation: %s (%d = %d + %d + %d)\n",
                         (*factory)->getName(),totalScore, resourceScore, implementationScore, penalty);
@@ -796,6 +827,7 @@ int beagleCreateInstance(int tipCount,
 
         errorCode = rankResourceImplementationPairs(preferenceFlags,
                                                     requirementFlags,
+                                                    (resourceList != NULL && resourceCount > 0) ? resourceList[0] : -1,
                                                     possibleResources,
                                                     possibleResourceImplementations);
 
