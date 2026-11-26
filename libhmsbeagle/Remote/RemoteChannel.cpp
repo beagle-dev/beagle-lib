@@ -26,9 +26,6 @@ namespace remote {
 
 namespace {
 
-// A message larger than this is taken to be a corrupt length rather than allocated
-const uint64_t kMaxMessageBytes = 1ULL << 36;
-
 #ifdef MSG_NOSIGNAL
 const int kSendFlags = MSG_NOSIGNAL;
 #else
@@ -89,7 +86,7 @@ public:
     virtual bool receive(Buffer& message) {
         uint64_t length = 0;
         if (!receiveBytes(&length, sizeof(length))) return false;
-        if (length > kMaxMessageBytes) return false;
+        if (length > receiveLimit_) return false;
         message.clear();
         message.resize((size_t) length);
         return receiveBytes(message.data(), (size_t) length);
@@ -196,11 +193,10 @@ Channel* connectTcp(const std::string& host, int port, int timeoutMilliseconds, 
     return channel;
 }
 
-TcpListener::~TcpListener() {
-    if (fd_ >= 0) close(fd_);
-}
+namespace {
 
-bool TcpListener::listen(const std::string& address, int port, std::string* error) {
+// A non-blocking socket listening on the address, or -1 with the reason in error
+int openListeningSocket(const std::string& address, int port, std::string* error) {
     char service[16];
     snprintf(service, sizeof(service), "%d", port);
 
@@ -214,23 +210,28 @@ bool TcpListener::listen(const std::string& address, int port, std::string* erro
     int lookup = getaddrinfo(address.empty() ? NULL : address.c_str(), service, &hints, &candidates);
     if (lookup != 0) {
         if (error) *error = gai_strerror(lookup);
-        return false;
+        return -1;
     }
 
     std::string lastError = "no address";
-    for (struct addrinfo* candidate = candidates; candidate != NULL && fd_ < 0; candidate = candidate->ai_next) {
+    int listening = -1;
+    for (struct addrinfo* candidate = candidates; candidate != NULL && listening < 0; candidate = candidate->ai_next) {
         int fd = socket(candidate->ai_family, candidate->ai_socktype, candidate->ai_protocol);
         if (fd < 0) {
             lastError = strerror(errno);
             continue;
         }
         int on = 1;
-        int off = 0;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-        if (candidate->ai_family == AF_INET6) // one socket for IPv4 and IPv6 clients
-            setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
-        if (bind(fd, candidate->ai_addr, candidate->ai_addrlen) == 0 && ::listen(fd, 64) == 0) {
-            fd_ = fd;
+        if (candidate->ai_family == AF_INET6) {
+            // every interface: one socket for IPv4 and IPv6 clients. One address: that address and no other
+            int v6Only = address.empty() ? 0 : 1;
+            setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6Only, sizeof(v6Only));
+        }
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (bind(fd, candidate->ai_addr, candidate->ai_addrlen) == 0 && ::listen(fd, 64) == 0 &&
+            flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0) {
+            listening = fd;
         } else {
             lastError = strerror(errno);
             close(fd);
@@ -238,23 +239,77 @@ bool TcpListener::listen(const std::string& address, int port, std::string* erro
     }
     freeaddrinfo(candidates);
 
-    if (fd_ < 0 && error) *error = lastError;
-    return fd_ >= 0;
+    if (listening < 0 && error) *error = lastError;
+    return listening;
 }
 
-Channel* TcpListener::accept(std::string* peer) {
-    for (;;) {
+} // anonymous namespace
+
+TcpListener::~TcpListener() {
+    for (std::map<std::string, int>::iterator it = sockets_.begin(); it != sockets_.end(); ++it)
+        close(it->second);
+}
+
+void TcpListener::listenOn(const std::vector<std::string>& addresses, int port, std::string* error) {
+    for (std::map<std::string, int>::iterator it = sockets_.begin(); it != sockets_.end();) {
+        bool wanted = false;
+        for (size_t i = 0; i < addresses.size() && !wanted; i++) wanted = (addresses[i] == it->first);
+        if (wanted) {
+            ++it;
+        } else {
+            close(it->second);
+            sockets_.erase(it++);
+        }
+    }
+
+    for (size_t i = 0; i < addresses.size(); i++) {
+        if (sockets_.count(addresses[i])) continue;
+        std::string reason;
+        int fd = openListeningSocket(addresses[i], port, &reason);
+        if (fd >= 0)
+            sockets_[addresses[i]] = fd;
+        else if (error)
+            *error = (addresses[i].empty() ? std::string("*") : addresses[i]) + ": " + reason;
+    }
+}
+
+std::vector<std::string> TcpListener::addresses() const {
+    std::vector<std::string> listening;
+    for (std::map<std::string, int>::const_iterator it = sockets_.begin(); it != sockets_.end(); ++it)
+        listening.push_back(it->first);
+    return listening;
+}
+
+Channel* TcpListener::accept(std::string* peer, int timeoutMilliseconds) {
+    std::vector<struct pollfd> waiting;
+    for (std::map<std::string, int>::const_iterator it = sockets_.begin(); it != sockets_.end(); ++it) {
+        struct pollfd entry;
+        entry.fd = it->second;
+        entry.events = POLLIN;
+        entry.revents = 0;
+        waiting.push_back(entry);
+    }
+
+    int ready = poll(waiting.empty() ? NULL : &waiting[0], (nfds_t) waiting.size(), timeoutMilliseconds);
+    if (ready <= 0) return NULL; // nobody in time, or a signal: the caller comes round again
+
+    for (size_t i = 0; i < waiting.size(); i++) {
+        if (!(waiting[i].revents & POLLIN)) continue;
         struct sockaddr_storage address;
         socklen_t length = sizeof(address);
-        int fd = ::accept(fd_, (struct sockaddr*) &address, &length);
-        if (fd < 0) {
-            if (errno == EINTR || errno == ECONNABORTED) continue;
-            return NULL;
+        int fd = ::accept(waiting[i].fd, (struct sockaddr*) &address, &length);
+        if (fd < 0) continue; // the client gave up between poll and accept
+        // an accepted socket can inherit the listening one's non-blocking mode; the channel wants to block
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) < 0) {
+            close(fd);
+            continue;
         }
         configureSocket(fd);
         if (peer) *peer = describeAddress((struct sockaddr*) &address, length);
         return new TcpChannel(fd);
     }
+    return NULL;
 }
 
 } // namespace remote

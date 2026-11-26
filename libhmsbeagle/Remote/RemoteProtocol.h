@@ -6,8 +6,14 @@
  * machine that does the computing).
  *
  * A connection carries messages; the channel (RemoteChannel.h) keeps their boundaries. The first exchange is a
- * hello: the client sends kMagic and kProtocolVersion, the worker answers with the same two and its resource
- * list. Every later request is a batch of commands, each an opcode followed by its arguments, and every batch
+ * hello of two round trips:
+ *
+ *     client  kMagic, kProtocolVersion, client nonce
+ *     worker  kMagic, kProtocolVersion, whether it requires a secret (0 or 1), worker nonce
+ *     client  its proof that it knows the secret (RemoteAuth.h), or an empty string if it has none
+ *     worker  0 and its own proof and its resource list; or 1, if it refuses the client
+ *
+ * Every later request is a batch of commands, each an opcode followed by its arguments, and every batch
  * gets one response:
  *
  *     i64 deferredError   first non-zero return code of the commands before the last one (0 if none)
@@ -36,7 +42,7 @@ namespace beagle {
 namespace remote {
 
 static const int64_t kMagic = 0x42474c52454d4f54LL; // "BGLREMOT"
-static const int64_t kProtocolVersion = 1;
+static const int64_t kProtocolVersion = 2;
 static const int kDefaultPort = 4780;
 
 /** Environment variable listing the workers: host[:port],host[:port],... */

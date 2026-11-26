@@ -5,6 +5,8 @@ set(BEAGLE_REMOTE_COMMON
         RemoteProtocol.h
         RemoteChannel.h
         RemoteChannel.cpp
+        RemoteAuth.h
+        RemoteAuth.cpp
         )
 
 add_library(hmsbeagle-remote SHARED
@@ -32,10 +34,18 @@ find_package(Threads REQUIRED)
 
 add_executable(beagle-worker
         worker/BeagleWorker.cpp
+        worker/LinkAddresses.h
+        worker/LinkAddresses.cpp
         ${BEAGLE_REMOTE_COMMON}
         )
 
 target_link_libraries(beagle-worker hmsbeagle Threads::Threads)
+
+# finding which network interfaces are Thunderbolt links
+if(APPLE)
+    target_link_libraries(beagle-worker "-framework CoreFoundation" "-framework IOKit"
+                          "-framework SystemConfiguration")
+endif()
 
 install(TARGETS beagle-worker
     DESTINATION bin

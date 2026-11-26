@@ -10,8 +10,10 @@
  * Each connection has its own thread and owns at most one instance, which is finalized when the connection
  * closes, however it closes.
  *
- * The worker does what any client that can connect asks of it, without authentication: listen on an interface
- * that only the machines of the cluster can reach (--bind).
+ * Who can use the worker is limited in two ways. Unless told otherwise (--bind) it listens only on this machine's
+ * Thunderbolt links and loopback addresses, so that a client has to be on the other end of a cable. And if it
+ * is given a secret, a client has to show that it knows the same one (RemoteAuth.h); listening anywhere else
+ * requires one.
  */
 
 #include <cstdio>
@@ -19,22 +21,32 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <set>
 #include <shared_mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include <signal.h>
+#include <unistd.h>
 
 #include "libhmsbeagle/beagle.h"
+#include "libhmsbeagle/Remote/RemoteAuth.h"
 #include "libhmsbeagle/Remote/RemoteChannel.h"
 #include "libhmsbeagle/Remote/RemoteProtocol.h"
+#include "libhmsbeagle/Remote/worker/LinkAddresses.h"
 
 using namespace beagle::remote;
 
 namespace {
 
 bool verbose = false;
+
+// What a client must show it knows before it is served; empty if this worker asks for nothing
+std::string secret;
+
+// The hello is a few hundred bytes. Nothing larger is read from a client that has not finished it.
+const uint64_t kHelloLimitBytes = 4096;
 
 // beagleCreateInstance and beagleFinalizeInstance change the library's table of instances, which every other
 // call reads: they exclude all other calls, which otherwise run concurrently, one thread per instance
@@ -485,26 +497,52 @@ void serve(Channel* channel, std::string peer) {
     size_t batches = 0;
 
     try {
+        channel->limitReceive(kHelloLimitBytes);
         if (!channel->receive(request)) throw ProtocolError("closed before hello");
         {
             Reader hello(request);
             if (hello.i64() != kMagic) throw ProtocolError("not a BEAGLE client");
-            int64_t version = hello.i64();
+            if (hello.i64() != kProtocolVersion) {
+                // answered, so that the client can say what is wrong
+                response.putI64(kMagic);
+                response.putI64(kProtocolVersion);
+                channel->send(response);
+                throw ProtocolError("client speaks another protocol version");
+            }
+            std::string clientNonce = hello.string();
+            if (clientNonce.size() != kNonceBytes) throw ProtocolError("malformed hello");
+            std::string workerNonce = randomNonce();
 
-            // answered even on a version mismatch, so that the client can say what is wrong
             response.putI64(kMagic);
             response.putI64(kProtocolVersion);
-            BeagleResourceList* resources = beagleGetResourceList();
-            response.putI64(resources->length);
-            for (int i = 0; i < resources->length; i++) {
-                response.putString(resources->list[i].name ? resources->list[i].name : "");
-                response.putString(resources->list[i].description ? resources->list[i].description : "");
-                response.putI64(resources->list[i].supportFlags);
-                response.putI64(resources->list[i].requiredFlags);
+            response.putI64(secret.empty() ? 0 : 1);
+            response.putString(workerNonce);
+            if (!channel->send(response)) throw ProtocolError("closed during hello");
+
+            if (!channel->receive(request)) throw ProtocolError("closed during hello");
+            Reader proof(request);
+            bool known = secret.empty() ||
+                         sameBytes(proof.string(), proofOfSecret(secret, "client", clientNonce, workerNonce));
+
+            // the resource list, and this worker's own proof, only for a client that knows the secret
+            response.clear();
+            response.putI64(known ? 0 : 1);
+            if (known) {
+                response.putString(secret.empty() ? std::string()
+                                                  : proofOfSecret(secret, "worker", clientNonce, workerNonce));
+                BeagleResourceList* resources = beagleGetResourceList();
+                response.putI64(resources->length);
+                for (int i = 0; i < resources->length; i++) {
+                    response.putString(resources->list[i].name ? resources->list[i].name : "");
+                    response.putString(resources->list[i].description ? resources->list[i].description : "");
+                    response.putI64(resources->list[i].supportFlags);
+                    response.putI64(resources->list[i].requiredFlags);
+                }
             }
             if (!channel->send(response)) throw ProtocolError("closed during hello");
-            if (version != kProtocolVersion) throw ProtocolError("client speaks another protocol version");
+            if (!known) throw ProtocolError("client does not have the secret");
         }
+        channel->limitReceive(Channel::kMaxMessageBytes);
 
         while (channel->receive(request)) {
             Reader in(request);
@@ -551,37 +589,76 @@ void serve(Channel* channel, std::string peer) {
 }
 
 void usage() {
-    std::cerr << "Usage: beagle-worker [--port <port>] [--bind <address>] [--verbose]\n"
+    std::cerr << "Usage: beagle-worker [--port <port>] [--bind <address>]... [--secret-file <file>]\n"
+              << "                     [--allow-unauthenticated] [--verbose]\n"
               << "\n"
               << "Lends this machine's BEAGLE resources to clients on other machines. On the client, name\n"
               << "this worker in the environment variable " << kHostsVariable << " (host[:port],host[:port],...);\n"
               << "its resources then appear in the client's BEAGLE resource list.\n"
               << "\n"
-              << "  --port <port>     port to listen on (default " << kDefaultPort << ")\n"
-              << "  --bind <address>  address to listen on (default: every interface). The worker does not\n"
-              << "                    authenticate its clients: bind to an interface that only the machines\n"
-              << "                    of the cluster can reach.\n"
-              << "  --verbose         report each instance as it is created and finalized\n";
+              << "  --port <port>         port to listen on (default " << kDefaultPort << ")\n"
+              << "  --bind <address>      listen on this address instead of the default, which is this\n"
+              << "                        machine's Thunderbolt links and loopback addresses only. 'any' is\n"
+              << "                        every interface. Needs a secret. May be given more than once.\n"
+              << "  --secret-file <file>  serve only clients that know the secret in this file, which only\n"
+              << "                        its owner may be able to read. The client is given the same secret\n"
+              << "                        in " << kSecretFileVariable << " or " << kSecretVariable << ", which\n"
+              << "                        this worker also reads if there is no --secret-file.\n"
+              << "  --allow-unauthenticated\n"
+              << "                        let --bind be used without a secret: anyone who can reach the\n"
+              << "                        address can then use this machine\n"
+              << "  --verbose             report each instance as it is created and finalized\n"
+              << "\n"
+              << "The secret says who may connect. It does not encrypt the connection.\n";
+}
+
+std::string join(const std::vector<std::string>& items) {
+    std::string text;
+    for (size_t i = 0; i < items.size(); i++) text += (i ? ", " : "") + (items[i].empty() ? "*" : items[i]);
+    return text.empty() ? "nothing" : text;
 }
 
 } // anonymous namespace
 
 int main(int argc, char** argv) {
     int port = kDefaultPort;
-    std::string address;
+    std::vector<std::string> bound;
+    std::string secretFile;
+    bool allowUnauthenticated = false;
 
     for (int i = 1; i < argc; i++) {
         std::string argument = argv[i];
         if (argument == "--port" && i + 1 < argc) {
             port = atoi(argv[++i]);
         } else if (argument == "--bind" && i + 1 < argc) {
-            address = argv[++i];
+            std::string address = argv[++i];
+            bound.push_back(address == "any" ? "" : address);
+        } else if (argument == "--secret-file" && i + 1 < argc) {
+            secretFile = argv[++i];
+        } else if (argument == "--allow-unauthenticated") {
+            allowUnauthenticated = true;
         } else if (argument == "--verbose") {
             verbose = true;
         } else {
             usage();
             return (argument == "--help" || argument == "-h") ? 0 : 1;
         }
+    }
+
+    std::string error;
+    if (!(secretFile.empty() ? secretFromEnvironment(&secret, &error) : readSecretFile(secretFile, &secret, &error))) {
+        std::cerr << "beagle-worker: " << error << std::endl;
+        return 1;
+    }
+    // the instances' threads and plugins have no need of it
+    unsetenv(kSecretVariable);
+    unsetenv(kSecretFileVariable);
+
+    bool cableOnly = bound.empty();
+    if (!cableOnly && secret.empty() && !allowUnauthenticated) {
+        std::cerr << "beagle-worker: --bind needs a secret (--secret-file), since anyone who can reach the\n"
+                  << "address could otherwise use this machine. --allow-unauthenticated overrides this." << std::endl;
+        return 1;
     }
 
     // a client that disappears is found by its connection failing, not by a signal
@@ -594,25 +671,55 @@ int main(int argc, char** argv) {
     BeagleResourceList* resources = beagleGetResourceList();
 
     TcpListener listener;
-    std::string error;
-    if (!listener.listen(address, port, &error)) {
-        std::cerr << "beagle-worker: cannot listen on " << (address.empty() ? "*" : address) << ":" << port
-                  << " (" << error << ")" << std::endl;
-        return 1;
+    std::vector<std::string> listening;
+    if (cableOnly) {
+        listener.listenOn(linkAddresses(thunderboltInterfaces()), port, NULL);
+        listening = listener.addresses();
+    } else {
+        listener.listenOn(bound, port, &error);
+        listening = listener.addresses();
+        if (listening.size() != bound.size()) {
+            std::cerr << "beagle-worker: cannot listen on port " << port << " of " << error << std::endl;
+            return 1;
+        }
     }
 
-    std::cerr << "beagle-worker (BEAGLE " << beagleGetVersion() << ") listening on "
-              << (address.empty() ? "*" : address) << ":" << port << ", lending:" << std::endl;
+    std::cerr << "beagle-worker (BEAGLE " << beagleGetVersion() << "), port " << port << ", lending:" << std::endl;
     for (int i = 0; i < resources->length; i++)
         std::cerr << "  " << i << " : " << resources->list[i].name << std::endl;
+    std::cerr << (secret.empty() ? "Serving any client that can connect (no secret)."
+                                 : "Serving only clients that know the secret.") << std::endl;
+    if (cableOnly) {
+        if (canFindThunderboltInterfaces()) {
+            std::set<std::string> links = thunderboltInterfaces();
+            std::cerr << "Listening only on loopback and Thunderbolt links ("
+                      << join(std::vector<std::string>(links.begin(), links.end()))
+                      << "); their addresses are picked up as cables are connected." << std::endl;
+        } else
+            std::cerr << "Listening only on loopback: Thunderbolt links cannot be identified on this system.\n"
+                      << "Use --bind with a secret to serve other machines." << std::endl;
+    }
+    std::cerr << "Listening on: " << join(listening) << std::endl;
 
     for (;;) {
         std::string peer;
-        Channel* channel = listener.accept(&peer);
-        if (channel == NULL) {
-            std::cerr << "beagle-worker: accept failed" << std::endl;
+        // in cable-only mode, come round every two seconds to see whether a link has come or gone
+        Channel* channel = listener.accept(&peer, cableOnly ? 2000 : -1);
+        if (channel != NULL) {
+            std::thread(serve, channel, peer).detach();
+            continue;
+        }
+        if (listener.addresses().empty() && !cableOnly) {
+            std::cerr << "beagle-worker: no longer listening" << std::endl;
             return 1;
         }
-        std::thread(serve, channel, peer).detach();
+        if (cableOnly) {
+            listener.listenOn(linkAddresses(thunderboltInterfaces()), port, NULL);
+            std::vector<std::string> now = listener.addresses();
+            if (now != listening) {
+                listening = now;
+                std::cerr << "Listening on: " << join(listening) << std::endl;
+            }
+        }
     }
 }

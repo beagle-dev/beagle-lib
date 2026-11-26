@@ -7,6 +7,8 @@
 
 #include <iostream>
 
+#include "libhmsbeagle/Remote/RemoteAuth.h"
+
 namespace beagle {
 namespace remote {
 
@@ -26,15 +28,42 @@ Channel* openWorker(const std::string& host, int port, int timeoutMilliseconds,
     if (channel == NULL) return NULL;
 
     try {
+        std::string secret;
+        std::string secretError;
+        if (!secretFromEnvironment(&secret, &secretError)) throw ProtocolError(secretError);
+
+        std::string clientNonce = randomNonce();
         Buffer hello;
         hello.putI64(kMagic);
         hello.putI64(kProtocolVersion);
+        hello.putString(clientNonce);
         Buffer answer;
         if (!channel->send(hello) || !channel->receive(answer)) throw ProtocolError("connection closed");
 
+        Reader challenge(answer);
+        if (challenge.i64() != kMagic) throw ProtocolError("not a beagle-worker");
+        if (challenge.i64() != kProtocolVersion)
+            throw ProtocolError("beagle-worker speaks another protocol version");
+        bool secretRequired = challenge.i64() != 0;
+        std::string workerNonce = challenge.string();
+        if (workerNonce.size() != kNonceBytes) throw ProtocolError("malformed hello");
+
+        if (secretRequired && secret.empty())
+            throw ProtocolError(std::string("the worker requires a secret: set ") + kSecretFileVariable + " or " +
+                                kSecretVariable);
+        // a worker that asks for no secret cannot show that it is the one meant, and would be sent the data
+        if (!secretRequired && !secret.empty())
+            throw ProtocolError("a secret is set here but the worker was started without one");
+
+        Buffer proof;
+        proof.putString(secret.empty() ? std::string() : proofOfSecret(secret, "client", clientNonce, workerNonce));
+        if (!channel->send(proof) || !channel->receive(answer)) throw ProtocolError("connection closed");
+
         Reader reader(answer);
-        if (reader.i64() != kMagic) throw ProtocolError("not a beagle-worker");
-        if (reader.i64() != kProtocolVersion) throw ProtocolError("beagle-worker speaks another protocol version");
+        if (reader.i64() != 0) throw ProtocolError("the worker has a different secret");
+        std::string workerProof = reader.string();
+        if (!secret.empty() && !sameBytes(workerProof, proofOfSecret(secret, "worker", clientNonce, workerNonce)))
+            throw ProtocolError("the worker does not know the secret");
 
         size_t resourceCount = reader.count();
         for (size_t i = 0; i < resourceCount; i++) {

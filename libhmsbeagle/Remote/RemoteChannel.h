@@ -15,7 +15,9 @@
 #ifndef __BEAGLE_REMOTE_CHANNEL_H__
 #define __BEAGLE_REMOTE_CHANNEL_H__
 
+#include <map>
 #include <string>
+#include <vector>
 
 #include "libhmsbeagle/Remote/RemoteProtocol.h"
 
@@ -24,13 +26,26 @@ namespace remote {
 
 class Channel {
 public:
+    Channel() : receiveLimit_(kMaxMessageBytes) {}
     virtual ~Channel() {}
+
+    /** A message larger than this is taken to be a corrupt length rather than allocated. */
+    static const uint64_t kMaxMessageBytes = 1ULL << 36;
+
+    /**
+     * Makes receive() fail on a message longer than this. A worker keeps the limit small until its client has
+     * shown that it knows the secret.
+     */
+    void limitReceive(uint64_t bytes) { receiveLimit_ = bytes; }
 
     /** Sends one message. False if the link has failed; the channel is then unusable. */
     virtual bool send(const Buffer& message) = 0;
 
     /** Receives one message, replacing the buffer's contents. False if the link has failed or was closed. */
     virtual bool receive(Buffer& message) = 0;
+
+protected:
+    uint64_t receiveLimit_;
 };
 
 /**
@@ -38,20 +53,36 @@ public:
  */
 Channel* connectTcp(const std::string& host, int port, int timeoutMilliseconds, std::string* error);
 
-/** Accepts TCP connections from clients. */
+/**
+ * Accepts TCP connections from clients, on a set of addresses that can change while it runs (the address of a
+ * Thunderbolt link exists only while its cable is connected).
+ */
 class TcpListener {
 public:
-    TcpListener() : fd_(-1) {}
+    TcpListener() {}
     ~TcpListener();
 
-    /** Listens on an address ("" for every interface) and port. False, with the reason in error, on failure. */
-    bool listen(const std::string& address, int port, std::string* error);
+    /**
+     * Makes the addresses listened on those given: opens the ones that are new and closes the ones no longer
+     * listed. An address is numeric or a host name; "" is every interface. One that cannot be listened on is
+     * left out, with the reason in error, and is tried again at the next call.
+     */
+    void listenOn(const std::vector<std::string>& addresses, int port, std::string* error);
 
-    /** Waits for a client. Returns its channel and, in peer, its address; NULL if the listener has failed. */
-    Channel* accept(std::string* peer);
+    /** The addresses being listened on. */
+    std::vector<std::string> addresses() const;
+
+    /**
+     * Waits for a client for up to the timeout (-1 for ever). Returns its channel and, in peer, its address;
+     * NULL if none came in time.
+     */
+    Channel* accept(std::string* peer, int timeoutMilliseconds);
 
 private:
-    int fd_;
+    TcpListener(const TcpListener&);
+    TcpListener& operator=(const TcpListener&);
+
+    std::map<std::string, int> sockets_; // by address
 };
 
 } // namespace remote
